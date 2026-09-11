@@ -100,6 +100,9 @@ export interface TelegramToolContext {
   telegramUserId: string;
   enabledFunctions: Set<string>;
   knowledgeFiles: Array<{ name: string; storagePath: string }>;
+  contactPhone?: string | null;
+  leadId?: string | null;
+  dryRun?: boolean;
 }
 
 @Injectable()
@@ -136,11 +139,11 @@ export class TelegramAiToolsService {
     try {
       switch (name) {
         case 'booking_check_availability':
-          return { ok: true, result: await this.checkAvailability(ctx.tenantId, String(args.serviceName || '')) };
+          return { ok: true, result: await this.checkAvailability(ctx.tenantId, String(args.serviceName || ''), String(args.after || '')) };
         case 'sale_read':
-          return { ok: true, result: await this.readSale(ctx.tenantId, String(args.phone || '')) };
+          return { ok: true, result: await this.readSale(ctx.tenantId, String(args.phone || ctx.contactPhone || '')) };
         case 'helpdesk_ticket_read':
-          return { ok: true, result: await this.readTickets(ctx.tenantId, String(args.phone || '')) };
+          return { ok: true, result: await this.readTickets(ctx.tenantId, String(args.phone || ctx.contactPhone || '')) };
         case 'file_send':
           return { ok: true, result: await this.sendFile(ctx, String(args.fileName || '')) };
         default:
@@ -152,32 +155,84 @@ export class TelegramAiToolsService {
     }
   }
 
-  private async checkAvailability(tenantId: string, serviceName: string): Promise<string> {
+  private hasCalendarDate(value: string): boolean {
+    return /(?:^|\D)\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?(?:\D|$)/.test(value || '');
+  }
+
+  private parseAvailabilityStart(after: string): Date {
+    const now = new Date();
+    const text = String(after || '').toLowerCase();
+    const start = new Date(now);
+
+    if (text.includes('послезавтра')) start.setDate(start.getDate() + 2);
+    else if (text.includes('завтра')) start.setDate(start.getDate() + 1);
+
+    const dateMatch = text.match(/(?:^|\D)(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?(?:\D|$)/);
+    if (dateMatch) {
+      const day = Number(dateMatch[1]);
+      const month = Number(dateMatch[2]);
+      const rawYear = dateMatch[3] ? Number(dateMatch[3]) : now.getFullYear();
+      const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+      start.setFullYear(year, month - 1, day);
+      start.setHours(0, 0, 0, 0);
+      if (start.getTime() < now.getTime() - 24 * 60 * 60_000 && !dateMatch[3]) {
+        start.setFullYear(start.getFullYear() + 1);
+      }
+    }
+
+    const textForTime = dateMatch ? text.replace(dateMatch[0], ' ') : text;
+    const timeMatch = textForTime.match(/(?:^|\D)(\d{1,2})(?::|ч\s*)(\d{2})?(?:\D|$)/);
+    if (timeMatch && !dateMatch) {
+      start.setHours(Number(timeMatch[1]), Number(timeMatch[2] || 0), 0, 0);
+    } else if (timeMatch && dateMatch) {
+      start.setHours(Number(timeMatch[1]), Number(timeMatch[2] || 0), 0, 0);
+    }
+
+    return start;
+  }
+
+  private async checkAvailability(tenantId: string, serviceName: string, after = ''): Promise<string> {
     const services = await this.bookingsCatalog.listServices(tenantId).catch(() => [] as any[]);
-    const service = services.find((s: any) => String(s.name || '').toLowerCase().includes(serviceName.toLowerCase()));
-    if (!service) return `Услуга «${serviceName}» не найдена в каталоге. Уточните название у клиента.`;
+    const normalized = serviceName.toLowerCase().trim();
+    const activeServices = services.filter((s: any) => s.active !== false);
+    if (!normalized || ['все', 'all', 'any', 'любая', 'любой'].includes(normalized) || normalized.includes('все услуг')) {
+      const names = activeServices.slice(0, 12).map((s: any) => s.name).filter(Boolean).join(', ');
+      return names
+        ? `Для проверки записи нужно выбрать конкретную услугу. Доступные услуги: ${names}.`
+        : 'Каталог услуг пуст — передайте диалог сотруднику.';
+    }
+
+    const service = activeServices.find((s: any) => {
+      const name = String(s.name || '').toLowerCase();
+      return name === normalized || name.includes(normalized) || normalized.includes(name);
+    });
+    if (!service) {
+      const names = activeServices.slice(0, 12).map((s: any) => s.name).filter(Boolean).join(', ');
+      return `Услуга «${serviceName}» не найдена в каталоге.${names ? ` Доступные услуги: ${names}.` : ''}`;
+    }
 
     const durationMin = Number(service.durationMinutes || 60);
     const found: string[] = [];
-    const now = new Date();
-    for (let day = 0; day < 7 && found.length < 6; day++) {
-      const base = new Date(now);
+    const startFrom = this.parseAvailabilityStart(after);
+    const searchDays = this.hasCalendarDate(after) ? 1 : 7;
+    for (let day = 0; day < searchDays && found.length < 6; day++) {
+      const base = new Date(startFrom);
       base.setDate(base.getDate() + day);
       for (let hour = 9; hour < 20 && found.length < 6; hour++) {
         for (const min of [0, 30]) {
           const startAt = new Date(base);
           startAt.setHours(hour, min, 0, 0);
-          if (startAt <= now) continue;
+          if (startAt < startFrom) continue;
           const endAt = new Date(startAt.getTime() + durationMin * 60_000);
           const check = await this.bookingsAvailability.inspectSlot(tenantId, { startAt, endAt }).catch(() => ({ ok: false }) as any);
           if (check.ok) {
-            found.push(startAt.toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
+            found.push(startAt.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }));
             if (found.length >= 6) break;
           }
         }
       }
     }
-    if (!found.length) return `Свободных окон на ближайшую неделю для «${service.name}» не нашлось.`;
+    if (!found.length) return `Свободных окон для «${service.name}»${after ? ` по запросу «${after}»` : ' на ближайшую неделю'} не нашлось.`;
     return `Свободно для «${service.name}» (${durationMin} мин): ${found.join(', ')}.`;
   }
 
@@ -201,10 +256,11 @@ export class TelegramAiToolsService {
   private async sendFile(ctx: TelegramToolContext, fileName: string): Promise<string> {
     const file = ctx.knowledgeFiles.find((f) => f.name.toLowerCase() === fileName.toLowerCase());
     if (!file) return `Файл «${fileName}» не настроен в базе знаний этого бота.`;
+    if (ctx.dryRun) return `Файл «${file.name}» был бы отправлен клиенту.`;
     try {
       const fs = await import('fs/promises');
       const buf = await fs.readFile(file.storagePath);
-      await this.telegramCrm().sendDocumentFromBuffer(ctx.tenantId, ctx.botId, ctx.telegramUserId, file.name, buf);
+      await this.telegramCrm().sendDocumentFromBuffer(ctx.tenantId, ctx.botId, ctx.telegramUserId, file.name, buf, undefined, { source: 'ai', meta: { tool: 'file_send' } });
       return `Файл «${file.name}» отправлен клиенту.`;
     } catch (err: any) {
       return `Не удалось отправить файл «${fileName}»: ${err.message}`;

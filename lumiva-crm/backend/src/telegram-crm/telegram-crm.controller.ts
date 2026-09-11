@@ -10,7 +10,9 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { TelegramCrmService } from './telegram-crm.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
@@ -165,12 +167,12 @@ export class TelegramCrmController {
   async setWebhook(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: { webhookUrl: string },
+    @Body() body: { webhookUrl?: string },
   ) {
     await this.telegramCrmService.setWebhook(
       user.tenantId,
       id,
-      body.webhookUrl,
+      body?.webhookUrl,
     );
     return { success: true };
   }
@@ -258,6 +260,24 @@ export class TelegramCrmController {
     });
   }
 
+  @Get('messages/:id/attachment')
+  @RequirePermission('telegram', 'read')
+  async getAttachment(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('index') index: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType } = await this.telegramCrmService.fetchAttachmentFile(
+      user.tenantId,
+      id,
+      index ? parseInt(index, 10) : 0,
+    );
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buffer);
+  }
+
   @Post('send')
   @RequirePermission('telegram', 'write')
   async sendMessage(
@@ -286,4 +306,3 @@ export class TelegramCrmController {
     );
   }
 }
-

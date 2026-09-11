@@ -53,15 +53,39 @@ interface FlowState {
 
 export interface TraceStep { step: string; detail: string; ms: number }
 
+interface SentTelegramMessage {
+  result: any;
+  text: string;
+  parseMode: 'HTML' | 'plain';
+}
+
+type OutgoingSource = 'manual' | 'ai' | 'flow' | 'system';
+
 const DEFAULT_STOP_WORDS = ['жалоба', 'суд', 'верните деньги', 'обман', 'разводилово'];
 
 const TG_MSG_LIMIT = 4000;
 const EXTERNAL_HISTORY_MAX = 16;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TELEGRAM_SECRET_RE = /^[A-Za-z0-9_-]{1,256}$/;
 
 // ── Markdown → Telegram HTML ─────────────────────────────────────────────────
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function plainFromHtml(html: string): string {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
 }
 
 export function mdToHtml(md: string): string {
@@ -212,6 +236,22 @@ export class TelegramCrmService {
     return this.botRepo.findOne({ where: { botToken } });
   }
 
+  async findBotByWebhookKey(webhookKey: string): Promise<TelegramBot | null> {
+    const key = (webhookKey || '').trim();
+    if (!key) return null;
+    if (UUID_RE.test(key)) return this.botRepo.findOne({ where: { id: key } });
+    return this.findBotByToken(key);
+  }
+
+  isWebhookRequestAuthorized(bot: TelegramBot, secretToken?: string): boolean {
+    const configured =
+      typeof bot.meta?.telegramWebhookSecret === 'string'
+        ? bot.meta.telegramWebhookSecret
+        : '';
+    if (!configured) return true;
+    return secretToken === configured;
+  }
+
   async findBot(tenantId: string, id: string): Promise<TelegramBot> {
     const bot = await this.botRepo.findOne({ where: { id, tenantId } });
     if (!bot) throw new NotFoundException('Telegram bot not found');
@@ -295,15 +335,17 @@ export class TelegramCrmService {
     return this.toPublicBot(saved);
   }
 
-  async setWebhook(tenantId: string, botId: string, webhookUrl: string): Promise<void> {
+  async setWebhook(tenantId: string, botId: string, webhookUrl?: string): Promise<void> {
     const bot = await this.findBot(tenantId, botId);
+    const resolvedWebhookUrl = this.resolveWebhookUrl(bot, webhookUrl);
+    const secretToken = this.ensureWebhookSecret(bot);
     try {
       const response = await axios.post(
         `https://api.telegram.org/bot${bot.botToken}/setWebhook`,
-        { url: webhookUrl },
+        { url: resolvedWebhookUrl, secret_token: secretToken },
       );
       if (!response.data.ok) throw new Error(response.data.description || 'Failed');
-      bot.webhookUrl = webhookUrl;
+      bot.webhookUrl = resolvedWebhookUrl;
       bot.webhookSetAt = new Date();
       bot.status = 'active';
       bot.lastError = null;
@@ -586,34 +628,41 @@ export class TelegramCrmService {
   ): Promise<void> {
     if (!text.trim()) return;
 
+    const meta = (contact.meta || {}) as any;
+    const pausedUntil = meta.aiPausedUntil || meta.flow?.pausedUntil;
+    if (pausedUntil && new Date(pausedUntil).getTime() > Date.now()) return;
+
     await this.sendTyping(bot.botToken, chatId);
 
     try {
-      const persona = bot.welcomeMessage?.trim() || 'Помогай клиентам с вопросами, будь дружелюбным и краткими.';
-      const now = new Date().toISOString().slice(0, 10);
-      const systemPrompt = `${persona}\n\nТекущая дата: ${now}. Отвечай на языке пользователя.`;
+      const state = {
+        flowId: 'freeform',
+        nodeId: 'ai',
+        collected: meta.freeformAiState?.collected || {},
+        visited: meta.freeformAiState?.visited || [],
+        recentMessages: meta.freeformAiState?.recentMessages || [],
+      } as FlowState;
 
-      // Restore conversation history from contact meta
-      const meta = (contact.meta || {}) as any;
-      const history: { role: string; content: string }[] = Array.isArray(meta.aiChat)
-        ? meta.aiChat.slice(-EXTERNAL_HISTORY_MAX)
-        : [];
-
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: text },
-      ] as any[];
-
-      const result = await this.oai().chatCompletion({ messages });
-      const reply = (result.message.content || '').trim();
-
-      // Save updated history
-      const newHistory = [...history, { role: 'user', content: text }, { role: 'assistant', content: reply }];
-      contact.meta = { ...(contact.meta || {}), aiChat: newHistory.slice(-EXTERNAL_HISTORY_MAX) };
+      const { reply, escalate, escalateReason } = await this.runAiTurn(bot, contact, state, text, false);
+      contact.meta = { ...(contact.meta || {}), freeformAiState: state };
       await this.contactRepo.save(contact);
 
-      await this.sendTgHtml(bot.botToken, chatId, mdToHtml(reply));
+      if (reply) {
+        await this.sendExternalHtml(bot, contact, chatId, mdToHtml(reply), 'ai', { mode: 'freeform' });
+      }
+      if (escalate) {
+        await this.escalateToHuman(bot, contact, undefined, undefined, escalateReason || 'модель запросила передачу', false);
+        if (!reply) {
+          await this.sendExternalHtml(
+            bot,
+            contact,
+            chatId,
+            'Передаю вас сотруднику — он ответит вам здесь в ближайшее время.',
+            'ai',
+            { mode: 'freeform', handoff: true },
+          );
+        }
+      }
     } catch (err: any) {
       this.log.error(`External AI TG error: ${err.message}`);
       // Silently fail for external users to avoid confusing messages
@@ -663,18 +712,23 @@ export class TelegramCrmService {
     }).catch(() => undefined);
   }
 
-  private async sendTgHtml(botToken: string, chatId: string, html: string): Promise<void> {
+  private async sendTgHtml(botToken: string, chatId: string, html: string): Promise<SentTelegramMessage[]> {
+    const sent: SentTelegramMessage[] = [];
     for (const chunk of splitMessage(html)) {
       try {
-        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        const res = await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           chat_id: chatId, text: chunk, parse_mode: 'HTML', disable_web_page_preview: true,
         });
+        if (res.data?.result) sent.push({ result: res.data.result, text: chunk, parseMode: 'HTML' });
       } catch {
-        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          chat_id: chatId, text: chunk.replace(/<[^>]+>/g, ''),
+        const plain = plainFromHtml(chunk);
+        const res = await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          chat_id: chatId, text: plain,
         }).catch(() => undefined);
+        if (res?.data?.result) sent.push({ result: res.data.result, text: plain, parseMode: 'plain' });
       }
     }
+    return sent;
   }
 
   private async sendTgHtmlWithKeyboard(
@@ -699,6 +753,61 @@ export class TelegramCrmService {
     }
   }
 
+  private async saveOutgoingMessages(
+    bot: TelegramBot,
+    contact: TelegramContact,
+    sentMessages: SentTelegramMessage[],
+    source: OutgoingSource,
+    options?: {
+      contactId?: string;
+      companyId?: string;
+      leadId?: string;
+      saleId?: string;
+      messageType?: string;
+      meta?: Record<string, any>;
+    },
+  ): Promise<TelegramMessage[]> {
+    if (!sentMessages.length) return [];
+    const rows = sentMessages
+      .filter((sent) => sent.result?.message_id)
+      .map((sent) => this.messageRepo.create({
+        tenantId: bot.tenantId,
+        contactId: contact.id,
+        botId: bot.id,
+        messageId: String(sent.result.message_id),
+        chatId: String(sent.result.chat?.id ?? contact.telegramUserId),
+        direction: 'outgoing',
+        text: plainFromHtml(sent.text),
+        messageType: options?.messageType || 'text',
+        linkedContactId: options?.contactId || contact.contactId || null,
+        linkedCompanyId: options?.companyId || contact.companyId || null,
+        linkedLeadId: options?.leadId || contact.leadId || null,
+        linkedSaleId: options?.saleId || null,
+        date: new Date((sent.result.date || Date.now() / 1000) * 1000),
+        isRead: true,
+        rawData: sent.result,
+        meta: { ...(options?.meta || {}), source, parseMode: sent.parseMode },
+      }));
+    return rows.length ? this.messageRepo.save(rows) : [];
+  }
+
+  private async sendExternalHtml(
+    bot: TelegramBot,
+    contact: TelegramContact,
+    chatId: string,
+    html: string,
+    source: OutgoingSource,
+    meta?: Record<string, any>,
+  ): Promise<TelegramMessage[]> {
+    const sent = await this.sendTgHtml(bot.botToken, chatId, html);
+    try {
+      return await this.saveOutgoingMessages(bot, contact, sent, source, { meta });
+    } catch (err: any) {
+      this.log.warn(`Telegram CRM: outgoing ${source} message was sent but not persisted: ${err.message}`);
+      return [];
+    }
+  }
+
   // ── Public API: send message ─────────────────────────────────────────────
 
   async sendMessage(
@@ -706,7 +815,7 @@ export class TelegramCrmService {
     botId: string,
     telegramUserId: string,
     text: string,
-    options?: { contactId?: string; companyId?: string; leadId?: string; saleId?: string },
+    options?: { contactId?: string; companyId?: string; leadId?: string; saleId?: string; source?: OutgoingSource; meta?: Record<string, any> },
   ): Promise<TelegramMessage> {
     const bot = await this.findBot(tenantId, botId);
     const contact = await this.contactRepo.findOne({ where: { tenantId, telegramUserId } });
@@ -738,6 +847,7 @@ export class TelegramCrmService {
         date: new Date(sent.date * 1000),
         isRead: true,
         rawData: sent,
+        meta: { source: 'manual' },
       }));
     } catch (error: any) {
       bot.status = 'error';
@@ -754,7 +864,7 @@ export class TelegramCrmService {
     filename: string,
     file: Buffer,
     caption?: string,
-    options?: { contactId?: string; companyId?: string; leadId?: string; saleId?: string },
+    options?: { contactId?: string; companyId?: string; leadId?: string; saleId?: string; source?: OutgoingSource; meta?: Record<string, any> },
   ): Promise<TelegramMessage> {
     const bot = await this.findBot(tenantId, botId);
     const contact = await this.contactRepo.findOne({ where: { tenantId, telegramUserId } });
@@ -802,6 +912,7 @@ export class TelegramCrmService {
         date: new Date((sent.date || Date.now() / 1000) * 1000),
         isRead: true,
         rawData: sent,
+        meta: { ...(options?.meta || {}), source: options?.source || 'manual' },
       }));
     } catch (error: any) {
       bot.status = 'error';
@@ -826,6 +937,42 @@ export class TelegramCrmService {
     if (options?.offset) qb.offset(options.offset);
     qb.orderBy('message.date', 'DESC');
     return { items: await qb.getMany(), total };
+  }
+
+  /** Downloads one attachment (photo/document/voice/video) of a stored message through the
+   * owning bot's token. Telegram's `file_id` has no public URL — `getFile` returns a `file_path`
+   * good for ~1h and only fetchable with the bot token attached, so this can't be exposed to the
+   * client directly; it has to be proxied server-side, same pattern as
+   * `TelephonyService.fetchRecordingAudio`. */
+  async fetchAttachmentFile(tenantId: string, messageId: string, index = 0): Promise<{ buffer: Buffer; contentType: string; fileName?: string }> {
+    const message = await this.messageRepo.findOne({ where: { id: messageId, tenantId } });
+    if (!message) throw new NotFoundException('Message not found');
+    const attachment = message.attachments?.[index];
+    if (!attachment) throw new NotFoundException('Attachment not found');
+    const bot = message.botId ? await this.botRepo.findOne({ where: { id: message.botId, tenantId } }) : null;
+    if (!bot) throw new NotFoundException('Bot not found');
+
+    const fileRes = await axios.get(`https://api.telegram.org/bot${bot.botToken}/getFile`, { params: { file_id: attachment.fileId } });
+    const filePath: string = fileRes.data?.result?.file_path;
+    if (!filePath) throw new NotFoundException('File no longer available on Telegram');
+    const fileRes2 = await axios.get(`https://api.telegram.org/file/bot${bot.botToken}/${filePath}`, { responseType: 'arraybuffer' });
+    return {
+      buffer: Buffer.from(fileRes2.data),
+      contentType: this.attachmentContentType(attachment.type, filePath),
+      fileName: attachment.fileName,
+    };
+  }
+
+  private attachmentContentType(type: string, filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    const byExt: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+      mp4: 'video/mp4', mov: 'video/quicktime', ogg: 'audio/ogg', oga: 'audio/ogg', mp3: 'audio/mpeg',
+      pdf: 'application/pdf',
+    };
+    if (ext && byExt[ext]) return byExt[ext];
+    const byType: Record<string, string> = { photo: 'image/jpeg', video: 'video/mp4', voice: 'audio/ogg', document: 'application/octet-stream' };
+    return byType[type] || 'application/octet-stream';
   }
 
   /** Conversation list for the inbox UI: one row per contact with a last-message preview and
@@ -948,6 +1095,51 @@ export class TelegramCrmService {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
+
+  private publicApiBase(): string {
+    const base = (process.env.PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+    if (!base) {
+      throw new BadRequestException('PUBLIC_API_URL is not configured on the server');
+    }
+    if (!/^https:\/\//i.test(base)) {
+      throw new BadRequestException('PUBLIC_API_URL must be an HTTPS URL');
+    }
+    return base;
+  }
+
+  private canonicalWebhookUrl(bot: TelegramBot): string {
+    return `${this.publicApiBase()}/v1/telegram-crm/webhook/${bot.id}`;
+  }
+
+  private resolveWebhookUrl(bot: TelegramBot, webhookUrl?: string): string {
+    const canonical = this.canonicalWebhookUrl(bot);
+    const raw = (webhookUrl || '').trim();
+    if (!raw) return canonical;
+
+    const publicApiBase = this.publicApiBase();
+    const ownWebhookBase = `${publicApiBase}/v1/telegram-crm/webhook`;
+    const absolute = raw.startsWith('/') ? `${publicApiBase}${raw}` : raw;
+    const normalized = absolute.replace(/\/+$/, '');
+
+    if (raw === 'auto') return canonical;
+    if (!/^https:\/\//i.test(absolute)) return canonical;
+    if (normalized === ownWebhookBase) return canonical;
+    if (normalized === canonical.replace(/\/+$/, '')) return canonical;
+    if (normalized.startsWith(`${ownWebhookBase}/`)) return canonical;
+
+    return absolute;
+  }
+
+  private ensureWebhookSecret(bot: TelegramBot): string {
+    const existing =
+      typeof bot.meta?.telegramWebhookSecret === 'string'
+        ? bot.meta.telegramWebhookSecret
+        : '';
+    if (TELEGRAM_SECRET_RE.test(existing)) return existing;
+    const secret = `${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`;
+    bot.meta = { ...(bot.meta || {}), telegramWebhookSecret: secret };
+    return secret;
+  }
 
   private getMessageType(message: any): string {
     if (message.photo) return 'photo';
@@ -1073,9 +1265,21 @@ export class TelegramCrmService {
     return `${token.slice(0, 4)}${'•'.repeat(10)}${token.slice(-3)}`;
   }
 
+  private maskTokenInUrl(webhookUrl: string | null, botToken: string): string | null {
+    if (!webhookUrl) return webhookUrl;
+    const masked = this.maskToken(botToken);
+    return webhookUrl
+      .replaceAll(botToken, masked)
+      .replaceAll(encodeURIComponent(botToken), encodeURIComponent(masked));
+  }
+
   /** Never round-trip the real bot token to the frontend outside the create/edit form's own echo. */
   private toPublicBot(bot: TelegramBot): TelegramBot {
-    return { ...bot, botToken: this.maskToken(bot.botToken) } as TelegramBot;
+    return {
+      ...bot,
+      botToken: this.maskToken(bot.botToken),
+      webhookUrl: this.maskTokenInUrl(bot.webhookUrl, bot.botToken),
+    } as TelegramBot;
   }
 
   private getCapabilities(bot: TelegramBot): Record<string, boolean> {
@@ -1255,23 +1459,32 @@ export class TelegramCrmService {
       .replace(/\{\{\s*username\s*\}\}/g, contact.telegramUsername ? `@${contact.telegramUsername}` : '');
   }
 
-  private async send(bot: TelegramBot, chatId: string, text: string, dryRun: boolean, trace?: TraceStep[], label = 'bot'): Promise<void> {
+  private async send(bot: TelegramBot, contact: TelegramContact, chatId: string, text: string, dryRun: boolean, trace?: TraceStep[], label = 'bot'): Promise<void> {
     if (!text) return;
     if (dryRun) { trace?.push({ step: label, detail: text, ms: 0 }); return; }
-    await this.sendTgHtml(bot.botToken, chatId, escHtml(text));
+    await this.sendExternalHtml(bot, contact, chatId, escHtml(text), label === 'ai' ? 'ai' : 'flow', { label });
   }
 
-  private async sendButtons(bot: TelegramBot, chatId: string, text: string, options: Array<{ label: string }>, dryRun: boolean, trace?: TraceStep[]): Promise<void> {
+  private async sendButtons(bot: TelegramBot, contact: TelegramContact, chatId: string, text: string, options: Array<{ label: string }>, dryRun: boolean, trace?: TraceStep[]): Promise<void> {
     if (dryRun) { trace?.push({ step: 'bot', detail: `${text}\n[ ${options.map((o) => o.label).join(' | ')} ]`, ms: 0 }); return; }
     try {
-      await axios.post(`https://api.telegram.org/bot${bot.botToken}/sendMessage`, {
+      const res = await axios.post(`https://api.telegram.org/bot${bot.botToken}/sendMessage`, {
         chat_id: chatId,
         text: escHtml(text),
         parse_mode: 'HTML',
         reply_markup: options.length ? { keyboard: options.map((o) => [{ text: o.label }]), resize_keyboard: true, one_time_keyboard: true } : { remove_keyboard: true },
       });
+      await this.saveOutgoingMessages(
+        bot,
+        contact,
+        res.data?.result ? [{ result: res.data.result, text: escHtml(text), parseMode: 'HTML' }] : [],
+        'flow',
+        { meta: { label: 'bot', keyboard: options.map((o) => o.label) } },
+      ).catch((err: any) => {
+        this.log.warn(`Telegram CRM: outgoing flow keyboard was sent but not persisted: ${err.message}`);
+      });
     } catch {
-      await this.sendTgHtml(bot.botToken, chatId, escHtml(text));
+      await this.sendExternalHtml(bot, contact, chatId, escHtml(text), 'flow', { label: 'bot', keyboardFallback: true });
     }
   }
 
@@ -1318,7 +1531,7 @@ export class TelegramCrmService {
           if (check.ok) {
             found.push({
               id: `${startAt.toISOString()}|${endAt.toISOString()}`,
-              label: startAt.toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
+              label: startAt.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }),
               nextNodeId,
             });
           }
@@ -1462,8 +1675,108 @@ export class TelegramCrmService {
 
     this.logEvent(bot, 'wr', `ai · эскалация: ${reason}`);
     await this.botRepo.save(bot);
-    contact.meta = { ...(contact.meta || {}), flow: { ...(contact.meta as any)?.flow, pausedUntil: new Date(Date.now() + pause * 60_000).toISOString() } };
+    const pausedUntil = new Date(Date.now() + pause * 60_000).toISOString();
+    contact.meta = {
+      ...(contact.meta || {}),
+      aiPausedUntil: pausedUntil,
+      flow: { ...(contact.meta as any)?.flow, pausedUntil },
+    };
     await this.contactRepo.save(contact);
+  }
+
+  private compactContextValue(value: unknown, max = 500): string {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+  }
+
+  private async buildExternalAiContext(
+    bot: TelegramBot,
+    contact: TelegramContact,
+    state: FlowState,
+  ): Promise<{ text: string; contactPhone: string | null }> {
+    const lines: string[] = ['Контекст CRM для ответа клиенту:'];
+    const contactName = [contact.telegramFirstName, contact.telegramLastName].filter(Boolean).join(' ').trim();
+    let contactPhone = contact.telegramPhone || null;
+
+    lines.push(`Telegram: ${contactName || contact.telegramUsername || contact.telegramUserId}`);
+    if (contact.telegramUsername) lines.push(`Username: @${contact.telegramUsername}`);
+    if (contactPhone) lines.push(`Телефон из Telegram: ${contactPhone}`);
+    if (contact.status) lines.push(`Статус Telegram-контакта: ${contact.status}`);
+
+    let lead: Lead | null = null;
+    if (contact.leadId) {
+      lead = await this.leadRepo.findOne({ where: { id: contact.leadId, tenantId: bot.tenantId } }).catch(() => null);
+    }
+    if (lead) {
+      contactPhone = contactPhone || lead.phone;
+      lines.push('');
+      lines.push('Связанный лид:');
+      if (lead.name) lines.push(`- Имя: ${lead.name}`);
+      if (lead.phone) lines.push(`- Телефон: ${lead.phone}`);
+      if (lead.email) lines.push(`- Email: ${lead.email}`);
+      if (lead.status) lines.push(`- Статус: ${lead.status}`);
+      if (lead.source) lines.push(`- Источник: ${lead.source}`);
+      if (lead.amount && Number(lead.amount) > 0) lines.push(`- Сумма: ${lead.amount} ${lead.currency || ''}`.trim());
+      const fields = Object.entries(lead.customFields || {})
+        .slice(0, 10)
+        .map(([k, v]) => `${k}: ${this.compactContextValue(v, 120)}`)
+        .filter((x) => !x.endsWith(':'));
+      if (fields.length) lines.push(`- Поля: ${fields.join('; ')}`);
+      const comments = (lead.comments || [])
+        .slice(-3)
+        .map((c) => this.compactContextValue(c.text, 220))
+        .filter(Boolean);
+      if (comments.length) lines.push(`- Последние комментарии: ${comments.join(' | ')}`);
+
+      const notes = await this.notesService
+        .findByEntity(bot.tenantId, EntityType.LEAD, lead.id, { limit: 5 })
+        .catch(() => null);
+      const noteLines = (notes?.items || [])
+        .map((n) => this.compactContextValue(n.content, 260))
+        .filter(Boolean);
+      if (noteLines.length) lines.push(`- Последние заметки: ${noteLines.join(' | ')}`);
+    } else {
+      lines.push('Связанный лид: нет');
+    }
+
+    const collected = Object.entries(state.collected || {})
+      .map(([k, v]) => `${k}: ${this.compactContextValue(v, 160)}`)
+      .filter((x) => !x.endsWith(':'));
+    if (collected.length) {
+      lines.push('');
+      lines.push(`Данные, собранные текущим сценарием: ${collected.join('; ')}`);
+    }
+
+    const ai = (bot.meta?.aiConnector || {}) as any;
+    const enabled = Object.entries(ai.functions || {})
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (enabled.length) {
+      lines.push(`Включенные функции ИИ: ${enabled.join(', ')}`);
+    }
+
+    const capabilities = this.getCapabilities(bot);
+    if (capabilities.bookingIntegration !== false) {
+      const services = await this.bookingsCatalog.listServices(bot.tenantId).catch(() => [] as any[]);
+      if (services.length) {
+        lines.push('');
+        lines.push('Каталог услуг для записи:');
+        for (const service of services.slice(0, 20)) {
+          const parts = [
+            service.name,
+            service.durationMinutes ? `${service.durationMinutes} мин` : '',
+            service.price ? `${service.price} ${service.currency || ''}`.trim() : '',
+          ].filter(Boolean);
+          lines.push(`- ${parts.join(' · ')}`);
+        }
+      }
+    }
+
+    lines.push('');
+    lines.push('Правила ответа: не выдумывай отсутствующие цены, услуги, даты, слоты и статусы. Если данных не хватает, задай один короткий уточняющий вопрос или передай сотруднику.');
+
+    return { text: lines.join('\n').slice(0, 5500), contactPhone };
   }
 
   /** Narrow tool-calling AI turn for `ai`-type flow nodes and freeform-mode AI Connector overrides.
@@ -1501,14 +1814,27 @@ export class TelegramCrmService {
     const kb: Array<{ name: string; content: string; kind?: string; storagePath?: string; updatedAt?: string }> = Array.isArray(ai.knowledgeBase) ? ai.knowledgeBase : [];
     const kbText = kb.filter((k) => (k.kind || 'text') === 'text').map((k) => `### ${k.name}\n${k.content}`).join('\n\n').slice(0, 6000);
     const persona = (ai.systemPrompt || bot.welcomeMessage || 'Отвечай клиентам дружелюбно и по делу.').trim();
-    const system = `${persona}\n\nТекущая дата: ${new Date().toISOString().slice(0, 10)}. Отвечай на языке пользователя, кратко.` + (kbText ? `\n\nБаза знаний:\n${kbText}` : '');
+    const aiContext = await this.buildExternalAiContext(bot, contact, state);
+    const system =
+      `${persona}\n\nТекущая дата: ${new Date().toISOString().slice(0, 10)}. Отвечай на языке пользователя, кратко.\n\n${aiContext.text}` +
+      (kbText ? `\n\nБаза знаний:\n${kbText}` : '');
 
     const meta = (contact.meta || {}) as any;
     const history: ChatMessage[] = Array.isArray(meta.aiChat) ? meta.aiChat.slice(-EXTERNAL_HISTORY_MAX) : [];
     let messages: ChatMessage[] = [{ role: 'system', content: system }, ...history, { role: 'user', content: incomingText }];
 
     const knowledgeFiles = kb.filter((k) => k.kind === 'file' && k.storagePath).map((k) => ({ name: k.name, storagePath: k.storagePath as string }));
-    const toolCtx: TelegramToolContext = { tenantId: bot.tenantId, botId: bot.id, chatId: contact.telegramUserId, telegramUserId: contact.telegramUserId, enabledFunctions, knowledgeFiles };
+    const toolCtx: TelegramToolContext = {
+      tenantId: bot.tenantId,
+      botId: bot.id,
+      chatId: contact.telegramUserId,
+      telegramUserId: contact.telegramUserId,
+      enabledFunctions,
+      knowledgeFiles,
+      contactPhone: aiContext.contactPhone,
+      leadId: contact.leadId,
+      dryRun,
+    };
 
     let finalReply = '';
     let escalate = false;
@@ -1576,7 +1902,7 @@ export class TelegramCrmService {
 
     switch (node.type) {
       case 'msg': {
-        await this.send(bot, chatId, this.render(node.text, contact), dryRun, trace);
+        await this.send(bot, contact, chatId, this.render(node.text, contact), dryRun, trace);
         if (node.nextNodeId && flow.nodes[node.nextNodeId]) {
           return this.enterNode(bot, flow, flow.nodes[node.nextNodeId], contact, state, chatId, dryRun, trace, hops + 1);
         }
@@ -1588,19 +1914,19 @@ export class TelegramCrmService {
         const options = await this.resolveButtonOptions(bot, node, state);
         state.nodeId = node.id;
         await this.setFlowState(contact, state, dryRun);
-        await this.sendButtons(bot, chatId, this.render(node.text, contact), options, dryRun, trace);
+        await this.sendButtons(bot, contact, chatId, this.render(node.text, contact), options, dryRun, trace);
         return;
       }
       case 'ask': {
         state.nodeId = node.id;
         await this.setFlowState(contact, state, dryRun);
-        await this.send(bot, chatId, this.render(node.text, contact), dryRun, trace);
+        await this.send(bot, contact, chatId, this.render(node.text, contact), dryRun, trace);
         return;
       }
       case 'ai': {
         state.nodeId = node.id;
         await this.setFlowState(contact, state, dryRun);
-        if (node.text?.trim()) await this.send(bot, chatId, this.render(node.text, contact), dryRun, trace, 'system');
+        if (node.text?.trim()) await this.send(bot, contact, chatId, this.render(node.text, contact), dryRun, trace, 'system');
         return;
       }
       case 'cond': {
@@ -1620,7 +1946,7 @@ export class TelegramCrmService {
       }
       case 'human': {
         await this.escalateToHuman(bot, contact, node.department, node.pauseMinutes, 'сценарий передал диалог сотруднику', dryRun);
-        await this.send(bot, chatId, this.render(node.text, contact) || 'Передаю вас сотруднику — он свяжется с вами.', dryRun, trace);
+        await this.send(bot, contact, chatId, this.render(node.text, contact) || 'Передаю вас сотруднику — он свяжется с вами.', dryRun, trace);
         state.nodeId = node.id;
         await this.setFlowState(contact, state, dryRun);
         return;
@@ -1641,7 +1967,7 @@ export class TelegramCrmService {
         return this.enterNode(bot, targetFlow, targetFlow.nodes[targetFlow.startNodeId], contact, state, chatId, dryRun, trace, hops + 1);
       }
       case 'pay': {
-        await this.send(bot, chatId, this.render(node.text, contact) || 'Для оплаты с вами свяжется администратор.', dryRun, trace);
+        await this.send(bot, contact, chatId, this.render(node.text, contact) || 'Для оплаты с вами свяжется администратор.', dryRun, trace);
         state.nodeId = node.id;
         await this.setFlowState(contact, state, dryRun);
         return;
@@ -1663,10 +1989,17 @@ export class TelegramCrmService {
   ): Promise<void> {
     if (node.type === 'buttons') {
       const options = await this.resolveButtonOptions(bot, node, state);
-      const match = options.find((o) => this.norm(o.label) === this.norm(incomingText));
+      const incomingNorm = this.norm(incomingText);
+      const match = options.find((o) => this.norm(o.label) === incomingNorm) || options.find((o) => {
+        const labelNorm = this.norm(o.label);
+        return labelNorm.length >= 3 && (incomingNorm.includes(labelNorm) || labelNorm.includes(incomingNorm));
+      });
       if (!match) {
-        await this.send(bot, chatId, 'Пожалуйста, выберите один из вариантов ниже.', dryRun, trace);
-        await this.sendButtons(bot, chatId, this.render(node.text, contact), options, dryRun, trace);
+        const fallbackText = node.source === 'booking_services'
+          ? 'Пожалуйста, выберите одну конкретную услугу из списка ниже.'
+          : 'Пожалуйста, выберите один из вариантов ниже.';
+        await this.send(bot, contact, chatId, fallbackText, dryRun, trace);
+        await this.sendButtons(bot, contact, chatId, this.render(node.text, contact), options, dryRun, trace);
         return;
       }
       if (node.source === 'booking_services') state.collected.serviceId = match.id;
@@ -1679,7 +2012,7 @@ export class TelegramCrmService {
     if (node.type === 'ask') {
       const value = incomingText.trim();
       if (node.validation === 'phone' && !/[\d+][\d\s\-()]{5,}/.test(value)) {
-        await this.send(bot, chatId, 'Похоже, это не похоже на номер телефона. Пришлите номер ещё раз.', dryRun, trace);
+        await this.send(bot, contact, chatId, 'Похоже, это не похоже на номер телефона. Пришлите номер ещё раз.', dryRun, trace);
         return;
       }
       await this.writeField(bot, contact, node.fieldTarget, value, state, dryRun);
@@ -1690,10 +2023,10 @@ export class TelegramCrmService {
     if (node.type === 'ai') {
       const { reply, escalate, escalateReason, trace: t2 } = await this.runAiTurn(bot, contact, state, incomingText, dryRun);
       if (trace) trace.push(...t2);
-      if (reply) await this.send(bot, chatId, reply, dryRun, trace);
+      if (reply) await this.send(bot, contact, chatId, reply, dryRun, trace, 'ai');
       if (escalate) {
         await this.escalateToHuman(bot, contact, node.department, node.pauseMinutes, escalateReason || 'модель запросила передачу', dryRun);
-        if (!dryRun && !reply) await this.send(bot, chatId, 'Передаю вас сотруднику — он ответит вам здесь в ближайшее время.', dryRun, trace);
+        if (!dryRun && !reply) await this.send(bot, contact, chatId, 'Передаю вас сотруднику — он ответит вам здесь в ближайшее время.', dryRun, trace, 'ai');
       } else if (node.aiNextNodeId && flow.nodes[node.aiNextNodeId]) {
         return this.enterNode(bot, flow, flow.nodes[node.aiNextNodeId], contact, state, chatId, dryRun, trace);
       }
@@ -1712,7 +2045,7 @@ export class TelegramCrmService {
     if (lower === '/stop') {
       contact.status = 'unsubscribed';
       await this.contactRepo.save(contact);
-      await this.sendTgHtml(bot.botToken, chatId, 'Вы отписаны от сообщений этого бота. Чтобы возобновить — напишите /start.');
+      await this.sendExternalHtml(bot, contact, chatId, 'Вы отписаны от сообщений этого бота. Чтобы возобновить — напишите /start.', 'system', { command: '/stop' });
       this.logEvent(bot, 'ok', `contact · ${contact.telegramUsername ? `@${contact.telegramUsername}` : contact.telegramUserId} отписался (/stop)`);
       await this.botRepo.save(bot);
       return;
@@ -1796,22 +2129,8 @@ export class TelegramCrmService {
       }
     }
 
-    // Freeform dry run — mirrors handleExternalUserMessage's prompt shape without persisting.
-    const persona = bot.welcomeMessage?.trim() || 'Помогай клиентам с вопросами, будь дружелюбным и краткими.';
-    const now = new Date().toISOString().slice(0, 10);
-    const ai = (bot.meta?.aiConnector || {}) as any;
-    const kb: Array<{ name: string; content: string; kind?: string }> = Array.isArray(ai.knowledgeBase) ? ai.knowledgeBase : [];
-    const kbText = kb.filter((k) => (k.kind || 'text') === 'text').map((k) => `### ${k.name}\n${k.content}`).join('\n\n').slice(0, 6000);
-    const systemPrompt = `${ai.systemPrompt?.trim() || persona}\n\nТекущая дата: ${now}. Отвечай на языке пользователя.` + (kbText ? `\n\nБаза знаний:\n${kbText}` : '');
-    const history = input.history.map((h) => ({ role: h.role, content: h.text }));
-    const messages = [{ role: 'system', content: systemPrompt }, ...history, { role: 'user', content: input.message }] as any[];
-    const t0 = Date.now();
-    const result = await this.oai().chatCompletionWithConfig({
-      messages,
-      modelOverride: ai.model,
-      temperatureOverride: typeof ai.temperature === 'number' ? ai.temperature : 0.3,
-    });
-    trace.push({ step: 'модель', detail: `${result.usage.prompt_tokens || 0}+${result.usage.completion_tokens || 0} токенов`, ms: Date.now() - t0 });
-    return { reply: (result.message.content || '').trim(), trace };
+    const state: FlowState = { flowId: 'freeform', nodeId: 'ai', collected: {}, visited: [], recentMessages: [] };
+    const result = await this.runAiTurn(bot, fakeContact, state, input.message, true);
+    return { reply: result.reply, trace: result.trace };
   }
 }
