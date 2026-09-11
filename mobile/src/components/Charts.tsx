@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import Svg, { Path, Circle, Line, G, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme, fonts } from '../theme/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_WIDTH = SCREEN_WIDTH - 64;
@@ -314,6 +314,7 @@ const styles = StyleSheet.create({
   },
   labelText: {
     fontSize: 10,
+    fontFamily: fonts.regular,
   },
   barLabelsContainer: {
     flexDirection: 'row',
@@ -326,11 +327,12 @@ const styles = StyleSheet.create({
   },
   barLabelText: {
     fontSize: 10,
+    fontFamily: fonts.regular,
     marginBottom: 4,
   },
   barValueText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fonts.monoSemibold,
   },
   pieContainer: {
     alignItems: 'center',
@@ -354,19 +356,23 @@ const styles = StyleSheet.create({
   pieLegendLabel: {
     flex: 1,
     fontSize: 14,
+    fontFamily: fonts.regular,
   },
   pieLegendValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
   statCard: {
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: 6,
+    // Android's `elevation` always draws a flat, unthemeable dark ring, which on this
+    // translucent glass card reads as a harsh black outline — keep only a faint hint of depth
+    // there; iOS gets the real soft shadow via shadow* below.
+    ...Platform.select({
+      ios: { shadowOpacity: 0.1, shadowOffset: { width: 0, height: 6 }, shadowRadius: 16, elevation: 6 },
+      android: { elevation: 2 },
+    }),
   },
   statCardHeader: {
     flexDirection: 'row',
@@ -375,8 +381,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statCardTitle: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontFamily: fonts.semibold,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -389,11 +395,12 @@ const styles = StyleSheet.create({
   },
   statCardValue: {
     fontSize: 32,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     marginBottom: 4,
   },
   statCardSubtitle: {
     fontSize: 13,
+    fontFamily: fonts.regular,
     marginTop: 4,
   },
   statCardTrend: {
@@ -401,7 +408,7 @@ const styles = StyleSheet.create({
   },
   statCardTrendText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
 });
 

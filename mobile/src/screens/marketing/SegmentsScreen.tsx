@@ -1,39 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
-import { useTheme } from '../../theme/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
+import { useTheme, fonts } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchSegments, Segment } from '../../api/marketing';
+import { AuraBackground, GlassCard } from '../../components/glass';
+
+function relTime(dateStr: string | null): string {
+  if (!dateStr) return 'ни разу не запускался';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days < 1) return 'запущен сегодня';
+  if (days === 1) return 'запущен вчера';
+  return `запущен ${days} дн. назад`;
+}
 
 export const SegmentsScreen: React.FC = () => {
   const { colors } = useTheme();
+  const navigation = useNavigation<any>();
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async (isRefresh = false) => {
+    isRefresh ? setRefreshing(true) : setLoading(true);
     try {
-      const data = await fetchSegments();
-      setSegments(data);
+      setSegments(await fetchSegments());
     } catch (error) {
       console.error('Failed to load segments:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    load();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    load();
-  };
+  useEffect(() => { const unsub = navigation.addListener('focus', () => load()); return unsub; }, [navigation, load]);
 
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <AuraBackground />
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
@@ -41,15 +47,16 @@ export const SegmentsScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AuraBackground />
       <FlatList
         data={segments}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={() => {/* TODO: Navigate to create */}}
+            onPress={() => navigation.navigate('SegmentCreate')}
             activeOpacity={0.8}
           >
             <Ionicons name="add" size={22} color="#fff" />
@@ -57,38 +64,40 @@ export const SegmentsScreen: React.FC = () => {
           </TouchableOpacity>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
-            activeOpacity={0.9}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.segmentIcon, { backgroundColor: colors.secondary + '15' }]}>
-                <Ionicons name="people" size={24} color={colors.secondary} />
+          <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('SegmentDetail', { id: item.id })}>
+            <GlassCard variant="flat" style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.segmentIcon, { backgroundColor: colors.secondary + '15' }]}>
+                  <Ionicons name="people" size={24} color={colors.secondary} />
+                </View>
+                <View style={styles.segmentInfo}>
+                  <Text style={[styles.segmentName, { color: colors.text }]}>{item.name}</Text>
+                  {item.description && (
+                    <Text style={[styles.segmentDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
               </View>
-              <View style={styles.segmentInfo}>
-                <Text style={[styles.segmentName, { color: colors.text }]}>{item.name}</Text>
-                {item.description && (
-                  <Text style={[styles.segmentDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                )}
+              <View style={[styles.segmentFooter, { borderTopColor: colors.borderLight }]}>
+                <View style={styles.segmentStat}>
+                  <Ionicons name="person" size={16} color={colors.textTertiary} />
+                  <Text style={[styles.segmentStatValue, { color: colors.text }]}>{item.lastMatchedCount ?? '—'}</Text>
+                  <Text style={[styles.segmentStatLabel, { color: colors.textSecondary }]}>{item.lastMatchedCount != null ? 'лидов при запуске' : ''}</Text>
+                </View>
+                <View style={{ flex: 1 }} />
+                <Text style={[styles.segmentStatLabel, { color: colors.textTertiary }]}>{relTime(item.lastRunAt)}</Text>
               </View>
-            </View>
-            <View style={[styles.segmentFooter, { borderTopColor: colors.borderLight }]}>
-              <View style={styles.segmentStat}>
-                <Ionicons name="person" size={16} color={colors.textTertiary} />
-                <Text style={[styles.segmentStatValue, { color: colors.text }]}>{item.contactsCount}</Text>
-                <Text style={[styles.segmentStatLabel, { color: colors.textSecondary }]}>контактов</Text>
-              </View>
-            </View>
+            </GlassCard>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <GlassCard variant="g" style={styles.emptyState} contentStyle={styles.emptyStateContent}>
             <Ionicons name="people-outline" size={64} color={colors.textTertiary} />
             <Text style={[styles.emptyText, { color: colors.text }]}>Нет сегментов</Text>
             <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Создайте первый сегмент для таргетинга</Text>
-          </View>
+          </GlassCard>
         }
       />
     </View>
@@ -108,16 +117,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 8,
   },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  addButtonText: { color: '#fff', fontFamily: fonts.bold, fontSize: 16 },
   card: {
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -133,9 +137,11 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   segmentInfo: { flex: 1 },
-  segmentName: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  segmentDescription: { fontSize: 14, lineHeight: 20 },
+  segmentName: { fontSize: 18, fontFamily: fonts.bold, marginBottom: 4 },
+  segmentDescription: { fontSize: 14, fontFamily: fonts.regular, lineHeight: 20 },
   segmentFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 16,
     borderTopWidth: 1,
   },
@@ -144,18 +150,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  segmentStatValue: { fontSize: 18, fontWeight: '700' },
-  segmentStatLabel: { fontSize: 14 },
+  segmentStatValue: { fontSize: 18, fontFamily: fonts.bold },
+  segmentStatLabel: { fontSize: 12, fontFamily: fonts.regular },
   emptyState: {
     borderRadius: 24,
     padding: 48,
-    alignItems: 'center',
-    borderWidth: 1,
     marginTop: 32,
   },
-  emptyText: { fontSize: 20, fontWeight: '700', marginTop: 16, marginBottom: 8 },
-  emptySubtext: { fontSize: 14, textAlign: 'center' },
+  emptyStateContent: {
+    alignItems: 'center',
+  },
+  emptyText: { fontSize: 20, fontFamily: fonts.bold, marginTop: 16, marginBottom: 8 },
+  emptySubtext: { fontSize: 14, fontFamily: fonts.regular, textAlign: 'center' },
 });
-
-
-

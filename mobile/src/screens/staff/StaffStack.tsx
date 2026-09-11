@@ -11,17 +11,9 @@ export type StaffStackParamList = {
 const Stack = createNativeStackNavigator<StaffStackParamList>();
 
 export const StaffStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen
-      name="StaffList"
-      component={StaffListScreen}
-      options={{ title: 'Сотрудники' }}
-    />
-    <Stack.Screen
-      name="StaffDetail"
-      component={StaffDetailScreen}
-      options={{ title: 'Детали сотрудника' }}
-    />
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="StaffList" component={StaffListScreen} />
+    <Stack.Screen name="StaffDetail" component={StaffDetailScreen} />
   </Stack.Navigator>
 );
 

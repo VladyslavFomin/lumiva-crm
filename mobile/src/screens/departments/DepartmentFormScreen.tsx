@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../theme/ThemeContext';
+import { useTheme, fonts } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchDepartment, createDepartment, updateDepartment } from '../../api/departments';
+import { AuraBackground, GlassCard } from '../../components/glass';
 
 export const DepartmentFormScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -70,8 +71,10 @@ export const DepartmentFormScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <ScrollView contentContainerStyle={styles.content}>
+      <GlassCard variant="g" style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {isEdit ? 'Редактирование отдела' : 'Создание отдела'}
         </Text>
@@ -108,22 +111,23 @@ export const DepartmentFormScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: colors.primary }]}
+          style={[styles.saveButton, { backgroundColor: colors.ink }]}
           onPress={handleSave}
           disabled={saving || !formData.name.trim()}
           activeOpacity={0.8}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onInk} />
           ) : (
             <>
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.saveButtonText}>{isEdit ? 'Сохранить' : 'Создать'}</Text>
+              <Ionicons name="checkmark-circle" size={20} color={colors.onInk} />
+              <Text style={[styles.saveButtonText, { color: colors.onInk }]}>{isEdit ? 'Сохранить' : 'Создать'}</Text>
             </>
           )}
         </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </GlassCard>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -131,18 +135,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: 16 },
-  section: {
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  sectionTitle: { fontSize: 22, fontWeight: '700', marginBottom: 24 },
+  section: { borderRadius: 24, padding: 24 },
+  sectionTitle: { fontSize: 19, fontFamily: fonts.bold, marginBottom: 24 },
   inputGroup: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  label: { fontSize: 14, fontFamily: fonts.semibold, marginBottom: 8 },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -156,6 +152,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     fontSize: 16,
+    fontFamily: fonts.regular,
   },
   inputMultiline: {
     minHeight: 100,
@@ -170,7 +167,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 8,
   },
-  saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  saveButtonText: { fontFamily: fonts.bold, fontSize: 16 },
 });
 
 

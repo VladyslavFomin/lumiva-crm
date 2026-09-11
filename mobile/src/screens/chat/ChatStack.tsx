@@ -11,8 +11,8 @@ export type ChatStackParamList = {
 const Stack = createNativeStackNavigator<ChatStackParamList>();
 
 export const ChatStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="ChatSessions" component={ChatSessionsScreen} options={{ title: 'Чаты' }} />
-    <Stack.Screen name="ChatMessages" component={ChatMessagesScreen} options={{ title: 'Диалог' }} />
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ChatSessions" component={ChatSessionsScreen} />
+    <Stack.Screen name="ChatMessages" component={ChatMessagesScreen} />
   </Stack.Navigator>
 );

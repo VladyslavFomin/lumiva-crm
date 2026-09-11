@@ -75,7 +75,25 @@ import 'react-native-reanimated';
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+} from '@expo-google-fonts/inter';
+import {
+  InterTight_600SemiBold,
+  InterTight_700Bold,
+} from '@expo-google-fonts/inter-tight';
+import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_600SemiBold,
+} from '@expo-google-fonts/jetbrains-mono';
 import { ThemeProvider } from './src/theme/ThemeContext';
+import { ToastHost } from './src/components/ui/Toast';
 // Динамический импорт навигатора, чтобы отловить ошибки загрузки модуля
 let AppNavigator: any;
 let navigatorLoadError: any = null;
@@ -160,6 +178,20 @@ export default function App() {
     }
   }, []);
 
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    InterTight_600SemiBold,
+    InterTight_700Bold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
+    JetBrainsMono_600SemiBold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   // Диагностика: если навигатор не инициализировался
   if (!AppNavigator) {
     return (
@@ -179,12 +211,19 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <StatusBar style="auto" />
-      <AppErrorBoundary>
-        <AppNavigator />
-      </AppErrorBoundary>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <BottomSheetModalProvider>
+            <StatusBar style="auto" />
+            <AppErrorBoundary>
+              <AppNavigator />
+            </AppErrorBoundary>
+            <ToastHost />
+          </BottomSheetModalProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

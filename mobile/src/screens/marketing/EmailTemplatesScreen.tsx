@@ -1,168 +1,101 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../theme/ThemeContext';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchEmailTemplates, EmailTemplate } from '../../api/marketing';
+import { useNavigation } from '@react-navigation/native';
+import { fetchEmailTemplates, EmailTemplate } from '../../api/email';
+import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { ToolbarButton, SkeletonList, EmptyState, showToast } from '../../components/ui';
+import { Pill } from '../../components/mg';
+import { AuraBackground, GlassCard } from '../../components/glass';
+
+function stripHtml(html: string) {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 export const EmailTemplatesScreen: React.FC = () => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async (isRefresh = false) => {
+    isRefresh ? setRefreshing(true) : setLoading(true);
     try {
-      const data = await fetchEmailTemplates();
-      setTemplates(data);
-    } catch (error) {
-      console.error('Failed to load templates:', error);
+      setTemplates(await fetchEmailTemplates());
+    } catch {
+      showToast('Не удалось загрузить шаблоны', { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    load();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    load();
-  };
-
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
+  useEffect(() => { load(); }, [load]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
-        data={templates}
-        keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate('Marketing', { screen: 'EmailTemplateCreate' })}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add" size={22} color="#fff" />
-            <Text style={styles.addButtonText}>Создать шаблон</Text>
-          </TouchableOpacity>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
-            onPress={() => navigation.navigate('Marketing', { screen: 'EmailTemplateDetail', params: { id: item.id } })}
-            activeOpacity={0.9}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.templateIcon, { backgroundColor: colors.info + '15' }]}>
-                <Ionicons name="mail" size={24} color={colors.info} />
-              </View>
-              <View style={styles.templateInfo}>
-                <Text style={[styles.templateName, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.templateType, { color: colors.textSecondary }]}>{item.type}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-            </View>
-            <View style={[styles.templatePreview, { borderTopColor: colors.borderLight }]}>
-              <Text style={[styles.templateSubject, { color: colors.text }]} numberOfLines={1}>
-                {item.subject}
-              </Text>
-              <Text style={[styles.templateBody, { color: colors.textSecondary }]} numberOfLines={2}>
-                {item.body.replace(/<[^>]*>/g, '')}
-              </Text>
-            </View>
-            <View style={[styles.templateFooter, { borderTopColor: colors.borderLight }]}>
-              <Text style={[styles.templateDate, { color: colors.textTertiary }]}>
-                Обновлен: {new Date(item.updatedAt).toLocaleDateString()}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="mail-outline" size={64} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.text }]}>Нет шаблонов</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Создайте первый email шаблон</Text>
-          </View>
-        }
-      />
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <StatusBar barStyle="dark-content" />
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Email-шаблоны</Text>
+        <View style={styles.toolbar}>
+          <ToolbarButton icon="add" label="Создать шаблон" active onPress={() => navigation.navigate('EmailTemplateCreate')} />
+        </View>
+      </View>
+
+      {loading ? (
+        <SkeletonList count={5} />
+      ) : templates.length === 0 ? (
+        <EmptyState icon="mail-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title="Нет шаблонов" subtitle="Создайте первый email-шаблон" />
+      ) : (
+        <Animated.FlatList
+          data={templates}
+          keyExtractor={(item: EmailTemplate) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.ink} />}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }: { item: EmailTemplate }) => (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('EmailTemplateDetail', { id: item.id })}
+              activeOpacity={0.7}
+            >
+              <GlassCard variant="flat" style={styles.card}>
+                <View style={styles.cardTop}>
+                  <View style={[styles.icon, { backgroundColor: colors.infoBg }]}>
+                    <Ionicons name="mail" size={18} color={colors.info} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                    {item.category ? <Text style={[styles.category, { color: colors.textTertiary }]}>{item.category}</Text> : null}
+                  </View>
+                  {!item.isActive && <Pill label="Неактивен" tone="default" />}
+                  <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                </View>
+                {item.subject ? <Text style={[styles.subject, { color: colors.text }]} numberOfLines={1}>{item.subject}</Text> : null}
+                {item.htmlBody ? <Text style={[styles.preview, { color: colors.textSecondary }]} numberOfLines={2}>{stripHtml(item.htmlBody)}</Text> : null}
+              </GlassCard>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 16 },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginBottom: 16,
-    gap: 8,
-  },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  card: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  templateIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  templateInfo: { flex: 1 },
-  templateName: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  templateType: { fontSize: 13 },
-  templatePreview: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    marginBottom: 12,
-  },
-  templateSubject: { fontSize: 16, fontWeight: '600', marginBottom: 6 },
-  templateBody: { fontSize: 14, lineHeight: 20 },
-  templateFooter: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  templateDate: { fontSize: 12 },
-  emptyState: {
-    borderRadius: 24,
-    padding: 48,
-    alignItems: 'center',
-    borderWidth: 1,
-    marginTop: 32,
-  },
-  emptyText: { fontSize: 20, fontWeight: '700', marginTop: 16, marginBottom: 8 },
-  emptySubtext: { fontSize: 14, textAlign: 'center' },
+  root: { flex: 1 },
+  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  title: { fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4 },
+  toolbar: { flexDirection: 'row', marginTop: spacing.sm, paddingBottom: spacing.sm },
+  card: { borderRadius: radius.xxl, padding: spacing.md, gap: 6 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  icon: { width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  name: { fontSize: 14.5, fontFamily: fonts.semibold },
+  category: { fontSize: 11, fontFamily: fonts.regular, marginTop: 1 },
+  subject: { fontSize: 13, fontFamily: fonts.medium },
+  preview: { fontSize: 12, fontFamily: fonts.regular, lineHeight: 17 },
 });
-
-
-

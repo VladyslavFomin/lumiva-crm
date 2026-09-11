@@ -1,113 +1,123 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { LeadsStackParamList } from './LeadsStack';
-import { createLead } from '../../api/leads';
+import { createLead, LeadStatusCode } from '../../api/leads';
+import { fetchCompanies, Company } from '../../api/companies';
+import { fetchStaff, Staff } from '../../api/staff';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
+import { showToast } from '../../components/ui';
+import { EntityFormShell, FieldCard, EntityField, ChipPicker } from '../../components/mg';
+
+const PickLabel: React.FC<{ label: string; marginTop?: number }> = ({ label, marginTop }) => {
+  const { colors } = useTheme();
+  return <Text style={{ fontSize: 11.5, fontFamily: fonts.regular, color: colors.textSecondary, marginBottom: 6, marginTop }}>{label}</Text>;
+};
 
 type Props = NativeStackScreenProps<LeadsStackParamList, 'LeadCreate'>;
 
+const STATUS_OPTIONS: { key: LeadStatusCode; label: string }[] = [
+  { key: 'new', label: 'Новый' },
+  { key: 'in_progress', label: 'В работе' },
+  { key: 'waiting', label: 'Ожидает' },
+  { key: 'won', label: 'Выиграно' },
+  { key: 'lost', label: 'Проиграно' },
+];
+
 export const LeadCreateScreen: React.FC<Props> = ({ navigation }) => {
+  const { codes } = useCurrencyMode();
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [channel, setChannel] = useState('');
-  const [status, setStatus] = useState<'new' | 'in_progress' | 'waiting' | 'won' | 'lost'>('new');
-  const [note, setNote] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('EUR');
+  const [status, setStatus] = useState<LeadStatusCode>('new');
+  const [source, setSource] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [owners, setOwners] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchCompanies().then(setCompanies).catch(() => {});
+    fetchStaff().then(setStaff).catch(() => {});
+  }, []);
+
+  useEffect(() => { if (codes[0]) setCurrency(codes[0]); }, [codes]);
+
+  const missing = [
+    ...(!name.trim() ? ['название'] : []),
+    ...(!phone.trim() && !email.trim() ? ['телефон или e-mail'] : []),
+    ...(!owners.length ? ['ответственный'] : []),
+  ];
 
   const submit = async () => {
-    if (!name && !email && !phone) {
-      Alert.alert('Ошибка', 'Укажите хотя бы имя или контакт');
-      return;
-    }
-    setLoading(true);
+    setSaving(true);
     try {
       await createLead({
-        name: name || 'Без имени',
-        email: email || null,
+        name: name.trim(),
         phone: phone || null,
-        source: channel || null,
+        email: email || null,
+        source: source || null,
         status,
-        meta: note ? { note } : {},
+        amount: amount || undefined,
+        currency,
+        companyId: companyId || null,
+        assignedToList: owners,
       });
-      Alert.alert('Успех', 'Лид создан', [
-        { text: 'Ок', onPress: () => navigation.goBack() },
-      ]);
+      showToast('Лид создан', { variant: 'success' });
+      navigation.goBack();
     } catch (e: any) {
-      const msg = normalizeMessage(e?.response?.data?.message || e?.message);
-      Alert.alert('Ошибка', msg || 'Не удалось создать лид');
+      const msg = e?.response?.data?.message;
+      showToast((Array.isArray(msg) ? msg.join(', ') : msg) || 'Не удалось создать лид', { variant: 'error' });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>Новый лид</Text>
+    <EntityFormShell
+      title="Новый лид" kicker="Лиды" sub="Обязательное отмечено звёздочкой"
+      missing={missing} entityLabel="лид" saving={saving}
+      onCancel={() => navigation.goBack()} onSave={submit}
+    >
+      <FieldCard>
+        <EntityField label="Название лида" required value={name} onChangeText={setName} placeholder="Vetra Yapı — ремонт кровли" help="что нужно клиенту — так лид виден в списке" />
+        <EntityField label="Телефон" required={!email} value={phone} onChangeText={setPhone} placeholder="+90 5__ ___ __ __" keyboardType="phone-pad" />
+        <EntityField label="E-mail" required={!phone} value={email} onChangeText={setEmail} placeholder="satis@company.com" keyboardType="email-address" autoCapitalize="none" />
+      </FieldCard>
 
-      <LabelInput label="Имя" value={name} onChangeText={setName} placeholder="Имя клиента" />
-      <LabelInput label="Email" value={email} onChangeText={setEmail} placeholder="example@site.com" keyboardType="email-address" />
-      <LabelInput label="Телефон" value={phone} onChangeText={setPhone} placeholder="+1 000 000" keyboardType="phone-pad" />
-      <LabelInput label="Канал/Источник" value={channel} onChangeText={setChannel} placeholder="online-chat, ads, seo..." />
-      <LabelInput label="Статус" value={status} onChangeText={(t) => setStatus(t as any)} placeholder="new | in_progress | waiting | won | lost" />
-      <LabelInput label="Заметка" value={note} onChangeText={setNote} placeholder="Комментарий" multiline />
+      <FieldCard icon="cash-outline" title="Сумма и валюта">
+        <EntityField label="Сумма лида" value={amount} onChangeText={setAmount} placeholder="0" keyboardType="numeric" help="хранится в валюте записи, не пересчитывается" />
+        <PickLabel label="Валюта" />
+        <ChipPicker options={codes.map((c) => ({ key: c, label: c }))} value={currency} onChange={setCurrency} />
+      </FieldCard>
 
-      <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={submit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Создать</Text>}
-      </TouchableOpacity>
-    </ScrollView>
+      <FieldCard icon="podium-outline" title="Статус и источник">
+        <PickLabel label="Статус" />
+        <View style={{ marginBottom: spacing.md }}>
+          <ChipPicker options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+        </View>
+        <EntityField label="Источник" value={source} onChangeText={setSource} placeholder="online-chat, ads, seo…" />
+        <PickLabel label="Компания" marginTop={spacing.xs} />
+        <ChipPicker
+          options={[{ key: '', label: 'Без компании' }, ...companies.map((c) => ({ key: c.id, label: c.name }))]}
+          value={companyId}
+          onChange={setCompanyId}
+        />
+      </FieldCard>
+
+      <FieldCard icon="people-outline" title="Ответственные">
+        <PickLabel label="Кто ведёт лида" />
+        <ChipPicker
+          options={staff.map((s) => ({ key: s.fullName, label: s.fullName }))}
+          value={owners}
+          onChange={setOwners}
+          multi
+        />
+      </FieldCard>
+    </EntityFormShell>
   );
 };
-
-const LabelInput: React.FC<{
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
-  keyboardType?: any;
-}> = ({ label, value, onChangeText, placeholder, multiline, keyboardType }) => (
-  <View style={{ marginBottom: 12 }}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput
-      style={[styles.input, multiline && { height: 100, textAlignVertical: 'top' }]}
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      multiline={multiline}
-      keyboardType={keyboardType}
-    />
-  </View>
-);
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f7fb' },
-  title: { fontSize: 20, fontWeight: '700', color: '#0f172a', marginBottom: 16 },
-  label: { fontSize: 12, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0f172a',
-  },
-  button: {
-    backgroundColor: '#0ea5e9',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-});
-
-function normalizeMessage(msg: any): string | undefined {
-  if (Array.isArray(msg)) return msg.join('\n');
-  if (msg && typeof msg === 'object') return JSON.stringify(msg);
-  if (typeof msg === 'string') return msg;
-  return undefined;
-}

@@ -1,23 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../theme/ThemeContext';
+import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchDepartment, Department } from '../../api/departments';
+import { fetchDepartment, fetchDepartments, fetchDepartmentStats, fetchDepartmentStaffRecursive, deleteDepartment, Department, DepartmentStats } from '../../api/departments';
+import { fetchStaff, Staff } from '../../api/staff';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { AvatarInitials, showToast } from '../../components/ui';
+import { StatGrid2 } from '../../components/mg';
+import { AuraBackground, GlassCard } from '../../components/glass';
 
 export const DepartmentDetailScreen: React.FC = () => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { id } = route.params;
+  const { fmt } = useCurrencyMode();
   const [department, setDepartment] = useState<Department | null>(null);
+  const [manager, setManager] = useState<Staff | null>(null);
+  const [parent, setParent] = useState<Department | null>(null);
+  const [children, setChildren] = useState<Department[]>([]);
+  const [members, setMembers] = useState<Staff[]>([]);
+  const [stats, setStats] = useState<DepartmentStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchDepartment(id);
+        const [data, allDepts, allStaff, recursiveStaff, statsData] = await Promise.all([
+          fetchDepartment(id),
+          fetchDepartments().catch(() => []),
+          fetchStaff().catch(() => []),
+          fetchDepartmentStaffRecursive(id).catch(() => []),
+          fetchDepartmentStats(id).catch(() => null),
+        ]);
         setDepartment(data);
+        setParent(data.parentId ? allDepts.find((d) => d.id === data.parentId) || null : null);
+        setChildren(allDepts.filter((d) => d.parentId === id));
+        setManager(data.managerId ? allStaff.find((s) => s.id === data.managerId) || null : null);
+        setMembers(recursiveStaff);
+        setStats(statsData);
       } catch (error) {
         console.error('Failed to load department:', error);
       } finally {
@@ -27,10 +51,26 @@ export const DepartmentDetailScreen: React.FC = () => {
     load();
   }, [id]);
 
+  const handleDelete = () => {
+    if (!department) return;
+    Alert.alert('Удалить отдел?', `«${department.name}» будет удалён без возможности восстановления.`, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить', style: 'destructive', onPress: () => {
+          navigation.goBack();
+          deleteDepartment(department.id)
+            .then(() => showToast('Отдел удалён', { variant: 'success' }))
+            .catch(() => showToast('Не удалось удалить отдел', { variant: 'error' }));
+        },
+      },
+    ]);
+  };
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
+        <AuraBackground />
+        <ActivityIndicator color={colors.ink} />
       </View>
     );
   }
@@ -38,112 +78,156 @@ export const DepartmentDetailScreen: React.FC = () => {
   if (!department) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={[styles.error, { color: colors.error }]}>Отдел не найден</Text>
+        <AuraBackground />
+        <Text style={{ color: colors.text }}>Отдел не найден</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border, shadowColor: colors.shadow }]}>
-        <View style={[styles.iconContainer, { backgroundColor: colors.secondary + '15' }]}>
-          <Ionicons name="business" size={32} color={colors.secondary} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Отделы</Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: colors.card }]}
+              onPress={() => navigation.navigate('Departments', { screen: 'DepartmentEdit', params: { id: department.id } })}
+            >
+              <Ionicons name="pencil-outline" size={16} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={handleDelete}>
+              <Ionicons name="trash-outline" size={17} color={colors.error} />
+            </TouchableOpacity>
+          </View>
         </View>
-        <Text style={[styles.name, { color: colors.text }]}>{department.name}</Text>
-      </View>
 
-      {department.description && (
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Описание</Text>
-          <Text style={[styles.description, { color: colors.text }]}>{department.description}</Text>
-        </View>
-      )}
-
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Информация</Text>
-        <View style={[styles.infoRow, { borderBottomColor: colors.borderLight }]}>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Создан</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>
-            {new Date(department.createdAt).toLocaleDateString()}
-          </Text>
-        </View>
-        {department.updatedAt && (
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Обновлен</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>
-              {new Date(department.updatedAt).toLocaleDateString()}
+        <View style={styles.heroRow}>
+          <AvatarInitials name={department.name} size={56} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.heroName, { color: colors.text }]} numberOfLines={1}>{department.name}</Text>
+            <Text style={[styles.heroSub, { color: colors.textSecondary }]} numberOfLines={1}>
+              {manager?.fullName || 'Без руководителя'} · {members.length} {members.length === 1 ? 'сотрудник' : 'сотрудников'}
             </Text>
           </View>
-        )}
-      </View>
+        </View>
 
-      <TouchableOpacity
-        style={[styles.editButton, { backgroundColor: colors.primary }]}
-        onPress={() => navigation.navigate('Departments', { screen: 'DepartmentEdit', params: { id: department.id } })}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="pencil" size={18} color="#fff" />
-        <Text style={styles.editButtonText}>Редактировать</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        {stats && (
+          <View style={{ marginBottom: spacing.md }}>
+            <StatGrid2 items={[
+              { label: 'Сотрудников', value: String(stats.staffCountRecursive) },
+              { label: 'Лидов в работе', value: String(stats.leadsInProgress) },
+              { label: 'Продаж за 30 дн', value: String(stats.salesClosed30d) },
+              { label: 'Сумма продаж', value: fmt(stats.salesClosed30dAmount, undefined, { short: true }) },
+            ]} />
+            {stats.conversionPct != null && (
+              <Text style={[styles.conversionNote, { color: colors.textSecondary }]}>
+                Конверсия лидов в продажу: {stats.conversionPct.toFixed(1).replace('.', ',')}%
+              </Text>
+            )}
+          </View>
+        )}
+
+        {children.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>ПОДОТДЕЛЫ · {children.length}</Text>
+            <GlassCard variant="g2" style={styles.listCard}>
+              {children.map((c, i) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.memberRow, { borderTopColor: colors.line3, borderTopWidth: i ? StyleSheet.hairlineWidth : 0 }]}
+                  onPress={() => navigation.navigate('Departments', { screen: 'DepartmentDetail', params: { id: c.id } })}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="git-branch-outline" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.memberName, { color: colors.text, flex: 1 }]} numberOfLines={1}>{c.name}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ))}
+            </GlassCard>
+          </>
+        )}
+
+        {department.description && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>ОПИСАНИЕ</Text>
+            <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
+              <Text style={[styles.description, { color: colors.text }]}>{department.description}</Text>
+            </GlassCard>
+          </>
+        )}
+
+        <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>ПРОФИЛЬ</Text>
+        <GlassCard variant="g2" style={styles.listCard}>
+          <View style={[styles.infoRow, { borderTopColor: colors.line3 }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Руководитель</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{manager?.fullName || '—'}</Text>
+          </View>
+          <View style={[styles.infoRow, { borderTopColor: colors.line3, borderTopWidth: StyleSheet.hairlineWidth }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Родительский отдел</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{parent?.name || '—'}</Text>
+          </View>
+          <View style={[styles.infoRow, { borderTopColor: colors.line3, borderTopWidth: StyleSheet.hairlineWidth }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Создан</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(department.createdAt).toLocaleDateString('ru-RU')}</Text>
+          </View>
+          {department.updatedAt && (
+            <View style={[styles.infoRow, { borderTopColor: colors.line3, borderTopWidth: StyleSheet.hairlineWidth }]}>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Обновлён</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(department.updatedAt).toLocaleDateString('ru-RU')}</Text>
+            </View>
+          )}
+        </GlassCard>
+
+        {members.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>СОСТАВ · {members.length}</Text>
+            <GlassCard variant="g2" style={styles.listCard}>
+              {members.map((s, i) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.memberRow, { borderTopColor: colors.line3, borderTopWidth: i ? StyleSheet.hairlineWidth : 0 }]}
+                  onPress={() => navigation.navigate('Staff', { screen: 'StaffDetail', params: { id: s.id } })}
+                  activeOpacity={0.7}
+                >
+                  <AvatarInitials name={s.fullName} size={32} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.memberName, { color: colors.text }]} numberOfLines={1}>{s.fullName}</Text>
+                    <Text style={[styles.memberRole, { color: colors.textSecondary }]} numberOfLines={1}>{s.role}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ))}
+            </GlassCard>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 16 },
-  header: {
-    alignItems: 'center',
-    padding: 32,
-    borderRadius: 24,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  name: { fontSize: 26, fontWeight: '700' },
-  section: {
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
-    borderWidth: 1,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  sectionTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-  description: { fontSize: 16, lineHeight: 24 },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
-  infoLabel: { fontSize: 14 },
-  infoValue: { fontSize: 16, fontWeight: '600' },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    paddingVertical: 16,
-    gap: 8,
-  },
-  editButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  error: { fontSize: 16 },
+  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  backTxt: { fontSize: 16 },
+  iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
+  heroName: { fontSize: 20, fontFamily: fonts.bold, letterSpacing: -0.3 },
+  heroSub: { fontSize: 13, fontFamily: fonts.regular, marginTop: 3 },
+  conversionNote: { fontSize: 12, fontFamily: fonts.regular, marginTop: spacing.sm, textAlign: 'center' },
+  sectionTitle: { fontSize: 11, fontFamily: fonts.medium, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: spacing.xxl, paddingTop: spacing.xl, paddingBottom: 6 },
+  listCard: { marginHorizontal: spacing.lg },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 11 },
+  memberName: { fontSize: 14, fontFamily: fonts.medium },
+  memberRole: { fontSize: 12, fontFamily: fonts.regular, marginTop: 1 },
+  description: { fontSize: 14, fontFamily: fonts.regular, lineHeight: 21 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  infoLabel: { fontSize: 13, fontFamily: fonts.regular },
+  infoValue: { fontSize: 13.5, fontFamily: fonts.medium },
 });
-
-
-

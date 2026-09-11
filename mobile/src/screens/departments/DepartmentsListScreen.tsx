@@ -1,142 +1,172 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  RefreshControl, StatusBar,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchDepartments, Department } from '../../api/departments';
+import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
+import { fetchDepartmentsTree, fetchDepartmentsSummary, DepartmentNode, DepartmentsSummary } from '../../api/departments';
+import { AuraBackground, GlassCard } from '../../components/glass';
+import { StatGrid2 } from '../../components/mg';
+
+const DEPT_COLORS = ['#1769d1', '#1f8a5e', '#c08319', '#3b6cb6', '#5a45a8', '#cc2f47', '#222'];
+
+function getDeptColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return DEPT_COLORS[Math.abs(h) % DEPT_COLORS.length];
+}
+
+function colorWithAlpha(hex: string, alpha: number): string {
+  if (hex.startsWith('#') && hex.length === 7) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return hex;
+}
 
 export const DepartmentsListScreen: React.FC = () => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [tree, setTree] = useState<DepartmentNode[]>([]);
+  const [summary, setSummary] = useState<DepartmentsSummary | null>(null);
+  const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const data = await fetchDepartments();
-      setDepartments(data);
+      const [treeData, summaryData] = await Promise.all([fetchDepartmentsTree(), fetchDepartmentsSummary()]);
+      setTree(treeData);
+      setSummary(summaryData);
+      setCount(summaryData.departmentsCount);
     } catch (error) {
       console.error('Failed to load departments:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    load();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    load();
-  };
+  useEffect(() => { load(); }, [load]);
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
+  const flatten = (nodes: DepartmentNode[], depth = 0): { node: DepartmentNode; depth: number }[] =>
+    nodes.flatMap((n) => [{ node: n, depth }, ...flatten(n.children || [], depth + 1)]);
+  const rows = flatten(tree);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
-        data={departments}
-        keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.headerTop}>
+          <Text style={[styles.largeTitle, { color: colors.text }]}>Отделы</Text>
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            style={[styles.addBtn, { backgroundColor: colors.ink }]}
             onPress={() => navigation.navigate('Departments', { screen: 'DepartmentCreate' })}
-            activeOpacity={0.8}
           >
-            <Ionicons name="add" size={22} color="#fff" />
-            <Text style={styles.addButtonText}>Создать отдел</Text>
+            <Ionicons name="add" size={20} color={colors.onInk} />
           </TouchableOpacity>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
-            onPress={() => navigation.navigate('Departments', { screen: 'DepartmentDetail', params: { id: item.id } })}
-            activeOpacity={0.9}
-          >
-            <View style={[styles.cardIcon, { backgroundColor: colors.secondary + '15' }]}>
-              <Ionicons name="business" size={24} color={colors.secondary} />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{item.name}</Text>
-              {item.description && (
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
-                  {item.description}
-                </Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="business-outline" size={64} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.text }]}>Нет отделов</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Создайте первый отдел</Text>
+        </View>
+        <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+          <Text style={{ color: colors.text, fontFamily: fonts.semibold }}>{count}</Text>
+          {' '}отделов
+        </Text>
+      </View>
+
+      {summary && (
+        <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>
+          <StatGrid2 items={[
+            { label: 'Сотрудников в отделах', value: String(summary.staffInDepartments) },
+            { label: 'Без отдела', value: String(summary.unassignedStaffCount) },
+            { label: 'Без руководителя', value: String(summary.departmentsWithoutManager) },
+            { label: 'Активных сотрудников', value: String(summary.totalActiveStaff) },
+          ]} />
+        </View>
+      )}
+
+      {/* Tree */}
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.ink} />}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100, gap: 8, paddingTop: 4 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {rows.map(({ node: dept, depth }) => {
+          const color = getDeptColor(dept.name);
+          return (
+            <GlassCard key={dept.id} variant="flat" style={[styles.card, depth > 0 && { marginLeft: depth * 20 }]}>
+            <TouchableOpacity
+              style={styles.cardTouchable}
+              onPress={() => navigation.navigate('Departments', { screen: 'DepartmentDetail', params: { id: dept.id } })}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.deptIcon, { backgroundColor: colorWithAlpha(color, 0.1) }]}>
+                <Ionicons name={depth > 0 ? 'git-branch-outline' : 'business-outline'} size={18} color={color} />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={[styles.deptName, { color: colors.text }]}>{dept.name}</Text>
+                {dept.description ? (
+                  <Text style={[styles.deptDesc, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {dept.description}
+                  </Text>
+                ) : null}
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+            </TouchableOpacity>
+            </GlassCard>
+          );
+        })}
+
+        {count === 0 && !loading && (
+          <View style={styles.empty}>
+            <Ionicons name="business-outline" size={40} color={colors.textTertiary} />
+            <Text style={[styles.emptyTxt, { color: colors.textSecondary }]}>Нет отделов</Text>
+            <TouchableOpacity
+              style={[styles.createBtn, { backgroundColor: colors.ink }]}
+              onPress={() => navigation.navigate('Departments', { screen: 'DepartmentCreate' })}
+            >
+              <Text style={[styles.createBtnTxt, { color: colors.onInk }]}>Создать отдел</Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+        )}
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 16 },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginBottom: 16,
-    gap: 8,
+  root: { flex: 1 },
+  header: { paddingHorizontal: 16, paddingBottom: 4 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  largeTitle: { fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.5 },
+  headerSub: { fontSize: 14, fontFamily: fonts.regular, letterSpacing: -0.2 },
+  addBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 12,
-    borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 4,
+
+  card: { borderRadius: 16 },
+  cardTouchable: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  deptIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  cardIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
+  cardContent: { flex: 1, minWidth: 0 },
+  deptName: { fontSize: 15, fontFamily: fonts.semibold, letterSpacing: -0.3 },
+  deptDesc: { fontSize: 12, fontFamily: fonts.regular, marginTop: 2 },
+
+  empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyTxt: { fontSize: 15, fontFamily: fonts.medium },
+  createBtn: {
+    marginTop: 4, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10,
   },
-  cardContent: { flex: 1 },
-  cardTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  cardSubtitle: { fontSize: 14, lineHeight: 20 },
-  emptyState: {
-    borderRadius: 24,
-    padding: 48,
-    alignItems: 'center',
-    borderWidth: 1,
-    marginTop: 32,
-  },
-  emptyText: { fontSize: 20, fontWeight: '700', marginTop: 16, marginBottom: 8 },
-  emptySubtext: { fontSize: 14, textAlign: 'center' },
+  createBtnTxt: { fontSize: 14, fontFamily: fonts.semibold },
 });
-
-
-

@@ -1,139 +1,289 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../theme/ThemeContext';
-import { fetchContact, Contact } from '../../api/contacts';
+import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { fetchContact, deleteContact, fetchContactRelations, updateContact, Contact, ContactRelatedRef } from '../../api/contacts';
+import { fetchAuditLog, AuditLogEntry } from '../../api/auditLog';
+import { EntityComment } from '../../api/comments';
+import { AvatarInitials, Button, SkeletonList, showToast, CustomFieldsSection, ActivityFeed, CommentsSection } from '../../components/ui';
+import { Segmented, Pill } from '../../components/mg';
+import { AuraBackground, GlassCard } from '../../components/glass';
+
+const LEAD_STATUS_LABEL: Record<string, string> = {
+  new: 'Новый', in_progress: 'В работе', waiting: 'Ожидает', won: 'Успех', lost: 'Проигран',
+};
+const LEAD_STATUS_TONE: Record<string, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
+  new: 'acc', in_progress: 'default', waiting: 'warn', won: 'pos', lost: 'neg',
+};
+
+type Tab = 'about' | 'hist' | 'linked';
 
 export const ContactDetailScreen: React.FC = () => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { id } = route.params;
   const [contact, setContact] = useState<Contact | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [leads, setLeads] = useState<ContactRelatedRef[]>([]);
+  const [projects, setProjects] = useState<ContactRelatedRef[]>([]);
+  const [activity, setActivity] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('about');
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await fetchContact(id);
+    fetchContact(id)
+      .then((data) => {
         setContact(data);
-      } catch (error) {
-        console.error('Failed to load contact:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+        fetchContactRelations(id).then((rel) => {
+          setCompanyName(rel.companyName);
+          setLeads(rel.leads);
+          setProjects(rel.projects);
+        }).catch(() => {});
+        fetchAuditLog('contact', id).then(setActivity).catch(() => {});
+      })
+      .catch(() => showToast('Не удалось загрузить контакт', { variant: 'error' }))
+      .finally(() => setLoading(false));
   }, [id]);
+
+  const handleCustomFieldUpdate = async (key: string, value: any) => {
+    if (!contact) return;
+    const nextCustomFields = { ...(contact.customFields || {}), [key]: value };
+    const updated = await updateContact({ id: contact.id, customFields: nextCustomFields });
+    setContact(updated);
+  };
+
+  const handleCommentsSave = async (nextComments: EntityComment[]) => {
+    if (!contact) return;
+    const updated = await updateContact({ id: contact.id, comments: nextComments });
+    setContact(updated);
+  };
+
+  const handleDelete = () => {
+    if (!contact) return;
+    navigation.goBack();
+    deleteContact(contact.id).then(() => showToast('Контакт удалён', { variant: 'success' })).catch(() => showToast('Не удалось удалить контакт', { variant: 'error' }));
+  };
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top + 40 }]}>
+        <SkeletonList count={4} />
       </View>
     );
   }
 
   if (!contact) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={[styles.error, { color: colors.error }]}>Контакт не найден</Text>
+      <View style={[styles.root, { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ color: colors.text }}>Контакт не найден</Text>
       </View>
     );
   }
 
+  const properties = [
+    contact.companyId && {
+      label: 'Компания', value: companyName || `#${contact.companyId.slice(0, 8)}`, icon: 'business-outline' as const, iconColor: colors.secondary,
+      onPress: () => navigation.navigate('CompanyDetail', { id: contact.companyId }),
+    },
+    contact.phone && { label: 'Телефон', value: contact.phone, icon: 'call-outline' as const, iconColor: colors.success, onPress: () => Linking.openURL(`tel:${contact.phone}`) },
+    contact.email && { label: 'Email', value: contact.email, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${contact.email}`) },
+    contact.position && { label: 'Должность', value: contact.position, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
+    contact.assignedTo && { label: 'Ответственный', value: contact.assignedTo, icon: 'person-outline' as const, iconColor: colors.ink },
+    (contact.city || contact.country) && { label: 'Город/Страна', value: [contact.city, contact.country].filter(Boolean).join(', '), icon: 'location-outline' as const, iconColor: colors.fg3 },
+    contact.address && { label: 'Адрес', value: contact.address, icon: 'map-outline' as const, iconColor: colors.fg3 },
+  ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];
+
+  const hasLinked = leads.length > 0 || projects.length > 0 || !!contact.companyId;
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarText}>{contact.fullName[0]?.toUpperCase() || 'C'}</Text>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Клиенты</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={17} color={colors.error} />
+          </TouchableOpacity>
         </View>
-        <Text style={[styles.name, { color: colors.text }]}>{contact.fullName}</Text>
-        {contact.position && <Text style={[styles.position, { color: colors.textSecondary }]}>{contact.position}</Text>}
-      </View>
 
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Контактная информация</Text>
-        {contact.email && (
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Email:</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{contact.email}</Text>
+        <View style={styles.heroRow}>
+          <AvatarInitials name={contact.fullName} size={56} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.heroName, { color: colors.text }]}>{contact.fullName}</Text>
+            {contact.position && <Text style={[styles.heroSub, { color: colors.textSecondary }]}>{contact.position}</Text>}
+            {contact.status && (
+              <View style={{ marginTop: 6, alignSelf: 'flex-start' }}>
+                <Pill label={contact.status === 'active' ? 'активен' : contact.status === 'inactive' ? 'неактивен' : 'в архиве'} tone={contact.status === 'active' ? 'pos' : 'default'} />
+              </View>
+            )}
           </View>
-        )}
-        {contact.phone && (
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Телефон:</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{contact.phone}</Text>
-          </View>
-        )}
-      </View>
-
-      {contact.notes && (
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Заметки</Text>
-          <Text style={[styles.notes, { color: colors.text }]}>{contact.notes}</Text>
         </View>
-      )}
 
-      {contact.tags.length > 0 && (
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Теги</Text>
-          <View style={styles.tags}>
-            {contact.tags.map((tag, index) => (
-              <View key={index} style={[styles.tag, { backgroundColor: colors.surfaceVariant }]}>
-                <Text style={[styles.tagText, { color: colors.primary }]}>{tag}</Text>
+        {contact.tags.length > 0 && (
+          <View style={styles.tagsRow}>
+            {contact.tags.map((t) => (
+              <View key={t} style={[styles.tag, { backgroundColor: colors.surfaceVariant }]}>
+                <Text style={[styles.tagTxt, { color: colors.textSecondary }]}>{t}</Text>
               </View>
             ))}
           </View>
+        )}
+
+        <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+          {contact.phone && <Button label="Позвонить" variant="accent" size="sm" style={{ flex: 1 }} onPress={() => Linking.openURL(`tel:${contact.phone}`)} />}
+          {contact.email && <Button label="Письмо" variant="secondary" size="sm" style={{ flex: 1 }} onPress={() => Linking.openURL(`mailto:${contact.email}`)} />}
         </View>
-      )}
-    </ScrollView>
+
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+          <Segmented
+            options={[
+              { key: 'about', label: 'Профиль' },
+              { key: 'hist', label: 'История' },
+              { key: 'linked', label: 'Связи' },
+            ]}
+            activeKey={tab}
+            onChange={(k) => setTab(k as Tab)}
+          />
+        </View>
+
+        {tab === 'about' && <>
+          {properties.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>КОНТАКТНАЯ ИНФОРМАЦИЯ</Text>
+              <GlassCard variant="g2" style={styles.listCard}>
+                {properties.map((p, i) => {
+                  const Row = p.onPress ? TouchableOpacity : View;
+                  return (
+                    <Row key={i} style={[styles.propRow, { borderBottomColor: colors.line3, borderBottomWidth: i < properties.length - 1 ? 1 : 0 }]} onPress={p.onPress} activeOpacity={0.7}>
+                      <View style={[styles.propIco, { backgroundColor: p.iconColor + '22' }]}>
+                        <Ionicons name={p.icon} size={16} color={p.iconColor} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.propLabel, { color: colors.textSecondary }]}>{p.label}</Text>
+                        <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{p.value}</Text>
+                      </View>
+                    </Row>
+                  );
+                })}
+              </GlassCard>
+            </>
+          )}
+
+          {contact.notes ? (
+            <>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ЗАМЕТКИ</Text>
+              <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
+                <Text style={[styles.notes, { color: colors.text }]}>{contact.notes}</Text>
+              </GlassCard>
+            </>
+          ) : null}
+
+          <CustomFieldsSection entityType="contact" values={contact.customFields} onUpdate={handleCustomFieldUpdate} />
+          <CommentsSection entries={contact.comments} onSave={handleCommentsSave} />
+        </>}
+
+        {tab === 'hist' && <ActivityFeed entries={activity} />}
+
+        {tab === 'linked' && (
+          hasLinked ? (
+            <>
+              {(leads.length > 0 || projects.length > 0) && (
+                <>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>СВЯЗАННЫЕ ЗАПИСИ</Text>
+                  <GlassCard variant="g2" style={styles.listCard}>
+                    {leads.map((l, i) => (
+                      <TouchableOpacity
+                        key={`l-${l.id}`}
+                        style={[styles.propRow, { borderBottomColor: colors.line3, borderBottomWidth: i < leads.length - 1 || projects.length > 0 ? 1 : 0 }]}
+                        onPress={() => navigation.navigate('Leads', { screen: 'LeadDetail', params: { id: l.id } })}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.propIco, { backgroundColor: colors.info + '22' }]}>
+                          <Ionicons name="flash-outline" size={16} color={colors.info} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[styles.propLabel, { color: colors.textSecondary }]}>Лид</Text>
+                          <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{l.name || 'Без имени'}</Text>
+                        </View>
+                        {l.status && <Pill label={LEAD_STATUS_LABEL[l.status] || l.status} tone={LEAD_STATUS_TONE[l.status] || 'default'} />}
+                      </TouchableOpacity>
+                    ))}
+                    {projects.map((p, i) => (
+                      <TouchableOpacity
+                        key={`p-${p.id}`}
+                        style={[styles.propRow, { borderBottomColor: colors.line3, borderBottomWidth: i < projects.length - 1 ? 1 : 0 }]}
+                        onPress={() => navigation.navigate('Projects', { screen: 'ProjectDetail', params: { id: p.id } })}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.propIco, { backgroundColor: colors.secondary + '22' }]}>
+                          <Ionicons name="layers-outline" size={16} color={colors.secondary} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[styles.propLabel, { color: colors.textSecondary }]}>Проект</Text>
+                          <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{p.name || 'Без названия'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </GlassCard>
+                </>
+              )}
+
+              {contact.companyId && (
+                <>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>КОМПАНИЯ</Text>
+                  <TouchableOpacity
+                    style={[styles.companyRow, { backgroundColor: colors.cardElevated }]}
+                    onPress={() => navigation.navigate('CompanyDetail', { id: contact.companyId })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.propIco, { backgroundColor: colors.secondary + '22' }]}>
+                      <Ionicons name="business-outline" size={16} color={colors.secondary} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{companyName || 'Компания'}</Text>
+                      <Text style={[styles.propLabel, { color: colors.textSecondary, marginTop: 2 }]}>карточка компании</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </>
+          ) : (
+            <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg, margin: spacing.lg }]}>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Связанных записей нет</Text>
+            </GlassCard>
+          )
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 16 },
-  header: {
-    alignItems: 'center',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  avatarText: { color: '#fff', fontWeight: '700', fontSize: 32 },
-  name: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  position: { fontSize: 16 },
-  section: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  row: { flexDirection: 'row', marginBottom: 8 },
-  label: { fontSize: 14, marginRight: 8, width: 80 },
-  value: { fontSize: 14, flex: 1 },
-  notes: { fontSize: 14, lineHeight: 20 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6 },
-  tagText: { fontSize: 12, fontWeight: '600' },
-  error: { fontSize: 16 },
+  root: { flex: 1 },
+  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  backTxt: { fontSize: 15 },
+  iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  heroName: { fontSize: 20, fontFamily: fonts.bold, letterSpacing: -0.3 },
+  heroSub: { fontSize: 13, fontFamily: fonts.regular, marginTop: 2 },
+  tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingHorizontal: spacing.lg, marginTop: spacing.sm },
+  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
+  tagTxt: { fontSize: 11, fontFamily: fonts.medium },
+  sectionTitle: { fontSize: 11, fontFamily: fonts.medium, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: spacing.xxl, paddingTop: spacing.xl, paddingBottom: 6 },
+  listCard: { borderRadius: radius.xxl, marginHorizontal: spacing.lg, overflow: 'hidden' },
+  propRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  propIco: { width: 32, height: 32, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  propLabel: { fontSize: 11, fontFamily: fonts.medium, marginBottom: 2 },
+  propValue: { fontSize: 14, fontFamily: fonts.medium },
+  notes: { fontSize: 14, fontFamily: fonts.regular, lineHeight: 20 },
+  companyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, padding: spacing.lg, borderRadius: radius.xxl },
 });
-
-
-
-
-
-
-
-

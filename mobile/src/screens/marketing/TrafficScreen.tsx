@@ -1,255 +1,169 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
-import { useTheme } from '../../theme/ThemeContext';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchTraffic, TrafficData } from '../../api/marketing';
-import { LineChart, StatCard } from '../../components/Charts';
+import { fetchTraffic, fetchTrafficChannels, TrafficData, TrafficChannelStat } from '../../api/marketing';
+import { formatMoney } from '../../utils/money';
+import { StatGrid2, Pill, TapChart, ZoomableChart, useDateDrilldown } from '../../components/mg';
+import { AuraBackground, GlassCard } from '../../components/glass';
+
+function dsLabel(dataSource: string, labels?: Record<string, string>): string {
+  return labels?.[dataSource] || dataSource;
+}
 
 export const TrafficScreen: React.FC = () => {
   const { colors } = useTheme();
-  const [traffic, setTraffic] = useState<TrafficData[]>([]);
+  const navigation = useNavigation<any>();
+  const [daily, setDaily] = useState<TrafficData[]>([]);
+  const [channels, setChannels] = useState<TrafficChannelStat[]>([]);
+  const [labels, setLabels] = useState<Record<string, string> | undefined>();
+  const [totals, setTotals] = useState({ sessions: 0, leads: 0, revenue: 0, cost: 0, clicks: 0, impressions: 0, currency: 'EUR' });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { from, to, label, canZoomIn, canZoomOut, zoomIn, zoomOut } = useDateDrilldown();
 
-  const load = async () => {
+  const load = useCallback(async (isRefresh = false) => {
+    isRefresh ? setRefreshing(true) : setLoading(true);
     try {
-      const data = await fetchTraffic();
-      setTraffic(data);
+      const [dailyData, stats] = await Promise.all([fetchTraffic({ from, to }), fetchTrafficChannels({ from, to })]);
+      setDaily(dailyData);
+      setChannels((stats.providerBreakdown || []).slice().sort((a, b) => b.sessions - a.sessions));
+      setLabels(stats.dataSourceLabels);
+      setTotals({
+        sessions: stats.totalSessions, leads: stats.totalLeads, revenue: stats.totalRevenue, cost: stats.totalCost,
+        clicks: stats.totalClicks, impressions: stats.totalImpressions, currency: stats.currency,
+      });
     } catch (error) {
       console.error('Failed to load traffic:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [from, to]);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    load();
-  };
-
-  const chartData = useMemo(() => {
-    const sorted = [...traffic].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const values = sorted.map((t) => t.visitors);
-    const labels = sorted.map((t) => {
-      const date = new Date(t.date);
-      return `${date.getDate()}.${date.getMonth() + 1}`;
-    });
-    return { values, labels };
-  }, [traffic]);
+  const sortedDaily = useMemo(
+    () => [...daily]
+      .filter((d) => d.date && !Number.isNaN(new Date(d.date).getTime()))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [daily],
+  );
+  const topSessions = channels[0]?.sessions || 1;
+  const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : null;
+  const cpc = totals.clicks > 0 ? totals.cost / totals.clicks : null;
+  const cpm = totals.impressions > 0 ? (totals.cost / totals.impressions) * 1000 : null;
 
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <AuraBackground />
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
-  const totalVisitors = traffic.reduce((sum, t) => sum + t.visitors, 0);
-  const totalSessions = traffic.reduce((sum, t) => sum + t.sessions, 0);
-  const totalPageviews = traffic.reduce((sum, t) => sum + t.pageviews, 0);
-
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-    >
-      <View style={styles.statsGrid}>
-        <StatCard
-          title="Посетители"
-          value={totalVisitors.toLocaleString()}
-          icon="👥"
-          color={colors.primary}
-        />
-        <StatCard
-          title="Сессии"
-          value={totalSessions.toLocaleString()}
-          icon="📊"
-          color={colors.secondary}
-        />
-        <StatCard
-          title="Просмотры"
-          value={totalPageviews.toLocaleString()}
-          icon="👁️"
-          color={colors.info}
-        />
-      </View>
-
-      <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-        <View style={styles.chartHeader}>
-          <View>
-            <Text style={[styles.chartTitle, { color: colors.text }]}>Динамика посетителей</Text>
-            <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>За весь период</Text>
-          </View>
-        </View>
-        {chartData.values.length > 0 ? (
-          <LineChart
-            data={chartData.values}
-            labels={chartData.labels}
-            color={colors.primary}
-            showGrid
-            showArea
-          />
-        ) : (
-          <View style={styles.emptyChart}>
-            <Ionicons name="bar-chart-outline" size={48} color={colors.textTertiary} />
-            <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>Нет данных</Text>
-          </View>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {sortedDaily.length > 1 && (
+          <GlassCard variant="g" style={styles.heroCard} contentStyle={styles.heroContent}>
+            <ZoomableChart label={label} canZoomIn={canZoomIn} canZoomOut={canZoomOut} onZoomIn={zoomIn} onZoomOut={zoomOut}>
+              <TapChart
+                dates={sortedDaily.map((d) => d.date)}
+                series={[
+                  { key: 'sessions', label: 'Сессии', color: colors.text, values: sortedDaily.map((d) => d.sessions) },
+                  { key: 'clicks', label: 'Клики', color: colors.accent, values: sortedDaily.map((d) => d.clicks) },
+                ]}
+                formatDate={(d) => new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
+              />
+            </ZoomableChart>
+          </GlassCard>
         )}
-      </View>
 
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Детальная статистика</Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>{traffic.length} записей</Text>
-        </View>
-        {traffic.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="analytics-outline" size={64} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Нет данных о трафике</Text>
+        <StatGrid2
+          items={[
+            { label: 'Показы', value: totals.impressions.toLocaleString('ru-RU') },
+            { label: 'Клики / просмотры', value: totals.clicks.toLocaleString('ru-RU') },
+            { label: 'Сессии / визиты', value: totals.sessions.toLocaleString('ru-RU') },
+            { label: 'CTR', value: ctr != null ? `${ctr.toFixed(2)}%` : '—' },
+            { label: 'CPC', value: cpc != null && cpc > 0 ? formatMoney(cpc, totals.currency) : '—' },
+            { label: 'CPM', value: cpm != null && cpm > 0 ? formatMoney(cpm, totals.currency) : '—' },
+          ]}
+        />
+
+        <GlassCard variant="g" style={styles.section} contentStyle={styles.sectionContent}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="git-network-outline" size={16} color={colors.text} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Источники</Text>
+            <View style={{ flex: 1 }} />
+            <Text style={[styles.kicker, { color: colors.textTertiary }]}>сессии · лиды</Text>
           </View>
-        ) : (
-          traffic.slice(0, 10).map((item, index) => (
-            <View key={index} style={[styles.trafficItem, { borderBottomColor: colors.borderLight }]}>
-              <View style={styles.trafficHeader}>
-                <View style={styles.trafficHeaderLeft}>
-                  <View style={[styles.trafficIcon, { backgroundColor: colors.primary + '15' }]}>
-                    <Ionicons name="calendar" size={16} color={colors.primary} />
-                  </View>
-                  <View>
-                    <Text style={[styles.trafficDate, { color: colors.text }]}>
-                      {new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                    </Text>
-                    <Text style={[styles.trafficSource, { color: colors.textSecondary }]}>{item.source}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.trafficStats}>
-                <View style={styles.trafficStatItem}>
-                  <Ionicons name="people" size={14} color={colors.textTertiary} />
-                  <Text style={[styles.trafficStat, { color: colors.textSecondary }]}>
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>{item.visitors}</Text> посетителей
-                  </Text>
-                </View>
-                <View style={styles.trafficStatItem}>
-                  <Ionicons name="stats-chart" size={14} color={colors.textTertiary} />
-                  <Text style={[styles.trafficStat, { color: colors.textSecondary }]}>
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>{item.sessions}</Text> сессий
-                  </Text>
-                </View>
-                <View style={styles.trafficStatItem}>
-                  <Ionicons name="eye" size={14} color={colors.textTertiary} />
-                  <Text style={[styles.trafficStat, { color: colors.textSecondary }]}>
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>{item.pageviews}</Text> просмотров
-                  </Text>
-                </View>
-              </View>
+          {channels.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="analytics-outline" size={64} color={colors.textTertiary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Нет данных о трафике</Text>
             </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+          ) : (
+            channels.map((ch, i) => {
+              const cr = ch.sessions > 0 ? (ch.leads / ch.sessions) * 100 : 0;
+              const cpl = ch.leads > 0 ? ch.cost / ch.leads : null;
+              return (
+                <TouchableOpacity
+                  key={`${ch.dataSource}-${i}`}
+                  style={[styles.sourceRow, i > 0 && { borderTopColor: colors.borderLight, borderTopWidth: 1 }]}
+                  onPress={() => navigation.navigate('ChannelDetail', { channelKey: ch.dataSource })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.sourceTop}>
+                    <Text style={[styles.sourceName, { color: colors.text }]} numberOfLines={1}>{dsLabel(ch.dataSource, labels)}</Text>
+                    <Text style={[styles.sourceNum, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{ch.sessions.toLocaleString('ru-RU')}</Text>
+                    <Pill label={`${ch.leads} лид.`} tone="acc" />
+                    <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+                  </View>
+                  <View style={[styles.bar, { backgroundColor: colors.surfaceVariant }]}>
+                    <View style={[styles.barFill, { width: `${Math.max(2, (ch.sessions / topSessions) * 100)}%`, backgroundColor: colors.accent }]} />
+                  </View>
+                  <Text style={[styles.sourceMeta, { color: colors.textTertiary }]}>
+                    CR {cr.toFixed(1).replace('.', ',')}% · CPL {cpl != null ? formatMoney(cpl, ch.currency) : 'бесплатно'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </GlassCard>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 16 },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
-  },
-  chartCard: {
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  chartHeader: {
-    marginBottom: 16,
-  },
-  chartTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  chartSubtitle: {
-    fontSize: 13,
-  },
-  emptyChart: {
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  emptyChartText: {
-    fontSize: 14,
-  },
-  section: {
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: { fontSize: 20, fontWeight: '700' },
-  sectionSubtitle: { fontSize: 13 },
-  empty: {
-    padding: 48,
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyText: { fontSize: 14 },
-  trafficItem: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  trafficHeader: {
-    marginBottom: 12,
-  },
-  trafficHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  trafficIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trafficDate: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  trafficSource: { fontSize: 13 },
-  trafficStats: {
-    gap: 8,
-  },
-  trafficStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  trafficStat: { fontSize: 13 },
+  content: { padding: spacing.lg },
+  heroCard: { borderRadius: 22, marginBottom: spacing.sm },
+  heroContent: { padding: spacing.lg },
+  kicker: { fontSize: 10.5, fontFamily: fonts.mono, letterSpacing: 0.6 },
+  heroValue: { fontSize: 30, fontFamily: fonts.semibold, letterSpacing: -0.5, marginTop: 4 },
+  section: { borderRadius: 22, marginTop: spacing.sm },
+  sectionContent: { padding: spacing.lg },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
+  sectionTitle: { fontSize: 17, fontFamily: fonts.semibold, letterSpacing: -0.2 },
+  empty: { padding: 48, alignItems: 'center', gap: 12 },
+  emptyText: { fontSize: 14, fontFamily: fonts.regular },
+  sourceRow: { paddingVertical: spacing.sm + 2 },
+  sourceTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 6 },
+  sourceName: { flex: 1, fontSize: 13, fontFamily: fonts.regular },
+  sourceNum: { fontSize: 12.5 },
+  bar: { height: 5, borderRadius: radius.full, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: radius.full },
+  sourceMeta: { fontSize: 11.5, marginTop: 5 },
 });
-

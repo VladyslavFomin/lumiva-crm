@@ -1,50 +1,21 @@
 import { api } from './client';
 
-export interface CompanySettings {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  website: string | null;
-  address: string | null;
-  logo: string | null;
-  timezone: string | null;
-  currency: string | null;
-  language: string | null;
+export interface MarketingTokenPreview {
+  preview: string;
+  suffix: string;
 }
 
-export interface ApiToken {
-  id: string;
-  name: string;
-  token: string;
-  expiresAt: string | null;
-  createdAt: string;
-}
-
-export async function fetchCompanySettings(): Promise<CompanySettings> {
-  const res = await api.get<CompanySettings>('/settings/company');
+export async function fetchMarketingApiToken(): Promise<MarketingTokenPreview> {
+  const res = await api.get<MarketingTokenPreview>('/api-tokens/marketing');
   return res.data;
 }
 
-export async function updateCompanySettings(payload: Partial<CompanySettings>): Promise<CompanySettings> {
-  const res = await api.patch<CompanySettings>('/settings/company', payload);
-  return res.data;
+export async function revealMarketingApiToken(password: string): Promise<string> {
+  const res = await api.post<{ token: string }>('/api-tokens/marketing/reveal', { password });
+  return res.data.token;
 }
 
-export async function fetchApiTokens(): Promise<ApiToken[]> {
-  const res = await api.get<ApiToken[]>('/settings/api-tokens');
-  return res.data;
+export async function regenerateMarketingApiToken(password: string): Promise<string> {
+  const res = await api.post<{ token: string }>('/api-tokens/marketing/regenerate', { password });
+  return res.data.token;
 }
-
-export async function createApiToken(name: string): Promise<ApiToken> {
-  const res = await api.post<ApiToken>('/settings/api-tokens', { name });
-  return res.data;
-}
-
-export async function deleteApiToken(id: string): Promise<void> {
-  await api.delete(`/settings/api-tokens/${id}`);
-}
-
-
-
-

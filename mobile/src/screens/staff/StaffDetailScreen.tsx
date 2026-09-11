@@ -1,125 +1,110 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { useRoute } from '@react-navigation/native';
-import { useTheme } from '../../theme/ThemeContext';
-import { fetchStaffMember, Staff } from '../../api/staff';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { fetchStaffMember, Staff, StaffRole } from '../../api/staff';
+import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { AvatarInitials, SkeletonList, showToast } from '../../components/ui';
+import { Pill } from '../../components/mg';
+import { AuraBackground, GlassCard } from '../../components/glass';
+
+const ROLE_LABELS: Record<StaffRole, string> = {
+  owner: 'Владелец', manager: 'Менеджер', viewer: 'Наблюдатель', finance: 'Финансы', sales: 'Продажи', developer: 'Разработчик', support: 'Поддержка',
+};
 
 export const StaffDetailScreen: React.FC = () => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const route = useRoute<any>();
+  const navigation = useNavigation<any>();
   const { id } = route.params;
   const [staff, setStaff] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await fetchStaffMember(id);
-        setStaff(data);
-      } catch (error) {
-        console.error('Failed to load staff:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    fetchStaffMember(id).then(setStaff).catch(() => showToast('Не удалось загрузить сотрудника', { variant: 'error' })).finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top + 40 }]}>
+        <SkeletonList count={4} />
       </View>
     );
   }
 
   if (!staff) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={[styles.error, { color: colors.error }]}>Сотрудник не найден</Text>
+      <View style={[styles.root, { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ color: colors.text }}>Сотрудник не найден</Text>
       </View>
     );
   }
 
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={[styles.avatar, { backgroundColor: colors.info }]}>
-          <Text style={styles.avatarText}>{staff.fullName[0]?.toUpperCase() || 'S'}</Text>
-        </View>
-        <Text style={[styles.name, { color: colors.text }]}>{staff.fullName}</Text>
-        {staff.position && <Text style={[styles.position, { color: colors.textSecondary }]}>{staff.position}</Text>}
-        {staff.role && (
-          <View style={[styles.roleBadge, { backgroundColor: colors.surfaceVariant }]}>
-            <Text style={[styles.roleText, { color: colors.primary }]}>{staff.role}</Text>
-          </View>
-        )}
-      </View>
+  const properties = [
+    { label: 'Email', value: staff.email, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${staff.email}`) },
+    staff.phone && { label: 'Телефон', value: staff.phone, icon: 'call-outline' as const, iconColor: colors.success, onPress: () => Linking.openURL(`tel:${staff.phone}`) },
+    staff.department && { label: 'Отдел', value: staff.department, icon: 'business-outline' as const, iconColor: colors.fg3 },
+    staff.lastLoginAt && { label: 'Последний вход', value: new Date(staff.lastLoginAt).toLocaleString('ru-RU'), icon: 'time-outline' as const, iconColor: colors.fg3 },
+  ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];
 
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Контактная информация</Text>
-        <View style={styles.row}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Email:</Text>
-          <Text style={[styles.value, { color: colors.text }]}>{staff.email}</Text>
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Сотрудники</Text>
+          </TouchableOpacity>
         </View>
-        {staff.phone && (
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Телефон:</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{staff.phone}</Text>
+
+        <View style={styles.heroRow}>
+          <AvatarInitials name={staff.fullName} size={56} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.name, { color: colors.text }]}>{staff.fullName}</Text>
+            <View style={styles.badgeRow}>
+              <Pill label={ROLE_LABELS[staff.role] || staff.role} tone="default" />
+              <Pill label={staff.isActive ? 'Активен' : 'Неактивен'} tone={staff.isActive ? 'pos' : 'neg'} />
+            </View>
           </View>
-        )}
-        <View style={styles.row}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Статус:</Text>
-          <Text style={[styles.value, { color: staff.isActive ? colors.success : colors.error }]}>
-            {staff.isActive ? 'Активен' : 'Неактивен'}
-          </Text>
         </View>
-      </View>
-    </ScrollView>
+
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>СВОЙСТВА</Text>
+        <GlassCard variant="g2" style={styles.listCard}>
+          {properties.map((p, i) => {
+            const Row = p.onPress ? TouchableOpacity : View;
+            return (
+              <Row key={i} style={[styles.propRow, { borderBottomColor: colors.line3, borderBottomWidth: i < properties.length - 1 ? 1 : 0 }]} onPress={p.onPress} activeOpacity={0.7}>
+                <View style={[styles.propIco, { backgroundColor: p.iconColor + '22' }]}>
+                  <Ionicons name={p.icon} size={16} color={p.iconColor} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.propLabel, { color: colors.textSecondary }]}>{p.label}</Text>
+                  <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{p.value}</Text>
+                </View>
+              </Row>
+            );
+          })}
+        </GlassCard>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 16 },
-  header: {
-    alignItems: 'center',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  avatarText: { color: '#fff', fontWeight: '700', fontSize: 32 },
-  name: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  position: { fontSize: 16, marginBottom: 8 },
-  roleBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginTop: 4 },
-  roleText: { fontSize: 12, fontWeight: '700' },
-  section: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  row: { flexDirection: 'row', marginBottom: 8 },
-  label: { fontSize: 14, marginRight: 8, width: 80 },
-  value: { fontSize: 14, flex: 1 },
-  error: { fontSize: 16 },
+  root: { flex: 1 },
+  nav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  backTxt: { fontSize: 15 },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  name: { fontSize: 20, fontFamily: fonts.bold, letterSpacing: -0.3 },
+  badgeRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  sectionTitle: { fontSize: 11, fontFamily: fonts.medium, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: spacing.xxl, paddingTop: spacing.xl, paddingBottom: 6 },
+  listCard: { borderRadius: radius.xxl, marginHorizontal: spacing.lg, overflow: 'hidden' },
+  propRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  propIco: { width: 32, height: 32, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  propLabel: { fontSize: 11, fontFamily: fonts.medium, marginBottom: 2 },
+  propValue: { fontSize: 14, fontFamily: fonts.medium },
 });
-
-
-
-
-
-
-
-

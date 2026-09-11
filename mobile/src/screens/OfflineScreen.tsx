@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme, fonts, radius, spacing } from '../theme/ThemeContext';
+import { AuraBackground, GlassCard } from '../components/glass';
 
 interface Props {
   onRetry: () => void;
@@ -10,23 +11,24 @@ export const OfflineScreen: React.FC<Props> = ({ onRetry }) => {
   const { colors } = useTheme();
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+      <AuraBackground />
+      <GlassCard variant="g" style={styles.card}>
         <Text style={styles.icon}>📡</Text>
         <Text style={[styles.title, { color: colors.text }]}>Нет подключения</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Проверьте сеть и попробуйте снова</Text>
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={onRetry}>
-          <Text style={styles.buttonText}>Повторить</Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.ink }]} onPress={onRetry}>
+          <Text style={[styles.buttonText, { color: colors.onInk }]}>Повторить</Text>
         </TouchableOpacity>
-      </View>
+      </GlassCard>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   card: {
-    padding: 24,
-    borderRadius: 20,
+    padding: spacing.xxl,
+    borderRadius: radius.xxxl,
     alignItems: 'center',
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -35,9 +37,9 @@ const styles = StyleSheet.create({
     minWidth: 260,
     borderWidth: 1,
   },
-  icon: { fontSize: 42, marginBottom: 8 },
-  title: { fontSize: 18, fontWeight: '700' },
-  subtitle: { fontSize: 13, marginTop: 4 },
-  button: { marginTop: 16, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24 },
-  buttonText: { color: '#fff', fontWeight: '700' },
+  icon: { fontSize: 42, marginBottom: spacing.sm },
+  title: { fontSize: 17, fontFamily: fonts.semibold },
+  subtitle: { fontSize: 13, fontFamily: fonts.regular, marginTop: 4 },
+  button: { marginTop: spacing.lg, borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: spacing.xxl },
+  buttonText: { fontFamily: fonts.semibold },
 });

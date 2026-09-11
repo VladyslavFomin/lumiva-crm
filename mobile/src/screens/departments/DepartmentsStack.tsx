@@ -14,27 +14,11 @@ export type DepartmentsStackParamList = {
 const Stack = createNativeStackNavigator<DepartmentsStackParamList>();
 
 export const DepartmentsStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen
-      name="DepartmentsList"
-      component={DepartmentsListScreen}
-      options={{ title: 'Отделы' }}
-    />
-    <Stack.Screen
-      name="DepartmentDetail"
-      component={DepartmentDetailScreen}
-      options={{ title: 'Детали отдела' }}
-    />
-    <Stack.Screen
-      name="DepartmentCreate"
-      component={DepartmentFormScreen}
-      options={{ title: 'Создание отдела' }}
-    />
-    <Stack.Screen
-      name="DepartmentEdit"
-      component={DepartmentFormScreen}
-      options={{ title: 'Редактирование отдела' }}
-    />
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="DepartmentsList" component={DepartmentsListScreen} />
+    <Stack.Screen name="DepartmentDetail" component={DepartmentDetailScreen} />
+    <Stack.Screen name="DepartmentCreate" component={DepartmentFormScreen} />
+    <Stack.Screen name="DepartmentEdit" component={DepartmentFormScreen} />
   </Stack.Navigator>
 );
 

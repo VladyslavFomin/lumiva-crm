@@ -4,6 +4,7 @@ export default {
   expo: {
     name: "Lumiva CRM",
     slug: "lumiva-crm",
+    scheme: "lumiva",
     version: "0.1.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -21,7 +22,10 @@ export default {
     ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.lumiva.crm"
+      bundleIdentifier: "com.lumiva.crm",
+      infoPlist: {
+        NSFaceIDUsageDescription: "Face ID используется, чтобы быстро открыть уже выполненный вход в Lumiva."
+      }
     },
     android: {
       adaptiveIcon: {
@@ -31,7 +35,9 @@ export default {
       package: "com.lumiva.crm",
       permissions: [
         "android.permission.RECORD_AUDIO",
-        "android.permission.DETECT_SCREEN_CAPTURE"
+        "android.permission.DETECT_SCREEN_CAPTURE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     extra: {

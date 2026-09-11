@@ -1,4 +1,5 @@
 import { api } from './client';
+import { EntityComment } from './comments';
 
 export interface ContactDto {
   id: string;
@@ -11,6 +12,13 @@ export interface ContactDto {
   position: string | null;
   notes: string | null;
   tags: string[] | null;
+  country: string | null;
+  city: string | null;
+  address: string | null;
+  assignedTo: string | null;
+  status: string | null;
+  customFields: Record<string, any> | null;
+  comments: EntityComment[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +34,13 @@ export interface Contact {
   position: string | null;
   notes: string | null;
   tags: string[];
+  country: string | null;
+  city: string | null;
+  address: string | null;
+  assignedTo: string | null;
+  status: string | null;
+  customFields: Record<string, any> | null;
+  comments: EntityComment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +57,13 @@ function mapContact(dto: ContactDto): Contact {
     position: dto.position,
     notes: dto.notes,
     tags: dto.tags || [],
+    country: dto.country,
+    city: dto.city,
+    address: dto.address,
+    assignedTo: dto.assignedTo,
+    status: dto.status,
+    customFields: dto.customFields || null,
+    comments: dto.comments || [],
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
@@ -58,6 +80,27 @@ export async function fetchContact(id: string): Promise<Contact> {
   return mapContact(res.data);
 }
 
+export interface ContactRelatedRef {
+  id: string;
+  name: string | null;
+  status?: string | null;
+}
+
+export interface ContactRelations {
+  companyName: string | null;
+  leads: ContactRelatedRef[];
+  projects: ContactRelatedRef[];
+}
+
+export async function fetchContactRelations(id: string): Promise<ContactRelations> {
+  const res = await api.get<{ company: { name: string } | null; leads: any[]; projects: any[] }>(`/contacts/${id}`, { params: { withRelations: 'true' } });
+  return {
+    companyName: res.data.company?.name || null,
+    leads: (res.data.leads || []).map((l: any) => ({ id: l.id, name: l.name, status: l.status })),
+    projects: (res.data.projects || []).map((p: any) => ({ id: p.id, name: p.name, status: p.status })),
+  };
+}
+
 export interface CreateContactDto {
   firstName: string;
   lastName?: string | null;
@@ -67,6 +110,8 @@ export interface CreateContactDto {
   position?: string | null;
   notes?: string | null;
   tags?: string[] | null;
+  city?: string | null;
+  assignedTo?: string | null;
 }
 
 export async function createContact(payload: CreateContactDto) {
@@ -84,6 +129,8 @@ export interface UpdateContactDto {
   position?: string | null;
   notes?: string | null;
   tags?: string[] | null;
+  customFields?: Record<string, any>;
+  comments?: EntityComment[];
 }
 
 export async function updateContact(payload: UpdateContactDto) {

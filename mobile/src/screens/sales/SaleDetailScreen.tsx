@@ -1,62 +1,241 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { SalesStackParamList } from './SalesStack';
-import { fetchSale, Sale } from '../../api/sales';
+import { fetchSale, fetchSalesChannels, fetchSalesByContact, updateSale, Sale } from '../../api/sales';
+import { fetchLead } from '../../api/leads';
+import { fetchProject } from '../../api/projects';
+import { fetchAuditLog, AuditLogEntry } from '../../api/auditLog';
+import { EntityComment } from '../../api/comments';
+import { formatMoney } from '../../utils/money';
+import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { SkeletonList, showToast, CustomFieldsSection, ActivityFeed, CommentsSection, Button } from '../../components/ui';
+import { Pill } from '../../components/mg';
+import { AuraBackground, GlassCard } from '../../components/glass';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
 
 type Props = NativeStackScreenProps<SalesStackParamList, 'SaleDetail'>;
 
+const STATUS_LABEL: Record<string, string> = {
+  new: 'Новая', pending: 'Ожидает', confirmed: 'Подтверждена', cancelled: 'Отменена', refunded: 'Возврат', other: 'Другое',
+};
+const STATUS_TONE: Record<string, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
+  new: 'acc', pending: 'warn', confirmed: 'pos', cancelled: 'neg', refunded: 'neg', other: 'default',
+};
+
+function fmtDate(dateStr: string | null) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
 export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
   const { id } = route.params;
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const { fmt, toDisplay } = useCurrencyMode();
   const [item, setItem] = useState<Sale | null>(null);
+  const [leadName, setLeadName] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [channelName, setChannelName] = useState<string | null>(null);
+  const [customerStats, setCustomerStats] = useState<{ count: number; total: number; firstOrder: string } | null>(null);
+  const [activity, setActivity] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       try {
         const data = await fetchSale(id);
         setItem(data);
+        fetchAuditLog('sale', id).then(setActivity).catch(() => {});
+        if (data.leadId) fetchLead(data.leadId).then((l) => setLeadName(l.name || null)).catch(() => {});
+        if (data.projectId) fetchProject(data.projectId).then((p) => setProjectName(p.name)).catch(() => {});
+        if (data.channelId) fetchSalesChannels().then((chans) => setChannelName(chans.find((c) => c.id === data.channelId)?.name || null)).catch(() => {});
+        if (data.contactId) {
+          fetchSalesByContact(data.contactId).then((sales) => {
+            if (sales.length === 0) return;
+            const total = sales.reduce((sum, s) => sum + toDisplay(s.amount || 0, s.currency), 0);
+            const firstOrder = sales.reduce((min, s) => (s.createdAt < min ? s.createdAt : min), sales[0].createdAt);
+            setCustomerStats({ count: sales.length, total, firstOrder });
+          }).catch(() => {});
+        }
+      } catch {
+        showToast('Не удалось загрузить продажу', { variant: 'error' });
       } finally {
         setLoading(false);
       }
-    };
-    load();
+    })();
   }, [id]);
+
+  const handleCustomFieldUpdate = async (key: string, value: any) => {
+    if (!item) return;
+    const nextCustomFields = { ...(item.customFields || {}), [key]: value };
+    const updated = await updateSale({ id: item.id, customFields: nextCustomFields });
+    setItem(updated);
+  };
+
+  const handleStatusChange = async (status: string) => {
+    if (!item) return;
+    setSaving(true);
+    try {
+      const updated = await updateSale({ id: item.id, status });
+      setItem(updated);
+      showToast('Статус обновлён', { variant: 'success' });
+    } catch {
+      showToast('Не удалось изменить статус', { variant: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCommentsSave = async (nextComments: EntityComment[]) => {
+    if (!item) return;
+    const updated = await updateSale({ id: item.id, comments: nextComments });
+    setItem(updated);
+  };
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
+      <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top + 40 }]}>
+        <SkeletonList count={4} />
       </View>
     );
   }
 
   if (!item) {
     return (
-      <View style={styles.center}>
-        <Text>Продажа не найдена</Text>
+      <View style={[styles.root, { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ color: colors.text }}>Продажа не найдена</Text>
       </View>
     );
   }
 
+  const properties = [
+    item.leadId && {
+      label: 'Лид', value: leadName || `#${item.leadId.slice(0, 8)}`, icon: 'flash-outline' as const, iconColor: colors.info,
+      onPress: () => navigation.navigate('App', { screen: 'Leads', params: { screen: 'LeadDetail', params: { id: item.leadId } } }),
+    },
+    item.projectId && {
+      label: 'Проект', value: projectName || `#${item.projectId.slice(0, 8)}`, icon: 'layers-outline' as const, iconColor: colors.secondary,
+      onPress: () => navigation.navigate('Projects', { screen: 'ProjectDetail', params: { id: item.projectId } }),
+    },
+    item.channelId && { label: 'Канал', value: channelName || `#${item.channelId.slice(0, 8)}`, icon: 'git-network-outline' as const, iconColor: colors.info },
+    item.managerName && { label: 'Менеджер', value: item.managerName, icon: 'person-outline' as const, iconColor: colors.ink },
+    item.market && { label: 'Рынок', value: item.market, icon: 'globe-outline' as const, iconColor: colors.fg3 },
+    item.hotel && { label: 'Объект', value: item.hotel, icon: 'business-outline' as const, iconColor: colors.fg3 },
+    item.externalOrderNo && { label: '№ заказа', value: item.externalOrderNo, icon: 'receipt-outline' as const, iconColor: colors.warning },
+    { label: 'Дата продажи', value: fmtDate(item.saleDate), icon: 'calendar-outline' as const, iconColor: colors.fg3 },
+    { label: 'Создана', value: fmtDate(item.createdAt), icon: 'time-outline' as const, iconColor: colors.fg3 },
+  ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Сделка #{item.id.slice(0, 8)}</Text>
-      <Text style={styles.label}>
-        Сумма: {(item.amount ?? 0).toLocaleString('ru-RU')} {item.currency || 'EUR'}
-      </Text>
-      <Text style={styles.label}>Статус: {item.status}</Text>
-      <Text style={styles.label}>Дата: {item.saleDate || '—'}</Text>
-      <Text style={styles.label}>Лид: {item.leadId || '—'}</Text>
-      <Text style={styles.label}>Проект: {item.projectId || '—'}</Text>
-      <Text style={styles.label}>Создан: {item.createdAt}</Text>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuraBackground />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Продажи</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.hero}>
+          <Text style={[styles.heroId, { color: colors.textTertiary, fontFamily: fonts.mono }]}>#{item.id.slice(0, 8)}</Text>
+          <Text style={[styles.heroAmount, { color: colors.text }]}>{formatMoney(item.amount, item.currency)}</Text>
+          <View style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+            <Pill label={STATUS_LABEL[item.status] || item.status} tone={STATUS_TONE[item.status] || 'default'} />
+          </View>
+        </View>
+
+        {customerStats && (
+          <GlassCard variant="g" style={styles.statsCard} contentStyle={styles.statsCardRow}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: colors.text, fontFamily: fonts.mono }]}>{customerStats.count}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Заказов</Text>
+            </View>
+            <View style={[styles.statDiv, { backgroundColor: colors.separator }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: colors.success, fontFamily: fonts.mono }]} numberOfLines={1}>{fmt(customerStats.total)}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Всего потрачено</Text>
+            </View>
+            <View style={[styles.statDiv, { backgroundColor: colors.separator }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: colors.text, fontFamily: fonts.mono }]} numberOfLines={1}>{new Date(customerStats.firstOrder).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: '2-digit' })}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Первый заказ</Text>
+            </View>
+          </GlassCard>
+        )}
+
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>СВОЙСТВА</Text>
+        <GlassCard variant="g2" style={styles.listCard}>
+          {properties.map((p, i) => {
+            const Row = p.onPress ? TouchableOpacity : View;
+            return (
+              <Row key={i} style={[styles.propRow, { borderBottomColor: colors.line3, borderBottomWidth: i < properties.length - 1 ? 1 : 0 }]} onPress={p.onPress} activeOpacity={0.7}>
+                <View style={[styles.propIco, { backgroundColor: p.iconColor + '22' }]}>
+                  <Ionicons name={p.icon} size={16} color={p.iconColor} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.propLabel, { color: colors.textSecondary }]}>{p.label}</Text>
+                  <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{p.value}</Text>
+                </View>
+                {p.onPress && <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />}
+              </Row>
+            );
+          })}
+        </GlassCard>
+
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ДЕЙСТВИЯ</Text>
+        <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
+          <View style={styles.actionsRow}>
+            <Button label="Подтвердить" variant="accent" size="sm" disabled={saving || item.status === 'confirmed'} onPress={() => handleStatusChange('confirmed')} style={{ flex: 1 }} />
+            <Button label="Отменить" variant="secondary" size="sm" disabled={saving || item.status === 'cancelled'} onPress={() => handleStatusChange('cancelled')} style={{ flex: 1 }} />
+          </View>
+        </GlassCard>
+
+        {item.notes && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ЗАМЕТКА</Text>
+            <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
+              <Text style={[styles.notesText, { color: colors.text }]}>{item.notes}</Text>
+            </GlassCard>
+          </>
+        )}
+
+        <ActivityFeed entries={activity} />
+
+        <CommentsSection entries={item.comments} onSave={handleCommentsSave} />
+
+        <CustomFieldsSection entityType="sale" values={item.customFields} onUpdate={handleCustomFieldUpdate} />
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#f6f7fb' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 12 },
-  label: { fontSize: 14, color: '#374151', marginBottom: 6 },
+  root: { flex: 1 },
+  nav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  backTxt: { fontSize: 15 },
+  hero: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  heroId: { fontSize: 12, marginBottom: 4 },
+  heroAmount: { fontSize: 28, fontFamily: fonts.bold, letterSpacing: -0.5 },
+  sectionTitle: { fontSize: 11, fontFamily: fonts.medium, textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: spacing.xxl, paddingTop: spacing.xl, paddingBottom: 6 },
+  listCard: { borderRadius: radius.xxl, marginHorizontal: spacing.lg, overflow: 'hidden' },
+  propRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  propIco: { width: 32, height: 32, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  propLabel: { fontSize: 11, fontFamily: fonts.medium, marginBottom: 2 },
+  propValue: { fontSize: 14, fontFamily: fonts.medium },
+  notesText: { fontSize: 14, fontFamily: fonts.regular, lineHeight: 20 },
+  statsCard: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, borderRadius: radius.xxl, padding: 14 },
+  statsCardRow: { flexDirection: 'row', alignItems: 'center' },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: 14, fontFamily: fonts.semibold },
+  statLabel: { fontSize: 10, fontFamily: fonts.medium, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 3 },
+  statDiv: { width: StyleSheet.hairlineWidth, height: 28, marginHorizontal: 2 },
+  actionsRow: { flexDirection: 'row', gap: spacing.sm },
 });

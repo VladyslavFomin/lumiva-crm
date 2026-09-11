@@ -31,8 +31,8 @@ export async function fetchChatSessions(params?: { status?: 'open' | 'closed'; s
 }
 
 export async function fetchChatMessages(sessionId: string) {
-  const res = await api.get<ChatMessage[]>(`/online-chat/sessions/${sessionId}/messages`);
-  return res.data;
+  const res = await api.get<{ messages: ChatMessage[] }>(`/online-chat/sessions/${sessionId}/messages`);
+  return res.data.messages;
 }
 
 export async function sendChatMessage(sessionId: string, text: string) {
@@ -41,5 +41,5 @@ export async function sendChatMessage(sessionId: string, text: string) {
 }
 
 export async function deleteChatSession(sessionId: string) {
-  await api.del(`/online-chat/sessions/${sessionId}`);
+  await api.delete(`/online-chat/sessions/${sessionId}`);
 }
