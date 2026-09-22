@@ -160,12 +160,23 @@
     "companySelect": {
       "errors": {
         "createFailed": "Could not create company"
-      }
+      },
+      "placeholder": "Select a company...",
+      "loading": "Loading...",
+      "notFound": "No companies found",
+      "creating": "Creating...",
+      "create": "+ Create company:"
     },
     "contactSelect": {
       "errors": {
         "createFailed": "Could not create contact"
-      }
+      },
+      "placeholder": "Select a contact...",
+      "unnamed": "Unnamed",
+      "loading": "Loading...",
+      "notFound": "No contacts found",
+      "creating": "Creating...",
+      "create": "+ Create contact:"
     },
     "aiAssistant": {
       "title": "Assistant",
@@ -1211,7 +1222,10 @@
       "aiEmployeesChoose": "Choose employee",
       "aiEmployeesApprovals": "Approvals",
       "aiEmployeesLogs": "Logs",
-      "aiEmployeesReports": "Reports"
+      "aiEmployeesReports": "Reports",
+      "marketingUtmLinks": "Tagged links",
+      "aiEmployeesKnowledge": "Knowledge base",
+      "aiEmployeesInsights": "Impact"
     },
     "aiEmployees": {
       "badge": {
@@ -1295,7 +1309,7 @@
           "identity": "Identity",
           "access": "Access",
           "actions": "Actions",
-          "schedule": "Schedule",
+          "schedule": "Launch & triggers",
           "review": "Review"
         },
         "fields": {
@@ -1304,6 +1318,8 @@
           "jobTitle": "Job title",
           "language": "Language",
           "tone": "Tone of voice",
+          "timezone": "Time zone",
+          "timezoneHint": "Used to correctly convert times from client messages/emails (\"tomorrow at 4pm\") into UTC when creating a meeting — neither the tenant nor CRM staff have a time zone anywhere in the system.",
           "schedule": "Schedule",
           "dailyReportTime": "Daily report time",
           "avatarColor": "Color",
@@ -1319,15 +1335,18 @@
         "review": {
           "accesses": "Accesses",
           "approvalRules": "Approval rules",
-          "reportTime": "Report time"
+          "reportTime": "Report time",
+          "triggers": "Triggers",
+          "tables": "Tables"
         },
         "back": "Back",
         "continue": "Continue",
         "activate": "Activate AI Employee",
         "permissionGroups": {
           "read": "Read access",
-          "actions": "Actions",
-          "workspace": "Workspace & data"
+          "actions": "CRM actions",
+          "workspace": "Workspace & projects",
+          "communications": "Communication"
         },
         "approvalRulesTitle": "Approval rules",
         "approvalRequireBefore": "Require approval before {{action}}",
@@ -1335,7 +1354,13 @@
         "aiProviderPlatform": "Platform key (managed by admin)",
         "aiProviderOwnKeyHint": "This employee will use your key (OpenAI or Anthropic) — token usage is billed to your account with that provider, not the platform's quota.",
         "editTitle": "Settings",
-        "saveChanges": "Save changes"
+        "saveChanges": "Save changes",
+        "permissionsHint": "The AI sees and does only what is switched on below. Each permission really limits the data the employee receives and the actions it can perform.",
+        "approvalRulesHint": "Checked actions will not be executed by the AI on its own — they go to “Approvals” and run only after you confirm.",
+        "permBadge": {
+          "external": "Reaches the client",
+          "writes": "Changes CRM"
+        }
       },
       "languageOptions": {
         "english": "English",
@@ -1344,22 +1369,20 @@
         "mixed": "English / Turkish / Russian"
       },
       "autonomy": {
-        "read_only": {
-          "title": "Read Only",
-          "hint": "Analyze and report only."
-        },
         "suggest": {
-          "title": "Suggest Mode",
-          "hint": "Prepare actions for people."
+          "title": "Suggest mode",
+          "hint": "Reads and analyses only — recommendations go into the report, no actions performed."
         },
         "assisted": {
-          "title": "Assisted Mode",
-          "hint": "Execute safe actions."
+          "title": "Assistant",
+          "hint": "Prepares an action and waits for your decision in \"Approvals\"."
         },
         "auto": {
-          "title": "Auto Mode",
-          "hint": "Run allowed actions automatically."
-        }
+          "title": "Auto",
+          "hint": "Acts on its own — logs what it did in the journal and report."
+        },
+        "lockNoteSuggest": "At this level the employee does nothing but read and advise, so approvals and client dialogue don't apply.",
+        "lockNoteAssisted": "At \"Assistant\" level every action already goes to approval — the toggles below have no effect."
       },
       "empty": {
         "title": "Build your virtual CRM team.",
@@ -1375,8 +1398,41 @@
         "settings": "Settings"
       },
       "activity": {
+        "title": "AI activity",
+        "subtitle": "What your AI employees did recently",
+        "empty": "Quiet so far. Once AI employees start working on triggers, their actions will show up here.",
+        "allActions": "Full log",
+        "approvals": "Approvals ({{count}})",
+        "ago": {
+          "now": "just now",
+          "min": "{{count}} min ago",
+          "hour": "{{count}} h ago"
+        },
+        "types": {
+          "trigger_run": "On event",
+          "trigger_run_fallback": "Failed",
+          "action_created": "Action",
+          "action_executed": "Done",
+          "action_blocked": "Blocked",
+          "entity_assigned": "Assigned",
+          "entity_unassigned": "Removed",
+          "task_assigned": "Task",
+          "task_completed": "Finished",
+          "report_generated": "Report",
+          "manual_run": "Run",
+          "proactive_cycle": "Cycle",
+          "escalated": "Called a human",
+          "sla_breach": "Limit breached",
+          "sla_escalated": "Handed to humans",
+          "daily_plan": "Daily plan"
+        },
         "none": "No activity yet.",
-        "noneShort": "No activity yet"
+        "noneShort": "No activity yet",
+        "chooseAgent": "Choose whose activity to view",
+        "backToAgents": "All AI employees",
+        "unknownAgent": "System",
+        "eventsCount_one": "{{count}} event",
+        "eventsCount_other": "{{count}} events"
       },
       "approvalsPage": {
         "title": "AI Actions / Approvals",
@@ -1419,7 +1475,15 @@
         "bulk_send_campaign": "bulk campaigns",
         "connect_integration": "connecting integrations",
         "delete_data": "deleting data",
-        "create_workspace_table": "creating workspace tables"
+        "create_workspace_table": "creating workspace tables",
+        "send_telegram": "sending Telegram messages",
+        "create_task": "creating tasks",
+        "update_task": "changing tasks",
+        "create_note": "adding notes",
+        "create_project": "creating projects",
+        "add_comment": "Comment on the card",
+        "assign_self": "Took ownership",
+        "create_meeting": "creating meetings"
       },
       "profile": {
         "loading": "Loading AI Employee…",
@@ -1452,7 +1516,9 @@
           "assign": "Assignments & access",
           "approvals": "Approvals",
           "journal": "Journal",
-          "reports": "Reports"
+          "reports": "Reports",
+          "work": "Work",
+          "triggers": "Triggers"
         },
         "aboutSection": "What this employee does",
         "todayStats": "Today's numbers",
@@ -1619,6 +1685,374 @@
         "pro": "Available on Pro",
         "business": "Available on Business",
         "enterprise": "Available on Enterprise"
+      },
+      "permissions": {
+        "read_leads": {
+          "title": "Leads",
+          "hint": "Recent leads, statuses, sources, UTM and contacts — for scoring and summaries."
+        },
+        "read_contacts": {
+          "title": "Contacts",
+          "hint": "Number of contacts and the most recent ones."
+        },
+        "read_companies": {
+          "title": "Companies",
+          "hint": "Number of companies and the most recent ones. Needed to create company tasks."
+        },
+        "read_sales": {
+          "title": "Sales",
+          "hint": "Recent sales and weekly revenue by currency."
+        },
+        "read_tasks": {
+          "title": "Tasks",
+          "hint": "Open and overdue company tasks: title, due date, priority."
+        },
+        "read_projects": {
+          "title": "Projects",
+          "hint": "Active projects: status, amount, owner."
+        },
+        "read_marketing": {
+          "title": "Marketing & analytics",
+          "hint": "Traffic, spend, ROAS, channels and sources, connected ad integrations."
+        },
+        "read_bookings": {
+          "title": "Bookings",
+          "hint": "Upcoming bookings, in-house hotel guests, confirmation and payment statuses."
+        },
+        "read_helpdesk": {
+          "title": "Helpdesk",
+          "hint": "Open support tickets: subject, priority, channel."
+        },
+        "read_messages": {
+          "title": "Telegram conversations",
+          "hint": "Recent client dialogs. Needed to reply to clients in Telegram."
+        },
+        "read_notes": {
+          "title": "Notes",
+          "hint": "Recent public notes on clients, leads and projects. Private notes are never accessible."
+        },
+        "read_reports": {
+          "title": "Own past reports",
+          "hint": "This employee’s previous reports — for period comparison."
+        },
+        "create_task": {
+          "title": "Create tasks",
+          "hint": "Creates real company tasks in the CRM."
+        },
+        "update_task": {
+          "title": "Update tasks",
+          "hint": "Changes status, due date and priority of existing tasks."
+        },
+        "create_note": {
+          "title": "Add notes",
+          "hint": "Writes notes on client, lead and project cards on behalf of the AI."
+        },
+        "update_lead_status": {
+          "title": "Change lead status",
+          "hint": "Moves leads between pipeline stages."
+        },
+        "assign_lead": {
+          "title": "Assign leads",
+          "hint": "Assigns a responsible manager from your team, and — if this employee's own role allows it — can take ownership of the record itself."
+        },
+        "create_report": {
+          "title": "Create reports",
+          "hint": "Saves reports to the “Reports” tab."
+        },
+        "draft_email": {
+          "title": "Email drafts",
+          "hint": "Prepares client email text. Sends nothing — the draft waits for a human."
+        },
+        "send_email": {
+          "title": "Send emails",
+          "hint": "Really sends emails to clients from a connected mailbox."
+        },
+        "send_bulk_email": {
+          "title": "Bulk email",
+          "hint": "One email sent at once to a segment of leads or contacts (personalized per recipient). Always goes through Approvals, even in Auto mode."
+        },
+        "draft_whatsapp": {
+          "title": "WhatsApp drafts",
+          "hint": "Prepares message text. Does not send — for manual sending."
+        },
+        "send_telegram": {
+          "title": "Send to Telegram",
+          "hint": "Really replies to clients in existing Telegram bot conversations."
+        },
+        "create_project": {
+          "title": "Create projects",
+          "hint": "Creates projects in the Projects module."
+        },
+        "create_workspace_table": {
+          "title": "Create tables",
+          "hint": "Creates workspace tables and sees existing ones."
+        },
+        "manage_workspace_data": {
+          "title": "Change table data",
+          "hint": "Adds records and fields, enables views in workspace tables."
+        },
+        "escalate_to_human": {
+          "title": "Call a human",
+          "hint": "Notifies the responsible manager (or the owner) and leaves a comment with the reason — when the AI is unsure, money or discounts are involved, or the client is unhappy."
+        },
+        "create_meeting": {
+          "title": "Meetings",
+          "hint": "Creates a real meeting (date, link, attendees) — visible on the team calendar."
+        }
+      },
+      "config": {
+        "instructionsTitle": "Employee instructions",
+        "instructionsHint": "How your company wants this employee to work: tone with clients, rules, prices and terms, what must never be promised, who to escalate to. They apply all the time but never override permissions or approval rules.",
+        "instructionsPlaceholder": "E.g.: We are a hotel in Antalya. Address clients formally, reply within 15 minutes. Discounts above 5% only via manager Anna. No early check-in promises without reception confirmation…",
+        "save": "Save",
+        "expandWithAi": "Expand with AI",
+        "expanding": "Writing…",
+        "expandHint": "AI will turn the draft into full instructions using the same engine already configured for the company."
+      },
+      "triggers": {
+        "title": "When the employee starts on its own",
+        "hint": "The employee reacts to events in the CRM instead of a schedule — like a real colleague: a new lead arrives and it immediately assesses it, assigns a manager and leaves a note. These are the same events as in Automations.",
+        "assignedNote": "If the employee is made responsible for a lead, project or task, it takes the record on immediately and then reacts to its changes (status, client messages in Telegram) on its own — even if the trigger below is off.",
+        "scopeLabel": "For which records",
+        "scope": {
+          "all": "Any record",
+          "mine": "Only where I am responsible"
+        },
+        "promptLabel": "Special instructions for this trigger",
+        "promptPlaceholder": "E.g.: assign the least loaded manager right away and send the client a short greeting…",
+        "groups": {
+          "leads": "Leads",
+          "sales": "Sales",
+          "projects": "Projects",
+          "tasks": "Tasks",
+          "clients": "Clients",
+          "messages": "Messages",
+          "bookings": "Bookings & hotels",
+          "workspace": "Workspace"
+        },
+        "events": {
+          "lead_created": {
+            "title": "New lead",
+            "hint": "A lead was created manually, from a form, chat or integration."
+          },
+          "lead_status_changed": {
+            "title": "Lead status changed",
+            "hint": "A lead moved to another pipeline stage."
+          },
+          "lead_assigned": {
+            "title": "Lead owner changed",
+            "hint": "The responsible person of a lead changed."
+          },
+          "sale_created": {
+            "title": "New sale",
+            "hint": "A new sales record appeared."
+          },
+          "sale_status_changed": {
+            "title": "Sale status changed",
+            "hint": "A sale moved to another status."
+          },
+          "project_created": {
+            "title": "New project",
+            "hint": "A project was created."
+          },
+          "project_status_changed": {
+            "title": "Project status changed",
+            "hint": "A project moved to another status."
+          },
+          "task_created": {
+            "title": "New task",
+            "hint": "A company task was created."
+          },
+          "task_status_changed": {
+            "title": "Task status changed",
+            "hint": "A task moved to another status, e.g. “Done”."
+          },
+          "contact_created": {
+            "title": "New contact",
+            "hint": "A client contact was added."
+          },
+          "company_created": {
+            "title": "New company",
+            "hint": "A company was added."
+          },
+          "telegram_message_received": {
+            "title": "Client message in Telegram",
+            "hint": "A client wrote to the bot. The employee drafts or sends a reply according to approval rules."
+          },
+          "email_received": {
+            "title": "Email from a client",
+            "hint": "Only for mailboxes checked below in \"Email inbox access\". Without those, this trigger sees nothing even when enabled."
+          },
+          "booking_reservation_created": {
+            "title": "New booking",
+            "hint": "A booking was created in the Bookings module."
+          },
+          "booking_reservation_status_changed": {
+            "title": "Booking status changed",
+            "hint": "A booking was confirmed, cancelled or rescheduled."
+          },
+          "hotel_reservation_created": {
+            "title": "New hotel reservation",
+            "hint": "A reservation was created in the Reservation System."
+          },
+          "hotel_reservation_status_changed": {
+            "title": "Hotel reservation status changed",
+            "hint": "Check-in, check-out, confirmation or cancellation."
+          },
+          "custom_object_record_created": {
+            "title": "New table record",
+            "hint": "A record was added to a workspace table."
+          }
+        }
+      },
+      "tableAccess": {
+        "title": "Workspace table access",
+        "hint": "Choose which tables the employee can see and change. Without granted access it sees no tables at all. Tables the employee creates itself are granted with write access.",
+        "mode": {
+          "selected": "Selected only",
+          "all": "All tables"
+        },
+        "allWarning": "The employee will be able to read and change all workspace tables (if the matching permissions are on). Granting access per table is safer.",
+        "loading": "Loading tables…",
+        "loadFailed": "Could not load tables.",
+        "empty": "There are no tables in the workspace yet.",
+        "level": {
+          "none": "No access",
+          "read": "Read only",
+          "write": "Read & write"
+        }
+      },
+      "emailInboxAccess": {
+        "title": "Email inbox access",
+        "hint": "Empty by default — the employee reads no mailbox at all. Check specific mailboxes it may see mail from (and only messages tied to its own leads/contacts). Also enable the \"Email from a client\" trigger above — access without the trigger won't fire anything.",
+        "loading": "Loading email accounts…",
+        "loadFailed": "Could not load email accounts.",
+        "empty": "No email account is connected in this tenant yet."
+      },
+      "work": {
+        "taskTitle": "Assign a task",
+        "taskHint": "A one-off instruction with concrete data: what to do, for which client, on what terms. The employee starts right away.",
+        "taskPlaceholder": "E.g.: Prepare an offer for this client for 3 nights from 10 to 13 July, 2 adults, and leave a note on the card.",
+        "priority": "Priority",
+        "priorities": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "urgent": "Urgent"
+        },
+        "linkedRecord": "Link to a record",
+        "noRecord": "No link",
+        "submit": "Send to work",
+        "notActive": "The employee is not active — resume it to assign tasks.",
+        "sent": "Task sent — the employee is already working on it.",
+        "tasksList": "Tasks",
+        "tasksEmpty": "No tasks yet.",
+        "taskStatus": {
+          "done": "Done",
+          "queued": "Queued"
+        },
+        "responsibleFor": "Responsible for",
+        "responsibleHint": "Records where this employee is set as responsible. It runs them and reacts to their changes.",
+        "responsibleEmpty": "Not assigned to any record yet. Pick it in the “Responsible” block of a lead, project or task.",
+        "unassign": "Remove",
+        "entity": {
+          "lead": "Lead",
+          "project": "Project",
+          "company_task": "Task"
+        }
+      },
+      "assignee": {
+        "title": "AI employees",
+        "badge": "AI",
+        "hint": "An AI responsible takes the record on immediately, reacts to its changes and, per approval rules, may write to the client. Applied instantly.",
+        "saveFirst": "Save the record to assign an AI employee.",
+        "bulkAssigned": "AI employee assigned as responsible for the selected records.",
+        "allPaused": "All AI employees are currently paused — none can be assigned until you resume at least one.",
+        "allPausedLink": "Go to AI employees",
+        "noEligible": "No AI employee of the right role for this.",
+        "noEligibleLink": "Create a {{role}}"
+      },
+      "proposal": {
+        "label": "Recommendation · {{name}}",
+        "willBeResponsible": "will become responsible",
+        "approve": "Approve",
+        "reject": "Reject",
+        "approved": "Approved — {{name}} took it on",
+        "rejected": "Rejected"
+      },
+      "dialogue": {
+        "title": "Client communication",
+        "hint": "How the employee behaves when it is responsible for a lead, company or client and has to write to the client (email or Telegram).",
+        "approval": {
+          "title": "Via approval",
+          "hint": "Every client message first goes to “Approvals” — it is sent after your “Approve”."
+        },
+        "auto": {
+          "title": "Runs the dialogue itself",
+          "hint": "On records where it is responsible, emails and Telegram messages go out immediately without asking a human (limit: 6 messages per hour per record, 30 per hour per employee). On other records it still goes through approval."
+        }
+      },
+      "sla": {
+        "title": "Speed control",
+        "enable": "Make sure clients never wait",
+        "hint": "If a client wrote in Telegram on a record where the employee is responsible and has no answer for longer than the limit, the employee answers or calls a human. After twice the limit the system calls a human itself. Overdue tasks assigned to the AI are watched the same way.",
+        "minutes": "Waiting limit, minutes",
+        "checkNow": "Check now",
+        "checked": "Checked: {{breaches}} breach(es), {{escalated}} handed to humans."
+      },
+      "dailyPlan": {
+        "title": "Daily team plan",
+        "enable": "Send a morning plan",
+        "hint": "Each team member gets a notification: new leads not processed, leads with no movement for 3+ days, tasks due today and overdue. The evening report includes a “Handover” block.",
+        "time": "Send time (UTC; Istanbul = UTC+3)",
+        "runNow": "Send the plan now",
+        "sent": "Plan sent to {{count}} team member(s)."
+      },
+      "knowledge": {
+        "title": "Knowledge base",
+        "subtitle": "Prices, rules, FAQ, terms and reply templates. AI employees answer clients from these facts and cite the source; if the answer is not here they call a human instead of inventing.",
+        "search": "Search the base",
+        "add": "Add knowledge",
+        "edit": "Edit knowledge",
+        "fieldTitle": "Title",
+        "fieldContent": "Text",
+        "contentPlaceholder": "E.g.: Check-in from 14:00, check-out until 12:00. Early check-in only with reception confirmation, 50% surcharge per night.",
+        "loadFile": "Load from a file (.txt, .md, .csv)",
+        "fieldTags": "Tags (comma separated)",
+        "alwaysOn": "Always include",
+        "alwaysOnHint": "Goes into every run — for general rules, tone and terms. Everything else is picked by topic.",
+        "enabled": "Enabled",
+        "alwaysOnBadge": "always",
+        "emptyTitle": "The knowledge base is empty",
+        "emptyHint": "Add the first facts: terms, prices, answers to frequent questions. The more precise the base, the more independently the AI works.",
+        "confirmDelete": "Delete “{{title}}”?"
+      },
+      "insights": {
+        "title": "Impact report",
+        "subtitle": "What AI employees did over the period and how much time they saved your team.",
+        "days": "{{count}} d",
+        "hoursSaved": "Time saved",
+        "records": "Records handled",
+        "events": "Events processed",
+        "actions": "Actions done",
+        "messages": "Client messages",
+        "escalations": "Handed to humans",
+        "estimateNote": "Time saved is an estimate from typical durations of manual actions (a client message ≈ 3 min, a note ≈ 1.5 min, etc.), not an exact measurement.",
+        "byEmployee": "By employee",
+        "cols": {
+          "employee": "Employee",
+          "events": "Events",
+          "actions": "Actions",
+          "messages": "Messages",
+          "escalations": "Handed to humans",
+          "approval": "Approved by humans",
+          "saved": "Saved"
+        },
+        "lessons": "What the AI is learning",
+        "lessonsHint": "What your team rejected over the period. These rejections are fed back into the employees’ prompts automatically so they do not repeat the same thing.",
+        "noLessons": "No rejected actions yet.",
+        "unitMin": "min",
+        "unitHour": "h"
       }
     },
     "settings": {
@@ -1752,6 +2186,145 @@
         "downloadBtn": "Download backup (JSON)",
         "generateErrorFormat": "Failed to generate the export ({{status}})",
         "downloadError": "Failed to download the backup"
+      },
+      "company": {
+        "sectionLabel": "Settings",
+        "title": "Company settings",
+        "subtitle": "Name, logo, plan, staff access and storage",
+        "loading": "Loading settings…",
+        "saving": "Saving…",
+        "save": "Save changes",
+        "success": "Settings saved",
+        "ownerOnly": "Editing is available only to the company owner (owner role).",
+        "logoUpload": "Upload file",
+        "logoUploading": "Uploading…",
+        "logoUploadSuccess": "Logo updated",
+        "noLogo": "No image",
+        "tabs": {
+          "general": "General",
+          "billing": "Plan & billing",
+          "sessions": "Sessions & access",
+          "invites": "Invitations",
+          "storage": "Storage"
+        },
+        "billing": {
+          "activeUntil": "Subscription active until",
+          "unlimited": "No date limit",
+          "hint": "Compare plans and pay for the one you need below — via Stripe, without leaving the page."
+        },
+        "sessions": {
+          "hint": "Staff and last login. Disabling access applies to the CRM account.",
+          "activeLoginsTitle": "Active logins",
+          "activeLoginsHint": "Each sign-in creates a separate session. IP and browser are recorded at login.",
+          "loading": "Loading sessions…",
+          "noSessions": "No active sessions",
+          "colName": "Name",
+          "colEmail": "Email",
+          "colRole": "Role",
+          "colLastLogin": "Last login",
+          "colIp": "IP",
+          "colStarted": "Session started",
+          "colLastSeen": "Last activity",
+          "colUserAgent": "Device / browser",
+          "colActions": "Actions",
+          "deactivate": "Deactivate",
+          "activate": "Activate",
+          "activated": "Access enabled",
+          "deactivated": "Access disabled",
+          "revokeOne": "End session",
+          "revokeAll": "All sessions ({{count}})",
+          "revokeSuccess": "Session ended",
+          "revokeAllSuccess": "All of the user's sessions ended"
+        },
+        "invites": {
+          "hint": "Staff with a pending invite (haven't accepted access yet).",
+          "empty": "No pending invitations",
+          "colEmail": "Email",
+          "colRole": "Role",
+          "colStatus": "Status",
+          "colActions": "Actions",
+          "formTitle": "Send an invitation",
+          "formSubtitle": "An email with a link to set a password and sign in to the CRM will be sent (same as at sign-up).",
+          "fieldEmail": "Email",
+          "fieldName": "Name",
+          "fieldRole": "Role",
+          "send": "Send invitation",
+          "sending": "Sending…",
+          "sent": "Invitation sent",
+          "resend": "Resend",
+          "resending": "Sending…",
+          "resent": "Email resent",
+          "errors": {
+            "generic": "Failed to send the invitation",
+            "resend": "Failed to resend the email"
+          }
+        },
+        "storage": {
+          "usageTitle": "Storage usage",
+          "tiersHint": "Basic plan: up to 3 GB, Pro: up to 5 GB, Advanced: up to 10 GB per company; the top tier is by arrangement. Extra space can be purchased on any plan.",
+          "unlimitedPlan": "Limit by arrangement",
+          "extraHint": "Extra gigabytes are added via payment. File tracking by module is being rolled out gradually.",
+          "buyMore": "Buy more space / upgrade plan",
+          "filesTitle": "Company files",
+          "filesHint": "Files uploaded to the CRM across sections (shared storage, logo, workspaces, chat, mail, etc). View and delete only (subject to permissions).",
+          "deleteRolesHint": "Only the company owner and IT department staff (by department name in the directory) can delete files.",
+          "colSource": "Source",
+          "colFile": "File",
+          "colSize": "Size",
+          "colUploadedBy": "Uploaded by",
+          "colDate": "Date",
+          "colActions": "Actions",
+          "delete": "Delete",
+          "loadingFiles": "Loading the list…",
+          "noFiles": "No files yet",
+          "deleteSuccess": "File deleted",
+          "source": {
+            "company_storage": "Shared storage",
+            "logo": "Company logo",
+            "online_chat": "Online chat",
+            "email": "Mail",
+            "telegram": "Telegram",
+            "workspace": "Workspaces",
+            "tenant_disk": "Tenant directory (uploads)"
+          }
+        },
+        "errors": {
+          "load": "Failed to load company settings",
+          "save": "Failed to save settings",
+          "upload": "Failed to upload the logo file"
+        },
+        "fields": {
+          "name": "Company name",
+          "namePlaceholder": "The name shown across the CRM",
+          "logo": "Logo",
+          "logoHint": "Upload a PNG/JPEG/WebP/GIF (up to 2 MB). The logo is shown in the left menu for all staff.",
+          "language": "Primary interface language",
+          "languageEmpty": "— Not selected —",
+          "languageHint": "Currently just a settings field. Switching the UI by language may be added later.",
+          "primaryCurrency": "Primary currency",
+          "primaryCurrencyHint": "Company-level sums (revenue, potential) are converted to this currency at the current exchange rate.",
+          "clientKey": "Client key",
+          "plan": "Plan",
+          "status": "Status",
+          "created": "Created",
+          "updated": "Updated",
+          "logoPreview": "Logo preview",
+          "logoAlt": "Company logo",
+          "aiWrapperTemplate": "Email wrapper (AI & transactional)",
+          "aiWrapperTemplateEmpty": "— Built-in design —",
+          "aiWrapperTemplateHint": "A template from the Mail section: in the HTML, insert the email body via {{contentHtml}} (and, if needed, {{contentText}}, {{headline}}, {{tenantName}}, {{companyName}}, {{logoUrl}} — a link to the company logo from Settings). If none is selected, the same style used at sign-up is applied.",
+          "aiWrapperTemplatesLoading": "Loading templates…",
+          "aiWrapperTemplatesError": "Failed to load the template list",
+          "templateInactiveSuffix": " (inactive)",
+          "documentRequisites": "Company requisites",
+          "documentRequisitesPlaceholder": "Tax ID, VKN, bank details",
+          "documentRequisitesHint": "Inserted into documents (\"My documents\") as the {ORG_TAX} key.",
+          "legalRequisites": "Company requisites",
+          "legalRequisitesHint": "Add only the entries you need (by region — CIS/Turkey/Europe) using the button below. Empty fields are skipped in the document; filled ones are automatically included in the {ORG_TAX} key (\"My documents\").",
+          "documentManagerName": "Default responsible person",
+          "documentManagerNamePlaceholder": "Who signs documents by default",
+          "documentManagerNameHint": "The {MANAGER} key in documents — if not set, the name of whoever issues the document is used."
+        }
       }
     },
     "embedForms": {
@@ -2348,7 +2921,11 @@
         "gaNoColumnsSelected": "Enable and map at least one column.",
         "gaSyncing": "Importing GA4…",
         "gaSyncWithMapping": "Import GA4 into table",
-        "skippedEmptyHint": "Empty rows were skipped."
+        "skippedEmptyHint": "Empty rows were skipped.",
+        "autoRefreshLabel": "Refresh automatically",
+        "autoRefreshHint": "This import with the current column mapping will repeat on its own (Woo every 3 hours, Meta Ads and GA4 daily).",
+        "autoRefreshSaved": "Import done, auto-refresh is on.",
+        "autoRefreshFailed": "Import done, but auto-refresh could not be enabled"
       },
       "settings": {
         "title": "Table settings",
@@ -2541,6 +3118,44 @@
         "searchEvents": "Search events...",
         "noDatedRecords": "No records with dates yet.",
         "moreCount": "+{{count}} more"
+      },
+      "syncSources": {
+        "title": "Data sources",
+        "never": "not refreshed yet",
+        "updatedAt": "updated {{date}}",
+        "rows": "{{count}} rows",
+        "nightly": "auto-refresh every night",
+        "everyHours": "auto-refresh every {{count}} h",
+        "autoOff": "auto-refresh off",
+        "lastFailed": "Last refresh failed",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "refreshAll": "Refresh all",
+        "turnOn": "Turn on",
+        "turnOff": "Turn off",
+        "remove": "Remove",
+        "removeConfirm": "Remove this source? Rows already loaded stay in the table but will no longer be updated.",
+        "add": "Data source",
+        "failed": "Could not refresh the table",
+        "kinds": {
+          "monthly": "Monthly spend",
+          "rows": "Ad accounts",
+          "import": "Integration import"
+        },
+        "dialog": {
+          "title": "Add a source from ad accounts",
+          "providers": "Providers (one or more)",
+          "grain": "Granularity",
+          "grainDaily": "By day and campaign",
+          "grainCampaign": "By campaign for the period",
+          "grainChannel": "By channel for the period",
+          "from": "Period from",
+          "currency": "Currency",
+          "currencyNone": "As in the accounts",
+          "currencyHint": "If you combine accounts in different currencies, pick one — amounts are converted at the current rate.",
+          "cancel": "Cancel",
+          "submit": "Add and load"
+        }
       }
     },
     "sidebar": {
@@ -5142,6 +5757,52 @@
       },
       "list": {
         "currencyTitle": "Data source currency"
+      },
+      "metaOauth": {
+        "title": "Connect Meta Ads",
+        "loading": "Loading…",
+        "loadError": "Could not load Meta data",
+        "startError": "Could not open Facebook login",
+        "connectError": "Could not connect the ad accounts",
+        "notConfigured": "The Meta app is not configured on the platform yet, so Facebook login is unavailable. You can enter an access token manually.",
+        "intro": "Log in with Facebook and your ad accounts connect without tokens or typing IDs.",
+        "steps": [
+          "Click “Connect with Facebook” and sign in to an account with Ads Manager access.",
+          "Choose the ad accounts you want to see in CRM.",
+          "Campaign statistics load right away and update automatically."
+        ],
+        "permissionsNote": "We only request read access to ad data (ads_read): CRM cannot change or launch campaigns.",
+        "expired": "Meta access has expired — log in again so data keeps updating.",
+        "connect": "Connect with Facebook",
+        "reconnect": "Reconnect Facebook",
+        "manual": "Enter a token manually",
+        "pickTitle": "Choose ad accounts",
+        "pickHint": "Campaign data loads right after connecting.",
+        "accessUntil": "Access valid until {{date}}",
+        "selectAll": "Select all",
+        "clearAll": "Clear selection",
+        "empty": "This Facebook account has no available ad accounts. Log in as a user with Ads Manager access.",
+        "connectedTag": "connected",
+        "inactiveTag": "inactive",
+        "connectN": "Connect selected ({{count}})",
+        "connecting": "Connecting…",
+        "doneTitle": "Done",
+        "doneRows": "Statistics rows loaded: {{count}}",
+        "doneError": "The account is connected, but sync failed: {{error}}",
+        "done": "Done",
+        "close": "Close",
+        "rowTitle": "Meta accounts and access",
+        "callback": {
+          "connected": "Facebook connected. Choose your ad accounts.",
+          "error": "Could not log in with Facebook. Please try again."
+        },
+        "badge": {
+          "label": "Access",
+          "hint": "Meta access lasts about 60 days. We will remind you by email and in notifications a week before it ends.",
+          "until": "until {{date}}",
+          "soon": "{{count}} d left · {{date}}",
+          "expired": "expired {{date}}"
+        }
       }
     },
     "marketingAutomations": {
@@ -5183,9 +5844,9 @@
       "confirmDelete": "Delete scenario “{{name}}”?"
     },
     "marketingSeo": {
-      "kicker": "Marketing · SEO & content",
-      "title": "SEO and site quality",
-      "subtitle": "Enter a site URL, connect Google Search Console, and run an SEO check for clicks, impressions, CTR, and average position.",
+      "kicker": "Search Console · PageSpeed",
+      "title": "SEO",
+      "subtitle": "Your site’s organic traffic and load speed — from Google Search Console and PageSpeed Insights, refreshed on demand.",
       "loading": "Loading data…",
       "status": {
         "saved": "Saved",
@@ -5206,7 +5867,10 @@
         "siteDelete": "Could not delete site",
         "gscReauthRequired": "Please re-authorize Google Search Console.",
         "loadMetrics": "Could not load SEO metrics.",
-        "loadSettings": "Could not load SEO settings."
+        "loadSettings": "Could not load SEO settings.",
+        "gscForbidden": "The connected Google account has no access to {{property}}. Make sure you connected the Google account in which the site is added to Search Console, or pick a site from the available ones.",
+        "psiReconnect": "To enable speed measurements, reconnect your Google account — one extra permission is needed. Or add your own PageSpeed API key.",
+        "psiApiDisabled": "Google rejected the speed measurement: PageSpeed Insights API is not enabled in the platform’s Google Cloud project. The project owner needs to enable it once (it takes a few minutes to apply), then press “Refresh”. Or add your own PageSpeed API key."
       },
       "connections": {
         "title": "Site SEO check",
@@ -5283,8 +5947,8 @@
         }
       },
       "fields": {
-        "siteUrl": "Site URL for SEO check",
-        "siteUrlHint": "The URL is saved as the Google Search Console property. If GSC uses a domain property, use sc-domain:example.com.",
+        "siteUrl": "Site domain",
+        "siteUrlHint": "Enter just the domain, without https:// — for example, example.com.",
         "gscPropertyUrl": "GSC property URL",
         "pageSpeedUrl": "PageSpeed URL",
         "pageSpeedApiKey": "PageSpeed API Key",
@@ -5376,12 +6040,148 @@
       "oauthCallback": {
         "connected": "Connection completed.",
         "generic": "OAuth result."
+      },
+      "ui": {
+        "conn": {
+          "ok": "Search Console connected",
+          "off": "No access"
+        },
+        "resource": "Property",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "range": {
+          "d7": "7 days",
+          "d30": "30 days",
+          "d90": "90 days",
+          "custom": "Custom",
+          "apply": "Apply"
+        },
+        "syncLine": "synced {{date}}",
+        "syncNever": "not synced yet",
+        "compareLabel": "Compare to previous",
+        "notice": {
+          "notConnected": "Search Console is not connected — connect access to see clicks, impressions and positions.",
+          "expired": "Search Console access has expired — the data below is from the last sync.",
+          "connect": "Connect",
+          "reconnect": "Reconnect",
+          "pickProperty": "Properties available to this account — pick one:"
+        },
+        "kpiPosition": "Average position",
+        "flat": "no change",
+        "chart": {
+          "byDay": "{{metric}} by day",
+          "days": "{{count}} d",
+          "current": "Current period",
+          "previous": "Previous",
+          "prevTooltip": "Prev. period"
+        },
+        "psi": {
+          "mobile": "Mobile",
+          "desktop": "Desktop",
+          "gauges": {
+            "performance": "Perform.",
+            "accessibility": "Accessibility",
+            "bestPractices": "Practices",
+            "seo": "SEO"
+          },
+          "tone": {
+            "good": "good",
+            "ok": "fair",
+            "poor": "poor"
+          },
+          "unitS": "s",
+          "unitMs": "ms",
+          "needKey": "Connect a Google account — speed measurements run through it automatically. Or add your own PageSpeed API key.",
+          "emptyHint": "No speed measurements yet. Press “Refresh” — they will run through the connected Google account.",
+          "measured": "measured {{date}}",
+          "howTo": "How to get a key",
+          "enableApi": "Enable the API",
+          "vitalDesc": {
+            "lcp": "Main content load",
+            "cls": "Layout shift",
+            "fcp": "First paint",
+            "tbt": "Input blocking",
+            "speedIndex": "Visual load speed"
+          },
+          "fullReport": "Full Google report"
+        },
+        "sources": {
+          "title": "Property & access",
+          "updated": "updated {{date}}",
+          "gscLabel": "Google Search Console",
+          "connect": "Connect",
+          "reconnect": "Reconnect account",
+          "open": "Open in Search Console",
+          "keyLabel": "PageSpeed API key",
+          "keyPlaceholder": "AIzaSy…",
+          "keyHint": "The key is free (Google’s limit is 25,000 measurements a day).",
+          "keySaved": "PageSpeed key saved",
+          "keyBusy": "Saving…",
+          "keyLabelOptional": "Your own PageSpeed API key (optional)",
+          "keyHintPlatform": "Optional: measurements run through the connected Google account. You only need your own key for your own Google quota."
+        },
+        "steps": [
+          {
+            "b": "Clicks and impressions",
+            "t": "compare with the previous period; falling impressions with a steady CTR usually mean lost rankings, not lost demand."
+          },
+          {
+            "b": "Snippet CTR",
+            "t": "below 2% at a top-10 position points to a weak page title and description."
+          },
+          {
+            "b": "Average position",
+            "t": "keep the number trending down; a sharp rise means new low-volume queries got indexed."
+          },
+          {
+            "b": "Core Web Vitals",
+            "t": "LCP under 2.5 s and CLS under 0.1 on mobile; re-check after every site release."
+          }
+        ],
+        "stepsTitle": "What to monitor",
+        "stepsMeta": "checklist",
+        "keyHelp": {
+          "title": "How to get a PageSpeed API key",
+          "intro": "The key is free and takes a couple of minutes to create in Google Cloud Console — any Google account will do.",
+          "steps": [
+            {
+              "b": "Project",
+              "t": "open Google Cloud Console and create a project (or pick an existing one).",
+              "a": "Create a project"
+            },
+            {
+              "b": "Enable the API",
+              "t": "find “PageSpeed Insights API” in the API library and click “Enable”.",
+              "a": "Open PageSpeed Insights API"
+            },
+            {
+              "b": "Create a key",
+              "t": "“APIs & Services” → “Credentials” → “Create credentials” → “API key”.",
+              "a": "Open credentials"
+            },
+            {
+              "b": "Restrict the key",
+              "t": "recommended: in the key settings → “API restrictions” → select only “PageSpeed Insights API”."
+            },
+            {
+              "b": "Paste it into CRM",
+              "t": "copy the key (starts with AIzaSy…), paste it into “PageSpeed API key”, press “Save”, then “Refresh”."
+            }
+          ],
+          "note": "A free key allows 25,000 measurements a day. The key is stored in CRM and only ever shown masked in the interface.",
+          "close": "Got it"
+        },
+        "sites": {
+          "loading": "Loading sites…",
+          "notChecked": "not checked yet",
+          "add": "Add another site"
+        }
       }
     },
     "marketingSmm": {
-      "kicker": "Marketing · SMM",
-      "title": "Social and audience dynamics",
-      "subtitle": "Profiles and daily stats: followers, reach, views, engagement.",
+      "kicker": "Instagram · Facebook · VK · Telegram",
+      "title": "SMM",
+      "subtitle": "Followers, reach and engagement of your connected profiles. Data is collected daily from Meta and VK; Telegram is still entered manually.",
       "periodLabel": "Period",
       "periods": {
         "7d": "7 days",
@@ -5534,12 +6334,146 @@
         "igVideo": "Instagram video views may be unavailable for some profiles.",
         "igEngagement": "Likes and comments may arrive with delay when there is no fresh content.",
         "fbReach": "Facebook metrics may lag due to Insights limits."
+      },
+      "ui": {
+        "conn": {
+          "metaOk": "Meta connected",
+          "metaOff": "Meta not connected",
+          "metaExpired": "Meta token expired",
+          "vkOk": "VK connected",
+          "vkExpired": "VK token expired",
+          "metaSoon": "Meta token expires soon"
+        },
+        "sync": "Sync",
+        "syncing": "Syncing…",
+        "integrations": "Integrations",
+        "syncNothing": "No connected integrations — connect Meta or VK first.",
+        "syncDone": "Synced: {{synced}} profiles, {{skipped}} skipped, {{errors}} errors.",
+        "loading": "Loading…",
+        "lastSync": "synced {{date}}",
+        "range": {
+          "7d": "7 days",
+          "30d": "30 days",
+          "90d": "90 days",
+          "custom": "Custom",
+          "apply": "Apply"
+        },
+        "rangeLine": "compared with the previous {{days}} days",
+        "oauth": {
+          "connected": "{{provider}} connected. Choose the profiles you want to track.",
+          "failed": "Could not connect {{provider}}. Please try again."
+        },
+        "delta": {
+          "noPrev": "no data for the previous period",
+          "flat": "no change"
+        },
+        "stale": {
+          "one": "Profile {{handle}} is disabled or not updating.",
+          "many": "Profiles that are not updating: {{count}}.",
+          "since": "Latest data is from {{date}}.",
+          "check": "Check integrations"
+        },
+        "kpi": {
+          "profiles": "Profiles",
+          "ofN": "of {{total}}",
+          "profilesNote": "Active profiles sync automatically",
+          "followers": "Followers now",
+          "delta": "Growth in period",
+          "reachEr": "Reach · ER"
+        },
+        "chart": {
+          "title": "{{metric}} by platform",
+          "days": "{{count}} d",
+          "dayTip": " · per day",
+          "prevHint": "dashed — previous period",
+          "empty": "No data for the selected period. Connect integrations or add profiles, then press “Sync”."
+        },
+        "metrics": {
+          "followers": "Followers",
+          "reach": "Reach",
+          "likes": "Likes",
+          "comments": "Comments",
+          "videoViews": "Video views"
+        },
+        "profiles": {
+          "title": "Profiles",
+          "shown": "{{shown}} of {{total}}",
+          "search": "Search by account",
+          "allPlatforms": "All platforms",
+          "platform": "Platform",
+          "account": "Account",
+          "link": "Link",
+          "add": "Add profile",
+          "adding": "Adding…",
+          "emptyTitle": "No profiles found",
+          "emptyDesc": "Change the filter or add an account manually — or connect Meta and VK in integrations."
+        },
+        "table": {
+          "profile": "Profile",
+          "platform": "Platform",
+          "followers": "Followers",
+          "growth": "Growth",
+          "reach": "Reach",
+          "likes": "Likes",
+          "comments": "Comments",
+          "views": "Views",
+          "data": "Data",
+          "actions": "Actions",
+          "disabled": "disabled",
+          "why": "Why some metrics are missing",
+          "open": "Open profile",
+          "remove": "Delete profile",
+          "total": "Total · {{count}}",
+          "more": "Show more"
+        },
+        "notes": {
+          "disabled": "Profile is disabled: sync is stopped, the latest data is shown.",
+          "telegram": "Telegram does not provide likes and comments — only subscribers and post views."
+        },
+        "errors": {
+          "vkAssets": "Could not load VK communities",
+          "toggle": "Could not update the profile"
+        },
+        "drawer": {
+          "title": "Social integrations",
+          "metaTitle": "Meta · Facebook and Instagram",
+          "vkTitle": "VK",
+          "state": {
+            "ok": "active",
+            "warn": "token expired",
+            "off": "not connected",
+            "manual": "manual",
+            "soon": "expires soon"
+          },
+          "notConnectedSub": "Connect a Meta account to get page and Instagram statistics",
+          "vkNotConnectedSub": "Connect a VK account to get community statistics",
+          "connectedSince": "Connected {{date}} · synced daily",
+          "connect": "Connect",
+          "reconnect": "Reconnect account",
+          "syncNow": "Sync now",
+          "lastSync": "Last sync {{date}} · {{synced}} profiles, {{errors}} errors",
+          "expiredHint": "The token has expired — reconnect the account or data will stop updating.",
+          "loading": "Loading the list…",
+          "noPages": "No pages found",
+          "noGroups": "No communities found",
+          "igNotLinked": "Instagram not linked",
+          "inProfiles": "in profiles",
+          "pagesFoot": "The page list comes from Meta with the current token. Disabled pages are not synced; their history is kept.",
+          "members": "{{n}} members",
+          "add": "Add",
+          "enable": "Enable",
+          "disable": "Disable",
+          "tgSub": "Added manually for now",
+          "tgFoot": "Telegram is connected manually: add the channel to the profiles table. There are no automatic statistics, and Telegram does not provide likes and comments at all.",
+          "expiresOn": "Access valid until {{date}}",
+          "expiresSoonHint": "reconnect the account in advance or data will stop updating"
+        }
       }
     },
     "marketingUtms": {
-      "kicker": "Marketing · UTM tags",
-      "title": "UTM link builder",
-      "subtitle": "Build UTM links for campaigns quickly. You can save presets per channel (Google Ads, Meta Ads, Yandex, email, etc.).",
+      "kicker": "Ad tagging",
+      "title": "UTM tags",
+      "subtitle": "A tagged link is the only way to know which ad a lead came from. CRM reads the tags on submission and puts them on the lead card, and the channel and ROI reports are built from them.",
       "fields": {
         "channel": "Channel",
         "baseUrl": "Base URL",
@@ -5569,7 +6503,9 @@
         "saveTemplate": "Save template",
         "saving": "Saving…",
         "applyTemplate": "Apply",
-        "deleteTemplate": "Delete"
+        "deleteTemplate": "Delete",
+        "newLink": "New link",
+        "copied": "Copied"
       },
       "templates": {
         "title": "Saved templates",
@@ -5582,12 +6518,145 @@
         "loadTemplates": "Could not load UTM templates",
         "nameRequired": "Enter template name",
         "saveTemplate": "Could not save template",
-        "deleteTemplate": "Could not delete template"
+        "deleteTemplate": "Could not delete template",
+        "invalidBaseUrl": "Invalid base URL — enter a full address, for example https://site.com/page",
+        "copyFailed": "Could not copy to the clipboard"
       },
       "confirmDelete": "Delete template “{{name}}”?",
       "common": {
         "empty": "—"
-      }
+      },
+      "ui": {
+        "flow": {
+          "step": "STEP {{n}}",
+          "items": [
+            {
+              "t": "Build the link",
+              "d": "The page address plus five tags describing where the ad runs."
+            },
+            {
+              "t": "Put it in the ad",
+              "d": "In Google Ads, Meta, an email, a post, or a QR code on print material."
+            },
+            {
+              "t": "Visitor clicks through",
+              "d": "The tags are kept in the browser and passed into the form on your site."
+            },
+            {
+              "t": "A lead arrives",
+              "d": "The lead is created with the source, campaign and ad already on the card."
+            },
+            {
+              "t": "Visible in reports",
+              "d": "Marketing → Channels and lead ROI are calculated from the same tags."
+            }
+          ]
+        },
+        "builder": {
+          "titleNew": "Link builder",
+          "titleEdit": "Editing a template",
+          "metaNew": "fill in and copy",
+          "metaEdit": "changes will update the saved template"
+        },
+        "page": {
+          "label": "Site page",
+          "hint": "where the ad points"
+        },
+        "fields": {
+          "source": {
+            "n": "Where they came from",
+            "hint": "→ Lead source"
+          },
+          "medium": {
+            "n": "Traffic type",
+            "hint": "→ Channel in reports"
+          },
+          "campaign": {
+            "n": "Campaign",
+            "hint": "→ Grouping in the channel report"
+          },
+          "content": {
+            "n": "Ad or creative",
+            "hint": "→ What exactly worked"
+          },
+          "term": {
+            "n": "Keyword",
+            "hint": "→ Search query"
+          }
+        },
+        "warn": {
+          "text": "Spaces, capitals and Cyrillic break report grouping.",
+          "fix": "Fix"
+        },
+        "out": {
+          "label": "Ready link",
+          "copy": "Copy",
+          "empty": "Enter the page address — the link will be built here",
+          "noParams": " · no tags filled in"
+        },
+        "save": {
+          "name": "Template name",
+          "nameHint": "so you don’t rebuild it",
+          "namePh": "Meta · autumn intensive",
+          "copy": "Save a copy",
+          "update": "Update template",
+          "create": "Save template",
+          "saving": "Saving…"
+        },
+        "roles": [
+          {
+            "r": "Marketer",
+            "t": "Builds links by shared rules",
+            "d": "One template per channel — and tags in reports don’t split into google / Google / google.com."
+          },
+          {
+            "r": "Head of sales",
+            "t": "Sees which ads bring deals",
+            "d": "Channel and ROI reports are built from tags: spend against leads and revenue for each campaign."
+          },
+          {
+            "r": "Manager",
+            "t": "Knows the context before the call",
+            "d": "The lead card shows the ad and the query the person came from."
+          }
+        ],
+        "crm": {
+          "title": "How CRM will see it",
+          "meta": "lead card",
+          "none": "not passed",
+          "rows": {
+            "source": "Source",
+            "medium": "Channel",
+            "campaign": "Campaign",
+            "content": "Ad",
+            "term": "Query",
+            "landing": "Landing page"
+          },
+          "foot": "The same fields go to the “Marketing → Channels” report, lead ROI and the lead list filters. An empty tag shows as “(not set)” in the report."
+        },
+        "templates": {
+          "title": "Templates",
+          "empty": "No saved templates yet. Build a link and save it under the channel name.",
+          "load": "Load into builder",
+          "remove": "Delete"
+        },
+        "rules": {
+          "title": "Naming rules",
+          "meta": "or the report splits",
+          "items": [
+            "Only lowercase Latin letters, digits, <code>_</code> and <code>-</code>.",
+            "One value per meaning: <code>facebook</code>, not <code>fb</code> and <code>facebook.com</code> in different links.",
+            "<code>utm_medium</code> is the traffic type (<code>cpc</code>, <code>paid_social</code>, <code>email</code>), not the platform name.",
+            "Name the campaign the way you will look for it in the report: period and offer."
+          ]
+        }
+      },
+      "success": {
+        "created": "Template saved. Change the fields and press “Update template” if needed.",
+        "updated": "Template updated.",
+        "duplicated": "A copy of the template was created. You can keep editing and save again."
+      },
+      "copyNameSuffix": "{{name}} (copy)"
     },
     "marketingSegments": {
       "kicker": "Marketing · Segments",
@@ -7184,7 +8253,9 @@
         "attachmentOther": "Attachment",
         "errors": {
           "sendFailed": "Failed to send message"
-        }
+        },
+        "ai": "AI",
+        "bot": "Bot"
       }
     },
     "whatsapp": {
@@ -9435,7 +10506,7 @@
           "tasksToday": "{{count}} tasks today",
           "overdue": "{{count}} overdue",
           "newLeads": "{{count}} new leads",
-          "revenue": "{{amount}} € revenue"
+          "revenue": "{{amount}} revenue"
         }
       },
       "loading": "Refreshing dashboard…",
@@ -9460,7 +10531,7 @@
         "manager": "Manager"
       },
       "widgets": {
-        "customize": "Customize widgets",
+        "customize": "Customize blocks",
         "done": "Done",
         "addBlock": "Add block",
         "nothingToAdd": "All available blocks are already on the screen",
@@ -9511,7 +10582,19 @@
         "birthdays": "Birthdays This Week",
         "birthdaysEmpty": "No birthdays this week",
         "birthdaysUnknown": "Unknown",
-        "addBlockHint": "metrics, reports, widgets from other pages"
+        "addBlockHint": "metrics, reports, widgets from other pages",
+        "toolbarHintView": "{{count}} blocks · drag by the handle in the card corner",
+        "toolbarHintEdit": "Drag the whole card · edge and corner resize it",
+        "sizeBadge": "{{span}}/12 · {{height}}px",
+        "reset": {
+          "button": "Reset",
+          "title": "Reset layout?",
+          "message": "All blocks will return to their default size and order. This cannot be undone.",
+          "cancel": "Cancel",
+          "confirm": "Reset"
+        },
+        "resetDone": "Layout reset",
+        "aiUpdated": "Dashboard updated by the AI assistant"
       },
       "leadsTimeline": {
         "title": "My leads trend (14 days)",
@@ -9523,7 +10606,7 @@
         "title": "Pipeline by my projects",
         "subtitle": "amount by status",
         "empty": "You have no projects yet.",
-        "itemLabel": "{{count}} · {{value}} €"
+        "itemLabel": "{{count}} · {{value}}"
       },
       "recentLeads": {
         "title": "My latest leads",
@@ -9589,6 +10672,7 @@
         "kpiConversion": "Conversion",
         "openFull": "Full lead analytics"
       },
+      "fxMissing": "No exchange rate for {{currencies}} — amounts in these currencies are shown unconverted",
       "salesAnalyticsWidget": {
         "kpiCount": "Orders",
         "kpiAmount": "Amount",
@@ -9991,7 +11075,14 @@
           "actionsTitle": "ACTIONS",
           "aiTitle": "AI ASSISTANT",
           "assigneesTitle": "ASSIGNEES",
-          "timelineTitle": "CUSTOMER JOURNEY"
+          "timelineTitle": "CUSTOMER JOURNEY",
+          "telegramTitle": "Telegram conversation",
+          "telegramCount": "{{count}} messages",
+          "telegramEmpty": "This lead has no Telegram conversation yet.",
+          "telegramWith": "Conversation with {{name}}",
+          "telegramNoMessages": "No messages yet.",
+          "telegramPlaceholder": "Write a message…",
+          "telegramSend": "Send"
         },
         "journey": {
           "title": "Customer journey",
@@ -10256,6 +11347,458 @@
           "loading": "Loading...",
           "nameRequired": "Company name is required",
           "createFailed": "Failed to create company"
+        }
+      },
+      "list": {
+        "loading": "Loading…",
+        "deleteTitle": "Delete",
+        "deleteLabel": "Delete",
+        "allIndustries": "All",
+        "stage": {
+          "client": "client",
+          "nego": "negotiation",
+          "lead": "lead",
+          "partner": "partner",
+          "own": "own",
+          "archived": "archived"
+        },
+        "stageOptions": {
+          "lead": "Lead",
+          "nego": "Negotiation",
+          "client": "Client",
+          "partner": "Partner",
+          "own": "Own company",
+          "archived": "Archived"
+        },
+        "header": {
+          "title": "Companies",
+          "subtitle": "Organizations in the database: industry, requisites, contact count and money — revenue from closed projects and potential in active deals."
+        },
+        "actions": {
+          "analytics": "Analytics",
+          "importing": "Importing…",
+          "import": "Import",
+          "newCompany": "New company"
+        },
+        "kpis": {
+          "companies": {
+            "label": "Companies",
+            "hint": "{{clients}} clients, {{leads}} leads"
+          },
+          "revenue": {
+            "label": "Revenue",
+            "hint": "from closed projects"
+          },
+          "potential": {
+            "label": "Potential",
+            "hint": "in active deals"
+          },
+          "conversion": {
+            "label": "Conversion",
+            "hint": "lead → project"
+          }
+        },
+        "bulk": {
+          "selected": "selected",
+          "assignManager": "Assign a manager…",
+          "managerAssigned": "Manager assigned",
+          "statusPlaceholder": "Status…",
+          "statusUpdated": "Status updated",
+          "tag": "Tag",
+          "tagPrompt": "Tag for the selected companies:",
+          "export": "Export",
+          "delete": "Delete",
+          "deselect": "Deselect",
+          "deleteConfirm": "Delete the selected companies ({{count}})?"
+        },
+        "search": {
+          "placeholder": "Name, requisites, website or city"
+        },
+        "filters": {
+          "all": "All",
+          "client": "Clients",
+          "nego": "Negotiation",
+          "lead": "Leads",
+          "archived": "Archived"
+        },
+        "filterLabels": {
+          "industry": "industry",
+          "sort": "sort"
+        },
+        "sortOptions": {
+          "revenue": "by revenue",
+          "potential": "by potential",
+          "contacts": "by contacts",
+          "name": "by name"
+        },
+        "empty": {
+          "title": "No companies found",
+          "desc": "Try a different query or clear the industry and status filter."
+        },
+        "table": {
+          "company": "Company",
+          "industry": "Industry",
+          "size": "Size",
+          "geography": "Geography",
+          "contacts": "Contacts",
+          "leadsProjects": "Leads/projects",
+          "revenue": "Revenue",
+          "potential": "Potential",
+          "manager": "Manager",
+          "status": "Status",
+          "actions": "Actions",
+          "editTitle": "Edit",
+          "deleteTitle": "Delete"
+        },
+        "footer": {
+          "shown": "Showing",
+          "of": "of",
+          "revenue": "revenue"
+        },
+        "csv": {
+          "name": "Name",
+          "legalName": "Legal name",
+          "taxId": "Tax ID",
+          "industry": "Industry",
+          "city": "City",
+          "country": "Country",
+          "status": "Status",
+          "manager": "Manager"
+        },
+        "import": {
+          "emptyFile": "Empty file",
+          "success": "Companies imported: {{count}}",
+          "failed": "Failed to import the file"
+        },
+        "drawer": {
+          "contactsCount": "Contacts ({{count}})",
+          "document": "Document",
+          "edit": "Edit",
+          "sectionRequisites": "Requisites",
+          "legalName": "Legal name",
+          "taxId": "Tax ID / VKN",
+          "website": "Website",
+          "address": "Address",
+          "size": "Size",
+          "sizePeople": "{{size}} people",
+          "sectionMoney": "Money",
+          "leadsProjects": "Leads / projects",
+          "avgCheck": "Average deal",
+          "contactsCol": "Contacts",
+          "created": "Created",
+          "tags": "Tags",
+          "sectionHistory": "History",
+          "noHistory": "No records yet"
+        },
+        "deleteConfirm": "Delete this company?",
+        "errors": {
+          "deleteFailed": "Failed to delete",
+          "loadFailed": "Failed to load companies"
+        }
+      },
+      "card": {
+        "errors": {
+          "loadFailed": "Failed to load the company",
+          "nameRequired": "Enter the company name — other fields can be filled in later.",
+          "saveFailed": "Failed to save the company",
+          "deleteFailed": "Failed to delete the company",
+          "createTaskFailed": "Failed to create the task",
+          "changeStatusFailed": "Failed to change the status"
+        },
+        "tabs": {
+          "contacts": "Contacts",
+          "tasks": "Tasks",
+          "analytics": "Analytics"
+        },
+        "messages": {
+          "created": "Company created"
+        },
+        "deleteConfirm": "Delete this company?",
+        "tasksTab": {
+          "namePrompt": "Task name:",
+          "title": "Company tasks",
+          "sub": "Tasks of the company itself, its projects and leads — in one place, labelled by source.",
+          "task": "Task",
+          "openBoard": "Open board",
+          "empty": "empty",
+          "sourceAll": "All",
+          "sourceCompany": "Company",
+          "sourceProject": "Projects",
+          "sourceLead": "Leads",
+          "fromCompany": "Company task",
+          "fromProject": "Project · {{name}}",
+          "fromLead": "Lead · {{name}}",
+          "checklist": "Checklist",
+          "statusBlocked": "Blocked",
+          "statusDeferred": "Deferred"
+        },
+        "allCompanies": "All companies",
+        "newCompany": "New company",
+        "companyKicker": "Company · {{id}}",
+        "namePlaceholder": "Company name",
+        "newCompanyHint": "A company usually appears automatically when a lead converts to a client. Create one manually if work already started without a lead.",
+        "responsiblePerson": "owner {{name}}",
+        "contactBtn": "Contact",
+        "leadBtn": "Lead",
+        "create": "Create company",
+        "metrics": {
+          "contacts": "Contacts",
+          "oneMain": "1 primary",
+          "totalCount": "{{count}} total",
+          "potential": "Potential",
+          "potentialHint": "in open deals",
+          "potentialHint2": "from closed projects"
+        },
+        "companyFields": {
+          "title": "Company",
+          "sub": "The name is used across all modules: deals, documents and emails.",
+          "name": "Name",
+          "namePlaceholder": "Acme LLC",
+          "legalName": "Legal name",
+          "legalNamePlaceholder": "Full legal name per registration",
+          "taxId": "Tax ID / VKN",
+          "taxIdHint": "Used in contracts and invoices.",
+          "website": "Website",
+          "industry": "Industry",
+          "countryPlaceholder": "Russia",
+          "description": "Description",
+          "descriptionPlaceholder": "Briefly about the company, its field..."
+        },
+        "requisites": {
+          "title": "Requisites and legal details",
+          "sub": "Inserted into documents (\"My documents\") as the {COMPANY_REQUISITES} key."
+        },
+        "relationshipStage": "Relationship stage",
+        "service": {
+          "id": "Company ID",
+          "updated": "Updated"
+        },
+        "contactsTab": {
+          "title": "Company contacts",
+          "sub": "People at this company.",
+          "add": "Add contact",
+          "emptyTitle": "No contacts",
+          "emptyDesc": "This company has no contacts yet.",
+          "open": "Open",
+          "count": "{{count}} contacts"
+        },
+        "leadsTab": {
+          "won": "Won",
+          "lost": "Lost",
+          "leadsUnit": "leads",
+          "conversion": "Conversion",
+          "conversionHint": "won / total",
+          "title": "Company leads",
+          "emptyDesc": "No deal is linked to this company yet.",
+          "footNote": "Showing only leads linked to this company",
+          "kanban": "Leads kanban"
+        },
+        "projectsTab": {
+          "inProgress": "In progress",
+          "dealsCount": "{{count}} deals",
+          "lost": "Lost",
+          "sub": "Projects created from this company's leads.",
+          "newProject": "New project",
+          "emptyDesc": "This company has no projects yet.",
+          "totalBudgets": "Total budgets {{amount}}"
+        },
+        "analyticsTab": {
+          "title": "Company analytics",
+          "sub": "Calculated from leads and projects linked to this company.",
+          "peopleInBase": "people in the database",
+          "allTime": "all time",
+          "byProjects": "by projects",
+          "leadsByStatus": "Leads by status",
+          "new": "New",
+          "waiting": "Waiting",
+          "success": "Won",
+          "failure": "Lost",
+          "moneyFunnel": "Money funnel",
+          "moneyFunnelSub": "By projects (deals), not by leads.",
+          "allProjects": "All projects",
+          "potentialInOpen": "Potential in open deals {{amount}} {{currency}}",
+          "projectsByStatus": "Projects by status",
+          "projectsSum": "Total projects {{amount}} {{currency}} · closed {{closedAmount}} {{currency}}"
+        },
+        "projectStatus": {
+          "new": "new",
+          "inProgress": "in progress",
+          "inReview": "in review",
+          "frozen": "frozen",
+          "closed": "closed",
+          "won": "won",
+          "lost": "lost"
+        },
+        "taskCols": {
+          "todo": "To do",
+          "inProgress": "In progress",
+          "review": "In review",
+          "done": "Done"
+        }
+      },
+      "analytics": {
+        "title": "Companies analytics",
+        "subtitle": "Client portfolio in money: who drives revenue, where it's concentrated, how much sits in active deals, and how leads convert into projects.",
+        "companiesCount": "{{count}} companies",
+        "backToList": "Back to companies",
+        "noData": "No data",
+        "errors": {
+          "loadFailed": "Failed to load analytics"
+        },
+        "export": {
+          "button": "Export",
+          "rank": "#",
+          "company": "Company",
+          "industry": "Industry",
+          "share": "Share",
+          "cumulative": "Cumulative"
+        },
+        "periods": {
+          "month": "Month",
+          "quarter": "Quarter",
+          "halfYear": "Half-year",
+          "year": "Year",
+          "allTime": "All time"
+        },
+        "metrics": {
+          "revenue": "Revenue",
+          "projects": "Projects",
+          "leads": "Leads"
+        },
+        "kpis": {
+          "companies": "Companies",
+          "companiesHint": "{{withRevenue}} with revenue · {{without}} without",
+          "leads": "Leads",
+          "leadsHint": "{{count}} converted to a client",
+          "projects": "Projects",
+          "projectsHint": "across {{count}} companies",
+          "revenueHint": "from closed projects",
+          "potential": "Potential",
+          "potentialHint": "across {{count}} companies in progress",
+          "avgConversion": "Avg conversion",
+          "avgConversionHint": "lead → client"
+        },
+        "bins": {
+          "none": "no revenue",
+          "small": "small",
+          "medium": "medium",
+          "large": "large",
+          "key": "key accounts"
+        },
+        "board": {
+          "title": "Top companies",
+          "hint": "share and cumulative percentage of all companies",
+          "all": "all",
+          "share": "Share",
+          "cumulative": "Cumulative",
+          "projectsCount": "{{count}} projects",
+          "leadsCount": "{{count}} leads"
+        },
+        "foot": {
+          "period": "period · {{period}}",
+          "source": "source · /companies/analytics/all"
+        },
+        "aside": {
+          "concentration": "Revenue concentration",
+          "top3": "Top 3",
+          "next": "4–10",
+          "rest": "the rest",
+          "revenuePerCompany": "Revenue per company",
+          "revenuePerCompanyHint": "{{amount}} among companies with revenue",
+          "avgProject": "Average project",
+          "avgProjectHint": "{{count}} projects closed",
+          "concentrationRisk": "Concentration risk",
+          "riskHigh": "high",
+          "riskMedium": "medium",
+          "riskLow": "low",
+          "riskHint": "top 3 account for {{pct}} of revenue"
+        },
+        "pipeline": {
+          "title": "Closed vs in progress",
+          "closed": "closed",
+          "potential": "potential",
+          "inDeals": "{{amount}} in deals",
+          "note": "Active deals hold {{potential}} — that's {{pct}} of already closed revenue. Biggest weight: {{name}} ({{amount}})."
+        },
+        "funnel": {
+          "title": "Leads → projects",
+          "hint": "across all companies",
+          "leads": "Leads",
+          "projects": "Projects",
+          "closed": "Closed",
+          "companiesWithRevenue": "Companies with revenue",
+          "note": "End-to-end lead → client conversion {{pct}}. Each closed project brings in {{amount}} on average."
+        },
+        "hist": {
+          "title": "Revenue distribution",
+          "hint": "number of companies in the group and its share of total revenue",
+          "revenueShare": "{{pct}} of revenue"
+        }
+      },
+      "bulk": {
+        "errors": {
+          "updateFailed": "Bulk update failed"
+        },
+        "noChange": "Do not change"
+      },
+      "details": {
+        "page": {
+          "errors": {
+            "idMissing": "Company ID is missing"
+          },
+          "noCompany": "Company"
+        },
+        "tasks": {
+          "viewBoard": "Task board"
+        }
+      },
+      "tasks": {
+        "actions": {
+          "creating": "Creating...",
+          "editSubtitle": "Edit task details"
+        },
+        "create": "Create task",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this task?",
+        "edit": "Edit task",
+        "errors": {
+          "createFailed": "Failed to create task",
+          "deleteFailed": "Failed to delete task",
+          "loadFailed": "Failed to load data",
+          "saveFailed": "Failed to save task",
+          "statusChangeFailed": "Failed to change status"
+        },
+        "fields": {
+          "assignedTo": "Assignee",
+          "description": "Description",
+          "dueDate": "Due date",
+          "priority": "Priority",
+          "title": "Task title *"
+        },
+        "filters": {
+          "anyAssignee": "Any assignee",
+          "assignee": "Assignee",
+          "dueDate": "Due date",
+          "overdue": "Overdue",
+          "priority": "Priority",
+          "reset": "Reset",
+          "search": "Search tasks...",
+          "thisWeek": "This week",
+          "today": "Today"
+        },
+        "priorities": {
+          "high": "High",
+          "low": "Low",
+          "medium": "Medium",
+          "urgent": "Urgent"
+        },
+        "title": "Company tasks",
+        "statuses": {
+          "todo": "To do",
+          "in_progress": "In progress",
+          "review": "In review",
+          "done": "Done",
+          "cancelled": "Cancelled"
         }
       }
     },
@@ -10698,10 +12241,16 @@
           "status": "Status",
           "company": "Company",
           "contact": "Contact",
-          "createdAt": "Created: 24.09.2025, 03:00:00",
+          "createdAt": "Created:",
           "category": "Category",
           "tags": "Tags",
-          "open": "Open"
+          "open": "Open",
+          "contactCreate": "Create contact",
+          "contactCreateFromLead": "Create contact from lead",
+          "contactCreateName": "Contact name",
+          "contactCreating": "Creating...",
+          "contactCreateFailed": "Could not create contact",
+          "updatedAt": "Updated"
         },
         "owner": {
           "byDepartment": "Owners by department",
@@ -10821,6 +12370,10 @@
         "fallbacks": {
           "untitled": "Untitled",
           "user": "Colleague"
+        },
+        "meetings": {
+          "title": "Meetings",
+          "empty": "No meetings yet. Created by the responsible AI employee or team members."
         }
       },
       "analytics": {
@@ -12098,7 +13651,8 @@
         "projectTask": "Project tasks",
         "booking": "Bookings",
         "hotelReservation": "Hotel check-ins",
-        "customField": "Project dates"
+        "customField": "Project dates",
+        "projectMeeting": "Meetings (projects)"
       },
       "weekdays": {
         "mon": "Mon",
@@ -12306,6 +13860,40 @@
         "hint": "Changes the document's final text — saving regenerates the PDF. Only available for drafts.",
         "saveBtn": "Save and regenerate PDF",
         "keysHint": "Clicking a key inserts its real value into the text — client data, amounts, products and services. If a value isn't filled in yet, the key itself is inserted as {NAME}."
+      },
+      "upload": {
+        "btn": "Upload signed",
+        "badge": "Uploaded",
+        "actionEdit": "Edit details",
+        "actionDelete": "Delete from archive",
+        "title": "Upload a signed document",
+        "titleEdit": "Document details",
+        "intro": "Received a contract or act, printed and signed it? Upload the finished PDF — it will be kept in the archive as “Signed”.",
+        "dropTitle": "Drag a PDF here or click to choose",
+        "dropHint": "PDF only, up to 20 MB",
+        "replaceFile": "click to replace",
+        "fileFixed": "The file itself can't be replaced — upload the document again",
+        "companyLabel": "Other party (company)",
+        "companyPlaceholder": "Start typing a company name",
+        "companyEmpty": "No companies found",
+        "companyChange": "Choose another",
+        "kindLabel": "Document type",
+        "signedAtLabel": "Signing date",
+        "numberLabel": "Document number",
+        "numberPlaceholder": "e.g. 2026-014",
+        "amountLabel": "Contract amount",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Defaults to the file name",
+        "notesLabel": "Note",
+        "notesPlaceholder": "Term, conditions, where the original is kept…",
+        "uploadBtn": "Upload",
+        "saveBtn": "Save",
+        "errNotPdf": "Only PDF files can be uploaded",
+        "errTooBig": "The file is larger than 20 MB",
+        "errNoFile": "Choose a PDF file",
+        "errNoCompany": "Choose a company from the CRM",
+        "errSave": "Couldn't save the document",
+        "deleteBody": "Delete this document from the archive together with its file? This can't be undone."
       }
     },
     "email": {
@@ -15744,6 +17332,399 @@
       "cityLabel": "City",
       "messageLabel": "Message",
       "submitBtn": "Submit"
+    },
+    "crmShared": {
+      "selectPlaceholder": "— Select —",
+      "notSpecified": "— Not specified —",
+      "tabs": {
+        "lockedHint": "Available after saving"
+      },
+      "companyPick": {
+        "placeholder": "— Not selected —",
+        "searchPlaceholder": "Search company",
+        "notFound": "Nothing found"
+      },
+      "deptAssignees": {
+        "noDepartment": "No department",
+        "wholeDept": "whole department",
+        "noStaff": "No active staff"
+      },
+      "industries": {
+        "finance": "Finance",
+        "investments": "Investments",
+        "realEstate": "Real estate",
+        "it": "IT / Technology",
+        "consulting": "Consulting",
+        "trade": "Trade",
+        "manufacturing": "Manufacturing",
+        "logistics": "Logistics",
+        "education": "Education",
+        "medicine": "Medicine",
+        "legal": "Legal services",
+        "other": "Other"
+      },
+      "notSpecifiedLead": "— Not specified (lead) —",
+      "notAssigned": "unassigned"
+    },
+    "contacts": {
+      "list": {
+        "loading": "Loading…",
+        "deleteTitle": "Delete",
+        "deleteLabel": "Delete",
+        "statusPill": {
+          "active": "active",
+          "inactive": "inactive",
+          "archived": "archived"
+        },
+        "statusOptions": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "archived": "Archived"
+        },
+        "header": {
+          "title": "Contacts",
+          "filteredByCompany": "Showing contacts of \"{{name}}\".",
+          "resetFilter": "Reset filter",
+          "subtitle": "People your team works with: contact channels, company, responsible manager and linked deal."
+        },
+        "actions": {
+          "duplicates": "Duplicates",
+          "importing": "Importing…",
+          "import": "Import",
+          "newContact": "New contact"
+        },
+        "kpis": {
+          "all": {
+            "label": "Total contacts",
+            "hint": "{{total}} in the database"
+          },
+          "lead": {
+            "label": "With a lead",
+            "hint": "linked to a lead"
+          },
+          "noman": {
+            "label": "No manager",
+            "hint": "needs to be assigned"
+          },
+          "nocomp": {
+            "label": "No company",
+            "hint": "individuals and duplicates"
+          }
+        },
+        "bulk": {
+          "selected": "selected",
+          "assignManager": "Assign a manager…",
+          "managerAssigned": "Manager assigned",
+          "statusPlaceholder": "Status…",
+          "statusUpdated": "Status updated",
+          "tag": "Tag",
+          "tagPrompt": "Tag for the selected contacts:",
+          "mail": "Email",
+          "noEmail": "The selected contacts have no email",
+          "export": "Export",
+          "delete": "Delete",
+          "deselect": "Deselect",
+          "deleteConfirm": "Delete the selected contacts ({{count}})?"
+        },
+        "search": {
+          "placeholder": "Name, email, phone or company"
+        },
+        "filters": {
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive",
+          "archived": "Archived"
+        },
+        "group": {
+          "label": "group",
+          "byCompany": "by company",
+          "byManager": "by manager",
+          "byStatus": "by status",
+          "none": "no grouping",
+          "allContacts": "All contacts",
+          "noCompany": "No company",
+          "noManager": "No manager",
+          "noStatus": "No status",
+          "withLead": "with a lead"
+        },
+        "empty": {
+          "title": "No contacts found",
+          "desc": "Change the query, clear the status filter, or create a contact manually."
+        },
+        "table": {
+          "contact": "Contact",
+          "contactInfo": "Contact info",
+          "company": "Company",
+          "city": "City",
+          "manager": "Manager",
+          "status": "Status",
+          "deal": "Deal",
+          "tags": "Tags",
+          "actions": "Actions",
+          "privatePerson": "individual",
+          "openProject": "Open",
+          "mailTitle": "Email",
+          "editTitle": "Edit",
+          "deleteTitle": "Delete"
+        },
+        "card": {
+          "email": "Email",
+          "phone": "Phone",
+          "city": "City"
+        },
+        "footer": {
+          "shown": "Showing",
+          "of": "of",
+          "selected": "selected"
+        },
+        "csv": {
+          "name": "Name",
+          "email": "Email",
+          "phone": "Phone",
+          "company": "Company",
+          "status": "Status",
+          "manager": "Manager"
+        },
+        "import": {
+          "emptyFile": "Empty file",
+          "success": "Contacts imported: {{count}}",
+          "failed": "Failed to import the file"
+        },
+        "drawer": {
+          "write": "Write",
+          "document": "Document",
+          "edit": "Edit",
+          "sectionContact": "Contact",
+          "mail": "Email",
+          "phone": "Phone",
+          "city": "City",
+          "sectionCrm": "CRM",
+          "company": "Company",
+          "manager": "Manager",
+          "deal": "Deal",
+          "totalLeads": "Total leads",
+          "wonSum": "Won amount (projects)",
+          "created": "Created",
+          "tags": "Tags",
+          "sectionHistory": "History",
+          "noHistory": "No records yet"
+        },
+        "deleteConfirm": "Delete this contact?",
+        "errors": {
+          "deleteFailed": "Failed to delete",
+          "loadFailed": "Failed to load contacts"
+        }
+      },
+      "card": {
+        "statuses": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "archived": "Archived"
+        },
+        "leadStatusPill": {
+          "new": "new",
+          "inProgress": "in progress",
+          "waiting": "waiting",
+          "won": "won",
+          "lost": "lost"
+        },
+        "errors": {
+          "loadFailed": "Failed to load the contact",
+          "createCompanyFailed": "Failed to create the company",
+          "nameRequired": "Enter the contact's first or last name.",
+          "saveFailed": "Failed to save the contact",
+          "deleteFailed": "Failed to delete the contact"
+        },
+        "tabs": {
+          "main": "General",
+          "leads": "Leads",
+          "projects": "Projects",
+          "history": "History"
+        },
+        "newCompanyDefaultName": "New company",
+        "messages": {
+          "created": "Contact created",
+          "saved": "Saved"
+        },
+        "deleteConfirm": "Delete this contact?",
+        "allContacts": "All contacts",
+        "newContact": "New contact",
+        "contactKicker": "Contact · {{id}}",
+        "namePlaceholder": "Contact name",
+        "newContactHint": "A contact is usually created automatically when a lead converts to a client. Create one manually if work already started without a lead.",
+        "saving": "Saving…",
+        "create": "Create contact",
+        "save": "Save",
+        "metrics": {
+          "leads": "Leads",
+          "leadsInProgress": "{{count}} in progress",
+          "projects": "Projects",
+          "projectsActive": "{{count}} active",
+          "dealsSum": "Deals sum",
+          "dealsSumHint": "won deals",
+          "lastContact": "Last contact",
+          "noRecords": "no records"
+        },
+        "personal": {
+          "title": "Personal details",
+          "sub": "Name and job title are visible in deals, tasks and documents.",
+          "firstName": "First name",
+          "firstNamePlaceholder": "John",
+          "lastName": "Last name",
+          "lastNamePlaceholder": "Smith",
+          "email": "Email",
+          "phone": "Phone",
+          "company": "Company",
+          "companyHint": "Choose from the database or create a new one right here.",
+          "newCompanyPrompt": "New company name:",
+          "createCompany": "Create a new company",
+          "position": "Job title",
+          "positionPlaceholder": "CEO, Director...",
+          "city": "City",
+          "cityPlaceholder": "Moscow",
+          "country": "Country",
+          "address": "Address",
+          "passport": "Passport / ID",
+          "passportHint": "Needed for contracts with individuals. Stored in the contact's custom fields."
+        },
+        "companyCard": {
+          "title": "Contact's company",
+          "open": "Open company"
+        },
+        "assignees": "Responsible",
+        "service": {
+          "title": "System info",
+          "id": "Contact ID",
+          "updated": "Updated"
+        },
+        "leadsTab": {
+          "title": "Contact's leads",
+          "sub": "Deals where this person is listed as the contact.",
+          "newLead": "New lead",
+          "emptyTitle": "No leads",
+          "emptyDesc": "No deal is linked to this contact yet.",
+          "colLead": "Lead",
+          "colSum": "Amount",
+          "colOwner": "Owner",
+          "untitled": "Untitled",
+          "footNote": "Showing only leads linked to this contact",
+          "allLeads": "All leads"
+        },
+        "projectsTab": {
+          "title": "Projects (deals)",
+          "sub": "Projects where the contact is listed as the client.",
+          "emptyTitle": "No projects",
+          "emptyDesc": "No project is linked to this contact yet.",
+          "colProject": "Project",
+          "colBudget": "Budget",
+          "colUpdated": "Updated"
+        },
+        "historyTab": {
+          "title": "Interaction history",
+          "sub": "Changes recorded by the system for this contact.",
+          "summary": "Summary",
+          "logEntries": "Log entries",
+          "lastActivity": "Last activity"
+        }
+      },
+      "bulk": {
+        "errors": {
+          "updateFailed": "Bulk update failed"
+        }
+      },
+      "form": {
+        "fields": {
+          "position": "Position",
+          "city": "City"
+        }
+      }
+    },
+    "confirmModal": {
+      "deleteTitle": "Delete",
+      "deleteLabel": "Delete",
+      "cancel": "Cancel",
+      "defaultTitle": "Confirmation",
+      "confirm": "Confirm"
+    },
+    "promptModal": {
+      "defaultTitle": "Enter a value",
+      "confirm": "OK"
+    },
+    "marketingUtmLinks": {
+      "kicker": "Link storage",
+      "title": "Tagged links",
+      "subtitle": "Every link the team puts into ads, emails and print material. Each one shows clicks and leads, so you don’t have to guess what a tag brought.",
+      "builder": "Builder and templates",
+      "kpi": {
+        "links": "Links",
+        "clicks": "Clicks",
+        "leads": "Leads",
+        "cr": "Lead conversion"
+      },
+      "noTraffic": "Analytics (GA4 or Yandex Metrica) is not connected — clicks are not counted, only leads are shown.",
+      "connectAnalytics": "Connect",
+      "warn": {
+        "one": "The link “{{name}}” gets clicks with almost no leads",
+        "many": "Links with clicks but almost no leads: {{count}}",
+        "tail": " — check that the form on the page passes the tags."
+      },
+      "list": {
+        "title": "List",
+        "search": "Name, campaign, source",
+        "allChannels": "All channels",
+        "empty": "Nothing found. Change the filter or create a link.",
+        "emptyAll": "No links yet. Create the first one — clicks and leads for it will appear here."
+      },
+      "table": {
+        "link": "Link",
+        "channel": "Channel",
+        "campaign": "Campaign",
+        "clicks": "Clicks",
+        "leads": "Leads",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "actions": {
+        "copy": "Copy link",
+        "qr": "QR code",
+        "open": "Open",
+        "remove": "Delete"
+      },
+      "foot": "Clicks are visits with these tags from connected analytics (GA4, Yandex Metrica); leads are submissions that kept the tags; counted from the link’s creation date. The same numbers roll up into the “Marketing → Channels” report.",
+      "drawer": {
+        "title": "New link",
+        "name": "Name",
+        "nameHint": "how to find it in the list",
+        "namePh": "Autumn intensive · story",
+        "cancel": "Cancel",
+        "saveTemplate": "Save as template",
+        "create": "Create link",
+        "creating": "Creating…",
+        "hints": {
+          "source": "→ Lead source",
+          "medium": "→ Channel in reports",
+          "campaign": "→ Campaign",
+          "content": "→ Ad",
+          "term": "→ Query"
+        }
+      },
+      "msg": {
+        "created": "Link created.",
+        "templateSaved": "Template saved."
+      },
+      "errors": {
+        "load": "Could not load links",
+        "create": "Could not save",
+        "remove": "Could not delete the link"
+      },
+      "confirmDelete": "Delete the link “{{name}}”? It will disappear from the list together with its statistics.",
+      "qr": {
+        "title": "Link QR code",
+        "hint": "Point a phone camera at it — the tagged link opens. Good for flyers, packaging and business cards.",
+        "copy": "Copy link",
+        "download": "Download PNG",
+        "close": "Close"
+      }
     }
   },
   "landing": {
@@ -16511,5 +18492,10 @@
         "item2": "An OpenAPI/Swagger schema exists but is not enabled on production by default — this page is the primary source of truth for requests and response bodies."
       }
     }
+  },
+  "lang": {
+    "ru": "RU",
+    "en": "EN",
+    "tr": "TR"
   }
 }

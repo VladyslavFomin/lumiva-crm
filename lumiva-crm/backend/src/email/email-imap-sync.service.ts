@@ -445,10 +445,24 @@ export class EmailImapSyncService {
     email: string,
   ): Promise<string | null> {
     const normalized = email.trim().toLowerCase();
+    // Без исключения удалённых лидов входящее письмо могло привязаться к soft-deleted дублю
+    // (meta.deleted — здесь нет отдельной колонки удаления, см. ai-tools.service.ts
+    // activeLeadCondition) вместо активного лида с тем же email — подтверждено на проде: письмо
+    // легло в удалённый лид-дубль вместо реального. Среди оставшихся кандидатов берём самый
+    // свежий — тоже не идеально при настоящих дублях, но не хуже прежнего произвольного выбора.
     const row = await this.leadRepo
       .createQueryBuilder('l')
       .where('l.tenantId = :tenantId', { tenantId })
       .andWhere('LOWER(TRIM(l.email)) = :email', { email: normalized })
+      .andWhere(
+        `NOT (
+          COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"archived":true}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"archived":"true"}'::jsonb
+        )`,
+      )
+      .orderBy('l.createdAt', 'DESC')
       .getOne();
     return row?.id || null;
   }

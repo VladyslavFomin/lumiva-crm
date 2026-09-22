@@ -13,7 +13,7 @@ export type AiEmployeeRoleKey =
   | 'reservation_assistant';
 
 export type AiAgentStatus = 'active' | 'paused' | 'disabled' | 'setup_required';
-export type AiAgentAutonomyMode = 'read_only' | 'suggest' | 'assisted' | 'auto';
+export type AiAgentAutonomyMode = 'suggest' | 'assisted' | 'auto';
 export type AiAgentActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed';
 
 export interface AiEmployeeRole {
@@ -32,6 +32,8 @@ export interface AiEmployeeRole {
   available: boolean;
   locked: boolean;
   badge: string;
+  defaultTriggers?: Array<{ event: string; scope: AiTriggerScope }>;
+  assignableEntityTypes?: AiAssignableEntityType[];
 }
 
 export interface AiAgent {
@@ -43,6 +45,7 @@ export interface AiAgent {
   roleDescription?: string;
   roleAccent?: string;
   roleFunctions?: string[];
+  roleAssignableEntityTypes?: AiAssignableEntityType[];
   name: string;
   avatarUrl: string | null;
   department: string | null;
@@ -309,4 +312,238 @@ export async function sendAiReport(
   sentTo?: string[],
 ): Promise<{ ok: boolean; report: AiAgentReport }> {
   return api.post(`/ai-reports/${encodeURIComponent(id)}/send`, { sentTo });
+}
+
+/* ------------------------------------------------------------------ config: instructions / triggers / tables */
+
+export type AiTriggerScope = 'all' | 'mine';
+
+export interface AiTriggerConfig {
+  event: string;
+  enabled: boolean;
+  scope: AiTriggerScope;
+  prompt: string;
+}
+
+export interface AiTableGrant {
+  objectId: string;
+  access: 'read' | 'write';
+}
+
+export interface AiTableAccess {
+  mode: 'all' | 'selected';
+  tables: AiTableGrant[];
+}
+
+export type AiClientDialogue = 'approval' | 'auto';
+
+export interface AiSlaConfig {
+  enabled: boolean;
+  minutes: number;
+}
+
+export interface AiDailyPlanConfig {
+  enabled: boolean;
+  time: string;
+}
+
+export interface AiEmailInboxAccess {
+  accountIds: string[];
+}
+
+export interface AiAgentConfig {
+  instructions: string;
+  triggers: AiTriggerConfig[];
+  tableAccess: AiTableAccess;
+  clientDialogue: AiClientDialogue;
+  sla: AiSlaConfig;
+  dailyPlan: AiDailyPlanConfig;
+  emailInboxAccess: AiEmailInboxAccess;
+  timezone: string;
+}
+
+export async function fetchAiAgentConfig(id: string): Promise<{ config: AiAgentConfig }> {
+  return api.get(`/ai-agents/${encodeURIComponent(id)}/config`);
+}
+
+export async function updateAiAgentConfig(
+  id: string,
+  patch: Partial<AiAgentConfig>,
+): Promise<{ config: AiAgentConfig }> {
+  return api.patch(`/ai-agents/${encodeURIComponent(id)}/config`, patch);
+}
+
+/* ------------------------------------------------------------------ one-off tasks */
+
+export async function assignAiTask(
+  id: string,
+  input: { task: string; entityType?: string; entityId?: string; priority?: string; runNow?: boolean },
+): Promise<{ ok: boolean; action: AiAgentAction }> {
+  return api.post(`/ai-agents/${encodeURIComponent(id)}/tasks`, input);
+}
+
+export async function fetchAiAgentTasks(id: string): Promise<{ items: AiAgentAction[] }> {
+  return api.get(`/ai-agents/${encodeURIComponent(id)}/tasks`);
+}
+
+/* ------------------------------------------------------------------ AI as responsible */
+
+export type AiAssignableEntityType = 'lead' | 'project' | 'company_task' | 'company' | 'contact';
+
+export interface AiAssignee {
+  agentId: string;
+  name: string;
+  role: AiEmployeeRoleKey;
+  status: AiAgentStatus;
+  avatarAccent: string | null;
+  avatarStyle: string | null;
+}
+
+export async function fetchAiAssignments(
+  entityType: AiAssignableEntityType,
+  entityId: string,
+): Promise<{ items: AiAssignee[] }> {
+  return api.get('/ai-assignments', { params: { entityType, entityId } });
+}
+
+export async function setAiAssignment(input: {
+  agentId: string;
+  entityType: AiAssignableEntityType;
+  entityId: string;
+  assigned: boolean;
+}): Promise<{ ok: boolean; assigned: boolean }> {
+  return api.put('/ai-assignments', input);
+}
+
+export interface AiAgentAssignmentItem {
+  id: string;
+  entityType: AiAssignableEntityType;
+  entityId: string;
+  name: string | null;
+  status: string | null;
+  createdAt: string;
+}
+
+export async function fetchAiAgentAssignments(id: string): Promise<{ items: AiAgentAssignmentItem[] }> {
+  return api.get(`/ai-agents/${encodeURIComponent(id)}/assignments`);
+}
+
+/* ------------------------------------------------------------------ activity feed */
+
+export interface AiActivityItem {
+  id: string;
+  type: string;
+  status: string;
+  title: string | null;
+  detail: string | null;
+  targetType: string | null;
+  targetId: string | null;
+  createdAt: string;
+  agent: AiAgent | null;
+}
+
+export async function fetchAiActivity(params?: {
+  limit?: number;
+  since?: string;
+}): Promise<{ serverTime: string; pendingApprovals: number; agentsCount: number; items: AiActivityItem[] }> {
+  return api.get('/ai-activity', { params });
+}
+
+export async function fetchAiAssignmentsBatch(
+  entityType: AiAssignableEntityType,
+  ids: string[],
+): Promise<{ items: Record<string, AiAssignee[]> }> {
+  return api.post('/ai-assignments/batch', { entityType, ids });
+}
+
+export async function checkAiSlaNow(id: string): Promise<{ breaches: number; escalated: number }> {
+  return api.post(`/ai-agents/${encodeURIComponent(id)}/sla-check`, {});
+}
+
+export async function runAiDailyPlanNow(id: string): Promise<{ staff: number }> {
+  return api.post(`/ai-agents/${encodeURIComponent(id)}/daily-plan`, {});
+}
+
+/* ------------------------------------------------------------------ knowledge base */
+
+export interface AiKnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  alwaysOn: boolean;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export async function fetchAiKnowledge(): Promise<{ items: AiKnowledgeItem[] }> {
+  return api.get('/ai-knowledge');
+}
+
+export async function saveAiKnowledge(
+  input: Partial<Pick<AiKnowledgeItem, 'id' | 'title' | 'content' | 'tags' | 'alwaysOn' | 'enabled'>>,
+): Promise<{ item: AiKnowledgeItem }> {
+  return api.post('/ai-knowledge', input);
+}
+
+export async function deleteAiKnowledge(id: string): Promise<{ ok: boolean }> {
+  return api.delete(`/ai-knowledge/${encodeURIComponent(id)}`);
+}
+
+/* ------------------------------------------------------------------ benefit report */
+
+export interface AiInsightsAgent {
+  agentId: string;
+  name: string;
+  role: AiEmployeeRoleKey;
+  status: AiAgentStatus;
+  settings: Record<string, unknown> | null;
+  eventRuns: number;
+  actionsExecuted: number;
+  actionsFailed: number;
+  actionsPending: number;
+  actionsRejected: number;
+  approvalRate: number | null;
+  clientMessages: number;
+  escalations: number;
+  slaBreaches: number;
+  recordsHandled: number;
+  actionsByType: Record<string, number>;
+  minutesSaved: number;
+}
+
+export interface AiInsights {
+  days: number;
+  totals: {
+    eventRuns: number;
+    actionsExecuted: number;
+    clientMessages: number;
+    escalations: number;
+    recordsHandled: number;
+    minutesSaved: number;
+    actionsRejected: number;
+  };
+  agents: AiInsightsAgent[];
+  lessons: Array<{ agentName: string; actionType: string; title: string; reason: string | null; createdAt: string }>;
+}
+
+export async function fetchAiInsights(days = 30): Promise<AiInsights> {
+  return api.get('/ai-insights', { params: { days } });
+}
+
+/* ------------------------------------------------------------------ expand instructions with AI */
+
+export interface ExpandInstructionsInput {
+  role: AiEmployeeRoleKey;
+  agentId?: string;
+  name?: string;
+  department?: string;
+  jobTitle?: string;
+  language?: string;
+  tone?: string;
+  draft?: string;
+}
+
+export async function expandAiInstructions(input: ExpandInstructionsInput): Promise<{ text: string }> {
+  return api.post('/ai-agents/expand-instructions', input);
 }

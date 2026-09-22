@@ -19,11 +19,23 @@ import {
 } from './AiAvatar';
 import './ai-employees.css';
 import {
+  ClientDialogueEditor,
+  ControlEditor,
+  EmailInboxAccessEditor,
+  InstructionsEditor,
+  TableAccessEditor,
+  TriggersEditor,
+} from './AiAgentConfigEditors';
+import { InsightsView, KnowledgeView } from './AiKnowledgeInsightsViews';
+import { AiAgentWorkPanel } from './AiAgentWorkPanel';
+import {
   approveAiAction,
   createAiEmployee,
   deleteAiEmployee,
   executeAiAction,
-  fetchAiActions,
+  fetchPendingAiActions,
+  checkAiSlaNow,
+  fetchAiAgentConfig,
   fetchAiEmployee,
   fetchAiEmployees,
   fetchAiLogs,
@@ -34,25 +46,33 @@ import {
   pauseAiEmployee,
   rejectAiAction,
   resumeAiEmployee,
+  runAiDailyPlanNow,
   runAiEmployeeNow,
   sendAiReport,
+  updateAiAgentConfig,
   updateAiEmployee,
   updateAiEmployeeApprovalRules,
   updateAiEmployeePermissions,
   type AiAgent,
   type AiAgentAction,
   type AiAgentAutonomyMode,
+  type AiAgentConfig,
   type AiAgentDetailResponse,
   type AiAgentLog,
   type AiAgentReport,
   type AiAgentsListResponse,
+  type AiEmailInboxAccess,
   type AiEmployeeRole,
   type AiEmployeeRoleKey,
   type AiPlanSnapshot,
+  type AiTableAccess,
+  type AiTriggerConfig,
 } from '../../api/aiEmployees';
 
-type AiEmployeesView = 'dashboard' | 'choose' | 'create' | 'edit' | 'approvals' | 'logs' | 'reports';
+type AiEmployeesView = 'dashboard' | 'choose' | 'create' | 'edit' | 'approvals' | 'logs' | 'reports' | 'knowledge' | 'insights';
 
+// Зеркало AI_EMPLOYEE_PERMISSION_KEYS / AI_EMPLOYEE_APPROVAL_ACTIONS из backend
+// (ai-employee-role-catalog.ts). Каждое право реально что-то открывает или разрешает на бэкенде.
 const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.read',
@@ -60,38 +80,24 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
       'read_leads',
       'read_contacts',
       'read_companies',
-      'read_deals',
+      'read_sales',
       'read_tasks',
       'read_projects',
       'read_marketing',
-      'read_campaigns',
-      'read_marketing_traffic',
-      'read_marketing_costs',
-      'read_marketing_roi',
-      'read_marketing_integrations',
-      'read_attribution',
-      'read_analytics',
-      'read_reports',
-      'read_sales',
+      'read_bookings',
+      'read_helpdesk',
       'read_messages',
-      'read_files',
       'read_notes',
+      'read_reports',
     ],
   },
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.actions',
-    keys: [
-      'create_task',
-      'update_task',
-      'create_note',
-      'update_lead_status',
-      'assign_lead',
-      'draft_email',
-      'send_email',
-      'draft_whatsapp',
-      'send_whatsapp',
-      'create_report',
-    ],
+    keys: ['create_task', 'update_task', 'create_note', 'update_lead_status', 'assign_lead', 'escalate_to_human', 'create_report'],
+  },
+  {
+    titleKey: 'crm.aiEmployees.create.permissionGroups.communications',
+    keys: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram', 'create_meeting'],
   },
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.workspace',
@@ -99,22 +105,46 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
   },
 ];
 
+/** Права, после которых сообщение реально уходит клиенту / меняются данные CRM — помечаем бейджем. */
+const PERMISSION_BADGE: Record<string, 'external' | 'writes'> = {
+  send_email: 'external',
+  send_bulk_email: 'external',
+  send_telegram: 'external',
+  create_task: 'writes',
+  update_task: 'writes',
+  create_note: 'writes',
+  update_lead_status: 'writes',
+  assign_lead: 'writes',
+  create_project: 'writes',
+  create_workspace_table: 'writes',
+  manage_workspace_data: 'writes',
+};
+
 const approvalKeys = [
   'send_email',
-  'send_whatsapp',
+  'send_telegram',
   'update_lead_status',
   'assign_lead',
-  'edit_client_data',
-  'connect_integration',
-  'delete_data',
+  'create_task',
+  'update_task',
+  'create_note',
+  'create_meeting',
+  'create_project',
   'create_workspace_table',
 ];
 
 const REAL_EXECUTABLE_ACTIONS = new Set([
   'send_email',
+  'send_bulk_email',
   'send_telegram',
   'update_lead_status',
   'assign_lead',
+  'create_task',
+  'update_task',
+  'create_note',
+  'add_comment',
+  'assign_self',
+  'create_meeting',
   'create_project',
   'create_workspace_table',
   'workspace_add_record',
@@ -262,6 +292,13 @@ function labelize(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+/** «Правила согласования» и «Ведёт диалог сам» имеют силу только на уровне автономии «Авто». */
+function autonomyLockNote(t: TFunction, autonomyMode: AiAgentAutonomyMode): string | undefined {
+  if (autonomyMode === 'suggest') return t('crm.aiEmployees.autonomy.lockNoteSuggest');
+  if (autonomyMode === 'assisted') return t('crm.aiEmployees.autonomy.lockNoteAssisted');
+  return undefined;
+}
+
 function formatDate(value: string | null | undefined, t: TFunction, locale?: string) {
   if (!value) return t('crm.aiEmployees.activity.noneShort');
   const date = new Date(value);
@@ -294,6 +331,21 @@ function languageOptionValues(): Array<{ value: string; labelKey: string }> {
     { value: 'English / Turkish / Russian', labelKey: 'crm.aiEmployees.languageOptions.mixed' },
   ];
 }
+
+/** Часовой пояс сотрудника — ни у тенанта, ни у сотрудника CRM в системе такого поля нет вообще
+ * (проверено по схеме), поэтому у ИИ он свой, отдельный. Используется для перевода "человеческого"
+ * времени из писем/сообщений клиента в UTC при создании встреч (create_meeting). Список не
+ * исчерпывающий — только частые пояса; остальные не нужны почти никому из тенантов платформы. */
+const TIMEZONE_OPTIONS = [
+  'Europe/Moscow',
+  'Europe/Istanbul',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Dubai',
+  'Asia/Almaty',
+  'America/New_York',
+  'UTC',
+];
 
 function agentAvatarProps(agent: AiAgent): { accent: AiAvatarAccent; avStyle: AiAvatarStyle } {
   const settings = (agent.settings || {}) as Record<string, unknown>;
@@ -530,14 +582,24 @@ function RoleCard({
 function ApprovalList({ actions, onChanged }: { actions: AiAgentAction[]; onChanged: () => void }) {
   const { t, i18n } = useTranslation();
   const [busy, setBusy] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const run = async (action: AiAgentAction, kind: 'approve' | 'reject' | 'execute') => {
     setBusy((s) => ({ ...s, [action.id]: kind }));
+    setErrors((s) => {
+      const next = { ...s };
+      delete next[action.id];
+      return next;
+    });
     try {
       if (kind === 'approve') await approveAiAction(action.id);
       if (kind === 'reject') await rejectAiAction(action.id);
       if (kind === 'execute') await executeAiAction(action.id);
       onChanged();
+    } catch (e) {
+      // Раньше ошибка тут просто падала в необработанный reject промиса — кнопка выглядела
+      // "нерабочей": ничего не происходило, без единого сообщения, почему.
+      setErrors((s) => ({ ...s, [action.id]: extractError(e, t) }));
     } finally {
       setBusy((s) => {
         const next = { ...s };
@@ -600,6 +662,11 @@ function ApprovalList({ actions, onChanged }: { actions: AiAgentAction[]; onChan
                     <I d={ICON.bolt} size={13} />
                     {canRealExecute ? t('crm.aiEmployees.approvalCard.execute') : t('crm.aiEmployees.approvalCard.markDone')}
                   </button>
+                </div>
+              ) : null}
+              {errors[action.id] ? (
+                <div className="ai-appr-reason" style={{ color: '#9a1f31' }}>
+                  {errors[action.id]}
                 </div>
               ) : null}
             </div>
@@ -736,27 +803,37 @@ function PermissionEditor({
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-3.5">
+      <p className="ai-hint" style={{ margin: 0, fontSize: 12.5 }}>
+        {t('crm.aiEmployees.create.permissionsHint')}
+      </p>
       {permissionGroups.map((group) => (
         <div key={group.titleKey} className="ai-panel">
           <div className="ai-panel-head">
             <div className="pt">{t(group.titleKey)}</div>
           </div>
-          <div className="ai-panel-body flush">
-            {group.keys.map((key) => (
-              <div className="ai-perm" key={key}>
-                <div className="pi">
-                  <I d={ICON.shield} size={15} />
+          <div className="ai-panel-body flush ai-perm-grid">
+            {group.keys.map((key) => {
+              const badge = PERMISSION_BADGE[key];
+              return (
+                <div className="ai-perm" key={key}>
+                  <div className="pi">
+                    <I d={ICON.shield} size={15} />
+                  </div>
+                  <div className="pb">
+                    <div className="pn">
+                      {t(`crm.aiEmployees.permissions.${key}.title`, { defaultValue: labelize(key) })}
+                      {badge ? <span className={cn('ai-perm-badge', badge)}>{t(`crm.aiEmployees.create.permBadge.${badge}`)}</span> : null}
+                    </div>
+                    <div className="pd">{t(`crm.aiEmployees.permissions.${key}.hint`, { defaultValue: '' })}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className={cn('ai-toggle', permissions[key] ? 'on' : 'off')}
+                    onClick={() => setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  />
                 </div>
-                <div className="pb">
-                  <div className="pn">{labelize(key)}</div>
-                </div>
-                <button
-                  type="button"
-                  className={cn('ai-toggle', permissions[key] ? 'on' : 'off')}
-                  onClick={() => setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
@@ -767,9 +844,12 @@ function PermissionEditor({
 function ApprovalEditor({
   approvalRules,
   setApprovalRules,
+  lockNote,
 }: {
   approvalRules: Record<string, boolean>;
   setApprovalRules: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  /** Уровень автономии сейчас сам решает за эти переключатели — показать почему и заблокировать. */
+  lockNote?: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -777,11 +857,23 @@ function ApprovalEditor({
       <div className="ai-panel-head">
         <div className="pt">{t('crm.aiEmployees.create.approvalRulesTitle')}</div>
       </div>
-      <div className="ai-panel-body flush">
+      <p className="ai-hint" style={{ margin: 0, padding: '12px 18px 0', fontSize: 12.5 }}>
+        {t('crm.aiEmployees.create.approvalRulesHint')}
+      </p>
+      {lockNote ? (
+        <p className="ai-hint" style={{ margin: 0, padding: '8px 18px 0', fontSize: 12.5, color: '#7a4a09' }}>
+          ⓘ {lockNote}
+        </p>
+      ) : null}
+      <div className="ai-panel-body flush ai-perm-grid" style={lockNote ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
         {approvalKeys.map((key) => (
           <div className="ai-perm" key={key}>
             <div className="pb">
-              <div className="pn">{t(`crm.aiEmployees.approvalAction.${key}`)}</div>
+              <div className="pn">
+                {t('crm.aiEmployees.create.approvalRequireBefore', {
+                  action: t(`crm.aiEmployees.approvalAction.${key}`, { defaultValue: labelize(key) }),
+                })}
+              </div>
             </div>
             <button
               type="button"
@@ -798,9 +890,8 @@ function ApprovalEditor({
 function AutonomySelector({ value, onChange }: { value: AiAgentAutonomyMode; onChange: (m: AiAgentAutonomyMode) => void }) {
   const { t } = useTranslation();
   const modes: Array<{ key: AiAgentAutonomyMode; lvl: number }> = [
-    { key: 'read_only', lvl: 25 },
-    { key: 'suggest', lvl: 50 },
-    { key: 'assisted', lvl: 75 },
+    { key: 'suggest', lvl: 33 },
+    { key: 'assisted', lvl: 66 },
     { key: 'auto', lvl: 100 },
   ];
   return (
@@ -836,9 +927,9 @@ function DashboardView() {
     setLoading(true);
     setError('');
     try {
-      const [employees, actions] = await Promise.all([fetchAiEmployees(), fetchAiActions({ status: 'pending', limit: 5 })]);
+      const [employees, actions] = await Promise.all([fetchAiEmployees(), fetchPendingAiActions()]);
       setData(employees);
-      setPending(actions.items);
+      setPending(actions.items.slice(0, 5));
     } catch (e) {
       setError(extractError(e, t));
     } finally {
@@ -1106,7 +1197,9 @@ function CreateView() {
   const [roles, setRoles] = useState<AiEmployeeRole[]>([]);
   const [plan, setPlan] = useState<AiPlanSnapshot | null>(null);
   const [step, setStep] = useState(0);
-  const [roleKey, setRoleKey] = useState<AiEmployeeRoleKey>((search.get('role') as AiEmployeeRoleKey) || 'sales_manager');
+  // Роль выбирается на /ai-employees/choose и приходит в ?role=… — отдельного шага «Роль» в мастере нет.
+  const roleKey = (search.get('role') || '') as AiEmployeeRoleKey;
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -1119,6 +1212,14 @@ function CreateView() {
   const [dailyReportTime, setDailyReportTime] = useState('18:00');
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [approvalRules, setApprovalRules] = useState<Record<string, boolean>>({});
+  const [instructions, setInstructions] = useState('');
+  const [clientDialogue, setClientDialogue] = useState<'approval' | 'auto'>('approval');
+  const [sla, setSla] = useState({ enabled: false, minutes: 30 });
+  const [dailyPlan, setDailyPlan] = useState({ enabled: false, time: '09:00' });
+  const [triggers, setTriggers] = useState<AiTriggerConfig[]>([]);
+  const [tableAccess, setTableAccess] = useState<AiTableAccess>({ mode: 'selected', tables: [] });
+  const [emailInboxAccess, setEmailInboxAccess] = useState<AiEmailInboxAccess>({ accountIds: [] });
+  const [timezone, setTimezone] = useState('Europe/Moscow');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -1131,14 +1232,18 @@ function CreateView() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([fetchAiRoles(), fetchAiPlanLimits(), fetchIntegrations()]).then(([r, p, conns]) => {
-      if (!alive) return;
-      setRoles(r);
-      setPlan(p);
-      setAllConnections(conns);
-      const selected = r.find((role) => role.key === roleKey) || r.find((role) => role.available);
-      if (selected) {
-        setRoleKey(selected.key);
+    Promise.all([fetchAiRoles(), fetchAiPlanLimits(), fetchIntegrations()])
+      .then(([r, p, conns]) => {
+        if (!alive) return;
+        setRoles(r);
+        setPlan(p);
+        setAllConnections(conns);
+        const selected = r.find((role) => role.key === roleKey);
+        if (!selected || selected.locked) {
+          // Нет роли в адресе / роль недоступна на тарифе — назад к выбору сотрудника.
+          navigate('/ai-employees/choose', { replace: true });
+          return;
+        }
         setName((current) => current || selected.defaultName);
         setDepartment((current) => current || trRole(selected.key, 'department', selected.department, t, i18n));
         setJobTitle((current) => current || trRole(selected.key, 'jobTitle', selected.jobTitle, t, i18n));
@@ -1146,8 +1251,12 @@ function CreateView() {
         setAvatarStyle(deriveAvatarStyle(selected.key));
         setPermissions(selected.defaultPermissions.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
         setApprovalRules(selected.defaultApprovalRules.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
-      }
-    });
+        setTriggers((selected.defaultTriggers || []).map((d) => ({ event: d.event, enabled: true, scope: d.scope, prompt: '' })));
+        setRolesLoaded(true);
+      })
+      .catch(() => {
+        if (alive) navigate('/ai-employees/choose', { replace: true });
+      });
     return () => {
       alive = false;
     };
@@ -1155,21 +1264,6 @@ function CreateView() {
   }, []);
 
   const selectedRole = roles.find((role) => role.key === roleKey);
-
-  const selectRole = (role: AiEmployeeRole) => {
-    if (role.locked) {
-      setUpgradeOpen(true);
-      return;
-    }
-    setRoleKey(role.key);
-    setName(role.defaultName);
-    setDepartment(trRole(role.key, 'department', role.department, t, i18n));
-    setJobTitle(trRole(role.key, 'jobTitle', role.jobTitle, t, i18n));
-    setAvatarAccent(deriveAvatarAccent(role.key));
-    setAvatarStyle(deriveAvatarStyle(role.key));
-    setPermissions(role.defaultPermissions.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
-    setApprovalRules(role.defaultApprovalRules.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
-  };
 
   const save = async () => {
     if (!selectedRole) return;
@@ -1189,7 +1283,7 @@ function CreateView() {
         permissions,
         approvalRules,
         status: 'active',
-        settings: { ...(openaiConnectionId ? { openaiConnectionId } : {}), avatarAccent, avatarStyle },
+        settings: { ...(openaiConnectionId ? { openaiConnectionId } : {}), avatarAccent, avatarStyle, instructions, triggers, tableAccess, clientDialogue, sla, dailyPlan, emailInboxAccess, timezone },
       });
       navigate(`/ai-employees/${res.agent.id}`);
     } catch (e) {
@@ -1200,8 +1294,18 @@ function CreateView() {
     }
   };
 
-  const stepIds = ['role', 'identity', 'access', 'actions', 'schedule', 'review'] as const;
+  const stepIds = ['identity', 'access', 'actions', 'schedule', 'review'] as const;
   const back = () => (step === 0 ? navigate('/ai-employees/choose') : setStep((s) => Math.max(0, s - 1)));
+
+  if (!rolesLoaded || !selectedRole) {
+    return (
+      <MainLayout>
+        <div className="ai-emp">
+          <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.choose.loading')}</div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -1218,10 +1322,11 @@ function CreateView() {
               {t('crm.aiEmployees.create.title')}
             </div>
             <h1 style={{ fontSize: 26 }}>
-              {selectedRole
-                ? `${t('crm.aiEmployees.create.title')} · ${trRole(selectedRole.key, 'title', selectedRole.title, t, i18n)}`
-                : t('crm.aiEmployees.create.title')}
+              {`${t('crm.aiEmployees.create.title')} · ${trRole(selectedRole.key, 'title', selectedRole.title, t, i18n)}`}
             </h1>
+            <p className="ai-hint" style={{ marginTop: 8, fontSize: 13, maxWidth: 760 }}>
+              {trRole(selectedRole.key, 'description', selectedRole.description, t, i18n)}
+            </p>
           </div>
           {error ? (
             <div className="ai-panel" style={{ padding: 14, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
@@ -1239,15 +1344,7 @@ function CreateView() {
             ))}
           </div>
 
-          {step === 0 ? (
-            <div className="ai-role-grid">
-              {roles.map((role) => (
-                <RoleCard key={role.key} role={role} selected={role.key === roleKey} onSelect={() => selectRole(role)} onUpgrade={() => setUpgradeOpen(true)} />
-              ))}
-            </div>
-          ) : null}
-
-          {step === 1 && selectedRole ? (
+          {step === 0 && selectedRole ? (
             <>
               <div className="ai-form-card">
                 <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
@@ -1318,6 +1415,19 @@ function CreateView() {
                   </div>
                 </div>
                 <div className="ai-field" style={{ marginTop: 16, marginBottom: 0 }}>
+                  <label className="ai-label">{t('crm.aiEmployees.create.fields.timezone')}</label>
+                  <select className="ai-select" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+                    {TIMEZONE_OPTIONS.map((tz) => (
+                      <option key={tz} value={tz}>
+                        {tz}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="ai-hint" style={{ marginTop: 6, fontSize: 11.5 }}>
+                    {t('crm.aiEmployees.create.fields.timezoneHint')}
+                  </p>
+                </div>
+                <div className="ai-field" style={{ marginTop: 16, marginBottom: 0 }}>
                   <label className="ai-label">{t('crm.aiEmployees.create.fields.aiProvider')}</label>
                   <select className="ai-select" value={openaiConnectionId} onChange={(e) => setOpenaiConnectionId(e.target.value)}>
                     <option value="">{t('crm.aiEmployees.create.aiProviderPlatform')}</option>
@@ -1334,12 +1444,22 @@ function CreateView() {
                   )}
                 </div>
               </div>
+              <InstructionsEditor
+                value={instructions}
+                onChange={setInstructions}
+                expandContext={{ role: roleKey, name, department, jobTitle, language, tone }}
+              />
             </>
           ) : null}
 
-          {step === 2 ? <PermissionEditor permissions={permissions} setPermissions={setPermissions} /> : null}
+          {step === 1 ? (
+            <div className="flex flex-col gap-3.5">
+              <PermissionEditor permissions={permissions} setPermissions={setPermissions} />
+              <TableAccessEditor value={tableAccess} onChange={setTableAccess} />
+            </div>
+          ) : null}
 
-          {step === 3 ? (
+          {step === 2 ? (
             <div className="flex flex-col gap-3.5">
               <div className="ai-panel">
                 <div className="ai-panel-head">
@@ -1352,11 +1472,12 @@ function CreateView() {
                   <AutonomySelector value={autonomyMode} onChange={setAutonomyMode} />
                 </div>
               </div>
-              <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} />
+              <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} lockNote={autonomyLockNote(t, autonomyMode)} />
+              <ClientDialogueEditor value={clientDialogue} onChange={setClientDialogue} lockNote={autonomyLockNote(t, autonomyMode)} />
             </div>
           ) : null}
 
-          {step === 4 ? (
+          {step === 3 ? (
             <div className="ai-form-card">
               <div className="fct">{t('crm.aiEmployees.create.fields.schedule')}</div>
               <div className="ai-field-row">
@@ -1377,7 +1498,15 @@ function CreateView() {
             </div>
           ) : null}
 
-          {step === 5 && selectedRole ? (
+          {step === 3 ? (
+            <div className="flex flex-col gap-3.5">
+              <TriggersEditor triggers={triggers} onChange={setTriggers} />
+              <EmailInboxAccessEditor value={emailInboxAccess} onChange={setEmailInboxAccess} />
+              <ControlEditor sla={sla} dailyPlan={dailyPlan} onSla={setSla} onDailyPlan={setDailyPlan} />
+            </div>
+          ) : null}
+
+          {step === 4 && selectedRole ? (
             <div className="ai-panel" style={{ overflow: 'hidden' }}>
               <div className="ai-preview-hd">
                 <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
@@ -1428,6 +1557,16 @@ function CreateView() {
                   <span className="k">{t('crm.aiEmployees.create.review.approvalRules')}</span>
                   <span className="v">{Object.values(approvalRules).filter(Boolean).length}</span>
                 </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.review.triggers')}</span>
+                  <span className="v">{triggers.filter((x) => x.enabled).length}</span>
+                </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.review.tables')}</span>
+                  <span className="v">
+                    {tableAccess.mode === 'all' ? t('crm.aiEmployees.tableAccess.mode.all') : tableAccess.tables.length}
+                  </span>
+                </div>
               </div>
             </div>
           ) : null}
@@ -1438,7 +1577,7 @@ function CreateView() {
             </button>
             <div className="spacer" />
             {step < stepIds.length - 1 ? (
-              <button className="aib" disabled={step === 0 && !roleKey} onClick={() => setStep((s) => Math.min(stepIds.length - 1, s + 1))}>
+              <button className="aib" onClick={() => setStep((s) => Math.min(stepIds.length - 1, s + 1))}>
                 {t('crm.aiEmployees.create.continue')}
                 <I d={ICON.chevR} size={14} />
               </button>
@@ -1463,7 +1602,7 @@ function ApprovalsView() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetchAiActions({ status: 'pending', limit: 100 });
+      const res = await fetchPendingAiActions();
       setActions(res.items);
     } finally {
       setLoading(false);
@@ -1752,7 +1891,9 @@ export function AiEmployeeProfilePage() {
   const [autonomyMode, setAutonomyMode] = useState<AiAgentAutonomyMode>('suggest');
   const [scheduleMode, setScheduleMode] = useState<'always' | 'business_hours' | 'custom' | 'manual'>('manual');
   const [dailyReportTime, setDailyReportTime] = useState('18:00');
-  const [tab, setTab] = useState<'overview' | 'assign' | 'approvals' | 'journal' | 'reports'>('overview');
+  const [tab, setTab] = useState<'overview' | 'work' | 'triggers' | 'assign' | 'approvals' | 'journal' | 'reports'>('overview');
+  const [cfg, setCfg] = useState<AiAgentConfig | null>(null);
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -1769,6 +1910,11 @@ export function AiEmployeeProfilePage() {
       setAutonomyMode(res.agent.autonomyMode);
       setScheduleMode(res.agent.scheduleMode);
       setDailyReportTime(res.agent.dailyReportTime);
+      try {
+        setCfg((await fetchAiAgentConfig(id)).config);
+      } catch {
+        /* конфиг не загрузился — вкладки покажут пустые значения */
+      }
     } catch (e) {
       setError(extractError(e, t));
     } finally {
@@ -1784,7 +1930,7 @@ export function AiEmployeeProfilePage() {
   const agent = detail?.agent;
   const stats = detail?.stats || {};
 
-  const run = async (kind: 'pause' | 'resume' | 'run' | 'report' | 'save-perms' | 'save-rules' | 'save-assign' | 'delete') => {
+  const run = async (kind: 'pause' | 'resume' | 'run' | 'report' | 'save-perms' | 'save-rules' | 'save-assign' | 'save-config' | 'delete') => {
     if (!agent) return;
     setBusy(kind);
     setError('');
@@ -1796,6 +1942,7 @@ export function AiEmployeeProfilePage() {
       if (kind === 'save-perms') await updateAiEmployeePermissions(agent.id, permissions);
       if (kind === 'save-rules') await updateAiEmployeeApprovalRules(agent.id, approvalRules);
       if (kind === 'save-assign') await updateAiEmployee(agent.id, { autonomyMode, scheduleMode, dailyReportTime });
+      if (kind === 'save-config' && cfg) await updateAiAgentConfig(agent.id, cfg);
       if (kind === 'delete') {
         await deleteAiEmployee(agent.id);
         navigate('/ai-employees');
@@ -1814,12 +1961,14 @@ export function AiEmployeeProfilePage() {
   const tabs = agent
     ? [
         { key: 'overview' as const, label: t('crm.aiEmployees.profile.tabs.overview'), icon: ICON.eye, badge: 0 },
+        { key: 'work' as const, label: t('crm.aiEmployees.profile.tabs.work'), icon: ICON.wand, badge: 0 },
+        { key: 'triggers' as const, label: t('crm.aiEmployees.profile.tabs.triggers'), icon: ICON.bolt, badge: cfg?.triggers.filter((x) => x.enabled).length || 0 },
         { key: 'assign' as const, label: t('crm.aiEmployees.profile.tabs.assign'), icon: ICON.shield, badge: 0 },
         {
           key: 'approvals' as const,
           label: t('crm.aiEmployees.profile.tabs.approvals'),
           icon: ICON.check,
-          badge: detail?.recentActions.filter((a) => a.status === 'pending').length || 0,
+          badge: detail?.recentActions.filter((a) => a.status === 'pending' && a.requiresApproval).length || 0,
         },
         { key: 'journal' as const, label: t('crm.aiEmployees.profile.tabs.journal'), icon: ICON.book, badge: 0 },
         { key: 'reports' as const, label: t('crm.aiEmployees.profile.tabs.reports'), icon: ICON.doc, badge: 0 },
@@ -2016,6 +2165,97 @@ export function AiEmployeeProfilePage() {
               </div>
             ) : null}
 
+            {tab === 'work' ? (
+              <div className="flex flex-col gap-4">
+                {cfg ? (
+                  <div>
+                    <InstructionsEditor
+                      value={cfg.instructions}
+                      onChange={(v) => setCfg({ ...cfg, instructions: v })}
+                      expandContext={{
+                        role: agent.role,
+                        agentId: agent.id,
+                        name: agent.name,
+                        department: agent.department || undefined,
+                        jobTitle: agent.jobTitle || undefined,
+                        language: agent.language,
+                        tone: agent.tone,
+                      }}
+                    />
+                    <div className="flex justify-end">
+                      <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
+                        {t('crm.aiEmployees.config.save')}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <AiAgentWorkPanel agentId={agent.id} agentActive={agent.status === 'active'} />
+              </div>
+            ) : null}
+
+            {tab === 'triggers' ? (
+              cfg ? (
+                <div className="flex flex-col gap-4">
+                  <TriggersEditor triggers={cfg.triggers} onChange={(next) => setCfg({ ...cfg, triggers: next })} />
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">{t('crm.aiEmployees.create.fields.timezone')}</div>
+                    </div>
+                    <div className="ai-panel-body">
+                      <select
+                        className="ai-select"
+                        value={cfg.timezone}
+                        onChange={(e) => setCfg({ ...cfg, timezone: e.target.value })}
+                      >
+                        {TIMEZONE_OPTIONS.map((tz) => (
+                          <option key={tz} value={tz}>
+                            {tz}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="ai-hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 11.5 }}>
+                        {t('crm.aiEmployees.create.fields.timezoneHint')}
+                      </p>
+                    </div>
+                  </div>
+                  <EmailInboxAccessEditor
+                    value={cfg.emailInboxAccess}
+                    onChange={(next) => setCfg({ ...cfg, emailInboxAccess: next })}
+                  />
+                  <ControlEditor
+                    sla={cfg.sla}
+                    dailyPlan={cfg.dailyPlan}
+                    onSla={(v) => setCfg({ ...cfg, sla: v })}
+                    onDailyPlan={(v) => setCfg({ ...cfg, dailyPlan: v })}
+                    onCheckSla={async () => {
+                      try {
+                        await updateAiAgentConfig(agent.id, cfg);
+                        const r = await checkAiSlaNow(agent.id);
+                        setNotice(t('crm.aiEmployees.sla.checked', { breaches: r.breaches, escalated: r.escalated }));
+                      } catch (e) {
+                        setError(extractError(e, t));
+                      }
+                    }}
+                    onRunPlan={async () => {
+                      try {
+                        await updateAiAgentConfig(agent.id, cfg);
+                        const r = await runAiDailyPlanNow(agent.id);
+                        setNotice(t('crm.aiEmployees.dailyPlan.sent', { count: r.staff }));
+                      } catch (e) {
+                        setError(extractError(e, t));
+                      }
+                    }}
+                  />
+                  {notice ? <div className="ai-hint" style={{ color: '#1f8a5e', fontSize: 12.5 }}>{notice}</div> : null}
+                  <div className="flex justify-end">
+                    <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
+                      {t('crm.aiEmployees.config.save')}
+                    </button>
+                  </div>
+                </div>
+              ) : null
+            ) : null}
+
             {tab === 'assign' ? (
               <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
                 <div className="flex flex-col gap-4">
@@ -2036,14 +2276,38 @@ export function AiEmployeeProfilePage() {
                       {t('crm.aiEmployees.profile.savePermissions')}
                     </button>
                   </div>
+                  {cfg ? (
+                    <>
+                      <TableAccessEditor value={cfg.tableAccess} onChange={(v) => setCfg({ ...cfg, tableAccess: v })} />
+                      <div className="flex justify-end">
+                        <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
+                          {t('crm.aiEmployees.config.save')}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-4">
-                  <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} />
+                  <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} lockNote={autonomyLockNote(t, autonomyMode)} />
                   <div className="flex justify-end">
                     <button className="aib" disabled={busy === 'save-rules'} onClick={() => run('save-rules')}>
                       {t('crm.aiEmployees.profile.saveApprovalRules')}
                     </button>
                   </div>
+                  {cfg ? (
+                    <>
+                      <ClientDialogueEditor
+                        value={cfg.clientDialogue}
+                        onChange={(v) => setCfg({ ...cfg, clientDialogue: v })}
+                        lockNote={autonomyLockNote(t, autonomyMode)}
+                      />
+                      <div className="flex justify-end">
+                        <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
+                          {t('crm.aiEmployees.config.save')}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                   <div className="ai-panel">
                     <div className="ai-panel-head">
                       <div className="pt">
@@ -2083,7 +2347,10 @@ export function AiEmployeeProfilePage() {
                   </div>
                 </div>
                 <div className="ai-panel-body flush">
-                  <ApprovalList actions={detail!.recentActions.map((a) => ({ ...a, agent }))} onChanged={load} />
+                  <ApprovalList
+                    actions={detail!.recentActions.filter((a) => a.status !== 'pending' || a.requiresApproval).map((a) => ({ ...a, agent }))}
+                    onChanged={load}
+                  />
                 </div>
               </div>
             ) : null}
@@ -2129,5 +2396,7 @@ export function AiEmployeesPage({ view = 'dashboard' }: { view?: AiEmployeesView
   if (view === 'approvals') return <ApprovalsView />;
   if (view === 'logs') return <LogsView />;
   if (view === 'reports') return <ReportsView />;
+  if (view === 'knowledge') return <KnowledgeView />;
+  if (view === 'insights') return <InsightsView />;
   return <DashboardView />;
 }

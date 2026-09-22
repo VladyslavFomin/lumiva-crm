@@ -2,6 +2,7 @@ import {
   normalizeTenantPlan,
   type NormalizedTenantPlan,
 } from '../tenants/plan-entitlements';
+import { AI_ASSIGNABLE_ENTITY_TYPES, type AiAssignableEntityType } from './ai-employee-triggers';
 
 export type AiEmployeeRoleKey =
   | 'lead_manager'
@@ -21,11 +22,17 @@ export type AiAgentStatus =
   | 'disabled'
   | 'setup_required';
 
-export type AiAgentAutonomyMode =
-  | 'read_only'
-  | 'suggest'
-  | 'assisted'
-  | 'auto';
+/**
+ * Три уровня, каждый — реальный режим поведения (проверено и решено владельцем 2026-09-22):
+ * - suggest («Режим предложений»): только читает и анализирует — никогда не выполняет и не предлагает
+ *   действий, только пишет рекомендации в отчёт/наблюдение. Раньше был отдельный «только чтение» —
+ *   по факту не отличался от suggest, объединены в один уровень.
+ * - assisted («Помощник»): предлагает действия, но КАЖДОЕ уходит в «Согласования» — не имеет значения,
+ *   что настроено в «Правилах согласования» или в «Ведёт диалог сам», на этом уровне решает человек.
+ * - auto («Авто»): действует сам; «Правила согласования» и «Ведёт диалог сам» начинают что-то значить
+ *   именно на этом уровне (можно точечно оставить согласование для конкретных действий).
+ */
+export type AiAgentAutonomyMode = 'suggest' | 'assisted' | 'auto';
 
 export type AiAgentActionStatus =
   | 'pending'
@@ -49,46 +56,77 @@ export type AiEmployeeRoleConfig = {
   functions: string[];
   defaultPermissions: string[];
   defaultApprovalRules: string[];
+  /** Триггеры, включённые по умолчанию при создании (можно изменить в мастере). */
+  defaultTriggers: Array<{ event: string; scope: 'all' | 'mine' }>;
+  /**
+   * За какими типами записей эта роль может быть закреплена ответственным (см. AI_ASSIGNABLE_ENTITY_TYPES).
+   * Пустой массив — роль читает данные и помогает советом/отчётами, но не «владеет» отдельными записями:
+   * так, маркетинг-менеджер видит лиды и проекты, но не заменяет менеджера по лидам или проджект-менеджера.
+   * Проверяется на бэкенде в setEntityAssignment — это не только подсказка в интерфейсе.
+   */
+  assignableEntityTypes: AiAssignableEntityType[];
   systemPrompt: string;
 };
 
-const READ_COMMON = [
+/**
+ * «Чтение — по максимуму» (по решению владельца от 2026-09-22): любой ИИ-сотрудник, независимо от роли,
+ * видит все доступные модули CRM — это безопасно (чтение не меняет данные) и даёт ему полный контекст
+ * для более осмысленных решений. Ограничивать роль имеет смысл только в ДЕЙСТВИЯХ (кто может писать
+ * клиенту, назначать записи, создавать встречи и т.д.) — это остаётся индивидуальным для каждой роли ниже.
+ */
+const ALL_READS = [
+  'read_leads',
   'read_contacts',
   'read_companies',
-  'read_reports',
+  'read_sales',
+  'read_tasks',
+  'read_projects',
+  'read_marketing',
+  'read_bookings',
+  'read_helpdesk',
+  'read_messages',
   'read_notes',
+  'read_reports',
 ];
 
+/** Есть у всех ролей: позвать человека — это подстраховка, а не рычаг влияния, отключать незачем. */
+const ALWAYS_ON_EXTRAS = ['escalate_to_human'];
+
+/**
+ * Каталог прав ИИ-сотрудника. Каждый ключ обязан иметь реальный эффект — либо открывает блок
+ * данных в снапшоте `operationalSnapshot()` (read_*), либо разрешает тип действия в
+ * `ACTION_PERMISSION` (остальные). Не добавляй «декоративных» ключей без реализации.
+ *
+ * Убраны как декоративные: read_deals (дубль read_sales), read_files (нет доступа к файлам),
+ * read_campaigns/read_marketing_traffic/costs/roi/integrations/read_attribution/read_analytics
+ * (все 7 включали один и тот же блок «маркетинг» — свёрнуты в read_marketing),
+ * send_whatsapp (исполнения не было — действие «выполнялось» без отправки; остался draft_whatsapp).
+ */
 export const AI_EMPLOYEE_PERMISSION_KEYS = [
   'read_leads',
   'read_contacts',
   'read_companies',
-  'read_deals',
+  'read_sales',
   'read_tasks',
   'read_projects',
   'read_marketing',
-  'read_campaigns',
-  'read_marketing_traffic',
-  'read_marketing_costs',
-  'read_marketing_roi',
-  'read_marketing_integrations',
-  'read_attribution',
-  'read_analytics',
-  'read_reports',
-  'read_sales',
+  'read_bookings',
+  'read_helpdesk',
   'read_messages',
-  'read_files',
   'read_notes',
+  'read_reports',
   'create_task',
   'update_task',
   'create_note',
   'update_lead_status',
   'assign_lead',
+  'escalate_to_human',
   'draft_email',
   'send_email',
+  'send_bulk_email',
   'draft_whatsapp',
-  'send_whatsapp',
   'send_telegram',
+  'create_meeting',
   'create_report',
   'create_project',
   'create_workspace_table',
@@ -98,9 +136,17 @@ export const AI_EMPLOYEE_PERMISSION_KEYS = [
 /** Action types where the system can perform real execution (not just "mark done"). */
 export const AI_REAL_EXECUTABLE_ACTIONS = [
   'send_email',
+  'send_bulk_email',
   'send_telegram',
   'update_lead_status',
   'assign_lead',
+  'create_task',
+  'update_task',
+  'create_note',
+  'add_comment',
+  'assign_self',
+  'escalate_to_human',
+  'create_meeting',
   'create_project',
   'create_workspace_table',
   'workspace_add_record',
@@ -109,27 +155,28 @@ export const AI_REAL_EXECUTABLE_ACTIONS = [
   'workspace_enable_views',
 ] as const;
 
+/** Действия, для которых можно включить обязательное согласование человеком.
+ * send_bulk_email сюда намеренно НЕ входит: согласование на нём не переключаемо, оно требуется
+ * ВСЕГДА (см. createAiAction в ai-employees.service.ts) — рассылка на сегмент лидов/контактов
+ * слишком широка по последствиям, чтобы зависеть от режима автономии/«Ведёт диалог сам». */
 export const AI_EMPLOYEE_APPROVAL_ACTIONS = [
   'send_email',
   'send_telegram',
-  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
-  'edit_client_data',
-  'connect_integration',
-  'delete_data',
+  'create_task',
+  'update_task',
+  'create_note',
+  'create_meeting',
+  'create_project',
   'create_workspace_table',
 ] as const;
 
 const DEFAULT_APPROVAL_RULES = [
   'send_email',
   'send_telegram',
-  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
-  'edit_client_data',
-  'connect_integration',
-  'delete_data',
 ];
 
 export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
@@ -152,19 +199,24 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Daily lead report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_leads',
-      'read_deals',
-      'read_sales',
-      'read_tasks',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_task',
       'create_note',
       'assign_lead',
       'update_lead_status',
       'draft_email',
+      'send_email',
+      'create_meeting',
       'create_report',
     ],
+    defaultTriggers: [
+      { event: 'lead.created', scope: 'all' },
+      { event: 'lead.status_changed', scope: 'mine' },
+      { event: 'telegram.message_received', scope: 'mine' },
+    ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: ['lead'],
     systemPrompt:
       'You are an AI Lead Manager inside Lumiva CRM. Classify leads, detect risk, summarize client intent and create only approved CRM actions.',
   },
@@ -187,19 +239,23 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Daily sales report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_leads',
-      'read_deals',
-      'read_sales',
-      'read_tasks',
-      'read_reports',
-      'read_analytics',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_task',
+      'update_task',
       'create_note',
       'draft_email',
+      'send_email',
+      'create_meeting',
       'create_report',
     ],
+    defaultTriggers: [
+      { event: 'lead.status_changed', scope: 'mine' },
+      { event: 'sale.status_changed', scope: 'all' },
+      { event: 'telegram.message_received', scope: 'mine' },
+    ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: ['lead'],
     systemPrompt:
       'You are an AI Sales Manager inside Lumiva CRM. Help sales teams follow up, prioritize opportunities and report risks. Never send messages without approval.',
   },
@@ -222,23 +278,20 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Daily marketing report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_leads',
-      'read_marketing',
-      'read_campaigns',
-      'read_marketing_traffic',
-      'read_marketing_costs',
-      'read_marketing_roi',
-      'read_marketing_integrations',
-      'read_attribution',
-      'read_analytics',
-      'read_sales',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'draft_email',
+      'send_bulk_email',
       'create_report',
     ],
+    defaultTriggers: [
+      { event: 'lead.status_changed', scope: 'mine' },
+      { event: 'telegram.message_received', scope: 'mine' },
+    ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
     systemPrompt:
-      'You are an AI Marketing Manager inside Lumiva CRM. Analyze channels, provide practical campaign recommendations and route risky actions through approvals.',
+      'You are an AI Marketing Manager inside Lumiva CRM. Analyze channels, provide practical campaign recommendations and route risky actions through approvals. send_bulk_email (a real segment email to many leads/contacts at once) ALWAYS goes to a human for approval no matter the autonomy mode — propose it with a clear filter/audience and a short, honest subject/body, then wait.',
   },
   {
     key: 'support_manager',
@@ -259,15 +312,20 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Daily support report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_messages',
-      'read_tasks',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_task',
       'create_note',
       'draft_email',
+      'send_telegram',
+      'create_meeting',
       'create_report',
     ],
+    defaultTriggers: [
+      { event: 'telegram.message_received', scope: 'mine' },
+    ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: ['contact', 'company_task'],
     systemPrompt:
       'You are an AI Support Manager inside Lumiva CRM. Prepare helpful support responses, classify issues and escalate sensitive cases.',
   },
@@ -281,26 +339,36 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
     minPlan: 'standard',
     accent: '#18181b',
     description:
-      'Monitors projects, overdue tasks, risks, responsibilities and project summaries for managers.',
+      'Owns assigned projects end to end: tracks progress, creates tasks, updates clients on triggers and schedules meetings.',
     functions: [
       'Deadline control',
-      'Overdue task detection',
-      'Project summaries',
-      'Responsibility checks',
+      'Client status updates',
+      'Meeting scheduling',
+      'Task creation, no approval needed',
       'Daily project report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_projects',
-      'read_tasks',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_task',
       'update_task',
       'create_note',
+      'assign_lead',
+      'draft_email',
+      'send_email',
+      'draft_whatsapp',
+      'send_telegram',
+      'create_meeting',
       'create_report',
     ],
+    defaultTriggers: [
+      { event: 'project.status_changed', scope: 'mine' },
+      { event: 'task.status_changed', scope: 'mine' },
+    ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: ['project', 'company_task'],
     systemPrompt:
-      'You are an AI Project Manager inside Lumiva CRM. Monitor deadlines, task health and project risks without changing critical data unless allowed.',
+      'You are an AI Project Manager inside Lumiva CRM — a full working member of the team, not a reporting tool. On projects where you are the responsible employee: track progress and risks yourself, move fast without waiting to be asked. create_task / update_task / create_note / add_comment need NO approval — use them freely and immediately whenever they help (a risk, a next step, a missed deadline). When a client update is warranted (status change, milestone, a delay), send it yourself via send_email/send_telegram if you are responsible for that project and the permission is enabled — keep it factual and short. For a meeting: first get the exact date/time, a meeting link (or location) and who should attend — ask the client or the assigned human colleague for whatever is missing via add_comment or send_email/send_telegram; only call create_meeting once you actually have those three things, never invent them. Never invent scope, budget or promises you cannot verify in the data.',
   },
   {
     key: 'marketing_analyst',
@@ -321,23 +389,13 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Executive analytics report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_leads',
-      'read_marketing',
-      'read_campaigns',
-      'read_marketing_traffic',
-      'read_marketing_costs',
-      'read_marketing_roi',
-      'read_marketing_integrations',
-      'read_attribution',
-      'read_analytics',
-      'read_sales',
-      'read_deals',
-      'read_projects',
-      'read_tasks',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_report',
     ],
+    defaultTriggers: [],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
     systemPrompt:
       'You are an AI Marketing Analyst inside Lumiva CRM. Explain marketing performance clearly and avoid inventing metrics that are not in CRM data.',
   },
@@ -360,17 +418,14 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Hashtag suggestions',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_marketing',
-      'read_campaigns',
-      'read_marketing_traffic',
-      'read_marketing_integrations',
-      'read_attribution',
-      'read_analytics',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'draft_email',
       'create_report',
     ],
+    defaultTriggers: [],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
     systemPrompt:
       'You are an AI SMM Manager inside Lumiva CRM. Prepare social content drafts and calendars, keeping brand tone consistent.',
   },
@@ -393,16 +448,16 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Template suggestions',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_messages',
-      'read_leads',
-      'read_contacts',
-      'read_companies',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'draft_email',
       'send_email',
+      'create_meeting',
       'create_report',
     ],
+    defaultTriggers: [],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: ['lead', 'contact'],
     systemPrompt:
       'You are an AI Email Assistant inside Lumiva CRM. Draft client emails and never send without explicit permission and approval.',
   },
@@ -425,25 +480,13 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Process recommendations',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_leads',
-      'read_deals',
-      'read_sales',
-      'read_tasks',
-      'read_projects',
-      'read_marketing',
-      'read_campaigns',
-      'read_marketing_traffic',
-      'read_marketing_costs',
-      'read_marketing_roi',
-      'read_marketing_integrations',
-      'read_attribution',
-      'read_analytics',
-      'read_messages',
-      'read_files',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_report',
     ],
+    defaultTriggers: [],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
     systemPrompt:
       'You are an AI CRM Analyst inside Lumiva CRM. Produce management-grade analysis based only on accessible tenant data.',
   },
@@ -466,17 +509,21 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'Daily reservation report',
     ],
     defaultPermissions: [
-      ...READ_COMMON,
-      'read_sales',
-      'read_messages',
-      'read_leads',
-      'read_contacts',
-      'read_companies',
+      ...ALL_READS,
+      ...ALWAYS_ON_EXTRAS,
       'create_task',
+      'create_note',
       'draft_email',
+      'create_meeting',
       'create_report',
     ],
+    defaultTriggers: [
+      { event: 'booking.reservation_created', scope: 'all' },
+      { event: 'hotel.reservation_created', scope: 'all' },
+      { event: 'telegram.message_received', scope: 'mine' },
+    ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: ['lead'],
     systemPrompt:
       'You are an AI Reservation Assistant inside Lumiva CRM. Support hotel reservation teams in RU, TR and EN with accurate structured drafts.',
   },

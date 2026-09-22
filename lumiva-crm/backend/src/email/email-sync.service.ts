@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull } from 'typeorm';
+import { Repository, Not, IsNull, In } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import { createHash } from 'crypto';
@@ -182,9 +182,15 @@ export class EmailSyncService {
     if (this.runLock) return;
     this.runLock = true;
     try {
+      // Also retry accounts already marked 'error' — otherwise a single failure (a transient
+      // network blip, a momentary token-refresh race) permanently excludes the account from
+      // every future cron tick, since a successful sync is the only thing that can flip
+      // status back to 'active', and this query is what decides which accounts ever get to
+      // attempt one. Found live: an account stuck in 'error' for 2+ days despite the OAuth
+      // refresh token still being present and (per a later manual check) valid.
       const accounts = await this.accountRepo.find({
         where: {
-          status: 'active',
+          status: In(['active', 'error']),
           syncIncoming: true,
           oauthRefreshToken: Not(IsNull()),
         },
@@ -253,10 +259,21 @@ export class EmailSyncService {
     email: string,
   ): Promise<string | null> {
     const norm = email.trim().toLowerCase();
+    // См. тот же фикс в email-imap-sync.service.ts: без исключения soft-deleted лидов (meta.deleted)
+    // входящее письмо может привязаться к удалённому дублю вместо активного лида с тем же email.
     const row = await this.leadRepo
       .createQueryBuilder('l')
       .where('l.tenantId = :tid', { tid: tenantId })
       .andWhere('LOWER(TRIM(l.email)) = :em', { em: norm })
+      .andWhere(
+        `NOT (
+          COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"archived":true}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"archived":"true"}'::jsonb
+        )`,
+      )
+      .orderBy('l.createdAt', 'DESC')
       .getOne();
     return row?.id || null;
   }

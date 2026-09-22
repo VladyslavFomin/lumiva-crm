@@ -1,0 +1,38 @@
+/* Раньше стоял правее (right:96px) на одной высоте со значком "?" (PageHelpButton, fixed
+   bottom-6 right-6 = 24/24px) — узкий (24px) зазор между двумя 48px кружками и широкий (96-144px)
+   отпечаток по горизонтали у самого правого края экрана часто перекрывал кнопки/пагинацию,
+   которые многие страницы сами рисуют в нижнем правом углу контента (обычный fixed-элемент всегда
+   поверх обычного контента, независимо от z-index страницы). Ставим ИИ-кнопку СТОПКОЙ прямо над
+   "?", а не сбоку — тот же правый отступ (24px), горизонтальный отпечаток у края уже не шире, чем
+   у самой кнопки помощи, которая там и так уже была. */
+.ai-fab{position:fixed;bottom:84px;right:24px;z-index:40;width:48px;height:48px;border-radius:50%;border:0;padding:0;cursor:pointer;color:#fff;
+  background:conic-gradient(from 210deg,#7c3aed,#2563eb,#06b6d4,#7c3aed);box-shadow:0 10px 30px rgba(99,102,241,.45),inset 0 0 0 2px rgba(255,255,255,.35);
+  display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.ai-fab:hover{transform:scale(1.07)}
+.ai-fab.live::before{content:'';position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(124,58,237,.55);animation:aifabPulse 1.8s ease-out infinite}
+@keyframes aifabPulse{0%{transform:scale(.86);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+.ai-fab-badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#ef4444;color:#fff;font:600 11px/20px Inter,system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff}
+.ai-fab-panel{position:fixed;bottom:144px;right:24px;z-index:41;width:min(400px,calc(100vw - 32px));max-height:min(560px,calc(100vh - 180px));display:flex;flex-direction:column;
+  background:#fff;border:1px solid #e7e7e7;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.28);overflow:hidden;font-family:Inter,system-ui,sans-serif}
+.ai-fab-head{padding:14px 16px;background:linear-gradient(135deg,#f3eeff,#e8f1ff 60%,#e6fbff);border-bottom:1px solid #ece8fa;display:flex;align-items:center;gap:10px}
+.ai-fab-head h4{margin:0;font-size:14px;font-weight:600;color:#1f1b3a}
+.ai-fab-head .sub{font-size:11.5px;color:#6b6b8a}
+.ai-fab-back{flex:none;width:28px;height:28px;border-radius:9px;border:1px solid #e0d9f7;background:#fff;color:#4338ca;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ai-fab-back:hover{background:#f3eeff}
+.ai-fab-folder{align-items:center}
+.ai-fab-folder-arrow{flex:none;align-self:center;color:#c4c4d8;font-size:18px}
+.ai-fab-list{overflow-y:auto;flex:1}
+.ai-fab-item{display:flex;gap:10px;padding:11px 16px;border-bottom:1px solid #f3f3f3;cursor:pointer;background:#fff;text-align:left;width:100%;border-left:0;border-right:0;border-top:0}
+.ai-fab-item:hover{background:#fafaff}
+.ai-fab-item.fresh{background:#f7f5ff}
+.ai-fab-item .who{font-size:12px;font-weight:600;color:#1f1b3a;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ai-fab-item .what{font-size:12.5px;color:#3a3a55;line-height:1.4;margin-top:2px;word-break:break-word}
+.ai-fab-item .when{font-size:10.5px;color:#9a9ab5;margin-top:3px}
+.ai-fab-chip{font:600 9px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.05em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:#eef0ff;color:#4338ca}
+.ai-fab-chip.warn{background:#fff4dc;color:#8a5a06}
+.ai-fab-chip.err{background:#fde8ec;color:#9a1f31}
+.ai-fab-foot{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #efefef;background:#fbfbfd}
+.ai-fab-foot button{flex:1;padding:8px 10px;border-radius:9px;border:1px solid #e0e0ea;background:#fff;font-size:12px;font-weight:500;color:#1f1b3a;cursor:pointer}
+.ai-fab-foot button.primary{background:#1f1b3a;border-color:#1f1b3a;color:#fff}
+.ai-fab-empty{padding:34px 20px;text-align:center;color:#8b8bad;font-size:12.5px;line-height:1.5}
+@media (max-width:640px){.ai-fab{right:16px;bottom:76px}.ai-fab-panel{right:16px;bottom:136px}}
