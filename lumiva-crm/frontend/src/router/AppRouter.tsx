@@ -6,6 +6,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useParams,
 } from 'react-router-dom';
 
 import { LoginPage } from '../pages/LoginPage';
@@ -114,6 +115,7 @@ import { CampaignsPage } from '../pages/marketing/CampaignsPage';
 import { BroadcastsPage } from '../pages/marketing/BroadcastsPage';
 import { BroadcastFormPage } from '../pages/marketing/BroadcastFormPage';
 import { UtmsPage } from '../pages/marketing/UtmsPage';
+import { UtmLinksPage } from '../pages/marketing/UtmLinksPage';
 import { SegmentsPage } from '../pages/marketing/SegmentsPage';
 import { SmmPage } from '../pages/marketing/SmmPage';
 import { ChannelsPage } from '../pages/marketing/ChannelsPage';
@@ -138,12 +140,9 @@ import { EsignPublicPage } from '../pages/esign/EsignPublicPage';
 
 // NEW MODULES
 import { ContactsListPage } from '../pages/contacts/ContactsListPage';
-import { ContactFormPage } from '../pages/contacts/ContactFormPage';
-import { ContactDetailsPage } from '../pages/contacts/ContactDetailsPage';
+import { ContactPage as ContactCardPage } from '../pages/contacts/ContactPage';
 import { CompaniesListPage } from '../pages/companies/CompaniesListPage';
-import { CompanyFormPage } from '../pages/companies/CompanyFormPage';
-import { CompanyDetailsPage } from '../pages/companies/CompanyDetailsPage';
-import { CompanyTasksBoardPage } from '../pages/companies/CompanyTasksBoardPage';
+import { CompanyPage } from '../pages/companies/CompanyPage';
 import { ProductsListPage } from '../pages/products/ProductsListPage';
 import { ProductFormPage } from '../pages/products/ProductFormPage';
 import { ProductDetailPage } from '../pages/products/ProductDetailPage';
@@ -285,6 +284,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
       )}
     </>
   );
+};
+
+// Отдельного канбана «задач компании» больше нет: все задачи живут в проектах/лидах, а вкладка
+// «Задачи» карточки компании их агрегирует. Старые ссылки ведут на эту вкладку.
+const CompanyTasksRedirect: React.FC = () => {
+  const { companyId } = useParams();
+  return <Navigate to={`/companies/${companyId}?tab=tasks`} replace />;
 };
 
 const LegacyAppRedirect: React.FC = () => {
@@ -883,6 +889,14 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/marketing/utm-links"
+          element={
+            <ProtectedRoute>
+              <UtmLinksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/marketing/segments"
           element={
             <ProtectedRoute>
@@ -952,7 +966,7 @@ export const AppRouter: React.FC = () => {
           path="/contacts/new"
           element={
             <ProtectedRoute>
-              <ContactFormPage />
+              <ContactCardPage />
             </ProtectedRoute>
           }
         />
@@ -960,7 +974,7 @@ export const AppRouter: React.FC = () => {
           path="/contacts/:id"
           element={
             <ProtectedRoute>
-              <ContactDetailsPage />
+              <ContactCardPage />
             </ProtectedRoute>
           }
         />
@@ -968,7 +982,7 @@ export const AppRouter: React.FC = () => {
           path="/contacts/:id/edit"
           element={
             <ProtectedRoute>
-              <ContactFormPage />
+              <ContactCardPage />
             </ProtectedRoute>
           }
         />
@@ -986,7 +1000,7 @@ export const AppRouter: React.FC = () => {
           path="/companies/new"
           element={
             <ProtectedRoute>
-              <CompanyFormPage />
+              <CompanyPage />
             </ProtectedRoute>
           }
         />
@@ -994,7 +1008,7 @@ export const AppRouter: React.FC = () => {
           path="/companies/:id"
           element={
             <ProtectedRoute>
-              <CompanyDetailsPage />
+              <CompanyPage />
             </ProtectedRoute>
           }
         />
@@ -1002,7 +1016,7 @@ export const AppRouter: React.FC = () => {
           path="/companies/:id/edit"
           element={
             <ProtectedRoute>
-              <CompanyFormPage />
+              <CompanyPage />
             </ProtectedRoute>
           }
         />
@@ -1018,7 +1032,7 @@ export const AppRouter: React.FC = () => {
           path="/companies/:companyId/tasks"
           element={
             <ProtectedRoute>
-              <CompanyTasksBoardPage />
+              <CompanyTasksRedirect />
             </ProtectedRoute>
           }
         />
@@ -1381,6 +1395,22 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AiEmployeesPage view="create" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/knowledge"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="knowledge" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/insights"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="insights" />
             </ProtectedRoute>
           }
         />

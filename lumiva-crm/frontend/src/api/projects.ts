@@ -6,9 +6,10 @@ import type {
   ProjectTask,
   ProjectComment,
   ProjectFileLink,
+  ProjectMeeting,
 } from '../pages/projects/projectTypes';
 
-export type { Project, ProjectStatus, ProjectTask, ProjectComment, ProjectFileLink } from '../pages/projects/projectTypes';
+export type { Project, ProjectStatus, ProjectTask, ProjectComment, ProjectFileLink, ProjectMeeting } from '../pages/projects/projectTypes';
 
 const generateId = (prefix: string) => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -52,6 +53,7 @@ interface ApiProject {
   tasks?: ProjectTask[] | null;
   comments?: ProjectComment[] | null;
   customFields?: Record<string, any> | null;
+  meetings?: ProjectMeeting[] | null;
   createdAt: string;
   updatedAt: string;
   isArchived?: boolean;
@@ -129,6 +131,7 @@ function mapProject(p: ApiProject): Project {
     briefFileUrl: p.briefFileUrl ?? null,
     files: p.files ?? null,
     customFields: p.customFields ?? null,
+    meetings: p.meetings ?? null,
 
     tasks,
     comments: p.comments ?? [],

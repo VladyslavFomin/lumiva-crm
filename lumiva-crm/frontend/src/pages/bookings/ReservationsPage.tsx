@@ -94,7 +94,7 @@ const ClientDrawer: React.FC<{ reservation: Reservation | null; onClose: () => v
         </div>
         <div className="bk-cust-stat">
           <div><div className="v">{stats?.visits ?? '—'}</div><div className="l">{t('crm.bookings.list.drawer.visits')}</div></div>
-          <div><div className="v">{stats ? `${stats.ltv} ₽` : '—'}</div><div className="l">{t('crm.bookings.list.drawer.ltv')}</div></div>
+          <div><div className="v">{stats ? `${stats.ltv.toLocaleString()} ${stats.currency}` : '—'}</div><div className="l">{t('crm.bookings.list.drawer.ltv')}</div></div>
           <div><div className="v" style={{ fontSize: 11 }}>{stats?.lastVisit ? new Date(stats.lastVisit).toLocaleDateString(dateLocale) : '—'}</div><div className="l">{t('crm.bookings.list.drawer.lastVisit')}</div></div>
         </div>
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line-3)' }}>

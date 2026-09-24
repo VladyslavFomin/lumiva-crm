@@ -25,6 +25,7 @@ import {
   YAxis,
 } from 'recharts';
 import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
+import { useBlockGridInteractions } from '../../components/analytics/useBlockGridInteractions';
 import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
 import {
   convertMarketingAmount,
@@ -845,24 +846,23 @@ const BlockShell: React.FC<{
   onSelect: () => void;
   onConfig: () => void;
   onDelete: () => void;
-  onMoveStart: (e: React.MouseEvent) => void;
-  onResizeStart: (e: React.MouseEvent, mode: 'r' | 'b' | 'br') => void;
-  onMouseEnter: () => void;
+  onMoveStart: (e: React.PointerEvent<HTMLElement>) => void;
+  onResizeStart: (e: React.PointerEvent<HTMLElement>, mode: 'r' | 'b' | 'br') => void;
   children: React.ReactNode;
-}> = ({ block, editing, selected, onSelect, onConfig, onDelete, onMoveStart, onResizeStart, onMouseEnter, children }) => {
+}> = ({ block, editing, selected, onSelect, onConfig, onDelete, onMoveStart, onResizeStart, children }) => {
   const { t } = useTranslation();
   return (
     <div
       className="pxb-block-wrap"
+      data-block-id={block.id}
       style={{ gridColumn: `span ${block.span}`, height: block.height }}
-      onMouseEnter={onMouseEnter}
     >
       <div
         className={`pxb-block${editing ? ' editing' : ''}${selected ? ' selected' : ''}${block._dragging ? ' dragging' : ''}${block._resizing ? ' resizing' : ''}`}
         onClick={editing ? onSelect : undefined}
       >
         <div className="pxb-block-head">
-          <span className="drag-handle" onMouseDown={onMoveStart}><Icon d={I.drag} size={13} /></span>
+          <span className="drag-handle" style={{ touchAction: 'none' }} onPointerDown={onMoveStart}><Icon d={I.drag} size={13} /></span>
           <div className="pxb-block-titles">
             <div className="t">{block.title}</div>
           </div>
@@ -876,9 +876,9 @@ const BlockShell: React.FC<{
           </div>
         </div>
         <div className="pxb-block-body">{children}</div>
-        <div className="pxb-resize r" onMouseDown={(e) => onResizeStart(e, 'r')} />
-        <div className="pxb-resize b" onMouseDown={(e) => onResizeStart(e, 'b')} />
-        <div className="pxb-resize br" onMouseDown={(e) => onResizeStart(e, 'br')}><Icon d={I.resize} size={10} /></div>
+        <div className="pxb-resize r" style={{ touchAction: 'none' }} onPointerDown={(e) => onResizeStart(e, 'r')} />
+        <div className="pxb-resize b" style={{ touchAction: 'none' }} onPointerDown={(e) => onResizeStart(e, 'b')} />
+        <div className="pxb-resize br" style={{ touchAction: 'none' }} onPointerDown={(e) => onResizeStart(e, 'br')}><Icon d={I.resize} size={10} /></div>
       </div>
     </div>
   );
@@ -905,10 +905,6 @@ export const ProductsAnalyticsBuilder: React.FC = () => {
   const [presetLoaded, setPresetLoaded] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ id: string; fromIdx: number; toIdx: number } | null>(null);
-  const [resize, setResize] = useState<{
-    id: string; mode: 'r' | 'b' | 'br'; startX: number; startY: number; startSpan: number; startHeight: number; colW: number;
-  } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -964,74 +960,35 @@ export const ProductsAnalyticsBuilder: React.FC = () => {
 
   const updateBlocks = (updater: (prev: AnalyticsBlock[]) => AnalyticsBlock[]) => setBlocks((prev) => updater(prev));
 
+  const { beginDrag, beginResize, dragId, previewOrder, live } = useBlockGridInteractions({
+    gridRef,
+    // на узких экранах сетка перестраивается в 6/1 колонок — там 12-колоночная математика неверна
+    enabled: editing && (typeof window === 'undefined' || window.innerWidth >= 900),
+    order: blocks.map((b) => b.id),
+    minSpan: 3,
+    minHeight: MIN_BLOCK_H,
+    maxHeight: MAX_BLOCK_H,
+    onResizeCommit: (id, m) => updateBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, span: m.span, height: m.height } : b))),
+    onReorderCommit: (order) =>
+      updateBlocks((prev) => {
+        const byId = new Map(prev.map((b) => [b.id, b]));
+        const next = order.map((id) => byId.get(id)).filter((b): b is AnalyticsBlock => !!b);
+        return next.length === prev.length ? next : prev;
+      }),
+  });
+  // во время жеста рисуем живой порядок / размеры; сохраняется один раз при отпускании
   const visualBlocks = useMemo(() => {
-    if (!drag || drag.fromIdx === drag.toIdx) return blocks;
-    const next = [...blocks];
-    const [moved] = next.splice(drag.fromIdx, 1);
-    next.splice(drag.toIdx, 0, moved);
-    return next.map((b) => (b.id === drag.id ? { ...b, _dragging: true } : b));
-  }, [blocks, drag]);
-
-  useEffect(() => {
-    if (!drag) return;
-    const onUp = () => {
-      if (drag.fromIdx !== drag.toIdx) {
-        updateBlocks((prev) => {
-          const next = [...prev];
-          const [moved] = next.splice(drag.fromIdx, 1);
-          next.splice(drag.toIdx, 0, moved);
-          return next;
-        });
-      }
-      setDrag(null);
-    };
-    window.addEventListener('mouseup', onUp);
-    return () => window.removeEventListener('mouseup', onUp);
-  }, [drag]);
-
-  useEffect(() => {
-    if (!resize) return;
-    const onMove = (e: MouseEvent) => {
-      const dx = e.clientX - resize.startX;
-      const dy = e.clientY - resize.startY;
-      let span = resize.startSpan;
-      let height = resize.startHeight;
-      if (resize.mode === 'br' || resize.mode === 'r') {
-        span = Math.max(3, Math.min(12, Math.round(resize.startSpan + dx / (resize.colW + 12))));
-      }
-      if (resize.mode === 'br' || resize.mode === 'b') {
-        height = Math.max(MIN_BLOCK_H, Math.min(MAX_BLOCK_H, resize.startHeight + dy));
-      }
-      updateBlocks((prev) => prev.map((b) => (b.id === resize.id ? { ...b, span, height, _resizing: true } : b)));
-    };
-    const onUp = () => {
-      updateBlocks((prev) => prev.map((b) => ({ ...b, _resizing: false })));
-      setResize(null);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [resize]);
-
-  const onMoveStart = (e: React.MouseEvent, id: string) => {
-    if (!editing) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const fromIdx = blocks.findIndex((b) => b.id === id);
-    if (fromIdx >= 0) setDrag({ id, fromIdx, toIdx: fromIdx });
-  };
-  const onResizeStart = (e: React.MouseEvent, id: string, mode: 'r' | 'b' | 'br') => {
-    if (!editing) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const block = blocks.find((b) => b.id === id);
-    const rect = gridRef.current?.getBoundingClientRect();
-    if (!block || !rect) return;
-    setResize({ id, mode, startX: e.clientX, startY: e.clientY, startSpan: block.span, startHeight: block.height, colW: (rect.width - 11 * 12) / 12 });
-  };
+    let list = blocks;
+    if (previewOrder) {
+      const byId = new Map(blocks.map((b) => [b.id, b]));
+      list = previewOrder.map((id) => byId.get(id)).filter((b): b is AnalyticsBlock => !!b);
+    }
+    return list.map((b) => {
+      if (dragId === b.id) return { ...b, _dragging: true };
+      if (live?.id === b.id) return { ...b, span: live.span, height: live.height, _resizing: true };
+      return b;
+    });
+  }, [blocks, previewOrder, dragId, live]);
 
   const deleteBlock = (id: string) => {
     updateBlocks((prev) => prev.filter((b) => b.id !== id));
@@ -1093,7 +1050,7 @@ export const ProductsAnalyticsBuilder: React.FC = () => {
       {loading || !presetLoaded ? (
         <div className="an-empty">{t('crm.common.loading')}</div>
       ) : (
-        <div className="pxb-grid" ref={gridRef}>
+        <div className={`pxb-grid${editing ? ' editing' : ''}`} ref={gridRef}>
           {visualBlocks.map((block) => (
             <BlockShell
               key={block.id}
@@ -1103,13 +1060,8 @@ export const ProductsAnalyticsBuilder: React.FC = () => {
               onSelect={() => setSelected(block.id)}
               onConfig={() => { setConfigId(block.id); setSelected(block.id); }}
               onDelete={() => deleteBlock(block.id)}
-              onMoveStart={(e) => onMoveStart(e, block.id)}
-              onResizeStart={(e, mode) => onResizeStart(e, block.id, mode)}
-              onMouseEnter={() => {
-                if (!drag) return;
-                const toIdx = blocks.findIndex((b) => b.id === block.id);
-                if (toIdx !== drag.toIdx && toIdx >= 0) setDrag((prev) => (prev ? { ...prev, toIdx } : prev));
-              }}
+              onMoveStart={(e) => beginDrag(e, block.id)}
+              onResizeStart={(e, mode) => beginResize(e, block.id, mode === 'r' ? 'x' : mode === 'b' ? 'y' : 'both', { span: block.span, height: block.height })}
             >
               <RenderBlock
                 block={block}

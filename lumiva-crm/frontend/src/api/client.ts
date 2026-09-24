@@ -588,6 +588,12 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     }),
 
+  put: <T>(path: string, body?: any) =>
+    request<T>(path, {
+      method: 'PUT',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+
   // было: del
   del: <T>(path: string) =>
     request<T>(path, {

@@ -96,6 +96,8 @@ export const AI_TRIGGER_CATALOG: AiTriggerCatalogItem[] = [
   { event: 'hotel.reservation_created', group: 'bookings', entity: 'hotel_reservation', defaultScope: 'all' },
   { event: 'hotel.reservation_status_changed', group: 'bookings', entity: 'hotel_reservation', defaultScope: 'all' },
   { event: 'custom_object.record_created', group: 'workspace', entity: 'custom_object_record', defaultScope: 'all' },
+  { event: 'custom_object.record_updated', group: 'workspace', entity: 'custom_object_record', defaultScope: 'mine' },
+  { event: 'custom_object.status_changed', group: 'workspace', entity: 'custom_object_record', defaultScope: 'mine' },
 ];
 
 export const AI_TRIGGER_EVENTS = AI_TRIGGER_CATALOG.map((t) => t.event);
@@ -107,10 +109,11 @@ export const AI_ASSIGNEE_IMPLICIT_EVENTS = new Set([
   'project.status_changed',
   'task.status_changed',
   'telegram.message_received',
+  'custom_object.status_changed',
 ]);
 
 /** Записи, за которые ИИ может быть назначен ответственным. */
-export const AI_ASSIGNABLE_ENTITY_TYPES = ['lead', 'project', 'company_task', 'company', 'contact'] as const;
+export const AI_ASSIGNABLE_ENTITY_TYPES = ['lead', 'project', 'company_task', 'company', 'contact', 'custom_object_record'] as const;
 export type AiAssignableEntityType = (typeof AI_ASSIGNABLE_ENTITY_TYPES)[number];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

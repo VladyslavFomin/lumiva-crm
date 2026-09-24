@@ -1,10 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Lead } from '../leads/lead.entity';
 import { LeadActivity } from '../leads/lead-activity.entity';
 import { StaffUser } from '../staff/staff-user.entity';
+
+/** Лиды из корзины (meta.deleted) не участвуют в агрегатах — то же условие, что в leads.service */
+const NOT_TRASHED_SQL = `NOT (
+  COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+  OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb
+)`;
 
 export type ProfileCompletionStepId =
   | 'display_name'
@@ -58,7 +64,11 @@ export class DashboardService {
     }
 
     const [leadCount, staffCount] = await Promise.all([
-      this.leadsRepo.count({ where: { tenantId } }),
+      this.leadsRepo
+        .createQueryBuilder('l')
+        .where('l.tenantId = :tenantId', { tenantId })
+        .andWhere(NOT_TRASHED_SQL)
+        .getCount(),
       this.staffRepo.count({ where: { tenantId } }),
     ]);
 
@@ -79,12 +89,15 @@ export class DashboardService {
     const doneN = steps.filter((s) => s.done).length;
     const percent = Math.round((doneN / steps.length) * 100);
 
-    const activities = await this.leadActivityRepo.find({
-      where: { tenantId },
-      relations: ['lead'],
-      order: { createdAt: 'DESC' },
-      take: 20,
-    });
+    // Активность по лидам из корзины (meta.deleted) в ленту не попадает
+    const activities = await this.leadActivityRepo
+      .createQueryBuilder('a')
+      .innerJoinAndSelect('a.lead', 'l')
+      .where('a.tenantId = :tenantId', { tenantId })
+      .andWhere(NOT_TRASHED_SQL)
+      .orderBy('a.createdAt', 'DESC')
+      .take(20)
+      .getMany();
 
     const leadActivityStream = activities.map((a) => ({
       id: a.id,
@@ -107,6 +120,7 @@ export class DashboardService {
       .createQueryBuilder('l')
       .where('l.tenantId = :tenantId', { tenantId })
       .andWhere("l.meta -> 'meetings' IS NOT NULL")
+      .andWhere(NOT_TRASHED_SQL)
       .select(['l.meta'])
       .getMany();
 
@@ -130,6 +144,45 @@ export class DashboardService {
       learnSlugs: defaultLearnSlugs(),
       todayMeetingsCount,
     };
+  }
+
+  /**
+   * Личный layout главной (order/hidden/sizes/heights/presetInstances/titleOverrides) — зеркало
+   * того, что фронт хранит в localStorage (см. frontend/src/dashboard/dashboardLayout.ts). Живёт
+   * в User.preferences (jsonb, тот же merge-not-replace паттерн, что в AccountService.updatePreferences),
+   * а не в отдельной таблице — нужен, чтобы ИИ-ассистент (crm_dashboard_configure) мог реально менять
+   * структуру дашборда: у него нет доступа к localStorage браузера.
+   */
+  async getLayout(
+    tenantId: string,
+    userId: string,
+  ): Promise<{ layout: unknown | null; updatedAt: string | null }> {
+    const user = await this.usersRepo.findOne({ where: { id: userId, tenantId } });
+    const prefs = (user?.preferences || null) as Record<string, any> | null;
+    return {
+      layout: prefs?.dashboardLayout ?? null,
+      updatedAt: prefs?.dashboardLayoutUpdatedAt ?? null,
+    };
+  }
+
+  /** Фронт зеркалит сюда каждое ручное изменение главной — чтобы у ИИ-инструмента всегда была
+   * актуальная база для action:'add'/'remove', а не только для собственных action:'replace'. */
+  async saveLayout(
+    tenantId: string,
+    userId: string,
+    layout: unknown,
+    updatedAt?: string,
+  ): Promise<{ ok: true; updatedAt: string }> {
+    const user = await this.usersRepo.findOne({ where: { id: userId, tenantId } });
+    if (!user) throw new NotFoundException('User not found');
+    const ts = updatedAt || new Date().toISOString();
+    user.preferences = {
+      ...(user.preferences || {}),
+      dashboardLayout: layout,
+      dashboardLayoutUpdatedAt: ts,
+    };
+    await this.usersRepo.save(user);
+    return { ok: true, updatedAt: ts };
   }
 }
 

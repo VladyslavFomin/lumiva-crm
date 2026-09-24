@@ -38,6 +38,15 @@ export class EsignDocument {
   @Column({ type: 'varchar', length: 16, default: 'draft' })
   status: EsignDocumentStatus;
 
+  /** 'generated' — issued from a template; 'uploaded' — an already-signed PDF received from the
+   * counterparty and stored as an archive copy (status is 'signed', signedAt is the signing date). */
+  @Column({ type: 'varchar', length: 16, default: 'generated' })
+  source: 'generated' | 'uploaded';
+
+  /** Free-form note (mainly for uploaded archive documents). */
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
   /** Optional link to a CRM record — 'lead' | 'company' | 'project'. Mirrors Note's entityType/entityId pattern. */
   @Column({ type: 'varchar', length: 20, nullable: true })
   entityType: string | null;

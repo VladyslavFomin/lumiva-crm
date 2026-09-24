@@ -49,7 +49,7 @@ export const BookingsAnalyticsWidget: React.FC = () => {
         </div>
       </div>
       <div className="text-[11px] text-neutral-500">
-        {t('crm.dashboard.bookingsAnalyticsWidget.avgCheck')}: <span className="font-medium text-[#222]">{data.avgCheck.toLocaleString(locale)}</span>
+        {t('crm.dashboard.bookingsAnalyticsWidget.avgCheck')}: <span className="font-medium text-[#222]">{data.avgCheck.toLocaleString(locale)} {data.currency}</span>
       </div>
       <Link to="/bookings/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.bookingsAnalyticsWidget.openFull')}</Link>
     </div>

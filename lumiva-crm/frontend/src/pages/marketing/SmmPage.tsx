@@ -1,1834 +1,1308 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// Редизайн по мокапу Claude Design (marketing-smm.html / components/smm-page.jsx) —
+// структура портирована 1:1, данные реальные (см. backend smm.service.ts: профили, статистика,
+// интеграции Meta / ВКонтакте). Мобильная вёрстка — сверх мокапа: таблица профилей превращается
+// в карточки, панель интеграций открывается на всю ширину.
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   fetchSmmProfiles,
   fetchSmmStats,
+  fetchSmmIntegrations,
   createSmmProfile,
   deleteSmmProfile,
+  updateSmmProfile,
   fetchMetaAssets,
   getMetaAuthUrl,
   connectMetaProfile,
   syncMetaNow,
+  fetchVkAssets,
+  getVkAuthUrl,
+  connectVkGroup,
+  syncVkNow,
   type SmmProfile,
   type SmmPlatform,
+  type SmmStatRow,
   type SmmStatsResponse,
-  type SmmProfileLastStat,
+  type SmmIntegrationsStatus,
 } from '../../api/smm';
 import { getLocale } from '../../i18n/utils';
-import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
+import { cl, Ic } from '../contacts/CrmListShared';
+import '../contacts/crm-lists-design.css';
+import './smm-design.css';
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
+type Preset = '7d' | '30d' | '90d' | 'custom';
+type MetricKey = 'followers' | 'reach' | 'likes' | 'comments' | 'videoViews';
+type MetaAssets = Awaited<ReturnType<typeof fetchMetaAssets>>;
+type VkAssets = Awaited<ReturnType<typeof fetchVkAssets>>;
 
-
-
-type PeriodPreset = '7d' | '30d' | '90d';
-
-interface DateRange {
-  from?: string;
-  to?: string;
-}
-
-const PLATFORM_COLORS: Record<SmmPlatform, string> = {
-  instagram: '#e1306c',
-  facebook: '#1877f2',
-  telegram: '#229ED9',
-  vk: '#4c75a3',
-  tiktok: '#25f4ee',
-  other: '#9ca3af',
+const M = {
+  refresh: (
+    <>
+      <path d="M21 12a9 9 0 11-3-6.7" />
+      <path d="M21 4v5h-5" />
+    </>
+  ),
+  plug: (
+    <>
+      <path d="M9 3v6" />
+      <path d="M15 3v6" />
+      <rect x="6" y="9" width="12" height="6" rx="1.5" />
+      <path d="M12 15v4" />
+      <path d="M9 19h6" />
+    </>
+  ),
+  ext: (
+    <>
+      <path d="M14 4h6v6" />
+      <path d="M20 4l-8 8" />
+      <path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.5-4.5" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" />
+    </>
+  ),
+  up: (
+    <>
+      <path d="M12 19V5" />
+      <path d="M6 11l6-6 6 6" />
+    </>
+  ),
+  dn: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M6 13l6 6 6-6" />
+    </>
+  ),
+  x: (
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M6 18L18 6" />
+    </>
+  ),
 };
 
-const CHART_PLATFORMS: SmmPlatform[] = ['instagram', 'facebook', 'telegram', 'vk'];
+/** Цвет и аббревиатура платформы (из мокапа). */
+const PL: Record<SmmPlatform, { c: string; s: string }> = {
+  instagram: { c: '#C13584', s: 'IG' },
+  facebook: { c: '#0866FF', s: 'FB' },
+  vk: { c: '#0077FF', s: 'VK' },
+  telegram: { c: '#229ED9', s: 'TG' },
+  tiktok: { c: '#1f1f1f', s: 'TT' },
+  other: { c: '#888888', s: '—' },
+};
+const PL_ORDER: SmmPlatform[] = ['instagram', 'facebook', 'vk', 'telegram', 'tiktok', 'other'];
+const METRIC_KEYS: MetricKey[] = ['followers', 'reach', 'likes', 'comments', 'videoViews'];
+const METRIC_MODE: Record<MetricKey, 'level' | 'sum'> = { followers: 'level', reach: 'sum', likes: 'sum', comments: 'sum', videoViews: 'sum' };
+/** Через сколько дней без свежих данных подключённый профиль считается «застывшим». */
+const STALE_AFTER_DAYS = 3;
 
-interface FollowersChartPoint {
-  date: string;
-  [key: string]: number | string | undefined;
-}
+const dayMs = 864e5;
+const parseDay = (s: string) => new Date(`${s}T00:00:00Z`).getTime();
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const dm = (s: string) => {
+  const [, m, d] = s.split('-');
+  return `${d}.${m}`;
+};
+const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
+const rangeDays = (from: string, to: string) => Math.max(1, Math.round((parseDay(to) - parseDay(from)) / dayMs) + 1);
+const sortRows = (rows: SmmStatRow[]) => [...rows].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-type ChartMetric = 'followers' | 'reach' | 'likes' | 'comments' | 'videoViews';
+/** Стата по профилям: строки по дате (ASC) для каждого profileId. */
+const byProfile = (resp: SmmStatsResponse | null) => {
+  const m = new Map<string, SmmStatRow[]>();
+  sortRows(resp?.items || []).forEach((r) => {
+    if (!m.has(r.profileId)) m.set(r.profileId, []);
+    m.get(r.profileId)!.push(r);
+  });
+  return m;
+};
 
-/** Акцент нижних блоков (график, профили) — согласован с онлайн-чатом / маркетингом */
-const SMM_PANEL_ACCENT = '#222222';
+const totalsOf = (map: Map<string, SmmStatRow[]>) => {
+  let followers = 0;
+  let delta = 0;
+  let reach = 0;
+  let likes = 0;
+  let comments = 0;
+  let videoViews = 0;
+  map.forEach((rows) => {
+    followers += rows[rows.length - 1].followers;
+    delta += rows[rows.length - 1].followers - rows[0].followers;
+    rows.forEach((r) => {
+      reach += r.reach;
+      likes += r.likes;
+      comments += r.comments;
+      videoViews += r.videoViews;
+    });
+  });
+  return { followers, delta, reach, likes, comments, videoViews, er: reach ? ((likes + comments) / reach) * 100 : 0 };
+};
 
-const FollowersTooltip: React.FC<any> = ({ active, payload, label, locale }) => {
-  if (!active || !payload?.length) return null;
+/* ── линии по платформам ── */
+const Trend: React.FC<{
+  dates: string[];
+  series: Partial<Record<SmmPlatform, number[]>>;
+  prevSeries: Partial<Record<SmmPlatform, Array<number | null>>>;
+  metric: MetricKey;
+  hidden: SmmPlatform[];
+  onToggle: (p: SmmPlatform) => void;
+  platformName: (p: SmmPlatform) => string;
+  fmt: (n: number) => string;
+  dayTip: string;
+  prevHint: string;
+}> = ({ dates, series, prevSeries, metric, hidden, onToggle, platformName, fmt, dayTip, prevHint }) => {
+  const [hover, setHover] = useState<number | null>(null);
+  const [w, setW] = useState(720);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => setW(Math.max(260, Math.round(el.getBoundingClientRect().width)));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => setHover(null), [metric]);
+
+  const H = w < 520 ? 210 : 260;
+  const PLx = w < 520 ? 40 : 52;
+  const PR = 14;
+  const PT = 18;
+  const PB = 32;
+  const all = Object.keys(series) as SmmPlatform[];
+  const keys = all.filter((k) => !hidden.includes(k));
+  const flat = keys
+    .flatMap((k) => series[k] || [])
+    .concat(keys.flatMap((k) => (prevSeries[k] || []).filter((v): v is number => v != null)));
+  let max = Math.max(...flat, 1);
+  const min = Math.min(...flat, 0);
+  max += (max - min) * 0.14 || 1;
+  const rg = max - min || 1;
+  const last = Math.max(1, dates.length - 1);
+  const X = (i: number) => PLx + (i * (w - PLx - PR)) / last;
+  const Y = (v: number) => PT + (1 - (v - min) / rg) * (H - PT - PB);
+  const path = (arr: Array<number | null>) => {
+    let out = '';
+    let pen = false;
+    arr.forEach((v, i) => {
+      if (v == null) {
+        pen = false;
+        return;
+      }
+      out += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`;
+      pen = true;
+    });
+    return out;
+  };
+  const ticks = [0, 0.5, 1].map((t) => min + rg * t);
+  const xi = [0, Math.round((dates.length - 1) / 2), dates.length - 1];
+
+  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const b = e.currentTarget.getBoundingClientRect();
+    const i = Math.round(((e.clientX - b.left - PLx) / (w - PLx - PR)) * last);
+    setHover(clamp(i, 0, dates.length - 1));
+  };
+  const tipTop = hover === null || !keys.length ? 0 : Math.min(...keys.map((k) => Y((series[k] || [])[hover] ?? 0)));
+
   return (
-    <div
-      className="max-w-[260px] rounded-xl border bg-white px-3 py-2 text-[11px] text-neutral-800 shadow-lg"
-      style={{ borderColor: `${SMM_PANEL_ACCENT}22` }}
-    >
-      <div className="mb-1 font-semibold text-neutral-900">{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="text-neutral-700">
-          <span
-            className="mr-1 inline-block h-3 w-3 rounded-full align-middle"
-            style={{ background: p.color }}
-          />
-          <span className="align-middle">
-            {p.name}: {p.value?.toLocaleString?.(locale) ?? p.value}
-          </span>
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="sm-chart" ref={wrapRef}>
+        <svg
+          viewBox={`0 0 ${w} ${H}`}
+          width={w}
+          height={H}
+          onPointerMove={onMove}
+          onPointerDown={onMove}
+          onPointerLeave={(e) => {
+            if (e.pointerType === 'mouse') setHover(null);
+          }}
+        >
+          {ticks.map((tk, i) => (
+            <g key={i}>
+              <line x1={PLx} x2={w - PR} y1={Y(tk)} y2={Y(tk)} stroke={i === 0 ? 'var(--line-2)' : 'var(--line-3)'} />
+              <text x={PLx - 8} y={Y(tk) + 3.5} textAnchor="end" fontSize="10" fontFamily="var(--ff-mono)" fill="var(--fg-4)">
+                {tk >= 1000 ? `${Math.round(tk / 100) / 10}k` : Math.round(tk)}
+              </text>
+            </g>
+          ))}
+          {keys.map((k) =>
+            prevSeries[k]?.some((v) => v != null) ? (
+              <path key={`p${k}`} d={path(prevSeries[k] as Array<number | null>)} fill="none" stroke={PL[k].c} strokeWidth="1.4" strokeDasharray="4 4" opacity="0.4" />
+            ) : null,
+          )}
+          {keys.map((k) => (
+            <path key={k} d={path(series[k] || [])} fill="none" stroke={PL[k].c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          ))}
+          {xi.map((i, n) => (
+            <text
+              key={`${i}-${n}`}
+              x={X(i)}
+              y={H - 11}
+              textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'}
+              fontSize="10"
+              fontFamily="var(--ff-mono)"
+              fill="var(--fg-4)"
+            >
+              {dm(dates[i])}
+            </text>
+          ))}
+          {hover !== null && (
+            <g>
+              <line x1={X(hover)} x2={X(hover)} y1={PT - 4} y2={H - PB} stroke="var(--line-2)" />
+              {keys.map((k) => (
+                <circle key={k} cx={X(hover)} cy={Y((series[k] || [])[hover] ?? 0)} r="3.4" fill={PL[k].c} />
+              ))}
+            </g>
+          )}
+        </svg>
+        {hover !== null && keys.length > 0 && (
+          <div className="sm-tip" style={{ left: clamp(X(hover), 78, w - 78), top: Math.max(tipTop - 6, 60) }}>
+            <div className="dt">
+              {dm(dates[hover])}
+              {METRIC_MODE[metric] === 'sum' ? dayTip : ''}
+            </div>
+            {keys.map((k) => (
+              <div className="rw" key={k}>
+                <i style={{ background: PL[k].c }} />
+                <span>{platformName(k)}</span>
+                <b>{fmt((series[k] || [])[hover] ?? 0)}</b>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="sm-legend">
+        {all.map((k) => (
+          <button
+            key={k}
+            type="button"
+            className={cl(hidden.includes(k) ? 'off' : 'on')}
+            style={{ color: hidden.includes(k) ? 'var(--fg-3)' : PL[k].c }}
+            onClick={() => onToggle(k)}
+          >
+            <i />
+            {platformName(k)}
+          </button>
+        ))}
+        <span className="hint">{prevHint}</span>
+      </div>
+    </>
   );
 };
 
 export const SmmPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { showConfirm } = useAlertModal();
-  const locale = getLocale();
-  const periodLabel: Record<PeriodPreset, string> = {
-    '7d': t('crm.marketingSmm.periods.7d'),
-    '30d': t('crm.marketingSmm.periods.30d'),
-    '90d': t('crm.marketingSmm.periods.90d'),
-  };
-  const platformLabel = (platform: SmmPlatform) =>
-    t(`crm.marketingSmm.platforms.${platform}`);
-  const [preset, setPreset] = useState<PeriodPreset>('30d');
-  const [range, setRange] = useState<DateRange>({});
+  const locale = getLocale(i18n.language);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  const [preset, setPreset] = useState<Preset>('30d');
+  const [range, setRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  const [draft, setDraft] = useState<{ from: string; to: string }>({ from: '', to: '' });
   const [profiles, setProfiles] = useState<SmmProfile[]>([]);
   const [stats, setStats] = useState<SmmStatsResponse | null>(null);
-  const [compareStats, setCompareStats] = useState<SmmStatsResponse | null>(null);
+  const [prevStats, setPrevStats] = useState<SmmStatsResponse | null>(null);
+  const [integrations, setIntegrations] = useState<SmmIntegrationsStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [columnOrder, setColumnOrder] = useState<string[]>([]);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [resizing, setResizing] = useState<{
-    id: string;
-    startX: number;
-    startWidth: number;
-  } | null>(null);
-  const [form, setForm] = useState<{
-    platform: SmmPlatform;
-    handle: string;
-    url: string;
-    note: string;
-  }>({
-    platform: 'instagram',
-    handle: '',
-    url: '',
-    note: '',
-  });
+  const [status, setStatus] = useState<string | null>(null);
+  const [metric, setMetric] = useState<MetricKey>('followers');
+  const [hidden, setHidden] = useState<SmmPlatform[]>([]);
+  const [q, setQ] = useState('');
+  const [plat, setPlat] = useState<SmmPlatform | 'all'>('all');
+  const [limit, setLimit] = useState(20);
+  const [openNote, setOpenNote] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState(false);
+  const [adding, setAdding] = useState<{ platform: SmmPlatform; handle: string; url: string }>({ platform: 'instagram', handle: '', url: '' });
   const [savingProfile, setSavingProfile] = useState(false);
-  const [metaLoading, setMetaLoading] = useState(false);
-  const [metaError, setMetaError] = useState<string | null>(null);
-  const [metaStatus, setMetaStatus] = useState<string | null>(null);
-  const [metaSyncLoading, setMetaSyncLoading] = useState(false);
-  const [integrationsOpen, setIntegrationsOpen] = useState(false);
-  const [chartMetric, setChartMetric] = useState<ChartMetric>('followers');
-  const [activeTab, setActiveTab] = useState<'profiles' | 'integrations'>('profiles');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<SmmPlatform | 'all'>('all');
-  const [visibleCount, setVisibleCount] = useState(20);
-  const [metaAssets, setMetaAssets] = useState<{
-    pages: Array<{
-      id: string;
-      name: string;
-      username: string | null;
-      link: string | null;
-      instagramBusinessId: string | null;
-      instagramUsername: string | null;
-    }>;
-  } | null>(null);
-  const metaConnected = Boolean(metaAssets && !metaError);
-  const [hiddenMetaPages, setHiddenMetaPages] = useState<Set<string>>(new Set());
 
-  const baseColumns = useMemo(
-    () => [
-      { id: 'profile', label: t('crm.marketingSmm.profiles.table.headers.profile') },
-      { id: 'platform', label: t('crm.marketingSmm.profiles.table.headers.platform') },
-      { id: 'followers', label: t('crm.marketingSmm.profiles.table.headers.followers') },
-      {
-        id: 'reachLikesComments',
-        label: t('crm.marketingSmm.profiles.table.headers.reachLikesComments'),
-      },
-      { id: 'erViews', label: t('crm.marketingSmm.profiles.table.headers.erViews') },
-      { id: 'date', label: t('crm.marketingSmm.profiles.table.headers.date') },
-      { id: 'actions', label: t('crm.marketingSmm.profiles.table.headers.actions') },
-    ],
-    [t],
-  );
+  const nf = (n: number) => Math.round(n).toLocaleString(locale);
+  const pf = (n: number) => `${n.toFixed(2)}%`;
+  const platformName = (p: SmmPlatform) => t(`crm.marketingSmm.platforms.${p}`);
+  const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
-  const orderedColumns = useMemo(() => {
-    if (!baseColumns.length) return [];
-    const map = new Map(baseColumns.map((col) => [col.id, col]));
-    const order =
-      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
-    const result: typeof baseColumns = [];
-    order.forEach((id) => {
-      const col = map.get(id);
-      if (col) result.push(col);
-    });
-    baseColumns.forEach((col) => {
-      if (!result.find((r) => r.id === col.id)) result.push(col);
-    });
-    return result;
-  }, [baseColumns, columnOrder]);
-
-  // ------ helpers: период
-
-  const applyPreset = (p: PeriodPreset) => {
+  /* ── период ── */
+  const applyPreset = (p: Exclude<Preset, 'custom'>) => {
+    const n = Number(p.replace('d', ''));
+    const now = new Date();
+    const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const next = { from: isoDay(end - (n - 1) * dayMs), to: isoDay(end) };
     setPreset(p);
-
-    const today = new Date();
-    const end = new Date(
-      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
-    );
-
-    const start = new Date(end);
-    if (p === '7d') {
-      start.setUTCDate(end.getUTCDate() - 6);
-    } else if (p === '30d') {
-      start.setUTCDate(end.getUTCDate() - 29);
-    } else if (p === '90d') {
-      start.setUTCDate(end.getUTCDate() - 89);
-    }
-
-    setRange({
-      from: start.toISOString().slice(0, 10),
-      to: end.toISOString().slice(0, 10),
-    });
+    setDraft(next);
+    setRange(next);
   };
-
   useEffect(() => {
     applyPreset('30d');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
+  const days = range.from && range.to ? rangeDays(range.from, range.to) : 30;
+
+  /* ── загрузка ── */
+  const loadProfiles = useCallback(async () => {
     try {
-      const raw = localStorage.getItem('marketing_smm_profiles_columns');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
-        if (parsed.widths && typeof parsed.widths === 'object')
-          setColumnWidths(parsed.widths);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        'marketing_smm_profiles_columns',
-        JSON.stringify({ order: columnOrder, widths: columnWidths }),
-      );
-    } catch {
-      // ignore
-    }
-  }, [columnOrder, columnWidths]);
-
-  useEffect(() => {
-    if (!baseColumns.length) return;
-    setColumnOrder((prev) => {
-      if (!prev.length) return baseColumns.map((c) => c.id);
-      const ids = baseColumns.map((c) => c.id);
-      const filtered = prev.filter((id) => ids.includes(id));
-      const missing = ids.filter((id) => !filtered.includes(id));
-      return [...filtered, ...missing];
-    });
-  }, [baseColumns]);
-
-  useEffect(() => {
-    if (!resizing) return;
-    const handleMove = (e: MouseEvent) => {
-      const delta = e.clientX - resizing.startX;
-      const next = Math.max(90, resizing.startWidth + delta);
-      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
-    };
-    const handleUp = () => setResizing(null);
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-  }, [resizing]);
-
-  useEffect(() => {
-    const raw = window.localStorage.getItem('smm.meta.hiddenPages');
-    if (!raw) return;
-    try {
-      const ids = JSON.parse(raw);
-      if (Array.isArray(ids)) {
-        setHiddenMetaPages(new Set(ids));
-      }
-    } catch {
-      // ignore bad local storage
-    }
-  }, []);
-
-  useEffect(() => {
-    const ids = Array.from(hiddenMetaPages);
-    window.localStorage.setItem('smm.meta.hiddenPages', JSON.stringify(ids));
-  }, [hiddenMetaPages]);
-
-  const reloadProfiles = async () => {
-    setLoadingProfiles(true);
-    try {
-      const data = await fetchSmmProfiles();
-      setProfiles(data);
-    } catch (e: any) {
+      setProfiles(await fetchSmmProfiles());
+    } catch (e) {
       console.error(e);
-      setError(e.message || t('crm.marketingSmm.errors.profiles'));
-    } finally {
-      setLoadingProfiles(false);
+      setError(errMsg(e, t('crm.marketingSmm.errors.profiles')));
     }
-  };
+  }, [t]);
 
-  const reloadStats = async () => {
+  const loadIntegrations = useCallback(async () => {
+    try {
+      setIntegrations(await fetchSmmIntegrations());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const loadStats = useCallback(async () => {
     if (!range.from || !range.to) return;
     setLoading(true);
+    const n = rangeDays(range.from, range.to);
+    const prevTo = isoDay(parseDay(range.from) - dayMs);
+    const prevFrom = isoDay(parseDay(range.from) - n * dayMs);
+    const [cur, prev] = await Promise.allSettled([
+      fetchSmmStats({ from: range.from, to: range.to }),
+      fetchSmmStats({ from: prevFrom, to: prevTo }),
+    ]);
+    if (cur.status === 'fulfilled') setStats(cur.value);
+    else {
+      console.error(cur.reason);
+      setError(errMsg(cur.reason, t('crm.marketingSmm.errors.stats')));
+    }
+    setPrevStats(prev.status === 'fulfilled' ? prev.value : null);
+    setLoading(false);
+  }, [range.from, range.to, t]);
+
+  useEffect(() => {
+    void loadProfiles();
+    void loadIntegrations();
+  }, [loadProfiles, loadIntegrations]);
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  /* возврат из OAuth (?meta=… / ?vk=…) */
+  useEffect(() => {
+    const sp = searchParamsRef.current;
+    const meta = sp.get('meta');
+    const vk = sp.get('vk');
+    const code = meta || vk;
+    if (!code) return;
+    const provider = meta ? 'Meta' : 'VK';
+    if (code === 'connected') {
+      setStatus(t('crm.marketingSmm.ui.oauth.connected', { provider }));
+      setDrawer(true);
+    } else {
+      setError(t('crm.marketingSmm.ui.oauth.failed', { provider }));
+    }
+    const next = new URLSearchParams(sp);
+    next.delete('meta');
+    next.delete('vk');
+    setSearchParams(next, { replace: true });
+  }, [t, setSearchParams]);
+
+  /* ── агрегаты ── */
+  const rowsCur = useMemo(() => byProfile(stats), [stats]);
+  const rowsPrev = useMemo(() => byProfile(prevStats), [prevStats]);
+  const T0 = useMemo(() => totalsOf(rowsCur), [rowsCur]);
+  const P0 = useMemo(() => totalsOf(rowsPrev), [rowsPrev]);
+  const hasPrev = rowsPrev.size > 0;
+  const pct = (a: number, b: number) => (b ? ((a - b) / Math.abs(b)) * 100 : null);
+
+  const dates = useMemo(() => [...new Set((stats?.items || []).map((r) => r.date))].sort(), [stats]);
+  const platformsPresent = useMemo(() => PL_ORDER.filter((k) => profiles.some((p) => p.platform === k)), [profiles]);
+
+  const series = useMemo(() => {
+    const out: Partial<Record<SmmPlatform, number[]>> = {};
+    platformsPresent.forEach((k) => {
+      out[k] = new Array(dates.length).fill(0);
+    });
+    const di = new Map(dates.map((d, i) => [d, i]));
+    (stats?.items || []).forEach((r) => {
+      const i = di.get(r.date);
+      const arr = out[r.platform];
+      if (i === undefined || !arr) return;
+      arr[i] += r[metric] || 0;
+    });
+    return out;
+  }, [stats, dates, platformsPresent, metric]);
+
+  // предыдущий период сопоставляем по дате (сдвиг на длину периода)
+  const prevSeries = useMemo(() => {
+    const out: Partial<Record<SmmPlatform, Array<number | null>>> = {};
+    if (!prevStats?.items?.length) return out;
+    const cell = new Map<string, number>();
+    prevStats.items.forEach((r) => {
+      const key = `${r.platform}|${r.date}`;
+      cell.set(key, (cell.get(key) || 0) + (r[metric] || 0));
+    });
+    platformsPresent.forEach((k) => {
+      out[k] = dates.map((d) => {
+        const v = cell.get(`${k}|${isoDay(parseDay(d) - days * dayMs)}`);
+        return v === undefined ? null : v;
+      });
+    });
+    return out;
+  }, [prevStats, dates, platformsPresent, metric, days]);
+
+  const noteFor = (p: SmmProfile, s: { reach: number; likes: number; comments: number; videoViews: number; impressions: number }) => {
+    if (!p.isActive) return t('crm.marketingSmm.ui.notes.disabled');
+    if (p.platform === 'telegram') return t('crm.marketingSmm.ui.notes.telegram');
+    const parts: string[] = [];
+    if (p.platform === 'instagram') {
+      if (s.videoViews === 0) parts.push(t('crm.marketingSmm.zeroNotes.igVideo'));
+      if (s.likes === 0 && s.comments === 0 && s.reach > 0) parts.push(t('crm.marketingSmm.zeroNotes.igEngagement'));
+    }
+    if (p.platform === 'facebook' && s.reach === 0 && s.impressions === 0) parts.push(t('crm.marketingSmm.zeroNotes.fbReach'));
+    return parts.length ? parts.join(' ') : null;
+  };
+
+  const tableRows = useMemo(
+    () =>
+      profiles.map((p) => {
+        const rows = rowsCur.get(p.id) || [];
+        const pr = rowsPrev.get(p.id) || [];
+        const s = rows.reduce(
+          (a, r) => ({ reach: a.reach + r.reach, likes: a.likes + r.likes, comments: a.comments + r.comments, videoViews: a.videoViews + r.videoViews, impressions: a.impressions + r.impressions }),
+          { reach: 0, likes: 0, comments: 0, videoViews: 0, impressions: 0 },
+        );
+        const lastRow = rows[rows.length - 1];
+        const prevReach = pr.reduce((a, r) => a + r.reach, 0);
+        return {
+          p,
+          ...s,
+          followers: lastRow ? lastRow.followers : p.lastStat?.followers ?? 0,
+          fDelta: lastRow ? lastRow.followers - rows[0].followers : 0,
+          er: s.reach ? ((s.likes + s.comments) / s.reach) * 100 : 0,
+          reachPct: pr.length ? pct(s.reach, prevReach) : null,
+          date: lastRow?.date || p.lastStat?.date || null,
+          note: noteFor(p, s),
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profiles, rowsCur, rowsPrev, t],
+  );
+
+  const filtered = tableRows.filter((r) => (plat === 'all' || r.p.platform === plat) && (!q || r.p.handle.toLowerCase().includes(q.toLowerCase())));
+  const shown = filtered.slice(0, limit);
+  const maxReach = Math.max(...tableRows.map((r) => r.reach), 1);
+  useEffect(() => setLimit(20), [q, plat]);
+
+  const activeCount = profiles.filter((p) => p.isActive).length;
+
+  // «застывшие» профили: отключены вручную либо подключены по интеграции, но свежих данных давно нет
+  const stale = useMemo(() => {
+    const nowMs = Date.now();
+    return profiles.filter((p) => {
+      if (!p.isActive) return true;
+      if (p.source === 'manual' || !p.source) return false;
+      const d = p.lastStat?.date;
+      return !!d && (nowMs - parseDay(d)) / dayMs > STALE_AFTER_DAYS;
+    });
+  }, [profiles]);
+  const staleSince = useMemo(() => {
+    const ds = stale.map((p) => p.lastStat?.date).filter((d): d is string => !!d).sort();
+    return ds.length ? dm(ds[0]) : null;
+  }, [stale]);
+
+  /* ── действия ── */
+  const runSync = async () => {
+    const m = integrations?.meta.connected && !integrations.meta.expired;
+    const v = integrations?.vk.connected && !integrations.vk.expired;
+    if (!m && !v) {
+      setError(t('crm.marketingSmm.ui.syncNothing'));
+      setDrawer(true);
+      return;
+    }
+    setSyncing(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const res = await Promise.allSettled([m ? syncMetaNow() : Promise.resolve(null), v ? syncVkNow() : Promise.resolve(null)]);
+      const ok = res.flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : []));
+      const failed = res.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
+      await Promise.all([loadProfiles(), loadIntegrations(), loadStats()]);
+      const sum = (k: 'synced' | 'skipped' | 'errors') => ok.reduce((a, r) => a + r[k], 0);
+      if (failed) setError(errMsg(failed.reason, t('crm.marketingSmm.errors.metaSync')));
+      else setStatus(t('crm.marketingSmm.ui.syncDone', { synced: sum('synced'), skipped: sum('skipped'), errors: sum('errors') }));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const createProfile = async () => {
+    if (!adding.handle.trim()) return;
+    setSavingProfile(true);
     setError(null);
     try {
-      const res = await fetchSmmStats({
-        from: range.from,
-        to: range.to,
-      });
-      setStats(res);
-    } catch (e: any) {
-      console.error(e);
-      setError(e.message || t('crm.marketingSmm.errors.stats'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const reloadCompareStats = async () => {
-    if (!range.from || !range.to) return;
-    setCompareLoading(true);
-    try {
-      const start = new Date(`${range.from}T00:00:00Z`);
-      const end = new Date(`${range.to}T00:00:00Z`);
-      const days =
-        Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
-      const prevEnd = new Date(start);
-      prevEnd.setUTCDate(start.getUTCDate() - 1);
-      const prevStart = new Date(prevEnd);
-      prevStart.setUTCDate(prevEnd.getUTCDate() - (days - 1));
-
-      const prevRange = {
-        from: prevStart.toISOString().slice(0, 10),
-        to: prevEnd.toISOString().slice(0, 10),
-      };
-      const res = await fetchSmmStats(prevRange);
-      setCompareStats(res);
-    } catch (e: any) {
-      console.error(e);
-      setCompareStats(null);
-    } finally {
-      setCompareLoading(false);
-    }
-  };
-
-  const loadMetaAssets = async () => {
-    setMetaLoading(true);
-    setMetaError(null);
-    try {
-      const data = await fetchMetaAssets();
-      setMetaAssets(data);
-    } catch (err: any) {
-      setMetaError(err?.message || t('crm.marketingSmm.errors.metaAssets'));
-    } finally {
-      setMetaLoading(false);
-    }
-  };
-
-  const connectMeta = async () => {
-    setMetaError(null);
-    setMetaStatus(null);
-    try {
-      const { url } = await getMetaAuthUrl('/app/marketing/smm');
-      window.location.href = url;
-    } catch (err: any) {
-      setMetaError(err?.message || t('crm.marketingSmm.errors.metaConnect'));
-    }
-  };
-
-  const handleConnectAsset = async (payload: { platform: 'facebook' | 'instagram'; pageId?: string; igUserId?: string }) => {
-    setMetaStatus(null);
-    setMetaError(null);
-    try {
-      await connectMetaProfile(payload);
-      await reloadProfiles();
-      await reloadStats();
-      setMetaStatus(t('crm.marketingSmm.meta.profileAdded'));
-    } catch (err: any) {
-      setMetaError(err?.message || t('crm.marketingSmm.errors.metaAdd'));
-    }
-  };
-
-  const handleDisconnectProfile = async (profileId: string) => {
-    setMetaStatus(null);
-    setMetaError(null);
-    try {
-      await deleteSmmProfile(profileId);
-      await reloadProfiles();
-      await reloadStats();
-      setMetaStatus(t('crm.marketingSmm.meta.profileRemoved'));
-    } catch (err: any) {
-      setMetaError(err?.message || t('crm.marketingSmm.errors.metaRemove'));
-    }
-  };
-
-  const startResize = (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setResizing({
-      id,
-      startX: e.clientX,
-      startWidth: columnWidths[id] ?? 160,
-    });
-  };
-
-  const reorderColumns = useCallback((dragId: string, targetId: string) => {
-    setColumnOrder((prev) => {
-      const next = [...prev];
-      const from = next.indexOf(dragId);
-      const to = next.indexOf(targetId);
-      if (from === -1 || to === -1) return prev;
-      next.splice(from, 1);
-      next.splice(to, 0, dragId);
-      return next;
-    });
-  }, []);
-
-  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'light');
-
-  const renderProfileCell = (
-    p: SmmProfile,
-    s: SmmProfileLastStat | null | undefined,
-    columnId: string,
-  ) => {
-    switch (columnId) {
-      case 'profile':
-        return <span className="font-medium text-neutral-900">@{p.handle}</span>;
-      case 'platform':
-        return <span className="text-neutral-600">{platformLabel(p.platform)}</span>;
-      case 'followers':
-        return s
-          ? s.followers.toLocaleString(locale)
-          : t('crm.marketingSmm.compare.dash');
-      case 'reachLikesComments':
-        return s
-          ? `${s.reach.toLocaleString(locale)} / ${s.likes.toLocaleString(
-              locale,
-            )} / ${s.comments.toLocaleString(locale)}`
-          : t('crm.marketingSmm.compare.dash');
-      case 'erViews':
-        return s
-          ? `${s.reach ? (((s.likes + s.comments) / s.reach) * 100).toFixed(2) : '0.00'}% / ${s.videoViews.toLocaleString(
-              locale,
-            )}`
-          : t('crm.marketingSmm.compare.dash');
-      case 'date':
-        return s?.date || t('crm.marketingSmm.compare.dash');
-      case 'actions':
-        return (
-          <button
-            type="button"
-            onClick={() => handleDeleteProfile(p)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {t('crm.marketingSmm.profiles.delete')}
-          </button>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const handleSyncMetaNow = async (days?: number) => {
-    setMetaSyncLoading(true);
-    setMetaError(null);
-    setMetaStatus(null);
-    try {
-      const res = await syncMetaNow(days ? { days } : undefined);
-      await reloadProfiles();
-      await reloadStats();
-      const scope = res.days
-        ? t('crm.marketingSmm.meta.scope.days', { days: res.days })
-        : t('crm.marketingSmm.meta.scope.today');
-      setMetaStatus(
-        t('crm.marketingSmm.meta.syncStatus', {
-          scope,
-          synced: res.synced,
-          skipped: res.skipped,
-          errors: res.errors,
-        }),
-      );
-    } catch (err: any) {
-      setMetaError(err?.message || t('crm.marketingSmm.errors.metaSync'));
-    } finally {
-      setMetaSyncLoading(false);
-    }
-  };
-
-  const handleHideMetaPage = (pageId: string) => {
-    setHiddenMetaPages((prev) => {
-      const next = new Set(prev);
-      next.add(pageId);
-      return next;
-    });
-  };
-
-  const handleResetHiddenPages = () => {
-    setHiddenMetaPages(new Set());
-  };
-
-  // ------ загрузка профилей
-
-  useEffect(() => {
-    void reloadProfiles();
-  }, []);
-
-  // ------ загрузка статов
-
-  useEffect(() => {
-    if (!range.from || !range.to) return;
-    void reloadStats();
-    void reloadCompareStats();
-  }, [range.from, range.to]);
-
-  useEffect(() => {
-    void loadMetaAssets();
-  }, []);
-
-  // ------ агрегаты
-
-  const latestFollowersByProfile = useMemo(() => {
-    const map = new Map<string, { followers: number; platform: SmmPlatform }>();
-    if (!stats?.items?.length) return map;
-
-    // предполагаем, что items по дате уже отсортированы ASC на бэке
-    for (const row of stats.items) {
-      map.set(row.profileId, {
-        followers: row.followers || 0,
-        platform: row.platform || 'other',
-      });
-    }
-    return map;
-  }, [stats]);
-
-  const latestFollowersByProfileCompare = useMemo(() => {
-    const map = new Map<string, { followers: number; platform: SmmPlatform }>();
-    if (!compareStats?.items?.length) return map;
-
-    for (const row of compareStats.items) {
-      map.set(row.profileId, {
-        followers: row.followers || 0,
-        platform: row.platform || 'other',
-      });
-    }
-    return map;
-  }, [compareStats]);
-
-  const getConnectedFacebookProfile = (pageId: string) =>
-    profiles.find(
-      (p) =>
-        p.platform === 'facebook' &&
-        p.meta?.provider === 'meta' &&
-        p.meta?.pageId === pageId,
-    ) || null;
-
-  const getConnectedInstagramProfile = (igUserId: string) =>
-    profiles.find(
-      (p) =>
-        p.platform === 'instagram' &&
-        p.meta?.provider === 'meta' &&
-        p.meta?.igUserId === igUserId,
-    ) || null;
-
-  const totalFollowers = useMemo(() => {
-    let sum = 0;
-    for (const v of latestFollowersByProfile.values()) {
-      sum += v.followers;
-    }
-    return sum;
-  }, [latestFollowersByProfile]);
-
-  const compareTotalFollowers = useMemo(() => {
-    let sum = 0;
-    for (const v of latestFollowersByProfileCompare.values()) {
-      sum += v.followers;
-    }
-    return sum;
-  }, [latestFollowersByProfileCompare]);
-
-  // прирост фолловеров за период: берём первые и последние значения по каждому профилю
-  const followersDeltaTotal = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-
-    const firstByProfile = new Map<string, number>();
-    const lastByProfile = new Map<string, number>();
-
-    for (const row of stats.items) {
-      if (!firstByProfile.has(row.profileId)) {
-        firstByProfile.set(row.profileId, row.followers || 0);
-      }
-      lastByProfile.set(row.profileId, row.followers || 0);
-    }
-
-    let delta = 0;
-    for (const [id, first] of firstByProfile.entries()) {
-      const last = lastByProfile.get(id) ?? first;
-      delta += last - first;
-    }
-    return delta;
-  }, [stats]);
-
-  const compareFollowersDeltaTotal = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-
-    const firstByProfile = new Map<string, number>();
-    const lastByProfile = new Map<string, number>();
-
-    for (const row of compareStats.items) {
-      if (!firstByProfile.has(row.profileId)) {
-        firstByProfile.set(row.profileId, row.followers || 0);
-      }
-      lastByProfile.set(row.profileId, row.followers || 0);
-    }
-
-    let delta = 0;
-    for (const [id, first] of firstByProfile.entries()) {
-      const last = lastByProfile.get(id) ?? first;
-      delta += last - first;
-    }
-    return delta;
-  }, [compareStats]);
-
-  const totalImpressions = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-    return stats.items.reduce((s, r) => s + (r.impressions || 0), 0);
-  }, [stats]);
-
-  const compareTotalImpressions = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-    return compareStats.items.reduce((s, r) => s + (r.impressions || 0), 0);
-  }, [compareStats]);
-
-  const totalReach = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-    return stats.items.reduce((s, r) => s + (r.reach || 0), 0);
-  }, [stats]);
-
-  const compareTotalReach = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-    return compareStats.items.reduce((s, r) => s + (r.reach || 0), 0);
-  }, [compareStats]);
-
-  const totalLikes = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-    return stats.items.reduce((s, r) => s + (r.likes || 0), 0);
-  }, [stats]);
-
-  const compareTotalLikes = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-    return compareStats.items.reduce((s, r) => s + (r.likes || 0), 0);
-  }, [compareStats]);
-
-  const totalComments = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-    return stats.items.reduce((s, r) => s + (r.comments || 0), 0);
-  }, [stats]);
-
-  const compareTotalComments = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-    return compareStats.items.reduce((s, r) => s + (r.comments || 0), 0);
-  }, [compareStats]);
-
-  const totalVideoViews = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-    return stats.items.reduce((s, r) => s + (r.videoViews || 0), 0);
-  }, [stats]);
-
-  const compareTotalVideoViews = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-    return compareStats.items.reduce((s, r) => s + (r.videoViews || 0), 0);
-  }, [compareStats]);
-
-  const totalEngagementRate = useMemo(() => {
-    if (!stats?.items?.length) return 0;
-    const totalEngagement = stats.items.reduce(
-      (s, r) => s + (r.likes || 0) + (r.comments || 0),
-      0,
-    );
-    const base = totalReach || 0;
-    if (!base) return 0;
-    return (totalEngagement / base) * 100;
-  }, [stats, totalReach]);
-
-  const compareEngagementRate = useMemo(() => {
-    if (!compareStats?.items?.length) return 0;
-    const totalEngagement = compareStats.items.reduce(
-      (s, r) => s + (r.likes || 0) + (r.comments || 0),
-      0,
-    );
-    const base = compareTotalReach || 0;
-    if (!base) return 0;
-    return (totalEngagement / base) * 100;
-  }, [compareStats, compareTotalReach]);
-
-  const hasCompareData = Boolean(compareStats?.items?.length);
-
-  const formatDelta = (current: number, previous: number) => {
-    if (!previous && previous !== 0) return t('crm.marketingSmm.compare.dash');
-    if (!previous && !current) return t('crm.marketingSmm.compare.dash');
-    if (!previous) {
-      return `+${current.toLocaleString(locale)}`;
-    }
-    const diff = current - previous;
-    const pct = (diff / previous) * 100;
-    const sign = diff >= 0 ? '+' : '';
-    return `${sign}${diff.toLocaleString(locale)} (${sign}${pct.toFixed(1)}%)`;
-  };
-
-  const renderCompare = (current: number, previous: number) => {
-    if (compareLoading) return t('crm.marketingSmm.compare.loading');
-    if (!hasCompareData) return t('crm.marketingSmm.compare.noData');
-    return formatDelta(current, previous);
-  };
-
-  // ------ данные для графика
-
-  const chartData: FollowersChartPoint[] = useMemo(() => {
-    if (!stats?.items?.length) return [];
-
-    const byDate = new Map<string, FollowersChartPoint>();
-
-    for (const row of stats.items) {
-      const date = row.date;
-      const platform: SmmPlatform = row.platform || 'other';
-
-      const point =
-        byDate.get(date) ||
-        (() => {
-          const base = { date } as FollowersChartPoint;
-          CHART_PLATFORMS.forEach((p) => {
-            (base as any)[p] = 0;
-          });
-          return base;
-        })();
-
-      const platformKey = platform as keyof FollowersChartPoint;
-      const metricValue =
-        chartMetric === 'followers'
-          ? row.followers
-          : chartMetric === 'reach'
-            ? row.reach
-            : chartMetric === 'likes'
-              ? row.likes
-              : chartMetric === 'comments'
-                ? row.comments
-                : row.videoViews;
-      (point as any)[platformKey] =
-        Number((point as any)[platformKey] || 0) + Number(metricValue || 0);
-
-      byDate.set(date, point);
-    }
-
-    return Array.from(byDate.values()).sort((a, b) =>
-      a.date.localeCompare(b.date),
-    );
-  }, [stats, chartMetric]);
-
-  const chartDataWithCompare: FollowersChartPoint[] = useMemo(() => {
-    if (!compareStats?.items?.length || chartData.length === 0) return chartData;
-
-    const byDate = new Map<string, FollowersChartPoint>();
-    for (const row of compareStats.items) {
-      const date = row.date;
-      const platform: SmmPlatform = row.platform || 'other';
-      if (!CHART_PLATFORMS.includes(platform)) continue;
-
-      const point =
-        byDate.get(date) ||
-        (() => {
-          const base = { date } as FollowersChartPoint;
-          CHART_PLATFORMS.forEach((p) => {
-            (base as any)[p] = 0;
-          });
-          return base;
-        })();
-
-      const platformKey = platform as keyof FollowersChartPoint;
-      const metricValue =
-        chartMetric === 'followers'
-          ? row.followers
-          : chartMetric === 'reach'
-            ? row.reach
-            : chartMetric === 'likes'
-              ? row.likes
-              : chartMetric === 'comments'
-                ? row.comments
-                : row.videoViews;
-      (point as any)[platformKey] =
-        Number((point as any)[platformKey] || 0) + Number(metricValue || 0);
-      byDate.set(date, point);
-    }
-
-    const comparePoints = Array.from(byDate.values()).sort((a, b) =>
-      a.date.localeCompare(b.date),
-    );
-
-    return chartData.map((point, index) => {
-      const comparePoint = comparePoints[index];
-      if (!comparePoint) return point;
-      const next = { ...point } as FollowersChartPoint;
-      CHART_PLATFORMS.forEach((platform) => {
-        (next as any)[`${platform}Prev`] = (comparePoint as any)[platform] || 0;
-      });
-      return next;
-    });
-  }, [compareStats, chartData, chartMetric]);
-
-  const profileTotals = useMemo(() => {
-    const map = new Map<string, SmmProfileLastStat>();
-    if (!stats?.items?.length) return map;
-
-    for (const row of stats.items) {
-      const existing = map.get(row.profileId);
-      if (!existing) {
-        map.set(row.profileId, {
-          date: row.date,
-          followers: row.followers || 0,
-          impressions: row.impressions || 0,
-          reach: row.reach || 0,
-          profileViews: row.profileViews || 0,
-          likes: row.likes || 0,
-          comments: row.comments || 0,
-          videoViews: row.videoViews || 0,
-        });
-        continue;
-      }
-
-      existing.date = row.date;
-      existing.followers = row.followers || existing.followers;
-      existing.impressions += row.impressions || 0;
-      existing.reach += row.reach || 0;
-      existing.profileViews += row.profileViews || 0;
-      existing.likes += row.likes || 0;
-      existing.comments += row.comments || 0;
-      existing.videoViews += row.videoViews || 0;
-    }
-
-    return map;
-  }, [stats]);
-
-  const tableProfiles = useMemo(
-    () => profiles.filter((p) => !['tiktok', 'other'].includes(p.platform)),
-    [profiles],
-  );
-
-  const filteredProfiles = useMemo(() => {
-    const normalized = searchQuery.trim().toLowerCase();
-    return tableProfiles.filter((p) => {
-      if (platformFilter !== 'all' && p.platform !== platformFilter) {
-        return false;
-      }
-      if (!normalized) return true;
-      return p.handle.toLowerCase().includes(normalized);
-    });
-  }, [tableProfiles, searchQuery, platformFilter]);
-
-  const pagedProfiles = useMemo(
-    () => filteredProfiles.slice(0, visibleCount),
-    [filteredProfiles, visibleCount],
-  );
-
-  const canLoadMore = filteredProfiles.length > visibleCount;
-
-  useEffect(() => {
-    setVisibleCount(20);
-  }, [searchQuery, platformFilter]);
-
-  const platformTotals = useMemo(() => {
-    const totals = new Map<SmmPlatform, SmmProfileLastStat>();
-    if (!stats?.items?.length) return totals;
-
-    for (const row of stats.items) {
-      const platform = row.platform || 'other';
-      const existing = totals.get(platform);
-      if (!existing) {
-        totals.set(platform, {
-          date: row.date,
-          followers: row.followers || 0,
-          impressions: row.impressions || 0,
-          reach: row.reach || 0,
-          profileViews: row.profileViews || 0,
-          likes: row.likes || 0,
-          comments: row.comments || 0,
-          videoViews: row.videoViews || 0,
-        });
-        continue;
-      }
-      existing.date = row.date;
-      existing.followers += row.followers || 0;
-      existing.impressions += row.impressions || 0;
-      existing.reach += row.reach || 0;
-      existing.profileViews += row.profileViews || 0;
-      existing.likes += row.likes || 0;
-      existing.comments += row.comments || 0;
-      existing.videoViews += row.videoViews || 0;
-    }
-
-    return totals;
-  }, [stats]);
-
-  const zeroMetricNotes = useMemo(() => {
-    if (!stats?.items?.length) return [];
-    const notes: string[] = [];
-
-    const ig = platformTotals.get('instagram');
-    if (ig) {
-      if (ig.videoViews === 0) {
-        notes.push(t('crm.marketingSmm.zeroNotes.igVideo'));
-      }
-      if (ig.likes === 0 && ig.comments === 0 && ig.reach > 0) {
-        notes.push(t('crm.marketingSmm.zeroNotes.igEngagement'));
-      }
-    }
-
-    const fb = platformTotals.get('facebook');
-    if (fb) {
-      if (fb.reach === 0 && fb.impressions === 0) {
-        notes.push(t('crm.marketingSmm.zeroNotes.fbReach'));
-      }
-    }
-
-    return notes;
-  }, [platformTotals, stats]);
-
-  // ------ создание профиля
-
-  const handleCreateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.handle.trim()) return;
-
-    try {
-      setSavingProfile(true);
-      const created = await createSmmProfile({
-        platform: form.platform,
-        handle: form.handle.trim(),
-        url: form.url.trim() || undefined,
-        note: form.note.trim() || undefined,
-      });
-      setProfiles((prev) => [...prev, { ...created, lastStat: null }]);
-      setForm((prev) => ({
-        ...prev,
-        handle: '',
-        url: '',
-        note: '',
-      }));
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || t('crm.marketingSmm.errors.createProfile'));
+      await createSmmProfile({ platform: adding.platform, handle: adding.handle.trim(), url: adding.url.trim() || undefined });
+      setAdding({ ...adding, handle: '', url: '' });
+      await loadProfiles();
+    } catch (e) {
+      setError(errMsg(e, t('crm.marketingSmm.errors.createProfile')));
     } finally {
       setSavingProfile(false);
     }
   };
 
-  const handleDeleteProfile = async (p: SmmProfile) => {
-    const ok = await showConfirm(
-      t('crm.marketingSmm.profiles.confirmDelete', { platform: platformLabel(p.platform), handle: p.handle }),
-      {
-        title: 'Удаление',
-        confirmLabel: 'Удалить',
-        cancelLabel: 'Отмена',
-        danger: true,
-      },
-    );
+  const removeProfile = async (p: SmmProfile) => {
+    const ok = await showConfirm(t('crm.marketingSmm.profiles.confirmDelete', { platform: platformName(p.platform), handle: p.handle }), {
+      title: t('crm.confirmModal.deleteTitle'),
+      confirmLabel: t('crm.confirmModal.deleteLabel'),
+      cancelLabel: t('crm.confirmModal.cancel'),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteSmmProfile(p.id);
       setProfiles((prev) => prev.filter((x) => x.id !== p.id));
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || t('crm.marketingSmm.errors.deleteProfile'));
+      await loadStats();
+    } catch (e) {
+      setError(errMsg(e, t('crm.marketingSmm.errors.deleteProfile')));
     }
   };
 
-  // ------ render
+  /* ── шапка ── */
+  const soonMs = 7 * dayMs;
+  const expiresSoon = (iso?: string | null) => !!iso && new Date(iso).getTime() - Date.now() <= soonMs;
+  const metaState = !integrations
+    ? null
+    : !integrations.meta.connected
+      ? 'off'
+      : integrations.meta.expired || expiresSoon(integrations.meta.expiresAt)
+        ? 'warn'
+        : 'ok';
+  const headSync = useMemo(() => {
+    const ds = [integrations?.meta.lastSyncAt, integrations?.vk.lastSyncAt].filter((d): d is string => !!d).sort();
+    return ds.length ? ds[ds.length - 1] : null;
+  }, [integrations]);
+  const fmtStamp = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+  const Delta: React.FC<{ value: number | null }> = ({ value }) => {
+    if (value === null || !isFinite(value)) return <span className="sm-d flat">{t('crm.marketingSmm.ui.delta.noPrev')}</span>;
+    if (Math.abs(value) < 0.05) return <span className="sm-d flat">{t('crm.marketingSmm.ui.delta.flat')}</span>;
+    return (
+      <span className={cl('sm-d', value > 0 ? 'up' : 'dn')}>
+        <Ic d={value > 0 ? M.up : M.dn} size={11} sw={2} />
+        {`${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}%`}
+      </span>
+    );
+  };
+  const signed = (n: number) => `${n >= 0 ? '+' : '−'}${nf(Math.abs(n))}`;
+
+  if (loading && !stats && !profiles.length) {
+    return (
+      <MainLayout>
+        <PageHelpButton topic="marketingSmm" />
+        <div className="px-scope smm-scope">
+          <div className="sm-wrap" aria-busy="true">
+            <div className="sm-skel" style={{ height: 84, marginBottom: 18 }} />
+            <div className="sm-skel" style={{ height: 96, marginBottom: 16 }} />
+            <div className="sm-skel" style={{ height: 300 }} />
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
       <PageHelpButton topic="marketingSmm" />
-      <div className="space-y-4 md:space-y-6 pb-8">
-        {/* Заголовок + пресеты */}
-        <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              {t('crm.marketingSmm.kicker')}
+      <div className="px-scope smm-scope">
+        <div className="sm-wrap">
+          <div className="sm-head">
+            <div>
+              <div className="kicker">
+                <span className="dot" />
+                {t('crm.marketingSmm.kicker')}
+              </div>
+              <h1>{t('crm.marketingSmm.title')}</h1>
+              <div className="sub">{t('crm.marketingSmm.subtitle')}</div>
             </div>
-            <h1 className="page-title">
-              {t('crm.marketingSmm.title')}
-            </h1>
-            <p className="text-xs text-text-tertiary mt-1 max-w-2xl">
-              {t('crm.marketingSmm.subtitle')}
-            </p>
+            <div className="sm-head-actions">
+              {metaState && (
+                <span className={cl('sm-conn', metaState)}>
+                  <span className="dot" />
+                  {metaState === 'ok' ? t('crm.marketingSmm.ui.conn.metaOk') : metaState === 'warn' ? (integrations?.meta.expired ? t('crm.marketingSmm.ui.conn.metaExpired') : t('crm.marketingSmm.ui.conn.metaSoon')) : t('crm.marketingSmm.ui.conn.metaOff')}
+                </span>
+              )}
+              {integrations?.vk.connected && (
+                <span className={cl('sm-conn', integrations.vk.expired ? 'warn' : 'ok')}>
+                  <span className="dot" />
+                  {integrations.vk.expired ? t('crm.marketingSmm.ui.conn.vkExpired') : t('crm.marketingSmm.ui.conn.vkOk')}
+                </span>
+              )}
+              <button type="button" className="btn btn-sm" onClick={() => void runSync()} disabled={syncing}>
+                <Ic d={M.refresh} size={14} />
+                {syncing ? t('crm.marketingSmm.ui.syncing') : t('crm.marketingSmm.ui.sync')}
+              </button>
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => setDrawer(true)}>
+                <Ic d={M.plug} size={14} />
+                {t('crm.marketingSmm.ui.integrations')}
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col items-stretch md:items-end gap-2">
-            {/* Период */}
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
-              <span className="text-[11px] text-slate-600 pl-1">
-                {t('crm.marketingSmm.periodLabel')}
-              </span>
-              {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => applyPreset(p)}
-                  className={
-                    'px-3 py-1.5 rounded-xl text-[11px] transition ' +
-                    (preset === p
-                      ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-                  }
-                >
-                  {periodLabel[p]}
+          <div className="sm-bar">
+            <div className="sm-seg">
+              {(['7d', '30d', '90d', 'custom'] as const).map((p) => (
+                <button key={p} type="button" className={cl(preset === p && 'active')} onClick={() => (p === 'custom' ? setPreset('custom') : applyPreset(p))}>
+                  {t(`crm.marketingSmm.ui.range.${p}`)}
                 </button>
               ))}
             </div>
-            {range.from && range.to && (
-              <div className="text-[10px] text-slate-500 text-right">
-                {range.from} → {range.to}
+            {preset === 'custom' && (
+              <div className="sm-dates">
+                <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
+                <span style={{ color: 'var(--fg-4)' }}>→</span>
+                <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
+                <button type="button" className="btn btn-sm" disabled={!draft.from || !draft.to || draft.from > draft.to} onClick={() => setRange(draft)}>
+                  {t('crm.marketingSmm.ui.range.apply')}
+                </button>
               </div>
             )}
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIntegrationsOpen(true)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-700 hover:border-slate-300"
-              >
-                {t('crm.marketingSmm.integrations.kicker')}
+            <div className="sm-bar-spacer" />
+            <span className="sm-sync">
+              {range.from} → {range.to} · {t('crm.marketingSmm.ui.rangeLine', { days })}
+              {headSync ? ` · ${t('crm.marketingSmm.ui.lastSync', { date: fmtStamp(headSync) })}` : ''}
+            </span>
+          </div>
+
+          {error && (
+            <div className="sm-note err" role="alert">
+              <span className="sp">{error}</span>
+              <button type="button" className="x" onClick={() => setError(null)} aria-label="×">
+                ×
               </button>
             </div>
-          </div>
-        </section>
-
-        {error && (
-          <div className="text-[11px] text-red-400">{error}</div>
-        )}
-
-        {metaError && (
-          <div className="text-[11px] text-rose-500">{metaError}</div>
-        )}
-
-        {metaStatus && (
-          <div className="text-[11px] text-emerald-500">{metaStatus}</div>
-        )}
-
-        {/* KPI блоки */}
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-4 md:gap-4">
-          <div className="rounded-3xl bg-white border border-slate-200 px-4 py-4 flex flex-col justify-between shadow-sm">
-            <div className="text-[11px] text-slate-500 mb-1">
-              {t('crm.marketingSmm.kpi.activeProfiles')}
+          )}
+          {status && !error && (
+            <div className="sm-note ok" role="status">
+              <span className="sp">{status}</span>
+              <button type="button" className="x" onClick={() => setStatus(null)} aria-label="×">
+                ×
+              </button>
             </div>
-            <div className="text-2xl font-semibold text-slate-900">
-              {profiles.length.toLocaleString(locale)}
-            </div>
-            <div className="text-[11px] text-slate-500 mt-2">
-              {t('crm.marketingSmm.kpi.activeProfilesHint')}
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-sky-50 border border-sky-100 px-4 py-4 flex flex-col justify-between shadow-sm">
-            <div className="text-[11px] text-sky-600 mb-1">
-              {t('crm.marketingSmm.kpi.followersCurrent')}
-            </div>
-            <div className="text-2xl font-semibold text-sky-700">
-              {totalFollowers.toLocaleString(locale)}
-            </div>
-            <div className="text-[11px] text-sky-700/70 mt-1">
-              {t('crm.marketingSmm.compareLabel')}: {renderCompare(totalFollowers, compareTotalFollowers)}
-            </div>
-            <div className="text-[11px] text-sky-700/70 mt-2">
-              {t('crm.marketingSmm.kpi.followersHint')}
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-emerald-50 border border-emerald-100 px-4 py-4 flex flex-col justify-between shadow-sm">
-            <div className="text-[11px] text-emerald-600 mb-1">
-              {t('crm.marketingSmm.kpi.followersDelta')}
-            </div>
-            <div className="text-2xl font-semibold text-emerald-700">
-              {followersDeltaTotal >= 0 ? '+' : ''}
-              {followersDeltaTotal.toLocaleString(locale)}
-            </div>
-            <div className="text-[11px] text-emerald-700/70 mt-1">
-              {t('crm.marketingSmm.compareLabel')}: {renderCompare(followersDeltaTotal, compareFollowersDeltaTotal)}
-            </div>
-            <div className="text-[11px] text-emerald-700/70 mt-2">
-              {t('crm.marketingSmm.kpi.followersDeltaHint')}
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-rose-50 border border-rose-100 px-4 py-4 flex flex-col justify-between shadow-sm">
-            <div className="text-[11px] text-rose-600 mb-1">
-              {t('crm.marketingSmm.kpi.reachEngagement')}
-            </div>
-            <div className="text-sm font-semibold text-rose-700">
-              {t('crm.marketingSmm.kpi.reachLabel')}:{' '}
-              <span className="text-lg">
-                {totalReach.toLocaleString(locale)}
+          )}
+          {stale.length > 0 && (
+            <div className="sm-note warn">
+              <span className="sp">
+                {stale.length === 1 ? t('crm.marketingSmm.ui.stale.one', { handle: stale[0].handle }) : t('crm.marketingSmm.ui.stale.many', { count: stale.length })}
+                {staleSince ? ` ${t('crm.marketingSmm.ui.stale.since', { date: staleSince })}` : ''}
               </span>
+              <button type="button" className="btn btn-sm" onClick={() => setDrawer(true)}>
+                {t('crm.marketingSmm.ui.stale.check')}
+              </button>
             </div>
-            <div className="text-[11px] text-rose-700/70 mt-1">
-              {t('crm.marketingSmm.compareLabel')}: {renderCompare(totalReach, compareTotalReach)}
-            </div>
-            <div className="text-[11px] text-rose-700/70 mt-1">
-              {t('crm.marketingSmm.kpi.videoViewsLabel')}: {totalVideoViews.toLocaleString(locale)}
-            </div>
-            <div className="text-[11px] text-rose-700/70 mt-1">
-              {t('crm.marketingSmm.kpi.likesLabel')}: {totalLikes.toLocaleString(locale)} · {t('crm.marketingSmm.kpi.commentsLabel')}: {totalComments.toLocaleString(locale)}
-            </div>
-            <div className="text-[11px] text-rose-700/70 mt-1">
-              {t('crm.marketingSmm.kpi.erLabel')}: {totalEngagementRate.toFixed(2)}% · {t('crm.marketingSmm.compareLabel')}: {renderCompare(totalEngagementRate, compareEngagementRate)}
-            </div>
-            <div className="text-[11px] text-rose-700/60 mt-1">
-              {t('crm.marketingSmm.kpi.totalHint')}
-            </div>
-          </div>
-        </section>
+          )}
 
-        {zeroMetricNotes.length > 0 && (
-          <div
-            className="rounded-2xl border bg-white px-4 py-3 text-[11px] text-neutral-600 shadow-sm"
-            style={{ borderColor: `${SMM_PANEL_ACCENT}18` }}
-          >
-            {zeroMetricNotes.map((note) => (
-              <div key={note}>{note}</div>
-            ))}
-          </div>
-        )}
-
-        {/* График + список профилей */}
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)] md:gap-5">
-          {/* График фолловеров */}
-          <div
-            className="rounded-3xl border bg-white px-4 py-4 shadow-sm md:px-5 md:py-5"
-            style={{ borderColor: `${SMM_PANEL_ACCENT}18` }}
-          >
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-neutral-900">
-                  {t('crm.marketingSmm.chart.title')}
-                </h2>
-                <p className="mt-0.5 text-[11px] text-neutral-500">
-                  {t('crm.marketingSmm.chart.subtitle')}
-                </p>
+          <div className="sm-kpis">
+            <div className="sm-kpi">
+              <div className="l">{t('crm.marketingSmm.ui.kpi.profiles')}</div>
+              <div className="v">
+                {activeCount}
+                <span className="u">{t('crm.marketingSmm.ui.kpi.ofN', { total: profiles.length })}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-1">
-                {([
-                  { key: 'followers', label: t('crm.marketingSmm.chart.metrics.followers') },
-                  { key: 'reach', label: t('crm.marketingSmm.chart.metrics.reach') },
-                  { key: 'likes', label: t('crm.marketingSmm.chart.metrics.likes') },
-                  { key: 'comments', label: t('crm.marketingSmm.chart.metrics.comments') },
-                  { key: 'videoViews', label: t('crm.marketingSmm.chart.metrics.videoViews') },
-                ] as { key: ChartMetric; label: string }[]).map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setChartMetric(m.key)}
-                    className={
-                      'rounded-full border px-2.5 py-1 text-[10px] transition ' +
-                      (chartMetric === m.key
-                        ? 'font-medium text-white shadow-sm'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300')
-                    }
-                    style={
-                      chartMetric === m.key
-                        ? { backgroundColor: SMM_PANEL_ACCENT, borderColor: SMM_PANEL_ACCENT }
-                        : undefined
-                    }
-                  >
-                    {m.label}
-                  </button>
-                ))}
+              <div className="note">{t('crm.marketingSmm.ui.kpi.profilesNote')}</div>
+            </div>
+            <div className="sm-kpi">
+              <div className="l">{t('crm.marketingSmm.ui.kpi.followers')}</div>
+              <div className="v">{nf(T0.followers)}</div>
+              <div className="sm-kpi-foot">
+                <Delta value={hasPrev ? pct(T0.followers, P0.followers) : null} />
               </div>
             </div>
+            <div className="sm-kpi">
+              <div className="l">{t('crm.marketingSmm.ui.kpi.delta')}</div>
+              <div className="v">{signed(T0.delta)}</div>
+              <div className="sm-kpi-foot">
+                <Delta value={hasPrev ? pct(T0.delta, P0.delta) : null} />
+              </div>
+            </div>
+            <div className="sm-kpi">
+              <div className="l">{t('crm.marketingSmm.ui.kpi.reachEr')}</div>
+              <div className="v">
+                {nf(T0.reach)}
+                <span className="u">ER {pf(T0.er)}</span>
+              </div>
+              <div className="sm-kpi-foot">
+                <Delta value={hasPrev ? pct(T0.reach, P0.reach) : null} />
+              </div>
+            </div>
+          </div>
 
-            <div className="h-64 md:h-72">
-              {loading && (
-                <div className="text-[11px] text-neutral-500">
-                  {t('crm.marketingSmm.chart.loading')}
+          <div className="sm-card" style={{ position: 'relative' }}>
+            {loading && <div className="sm-busy">{t('crm.marketingSmm.ui.loading')}</div>}
+            <div className="sm-card-head">
+              <h3>{t('crm.marketingSmm.ui.chart.title', { metric: t(`crm.marketingSmm.ui.metrics.${metric}`) })}</h3>
+              <div className="sm-card-tools">
+                <span className="meta">{t('crm.marketingSmm.ui.chart.days', { count: days })}</span>
+                <div className="sm-seg">
+                  {METRIC_KEYS.map((k) => (
+                    <button key={k} type="button" className={cl(metric === k && 'active')} onClick={() => setMetric(k)}>
+                      {t(`crm.marketingSmm.ui.metrics.${k}`)}
+                    </button>
+                  ))}
                 </div>
-              )}
-              {!loading && chartData.length === 0 && (
-                <div className="text-[11px] text-neutral-500">
-                  {t('crm.marketingSmm.chart.empty')}
-                </div>
-              )}
-              {!loading && chartData.length > 0 && (
-                <ResponsiveContainer>
-                  <LineChart
-                    data={chartDataWithCompare}
-                    margin={{ top: 10, right: 16, left: -16, bottom: 8 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="#e5e7eb"
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 10, fill: '#64748b' }}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 10, fill: '#64748b' }}
-                      width={52}
-                    />
-                    <Tooltip content={<FollowersTooltip locale={locale} />} />
-                    <Legend
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: 10, color: '#334155' }}
-                    />
-
-                    {CHART_PLATFORMS.map((platform) => (
-                      <Line
-                        key={platform}
-                        type="monotone"
-                        dataKey={platform}
-                        name={platformLabel(platform)}
-                        stroke={PLATFORM_COLORS[platform]}
-                        dot={{ r: 2 }}
-                        activeDot={{ r: 4 }}
-                        strokeWidth={1.6}
-                        isAnimationActive={false}
-                      />
-                    ))}
-                    {compareStats?.items?.length
-                      ? CHART_PLATFORMS.map((platform) => (
-                        <Line
-                          key={`${platform}-prev`}
-                          type="monotone"
-                          dataKey={`${platform}Prev`}
-                          name={`${platformLabel(platform)} ${t('crm.marketingSmm.chart.prevSuffix')}`}
-                          stroke={PLATFORM_COLORS[platform]}
-                          strokeDasharray="4 4"
-                          strokeOpacity={0.4}
-                          dot={false}
-                          strokeWidth={1.6}
-                          isAnimationActive={false}
-                        />
-                      ))
-                      : null}
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
+              </div>
             </div>
+            {dates.length > 1 && platformsPresent.length > 0 ? (
+              <Trend
+                dates={dates}
+                series={series}
+                prevSeries={prevSeries}
+                metric={metric}
+                hidden={hidden}
+                onToggle={(k) => setHidden((h) => (h.includes(k) ? h.filter((x) => x !== k) : [...h, k]))}
+                platformName={platformName}
+                fmt={nf}
+                dayTip={t('crm.marketingSmm.ui.chart.dayTip')}
+                prevHint={t('crm.marketingSmm.ui.chart.prevHint')}
+              />
+            ) : (
+              <div className="sm-empty">{t('crm.marketingSmm.ui.chart.empty')}</div>
+            )}
           </div>
 
-          {/* Профили + форма добавления */}
-          <div
-            className="flex flex-col gap-4 rounded-3xl border bg-white px-4 py-4 text-xs shadow-sm md:px-5 md:py-5"
-            style={{ borderColor: `${SMM_PANEL_ACCENT}18` }}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-neutral-900">
-                  {activeTab === 'profiles'
-                    ? t('crm.marketingSmm.profiles.title')
-                    : t('crm.marketingSmm.integrations.title')}
-                </h2>
-                <p className="mt-0.5 text-[11px] text-neutral-500">
-                  {activeTab === 'profiles'
-                    ? t('crm.marketingSmm.profiles.subtitle')
-                    : t('crm.marketingSmm.integrations.subtitle')}
-                </p>
+          <div className="sm-card">
+            <div className="sm-card-head">
+              <h3>{t('crm.marketingSmm.ui.profiles.title')}</h3>
+              <div className="sm-card-tools">
+                <span className="meta">{t('crm.marketingSmm.ui.profiles.shown', { shown: shown.length, total: filtered.length })}</span>
+                <label className="sm-search">
+                  <Ic d={M.search} size={14} />
+                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('crm.marketingSmm.ui.profiles.search')} />
+                </label>
+                <select className="sm-select" value={plat} onChange={(e) => setPlat(e.target.value as SmmPlatform | 'all')}>
+                  <option value="all">{t('crm.marketingSmm.ui.profiles.allPlatforms')}</option>
+                  {platformsPresent.map((k) => (
+                    <option key={k} value={k}>
+                      {platformName(k)}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('profiles')}
-                  className={
-                    'rounded-full border px-3 py-1 text-[10px] transition ' +
-                    (activeTab === 'profiles'
-                      ? 'font-medium text-white shadow-sm'
-                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300')
-                  }
-                  style={
-                    activeTab === 'profiles'
-                      ? { backgroundColor: SMM_PANEL_ACCENT, borderColor: SMM_PANEL_ACCENT }
-                      : undefined
-                  }
-                >
-                  {t('crm.marketingSmm.profiles.tabs.profiles')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('integrations')}
-                  className={
-                    'rounded-full border px-3 py-1 text-[10px] transition ' +
-                    (activeTab === 'integrations'
-                      ? 'font-medium text-white shadow-sm'
-                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300')
-                  }
-                  style={
-                    activeTab === 'integrations'
-                      ? { backgroundColor: SMM_PANEL_ACCENT, borderColor: SMM_PANEL_ACCENT }
-                      : undefined
-                  }
-                >
-                  {t('crm.marketingSmm.profiles.tabs.integrations')}
-                </button>
-              </div>
-              {activeTab === 'profiles' && (
-                <span className="text-[11px] text-neutral-500">
-                  {t('crm.marketingSmm.profiles.shown', {
-                    shown: pagedProfiles.length,
-                    total: filteredProfiles.length,
-                  })}
-                </span>
-              )}
             </div>
 
-            {activeTab === 'profiles' && (
+            <div className="sm-form">
+              <div className="sm-f">
+                <label className="l" htmlFor="sm-add-platform">
+                  {t('crm.marketingSmm.ui.profiles.platform')}
+                </label>
+                <select id="sm-add-platform" className="sm-select" style={{ width: '100%', height: 34 }} value={adding.platform} onChange={(e) => setAdding({ ...adding, platform: e.target.value as SmmPlatform })}>
+                  {PL_ORDER.filter((k) => k !== 'other').map((k) => (
+                    <option key={k} value={k}>
+                      {platformName(k)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm-f">
+                <label className="l" htmlFor="sm-add-handle">
+                  {t('crm.marketingSmm.ui.profiles.account')}
+                </label>
+                <input id="sm-add-handle" className="sm-input" value={adding.handle} onChange={(e) => setAdding({ ...adding, handle: e.target.value })} placeholder="@account" autoCapitalize="off" autoCorrect="off" />
+              </div>
+              <div className="sm-f">
+                <label className="l" htmlFor="sm-add-url">
+                  {t('crm.marketingSmm.ui.profiles.link')}
+                </label>
+                <input id="sm-add-url" className="sm-input" value={adding.url} onChange={(e) => setAdding({ ...adding, url: e.target.value })} placeholder="https://instagram.com/account" inputMode="url" autoCapitalize="off" autoCorrect="off" />
+              </div>
+              <button type="button" className="btn btn-sm btn-primary" style={{ height: 34 }} disabled={!adding.handle.trim() || savingProfile} onClick={() => void createProfile()}>
+                {savingProfile ? t('crm.marketingSmm.ui.profiles.adding') : t('crm.marketingSmm.ui.profiles.add')}
+              </button>
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="sm-empty">
+                <b>{t('crm.marketingSmm.ui.profiles.emptyTitle')}</b>
+                {t('crm.marketingSmm.ui.profiles.emptyDesc')}
+              </div>
+            ) : (
               <>
-                <div
-                  className="flex flex-col gap-3 rounded-2xl border bg-neutral-50/50 p-3 md:flex-row md:items-center md:justify-between"
-                  style={{ borderColor: `${SMM_PANEL_ACCENT}14` }}
-                >
-                  <div className="flex flex-1 items-center gap-2">
-                    <input
-                      className="flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-900 outline-none transition focus:border-neutral-400"
-                      placeholder={t('crm.marketingSmm.profiles.searchPlaceholder')}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <select
-                      className="rounded-xl border border-neutral-200 bg-white px-2 py-2 text-[11px] text-neutral-900 outline-none"
-                      value={platformFilter}
-                      onChange={(e) =>
-                        setPlatformFilter(e.target.value as SmmPlatform | 'all')
-                      }
-                    >
-                      <option value="all">{t('crm.marketingSmm.profiles.filterAll')}</option>
-                      <option value="instagram">{t('crm.marketingSmm.platforms.instagram')}</option>
-                      <option value="facebook">{t('crm.marketingSmm.platforms.facebook')}</option>
-                      <option value="vk">{t('crm.marketingSmm.platforms.vk')}</option>
-                      <option value="telegram">{t('crm.marketingSmm.platforms.telegram')}</option>
-                    </select>
-                  </div>
-                </div>
-
-                <form
-                  onSubmit={handleCreateProfile}
-                  className="flex flex-col gap-2 rounded-2xl border bg-neutral-50/50 p-3 md:flex-row md:items-end"
-                  style={{ borderColor: `${SMM_PANEL_ACCENT}14` }}
-                >
-                  <div className="flex flex-1 flex-col gap-1">
-                    <label className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                      {t('crm.marketingSmm.profiles.form.platform')}
-                    </label>
-                    <select
-                      className="rounded-xl border border-neutral-200 bg-white px-2 py-1.5 text-[11px] text-neutral-900 outline-none"
-                      value={form.platform}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          platform: e.target
-                            .value as unknown as SmmPlatform,
-                        }))
-                      }
-                    >
-                      <option value="instagram">{t('crm.marketingSmm.platforms.instagram')}</option>
-                      <option value="facebook">{t('crm.marketingSmm.platforms.facebook')}</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-1 flex-col gap-1">
-                    <label className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                      {t('crm.marketingSmm.profiles.form.handle')}
-                    </label>
-                    <input
-                      className="rounded-xl border border-neutral-200 bg-white px-2 py-1.5 text-[11px] text-neutral-900 outline-none"
-                      placeholder={t('crm.marketingSmm.profiles.form.handlePlaceholder')}
-                      value={form.handle}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, handle: e.target.value }))
-                      }
-                    />
-                  </div>
-
-                  <div className="hidden md:flex md:flex-1 md:flex-col md:gap-1">
-                    <label className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                      {t('crm.marketingSmm.profiles.form.url')}
-                    </label>
-                    <input
-                      className="rounded-xl border border-neutral-200 bg-white px-2 py-1.5 text-[11px] text-neutral-900 outline-none"
-                      placeholder={t('crm.marketingSmm.profiles.form.urlPlaceholder')}
-                      value={form.url}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, url: e.target.value }))
-                      }
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={!form.handle.trim() || savingProfile}
-                    className="rounded-xl px-4 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                    style={{ backgroundColor: SMM_PANEL_ACCENT }}
-                  >
-                    {savingProfile
-                      ? t('crm.marketingSmm.profiles.form.adding')
-                      : t('crm.marketingSmm.profiles.form.add')}
-                  </button>
-                </form>
-
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse text-[11px] table-fixed text-neutral-800">
+                <div className="sm-table-scroll">
+                  <table className="sm-table">
                     <thead>
-                      <tr
-                        className="border-b text-neutral-500"
-                        style={{ borderColor: `${SMM_PANEL_ACCENT}14` }}
-                      >
-                        {orderedColumns.map((col) => {
-                          const fallback =
-                            col.id === 'profile'
-                              ? 200
-                              : col.id === 'platform'
-                                ? 140
-                                : col.id === 'followers'
-                                  ? 120
-                                  : col.id === 'reachLikesComments'
-                                    ? 220
-                                    : col.id === 'erViews'
-                                      ? 180
-                                      : col.id === 'date'
-                                        ? 140
-                                        : 140;
-                          const width = columnWidths[col.id] ?? fallback;
-                          const alignRight = !['profile', 'platform'].includes(col.id);
-                          return (
-                            <th
-                              key={col.id}
-                              {...columnDrag.getThProps(
-                                col.id,
-                                typeof col.label === 'string' ? col.label : String(col.label),
-                                `py-1.5 px-3 font-normal relative group/colhdr select-none transition-colors duration-150 ${
-                                  alignRight ? 'text-right' : 'text-left'
-                                }`,
-                              )}
-                              style={{ width, minWidth: width }}
-                            >
-                              <div
-                                className={`flex min-h-[28px] items-center gap-2 ${
-                                  alignRight ? 'justify-end' : ''
-                                }`}
-                              >
-                                <span className="text-[10px] text-neutral-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
-                                  ⋮⋮
-                                </span>
-                                <span>{col.label}</span>
-                              </div>
-                              <div
-                                data-col-resize
-                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover/colhdr:opacity-100"
-                                onMouseDown={(e) => startResize(col.id, e)}
-                              />
-                            </th>
-                          );
-                        })}
+                      <tr>
+                        <th>{t('crm.marketingSmm.ui.table.profile')}</th>
+                        <th>{t('crm.marketingSmm.ui.table.platform')}</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.followers')}</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.growth')}</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.reach')}</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.likes')}</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.comments')}</th>
+                        <th className="r">ER</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.views')}</th>
+                        <th className="r">{t('crm.marketingSmm.ui.table.data')}</th>
+                        <th className="r" style={{ width: 80 }}>
+                          {t('crm.marketingSmm.ui.table.actions')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {loadingProfiles && (
-                        <tr>
-                          <td
-                            colSpan={orderedColumns.length}
-                            className="py-3 text-center text-neutral-500"
-                          >
-                            {t('crm.marketingSmm.profiles.table.loading')}
-                          </td>
-                        </tr>
-                      )}
-
-                      {!loadingProfiles && filteredProfiles.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={orderedColumns.length}
-                            className="py-3 text-center text-neutral-500"
-                          >
-                            {t('crm.marketingSmm.profiles.table.empty')}
-                          </td>
-                        </tr>
-                      )}
-
-                      {!loadingProfiles &&
-                        pagedProfiles.map((p) => {
-                          const totals = profileTotals.get(p.id);
-                          const s =
-                            totals ||
-                            ((p as any).lastStat as
-                              | SmmProfileLastStat
-                              | null
-                              | undefined);
-                          return (
-                            <tr
-                              key={p.id}
-                              className="border-b border-neutral-100 transition-colors last:border-none hover:bg-neutral-50"
-                            >
-                              {orderedColumns.map((col) => {
-                                const fallback =
-                                  col.id === 'profile'
-                                    ? 200
-                                    : col.id === 'platform'
-                                      ? 140
-                                      : col.id === 'followers'
-                                        ? 120
-                                        : col.id === 'reachLikesComments'
-                                          ? 220
-                                          : col.id === 'erViews'
-                                            ? 180
-                                            : col.id === 'date'
-                                              ? 140
-                                              : 140;
-                                const width = columnWidths[col.id] ?? fallback;
-                                const alignRight = !['profile', 'platform'].includes(col.id);
-                                return (
-                                  <td
-                                    key={col.id}
-                                    className={`py-1.5 px-3 ${
-                                      alignRight ? 'text-right' : 'text-left'
-                                    }`}
-                                    style={{ width, minWidth: width }}
-                                  >
-                                    {renderProfileCell(p, s, col.id)}
-                                  </td>
-                                );
-                              })}
+                      {shown.map((r) => (
+                        <React.Fragment key={r.p.id}>
+                          <tr>
+                            <td>
+                              <ProfileCell r={r} off={t('crm.marketingSmm.ui.table.disabled')} />
+                            </td>
+                            <td>
+                              <span className="sm-pill">
+                                <span className="d" style={{ background: PL[r.p.platform].c }} />
+                                {platformName(r.p.platform)}
+                              </span>
+                            </td>
+                            <td className="r">{nf(r.followers)}</td>
+                            <td className="r" style={{ color: r.fDelta > 0 ? '#1f8a5e' : r.fDelta < 0 ? '#cc2f47' : 'var(--fg-4)' }}>
+                              {r.fDelta > 0 ? '+' : r.fDelta < 0 ? '−' : ''}
+                              {nf(Math.abs(r.fDelta))}
+                            </td>
+                            <td className="r">
+                              <div className="sm-bars">
+                                <span className="tr">
+                                  <i style={{ width: `${(r.reach / maxReach) * 100}%` }} />
+                                </span>
+                                {nf(r.reach)}
+                              </div>
+                            </td>
+                            <td className="r">{r.likes ? nf(r.likes) : <span className="sm-dash">—</span>}</td>
+                            <td className="r">{r.comments ? nf(r.comments) : <span className="sm-dash">—</span>}</td>
+                            <td className="r">{r.reach && (r.likes || r.comments) ? pf(r.er) : <span className="sm-dash">—</span>}</td>
+                            <td className="r">{r.videoViews ? nf(r.videoViews) : <span className="sm-dash">—</span>}</td>
+                            <td className="r" style={{ color: 'var(--fg-3)' }}>
+                              {r.date ? dm(r.date) : '—'}
+                              {r.note && (
+                                <button type="button" className="sm-note-btn" title={t('crm.marketingSmm.ui.table.why')} onClick={() => setOpenNote(openNote === r.p.id ? null : r.p.id)}>
+                                  ?
+                                </button>
+                              )}
+                            </td>
+                            <td>
+                              <div className="sm-td-act">
+                                {r.p.url && (
+                                  <a className="sm-ico" href={r.p.url} target="_blank" rel="noreferrer" title={t('crm.marketingSmm.ui.table.open')}>
+                                    <Ic d={M.ext} size={14} />
+                                  </a>
+                                )}
+                                <button type="button" className="sm-ico danger" title={t('crm.marketingSmm.ui.table.remove')} onClick={() => void removeProfile(r.p)}>
+                                  <Ic d={M.trash} size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {openNote === r.p.id && r.note && (
+                            <tr className="sm-row-note">
+                              <td colSpan={11}>{r.note}</td>
                             </tr>
-                          );
-                        })}
+                          )}
+                        </React.Fragment>
+                      ))}
                     </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={2}>{t('crm.marketingSmm.ui.table.total', { count: filtered.length })}</td>
+                        <td className="r">{nf(filtered.reduce((s, r) => s + r.followers, 0))}</td>
+                        <td className="r">{signed(filtered.reduce((s, r) => s + r.fDelta, 0))}</td>
+                        <td className="r">{nf(filtered.reduce((s, r) => s + r.reach, 0))}</td>
+                        <td className="r">{nf(filtered.reduce((s, r) => s + r.likes, 0))}</td>
+                        <td className="r">{nf(filtered.reduce((s, r) => s + r.comments, 0))}</td>
+                        <td className="r">{pf(T0.er)}</td>
+                        <td className="r">{nf(filtered.reduce((s, r) => s + r.videoViews, 0))}</td>
+                        <td colSpan={2} />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
-                {canLoadMore && (
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCount((prev) => prev + 20)}
-                    className="self-center rounded-full border border-neutral-200 bg-white px-4 py-1.5 text-[11px] text-neutral-700 transition hover:border-neutral-300"
-                  >
-                    {t('crm.marketingSmm.profiles.loadMore')}
-                  </button>
-                )}
-            </>
-          )}
 
-            {activeTab === 'integrations' && (
-              <div className="space-y-3">
-                <div
-                  className="rounded-2xl border bg-neutral-50/50 p-4"
-                  style={{ borderColor: `${SMM_PANEL_ACCENT}14` }}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">
-                        {t('crm.marketingSmm.integrations.connections')}
+                {/* телефон: карточки вместо широкой таблицы */}
+                <div className="sm-cards">
+                  {shown.map((r) => (
+                    <div className="sm-pcard" key={r.p.id}>
+                      <div className="sm-pcard-top">
+                        <ProfileCell r={r} off={t('crm.marketingSmm.ui.table.disabled')} />
+                        <div className="sm-pcard-foll">
+                          {nf(r.followers)}
+                          <small style={{ color: r.fDelta > 0 ? '#1f8a5e' : r.fDelta < 0 ? '#cc2f47' : 'var(--fg-4)' }}>
+                            {r.fDelta > 0 ? '+' : r.fDelta < 0 ? '−' : ''}
+                            {nf(Math.abs(r.fDelta))}
+                          </small>
+                        </div>
                       </div>
-                      <div className="mt-1 text-sm text-neutral-900">
-                        {t('crm.marketingSmm.integrations.metaStatus', {
-                          status: metaConnected
-                            ? t('crm.marketingSmm.meta.connected')
-                            : t('crm.marketingSmm.meta.disconnected'),
-                        })}
+                      <div className="sm-pcard-grid">
+                        {(
+                          [
+                            [t('crm.marketingSmm.ui.table.reach'), r.reach ? nf(r.reach) : null],
+                            [t('crm.marketingSmm.ui.table.likes'), r.likes ? nf(r.likes) : null],
+                            [t('crm.marketingSmm.ui.table.comments'), r.comments ? nf(r.comments) : null],
+                            ['ER', r.reach && (r.likes || r.comments) ? pf(r.er) : null],
+                            [t('crm.marketingSmm.ui.table.views'), r.videoViews ? nf(r.videoViews) : null],
+                            [t('crm.marketingSmm.ui.table.data'), r.date ? dm(r.date) : null],
+                          ] as Array<[string, string | null]>
+                        ).map(([k, v]) => (
+                          <div key={k}>
+                            <div className="k">{k}</div>
+                            <div className="v">{v ?? <span className="sm-dash">—</span>}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {r.note && <div className="sm-pcard-note">{r.note}</div>}
+                      <div className="sm-pcard-foot">
+                        <span className="sm-pill">
+                          <span className="d" style={{ background: PL[r.p.platform].c }} />
+                          {platformName(r.p.platform)}
+                        </span>
+                        <span className="sm-td-act">
+                          {r.p.url && (
+                            <a className="sm-ico" href={r.p.url} target="_blank" rel="noreferrer" title={t('crm.marketingSmm.ui.table.open')}>
+                              <Ic d={M.ext} size={14} />
+                            </a>
+                          )}
+                          <button type="button" className="sm-ico danger" title={t('crm.marketingSmm.ui.table.remove')} onClick={() => void removeProfile(r.p)}>
+                            <Ic d={M.trash} size={14} />
+                          </button>
+                        </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setIntegrationsOpen(true)}
-                      className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-[11px] text-neutral-800 transition hover:border-neutral-300"
-                    >
-                      {t('crm.marketingSmm.integrations.manage')}
-                    </button>
+                  ))}
+                  <div className="sm-pcard-total">
+                    <span>{t('crm.marketingSmm.ui.table.total', { count: filtered.length })}</span>
+                    <span>{nf(filtered.reduce((s, r) => s + r.followers, 0))}</span>
                   </div>
                 </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div
-                    className="rounded-2xl border bg-neutral-50/50 p-4"
-                    style={{ borderColor: `${SMM_PANEL_ACCENT}14` }}
-                  >
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                      {t('crm.marketingSmm.integrations.vkTitle')}
-                    </div>
-                    <div className="mt-2 text-[11px] text-neutral-600">
-                      {t('crm.marketingSmm.integrations.inDev')}
-                    </div>
-                  </div>
-                  <div
-                    className="rounded-2xl border bg-neutral-50/50 p-4"
-                    style={{ borderColor: `${SMM_PANEL_ACCENT}14` }}
-                  >
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                      {t('crm.marketingSmm.integrations.telegramTitle')}
-                    </div>
-                    <div className="mt-2 text-[11px] text-neutral-600">
-                      {t('crm.marketingSmm.integrations.inDev')}
-                    </div>
-                  </div>
-                </div>
+              </>
+            )}
+            {filtered.length > shown.length && (
+              <div className="sm-more">
+                <button type="button" className="btn btn-sm" onClick={() => setLimit(limit + 20)}>
+                  {t('crm.marketingSmm.ui.table.more')}
+                </button>
               </div>
             )}
           </div>
-        </section>
+        </div>
       </div>
 
-      {integrationsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-[95vw] sm:max-w-[90vw] lg:max-w-[80vw] max-h-[90vh] overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl flex flex-col">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingSmm.integrations.kicker')}
+      {drawer &&
+        createPortal(
+          <IntegrationsDrawer
+            onClose={() => setDrawer(false)}
+            integrations={integrations}
+            profiles={profiles}
+            syncing={syncing}
+            onSync={() => void runSync()}
+            reload={async () => {
+              await Promise.all([loadProfiles(), loadIntegrations(), loadStats()]);
+            }}
+            setError={setError}
+            setStatus={setStatus}
+            fmtStamp={fmtStamp}
+            nf={nf}
+          />,
+          document.body,
+        )}
+    </MainLayout>
+  );
+};
+
+/* ── ячейка профиля (аватар + аккаунт + ссылка) ── */
+const ProfileCell: React.FC<{
+  r: { p: SmmProfile };
+  off: string;
+}> = ({ r, off }) => (
+  <div className="sm-prof">
+    <span className="sm-ava" style={{ background: r.p.isActive ? PL[r.p.platform].c : 'var(--fg-4)' }}>
+      {PL[r.p.platform].s}
+    </span>
+    <div style={{ minWidth: 0 }}>
+      <div className="nm">
+        {r.p.handle}
+        {!r.p.isActive && <span className="sm-off"> · {off}</span>}
+      </div>
+      {r.p.url && (
+        <a className="ur" href={r.p.url} target="_blank" rel="noreferrer">
+          {r.p.url.replace(/^https?:\/\//, '')}
+        </a>
+      )}
+    </div>
+  </div>
+);
+
+/* ── панель интеграций ── */
+const IntegrationsDrawer: React.FC<{
+  onClose: () => void;
+  integrations: SmmIntegrationsStatus | null;
+  profiles: SmmProfile[];
+  syncing: boolean;
+  onSync: () => void;
+  reload: () => Promise<void>;
+  setError: (v: string | null) => void;
+  setStatus: (v: string | null) => void;
+  fmtStamp: (iso?: string | null) => string;
+  nf: (n: number) => string;
+}> = ({ onClose, integrations, profiles, syncing, onSync, reload, setError, setStatus, fmtStamp, nf }) => {
+  const { t } = useTranslation();
+  const [meta, setMeta] = useState<MetaAssets | null>(null);
+  const [vk, setVk] = useState<VkAssets | null>(null);
+  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [loadingVk, setLoadingVk] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const metaUsable = !!integrations?.meta.connected && !integrations.meta.expired;
+  const vkUsable = !!integrations?.vk.connected && !integrations.vk.expired;
+
+  useEffect(() => {
+    if (!metaUsable) return;
+    setLoadingMeta(true);
+    fetchMetaAssets()
+      .then(setMeta)
+      .catch((e) => setError(e instanceof Error && e.message ? e.message : t('crm.marketingSmm.errors.metaAssets')))
+      .finally(() => setLoadingMeta(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaUsable]);
+  useEffect(() => {
+    if (!vkUsable) return;
+    setLoadingVk(true);
+    fetchVkAssets()
+      .then(setVk)
+      .catch((e) => setError(e instanceof Error && e.message ? e.message : t('crm.marketingSmm.ui.errors.vkAssets')))
+      .finally(() => setLoadingVk(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vkUsable]);
+
+  const findProfile = (platform: SmmPlatform, provider: 'meta' | 'vk', key: 'pageId' | 'igUserId' | 'groupId', value: string | number) =>
+    profiles.find((p) => p.platform === platform && p.meta?.provider === provider && String(p.meta?.[key]) === String(value)) || null;
+
+  /** Добавить / включить / отключить профиль (отключённый не синхронизируется, история остаётся). */
+  const toggle = async (id: string, existing: SmmProfile | null, connect: () => Promise<unknown>) => {
+    setBusy(id);
+    setError(null);
+    setStatus(null);
+    try {
+      if (!existing) await connect();
+      else await updateSmmProfile(existing.id, { isActive: !existing.isActive });
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : t('crm.marketingSmm.ui.errors.toggle'));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const label = (p: SmmProfile | null) => (!p ? t('crm.marketingSmm.ui.drawer.add') : p.isActive ? t('crm.marketingSmm.ui.drawer.disable') : t('crm.marketingSmm.ui.drawer.enable'));
+
+  const goAuth = async (get: () => Promise<{ url: string }>) => {
+    try {
+      const { url } = await get();
+      window.location.href = url;
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : t('crm.marketingSmm.errors.metaConnect'));
+    }
+  };
+
+  const stateOf = (s?: { connected: boolean; expired: boolean; expiresAt?: string | null }) =>
+    !s?.connected ? 'off' : s.expired ? 'warn' : s.expiresAt && new Date(s.expiresAt).getTime() - Date.now() <= 7 * 864e5 ? 'soon' : 'ok';
+  const stateLabel = (k: string) => t(`crm.marketingSmm.ui.drawer.state.${k}`);
+  const subFor = (s?: SmmIntegrationsStatus['meta']) =>
+    !s?.connected
+      ? t('crm.marketingSmm.ui.drawer.notConnectedSub')
+      : t('crm.marketingSmm.ui.drawer.connectedSince', { date: fmtStamp(s.connectedAt) });
+  const lastSyncLine = (s?: SmmIntegrationsStatus['meta']) =>
+    s?.lastSyncAt && s.lastSync ? t('crm.marketingSmm.ui.drawer.lastSync', { date: fmtStamp(s.lastSyncAt), synced: s.lastSync.synced, errors: s.lastSync.errors }) : null;
+
+  const m = integrations?.meta;
+  const v = integrations?.vk;
+
+  return (
+    <div className="px-scope smm-scope">
+      <div
+        className="sm-drawer-back"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="sm-drawer" role="dialog" aria-modal="true" aria-label={t('crm.marketingSmm.ui.drawer.title')}>
+          <div className="sm-drawer-head">
+            <h2>{t('crm.marketingSmm.ui.drawer.title')}</h2>
+            <button type="button" className="sm-ico" onClick={onClose} title={t('crm.marketingSmm.popup.close')}>
+              <Ic d={M.x} size={15} />
+            </button>
+          </div>
+          <div className="sm-drawer-body">
+            {/* Meta */}
+            <div className="sm-int">
+              <div className="sm-int-head">
+                <span className="sm-ava" style={{ background: PL.facebook.c }}>
+                  FB
+                </span>
+                <div className="nm">
+                  <b>{t('crm.marketingSmm.ui.drawer.metaTitle')}</b>
+                  <span>{subFor(m)}</span>
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900 mt-1">
-                  {t('crm.marketingSmm.popup.title')}
-                </h2>
+                <span className={cl('sm-conn', stateOf(m) === 'soon' ? 'warn' : stateOf(m))}>
+                  <span className="dot" />
+                  {stateLabel(stateOf(m))}
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIntegrationsOpen(false)}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-500 hover:border-slate-300"
-              >
-                {t('crm.marketingSmm.popup.close')}
-              </button>
+              <div className="sm-int-acts">
+                <button type="button" className="btn btn-sm" onClick={() => void goAuth(() => getMetaAuthUrl('/app/marketing/smm'))}>
+                  {m?.connected ? t('crm.marketingSmm.ui.drawer.reconnect') : t('crm.marketingSmm.ui.drawer.connect')}
+                </button>
+                {metaUsable && (
+                  <button type="button" className="btn btn-sm" onClick={onSync} disabled={syncing}>
+                    <Ic d={M.refresh} size={13} />
+                    {syncing ? t('crm.marketingSmm.ui.syncing') : t('crm.marketingSmm.ui.drawer.syncNow')}
+                  </button>
+                )}
+              </div>
+              {lastSyncLine(m) && <div className="sm-int-foot" style={{ borderBottom: '1px solid var(--line-3)' }}>{lastSyncLine(m)}</div>}
+              {m?.connected && !m.expired && m.expiresAt && (
+                <div className="sm-int-foot" style={{ borderBottom: '1px solid var(--line-3)', color: stateOf(m) === 'soon' ? '#7a5411' : undefined }}>
+                  {t('crm.marketingSmm.ui.drawer.expiresOn', { date: fmtStamp(m.expiresAt).split(',')[0] })}
+                  {stateOf(m) === 'soon' ? ` — ${t('crm.marketingSmm.ui.drawer.expiresSoonHint')}` : ''}
+                </div>
+              )}
+              {m?.expired && <div className="sm-int-foot">{t('crm.marketingSmm.ui.drawer.expiredHint')}</div>}
+              {metaUsable && loadingMeta && <div className="sm-int-empty">{t('crm.marketingSmm.ui.drawer.loading')}</div>}
+              {metaUsable && !loadingMeta && meta && meta.pages.length === 0 && <div className="sm-int-empty">{t('crm.marketingSmm.ui.drawer.noPages')}</div>}
+              {metaUsable &&
+                meta?.pages.map((pg) => {
+                  const fb = findProfile('facebook', 'meta', 'pageId', pg.id);
+                  const ig = pg.instagramBusinessId ? findProfile('instagram', 'meta', 'igUserId', pg.instagramBusinessId) : null;
+                  const inProfiles = (fb && fb.isActive) || (ig && ig.isActive);
+                  return (
+                    <div className="sm-acc" key={pg.id}>
+                      <div className="nm">
+                        <b>{pg.name}</b>
+                        <span>
+                          {pg.username ? `fb.com/${pg.username}` : 'Facebook'}
+                          {pg.instagramUsername ? ` · @${pg.instagramUsername}` : ` · ${t('crm.marketingSmm.ui.drawer.igNotLinked')}`}
+                        </span>
+                      </div>
+                      {inProfiles ? <span className="sm-tagd">{t('crm.marketingSmm.ui.drawer.inProfiles')}</span> : null}
+                      <div className="btns">
+                        <button type="button" className="btn btn-sm" disabled={busy === `fb${pg.id}`} onClick={() => void toggle(`fb${pg.id}`, fb, () => connectMetaProfile({ platform: 'facebook', pageId: pg.id }))}>
+                          Facebook · {label(fb)}
+                        </button>
+                        {pg.instagramBusinessId && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={busy === `ig${pg.id}`}
+                            onClick={() => void toggle(`ig${pg.id}`, ig, () => connectMetaProfile({ platform: 'instagram', igUserId: pg.instagramBusinessId as string }))}
+                          >
+                            Instagram · {label(ig)}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              {metaUsable && <div className="sm-int-foot">{t('crm.marketingSmm.ui.drawer.pagesFoot')}</div>}
             </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-2 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-lumiva-accent text-white flex items-center justify-center text-sm font-semibold">
-                    M
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {t('crm.marketingSmm.popup.metaTitle')}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      {t('crm.marketingSmm.popup.statusLabel', {
-                        status: metaConnected
-                          ? t('crm.marketingSmm.meta.connected')
-                          : t('crm.marketingSmm.meta.disconnected'),
-                      })}
-                    </div>
-                  </div>
+
+            {/* ВКонтакте */}
+            <div className="sm-int">
+              <div className="sm-int-head">
+                <span className="sm-ava" style={{ background: PL.vk.c }}>
+                  VK
+                </span>
+                <div className="nm">
+                  <b>{t('crm.marketingSmm.ui.drawer.vkTitle')}</b>
+                  <span>{v?.connected ? t('crm.marketingSmm.ui.drawer.connectedSince', { date: fmtStamp(v.connectedAt) }) : t('crm.marketingSmm.ui.drawer.vkNotConnectedSub')}</span>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={connectMeta}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-700 hover:border-slate-300"
-                  >
-                    {metaConnected
-                      ? t('crm.marketingSmm.popup.reconnect')
-                      : t('crm.marketingSmm.popup.connect')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSyncMetaNow()}
-                    className="btn-primary btn-secondary-sm disabled:opacity-60"
-                    disabled={metaSyncLoading}
-                  >
-                    {metaSyncLoading
-                      ? t('crm.marketingSmm.popup.syncing')
-                      : t('crm.marketingSmm.popup.syncNow')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={loadMetaAssets}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 hover:border-slate-300"
-                  >
-                    {t('crm.marketingSmm.popup.accountList')}
-                  </button>
-                </div>
-                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 max-h-[42vh] overflow-y-auto">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                    {t('crm.marketingSmm.popup.accountsTitle')}
-                    {hiddenMetaPages.size > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleResetHiddenPages}
-                        className="ml-2 text-[10px] text-slate-400 hover:text-slate-600"
-                      >
-                        {t('crm.marketingSmm.popup.showHidden')}
-                      </button>
-                    )}
-                  </div>
-                  {metaLoading && (
-                    <div className="text-[11px] text-slate-500 mt-2">
-                      {t('crm.marketingSmm.popup.loading')}
-                    </div>
-                  )}
-                  {!metaLoading && (!metaAssets || metaAssets.pages.length === 0) && (
-                    <div className="text-[11px] text-slate-500 mt-2">
-                      {t('crm.marketingSmm.popup.empty')}
-                    </div>
-                  )}
-                  {!metaLoading && metaAssets && metaAssets.pages.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {metaAssets.pages
-                        .filter((page) => !hiddenMetaPages.has(page.id))
-                        .map((page) => (
-                          <div key={page.id} className="rounded-xl border border-slate-200 px-3 py-2">
-                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                              <div className="min-w-0">
-                                <div className="text-[11px] text-slate-900 truncate">{page.name}</div>
-                                <div className="text-[10px] text-slate-500 truncate">
-                                  {page.link || t('crm.marketingSmm.popup.facebookPage')}
-                                </div>
-                                {page.instagramBusinessId && (
-                                  <div className="text-[10px] text-slate-500 truncate">
-                                    {t('crm.marketingSmm.popup.instagramPrefix', {
-                                      handle: page.instagramUsername || page.instagramBusinessId,
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => handleHideMetaPage(page.id)}
-                                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-500 hover:border-slate-300"
-                                >
-                                  {t('crm.marketingSmm.popup.hide')}
-                                </button>
-                                {getConnectedFacebookProfile(page.id) ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDisconnectProfile(getConnectedFacebookProfile(page.id)!.id)}
-                                  className="rounded-lg border border-rose-500/40 bg-rose-50 px-3 py-1.5 text-[10px] text-rose-600 hover:border-rose-400"
-                                >
-                                    {t('crm.marketingSmm.popup.disconnectFacebook')}
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleConnectAsset({ platform: 'facebook', pageId: page.id })}
-                                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-700 hover:border-slate-300"
-                                >
-                                    {t('crm.marketingSmm.popup.addFacebook')}
-                                  </button>
-                                )}
-                                {page.instagramBusinessId ? (
-                                  getConnectedInstagramProfile(page.instagramBusinessId) ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleDisconnectProfile(
-                                          getConnectedInstagramProfile(
-                                            page.instagramBusinessId as string,
-                                          )!.id,
-                                        )
-                                      }
-                                      className="rounded-lg border border-rose-500/40 bg-rose-50 px-3 py-1.5 text-[10px] text-rose-600 hover:border-rose-400"
-                                    >
-                                      {t('crm.marketingSmm.popup.disconnectInstagram')}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleConnectAsset({
-                                          platform: 'instagram',
-                                          igUserId: page.instagramBusinessId as string,
-                                        })
-                                      }
-                                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-700 hover:border-slate-300"
-                                    >
-                                      {t('crm.marketingSmm.popup.addInstagram')}
-                                    </button>
-                                  )
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
+                <span className={cl('sm-conn', stateOf(v))}>
+                  <span className="dot" />
+                  {stateLabel(stateOf(v))}
+                </span>
               </div>
-
-              <div className="grid gap-4">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-sm font-semibold">
-                      VK
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {t('crm.marketingSmm.popup.vkTitle')}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {t('crm.marketingSmm.popup.inDevLabel')}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-[11px] text-slate-500">
-                    {t('crm.marketingSmm.popup.vkDesc')}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-neutral-700">
-                      TG
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {t('crm.marketingSmm.popup.tgTitle')}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {t('crm.marketingSmm.popup.inDevLabel')}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-[11px] text-slate-500">
-                    {t('crm.marketingSmm.popup.tgDesc')}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-lumiva-accent text-white flex items-center justify-center text-sm font-semibold">
-                      TT
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {t('crm.marketingSmm.popup.tiktokTitle')}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {t('crm.marketingSmm.popup.soon')}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-[11px] text-slate-500">
-                    {t('crm.marketingSmm.popup.tiktokDesc')}
-                  </div>
-                </div>
+              <div className="sm-int-acts">
+                <button type="button" className="btn btn-sm" onClick={() => void goAuth(() => getVkAuthUrl('/app/marketing/smm'))}>
+                  {v?.connected ? t('crm.marketingSmm.ui.drawer.reconnect') : t('crm.marketingSmm.ui.drawer.connect')}
+                </button>
+                {vkUsable && (
+                  <button type="button" className="btn btn-sm" onClick={onSync} disabled={syncing}>
+                    <Ic d={M.refresh} size={13} />
+                    {syncing ? t('crm.marketingSmm.ui.syncing') : t('crm.marketingSmm.ui.drawer.syncNow')}
+                  </button>
+                )}
               </div>
+              {lastSyncLine(v) && <div className="sm-int-foot" style={{ borderBottom: '1px solid var(--line-3)' }}>{lastSyncLine(v)}</div>}
+              {vkUsable && loadingVk && <div className="sm-int-empty">{t('crm.marketingSmm.ui.drawer.loading')}</div>}
+              {vkUsable && !loadingVk && vk && vk.groups.length === 0 && <div className="sm-int-empty">{t('crm.marketingSmm.ui.drawer.noGroups')}</div>}
+              {vkUsable &&
+                vk?.groups.map((g) => {
+                  const prof = findProfile('vk', 'vk', 'groupId', g.id);
+                  return (
+                    <div className="sm-acc" key={g.id}>
+                      <div className="nm">
+                        <b>{g.name}</b>
+                        <span>
+                          vk.com/{g.screenName || `club${g.id}`}
+                          {g.membersCount != null ? ` · ${t('crm.marketingSmm.ui.drawer.members', { n: nf(g.membersCount) })}` : ''}
+                        </span>
+                      </div>
+                      {prof && prof.isActive ? <span className="sm-tagd">{t('crm.marketingSmm.ui.drawer.inProfiles')}</span> : null}
+                      <div className="btns">
+                        <button type="button" className="btn btn-sm" disabled={busy === `vk${g.id}`} onClick={() => void toggle(`vk${g.id}`, prof, () => connectVkGroup({ groupId: g.id }))}>
+                          {label(prof)}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Telegram */}
+            <div className="sm-int">
+              <div className="sm-int-head">
+                <span className="sm-ava" style={{ background: PL.telegram.c }}>
+                  TG
+                </span>
+                <div className="nm">
+                  <b>Telegram</b>
+                  <span>{t('crm.marketingSmm.ui.drawer.tgSub')}</span>
+                </div>
+                <span className="sm-conn">
+                  <span className="dot" />
+                  {t('crm.marketingSmm.ui.drawer.state.manual')}
+                </span>
+              </div>
+              <div className="sm-int-foot">{t('crm.marketingSmm.ui.drawer.tgFoot')}</div>
             </div>
           </div>
         </div>
-      )}
-    </MainLayout>
+      </div>
+    </div>
   );
 };

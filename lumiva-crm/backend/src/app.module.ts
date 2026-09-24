@@ -128,6 +128,8 @@ import { WorkspaceArea } from './workspace-areas/workspace-area.entity';
 import { MarketingTraffic } from './marketing/marketing-traffic.entity';
 import { MarketingSegment } from './marketing/marketing-segment.entity';
 import { MarketingUtmTemplate } from './marketing/marketing-utm-template.entity';
+import { MarketingUtmLink } from './marketing/marketing-utm-link.entity';
+import { MarketingOauthToken } from './marketing/marketing-oauth-token.entity';
 import { MarketingIntegration } from './marketing/marketing-integration.entity';
 import { MarketingAutomation } from './marketing/marketing-automation.entity';
 import { MarketingCost } from './marketing/marketing-cost.entity';
@@ -243,6 +245,8 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
         MarketingTraffic,
         MarketingSegment,
         MarketingUtmTemplate,
+        MarketingUtmLink,
+        MarketingOauthToken,
         MarketingIntegration,
         MarketingAutomation,
         MarketingCost,

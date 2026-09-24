@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -14,12 +15,18 @@ import {
   CurrentUser,
   type CurrentUserPayload,
 } from '../common/decorators/current-user.decorator';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 import { AiEmployeesService } from './ai-employees.service';
 
 function userId(user: CurrentUserPayload): string | null {
   return user.userId || user.id || user.sub || null;
 }
 
+// Намеренно НЕ за 'ai_employees': каталог ролей (заголовки/описания/функции) — не чувствительные
+// данные конкретного тенанта, а справочник, нужный AiAssigneeGroup всем сотрудникам (round 14
+// изначально ушёл дальше, чем задумывалось, — закрыл и этот справочник тоже, что сломало подсказку
+// "какую роль завести" в обычном виджете назначения на Leads/Projects/Workspace; открыт как и раньше).
 @Controller('ai-roles')
 @UseGuards(JwtAuthGuard)
 export class AiRolesController {
@@ -37,7 +44,8 @@ export class AiRolesController {
 }
 
 @Controller('ai-plan-limits')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
 export class AiPlanLimitsController {
   constructor(private readonly service: AiEmployeesService) {}
 
@@ -48,7 +56,8 @@ export class AiPlanLimitsController {
 }
 
 @Controller('ai-usage')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
 export class AiEmployeesUsageController {
   constructor(private readonly service: AiEmployeesService) {}
 
@@ -59,7 +68,8 @@ export class AiEmployeesUsageController {
 }
 
 @Controller('ai-agents')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
 export class AiAgentsController {
   constructor(private readonly service: AiEmployeesService) {}
 
@@ -74,6 +84,15 @@ export class AiAgentsController {
     @Body() body: Record<string, unknown>,
   ) {
     return this.service.createAgent(user.tenantId, userId(user), body as any);
+  }
+
+  /** «Расширить с помощью ИИ»: короткий черновик инструкций → полноценные инструкции. Без :id — работает и в мастере создания, до сохранения сотрудника. */
+  @Post('expand-instructions')
+  async expandInstructions(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.service.expandInstructions(user.tenantId, userId(user), body as any);
   }
 
   @Get(':id')
@@ -108,6 +127,73 @@ export class AiAgentsController {
   @Post(':id/run-now')
   async runNow(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.service.runNow(user.tenantId, id, userId(user));
+  }
+
+  @Get(':id/lessons')
+  async lessons(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.listLessons(user.tenantId, id);
+  }
+
+  @Delete(':id/lessons/:lessonId')
+  async removeLesson(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Param('lessonId') lessonId: string) {
+    return this.service.removeLesson(user.tenantId, id, lessonId);
+  }
+
+  @Get(':id/config')
+  async getConfig(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.getAgentConfig(user.tenantId, id);
+  }
+
+  @Patch(':id/config')
+  async updateConfig(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.service.updateAgentConfig(user.tenantId, id, userId(user), body as any);
+  }
+
+  @Post(':id/ask')
+  async ask(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.service.askAboutRecord(
+      user.tenantId,
+      id,
+      { userId: userId(user), email: user.email, role: user.role, staffUserId: user.staffUserId ?? null },
+      body as any,
+    );
+  }
+
+  @Get(':id/tasks')
+  async listTasks(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.listAgentTasks(user.tenantId, id);
+  }
+
+  @Post(':id/tasks')
+  async assignTask(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.service.assignTask(user.tenantId, id, userId(user), body as any);
+  }
+
+  @Post(':id/sla-check')
+  async slaCheck(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.checkSlaNow(user.tenantId, id);
+  }
+
+  @Post(':id/daily-plan')
+  async dailyPlan(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.runDailyPlanNow(user.tenantId, id);
+  }
+
+  @Get(':id/assignments')
+  async listAssignments(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.listAgentAssignments(user.tenantId, id);
   }
 
   @Get(':id/permissions')
@@ -172,8 +258,116 @@ export class AiAgentsController {
   }
 }
 
-@Controller('ai-actions')
+// Намеренно НЕ за 'ai_employees': это не управление самим ИИ-сотрудником, а обычное действие
+// рядового сотрудника на СВОЕЙ записи («назначить ИИ ответственным за этот лид/проект») —
+// AiAssigneeGroup/AiAssigneeChips встроены прямо в карточки/списки Leads/Projects/Companies/
+// Contacts, которые рядовые сотрудники и так открывают. Видеть/снимать ИИ-бейдж на своей записи
+// остаётся доступным всем — закрыт только сам раздел «ИИ-сотрудники» (просмотр/редактирование
+// профиля агента, его прав, отчётов).
+@Controller('ai-assignments')
 @UseGuards(JwtAuthGuard)
+export class AiAssignmentsController {
+  constructor(private readonly service: AiEmployeesService) {}
+
+  /** Минимальный список нанятых ИИ-сотрудников для виджета назначения (AiAssigneeGroup) — без
+   * прав/статистики/логов, которые скрыты за 'ai_employees' (round 14); имя/роль/статус — не
+   * чувствительные данные, нужны любому сотруднику, чтобы выбрать, кого назначить на свою запись. */
+  @Get('roster')
+  async roster(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('objectId') objectId?: string,
+    @Query('access') access?: 'read' | 'write',
+  ) {
+    return this.service.listAssignableRoster(
+      user.tenantId,
+      objectId || undefined,
+      access === 'write' ? 'write' : 'read',
+    );
+  }
+
+  /** ИИ-сотрудники, назначенные ответственными за конкретный лид / проект / задачу. */
+  @Get()
+  async list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('entityType') entityType: string,
+    @Query('entityId') entityId: string,
+  ) {
+    return this.service.listEntityAssignments(user.tenantId, String(entityType || ''), String(entityId || ''));
+  }
+
+  /** Пакетно: кто из ИИ ответственный за набор записей (колонка «Ответственный» в списках). */
+  @Post('batch')
+  async batch(@CurrentUser() user: CurrentUserPayload, @Body() body: Record<string, unknown>) {
+    return this.service.assignmentsBatch(
+      user.tenantId,
+      String(body.entityType || ''),
+      Array.isArray(body.ids) ? (body.ids as unknown[]).map(String) : [],
+    );
+  }
+
+  @Put()
+  async set(@CurrentUser() user: CurrentUserPayload, @Body() body: Record<string, unknown>) {
+    return this.service.setEntityAssignment(user.tenantId, userId(user), {
+      agentId: String(body.agentId || ''),
+      entityType: String(body.entityType || ''),
+      entityId: String(body.entityId || ''),
+      assigned: body.assigned !== false,
+    });
+  }
+}
+
+@Controller('ai-activity')
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
+export class AiActivityController {
+  constructor(private readonly service: AiEmployeesService) {}
+
+  @Get()
+  async feed(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: { limit?: string; since?: string },
+  ) {
+    return this.service.activityFeed(user.tenantId, query);
+  }
+}
+
+@Controller('ai-knowledge')
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
+export class AiKnowledgeController {
+  constructor(private readonly service: AiEmployeesService) {}
+
+  @Get()
+  async list(@CurrentUser() user: CurrentUserPayload) {
+    return this.service.listKnowledge(user.tenantId);
+  }
+
+  @Post()
+  async save(@CurrentUser() user: CurrentUserPayload, @Body() body: Record<string, unknown>) {
+    return this.service.saveKnowledge(user.tenantId, userId(user), body as any);
+  }
+
+  @Delete(':id')
+  async remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.deleteKnowledge(user.tenantId, id);
+  }
+}
+
+@Controller('ai-insights')
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
+export class AiInsightsController {
+  constructor(private readonly service: AiEmployeesService) {}
+
+  @Get()
+  async get(@CurrentUser() user: CurrentUserPayload, @Query('days') days?: string) {
+    return this.service.insights(user.tenantId, days ? Number(days) : 30);
+  }
+}
+
+@Controller('ai-actions')
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
 export class AiActionsController {
   constructor(private readonly service: AiEmployeesService) {}
 
@@ -211,7 +405,8 @@ export class AiActionsController {
 }
 
 @Controller('ai-logs')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
 export class AiLogsController {
   constructor(private readonly service: AiEmployeesService) {}
 
@@ -225,7 +420,8 @@ export class AiLogsController {
 }
 
 @Controller('ai-reports')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
 export class AiReportsController {
   constructor(private readonly service: AiEmployeesService) {}
 

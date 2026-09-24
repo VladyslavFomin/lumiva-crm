@@ -1,0 +1,189 @@
+/* ============================================
+   CONTACT / COMPANY PAGE — scoped design system
+   Ported from Claude Design (contact-page.html / company-page.html, styles/crm-forms.css).
+   Shares .px-scope tokens with ../contacts/crm-lists-design.css (same convention as
+   ../departments/departments-design.css / ../staff/permissions-design.css).
+   Used together with crm-lists-design.css (cl-pill/cl-av/cl-idn/cl-tl/etc. are reused here).
+   ============================================ */
+
+/* .cf-wrap intentionally full-width (not capped like the original mockup's max-width:1320px) —
+   see the same fix applied to .cl-wrap in crm-lists-design.css: the sidebar already eats into
+   the available width, so an extra cap just leaves empty space on the right. */
+.px-scope .cf-wrap{width:100%}
+
+/* header */
+.px-scope .cf-back{display:inline-flex;align-items:center;gap:6px;font-family:var(--ff-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3);background:none;border:0;padding:0;cursor:pointer}
+.px-scope .cf-back:hover{color:var(--ink)}
+.px-scope .cf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin:10px 0 16px}
+.px-scope .cf-kicker{font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--fg-4)}
+.px-scope .cf-head h1{font-family:var(--ff-display);font-size:27px;font-weight:600;letter-spacing:-.025em;color:var(--ink);margin-top:6px;line-height:1.1;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.px-scope .cf-head h1 .ph{color:var(--fg-4);font-weight:500}
+.px-scope .cf-head .role{font-size:13px;color:var(--fg-3);margin-top:5px}
+.px-scope .cf-hint{font-size:12px;color:var(--fg-3);margin-top:9px;max-width:520px;line-height:1.5;display:flex;gap:8px;align-items:flex-start}
+.px-scope .cf-hint svg{flex-shrink:0;margin-top:2px}
+.px-scope .cf-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* mode switch */
+.px-scope .cf-mode{display:flex;border:1px solid var(--line-2);border-radius:9px;overflow:hidden;background:#fff}
+.px-scope .cf-mode button{border:0;background:#fff;font:inherit;font-size:12px;color:var(--fg-3);padding:7px 11px;cursor:pointer;border-right:1px solid var(--line-3)}
+.px-scope .cf-mode button:last-child{border-right:0}
+.px-scope .cf-mode button.on{background:var(--ink);color:#fff}
+
+/* tabs */
+.px-scope .cf-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line-2);margin-bottom:20px;overflow-x:auto}
+.px-scope .cf-tab{padding:9px 14px;font-size:13px;font-weight:500;color:var(--fg-3);cursor:pointer;border-bottom:2px solid transparent;display:flex;align-items:center;gap:7px;white-space:nowrap;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit}
+.px-scope .cf-tab:hover{color:var(--ink)}
+.px-scope .cf-tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.px-scope .cf-tab .n{font-family:var(--ff-mono);font-size:10px;border-radius:5px;padding:1px 5px;background:var(--bg-soft);color:var(--fg-3)}
+.px-scope .cf-tab.on .n{background:var(--ink);color:#fff}
+.px-scope .cf-tab:disabled{color:var(--fg-4);cursor:not-allowed}
+.px-scope .cf-tab:disabled:hover{color:var(--fg-4)}
+
+/* layout */
+.px-scope .cf-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+@media (max-width:1080px){.px-scope .cf-grid{grid-template-columns:1fr}}
+.px-scope .cf-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* card */
+.px-scope .cf-card{border:1px solid var(--line-2);border-radius:14px;background:#fff}
+.px-scope .cf-card.soft{background:var(--bg-muted)}
+.px-scope .cf-card-h{padding:13px 16px;border-bottom:1px solid var(--line-3);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.px-scope .cf-card-h h3{font-size:13.5px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px}
+.px-scope .cf-card-h .sub{font-size:11.5px;color:var(--fg-3);margin-top:3px;line-height:1.45;max-width:560px}
+.px-scope .cf-body{padding:16px}
+.px-scope .cf-body.tight{padding:0}
+.px-scope .cf-foot{padding:11px 16px;border-top:1px solid var(--line-3);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--fg-3)}
+.px-scope .cf-side-t{font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--fg-3);margin-bottom:11px}
+
+/* fields */
+.px-scope .cf-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:640px){.px-scope .cf-fields{grid-template-columns:1fr}}
+.px-scope .cf-f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.px-scope .cf-f.wide{grid-column:1/-1}
+.px-scope .cf-f label{font-family:var(--ff-mono);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.12em;color:var(--fg-3)}
+.px-scope .cf-f label .req{color:#a3283c}
+.px-scope .cf-in{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#fff;padding:9.5px 12px;font:inherit;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s}
+.px-scope .cf-in::placeholder{color:var(--fg-4)}
+.px-scope .cf-in:focus{border-color:var(--ink)}
+.px-scope .cf-in:focus-visible{outline:none}
+.px-scope textarea.cf-in{resize:vertical;line-height:1.55}
+.px-scope .cf-f .hint{font-size:11px;color:var(--fg-3);line-height:1.45}
+.px-scope .cf-err{border-color:#d9a3ad !important}
+.px-scope .cf-alert{display:flex;gap:9px;align-items:flex-start;border:1px solid #eccfd4;background:#fdf4f5;border-radius:10px;padding:11px 13px;font-size:12px;color:#9a1f31;line-height:1.5;margin-bottom:16px}
+.px-scope .cf-note{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line-2);background:var(--bg-soft);border-radius:10px;padding:11px 13px;font-size:12px;color:var(--fg-2);line-height:1.5}
+.px-scope .cf-note svg{flex-shrink:0;margin-top:1px}
+
+/* company picker (CompanySelect analogue) */
+.px-scope .cf-pick{position:relative}
+.px-scope .cf-pick-in{display:flex;align-items:center;gap:9px;border:1px solid var(--line-2);border-radius:10px;background:#fff;padding:7px 11px;cursor:pointer}
+.px-scope .cf-pick-in:hover{border-color:var(--fg-3)}
+.px-scope .cf-pick-in.on{border-color:var(--ink)}
+.px-scope .cf-pick-in .nm{font-size:13px;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.px-scope .cf-pick-in .nm.ph{color:var(--fg-4)}
+.px-scope .cf-pop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;background:#fff;border:1px solid var(--line-2);border-radius:11px;box-shadow:var(--shadow-2);padding:6px;max-height:280px;overflow-y:auto}
+.px-scope .cf-pop-s{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:8px;padding:6px 9px;margin-bottom:6px;color:var(--fg-4)}
+.px-scope .cf-pop-s input{border:0;outline:none;font:inherit;font-size:12.5px;width:100%;color:var(--ink)}
+.px-scope .cf-opt{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;font:inherit;text-align:left;padding:7px 9px;border-radius:8px;cursor:pointer}
+.px-scope .cf-opt:hover{background:var(--bg-muted)}
+.px-scope .cf-opt .t{font-size:12.5px;color:var(--ink);font-weight:500}
+.px-scope .cf-opt .d{font-size:11px;color:var(--fg-3);margin-top:1px}
+.px-scope .cf-opt.new{border-top:1px solid var(--line-3);border-radius:0;margin-top:4px;padding-top:9px;color:var(--ink)}
+
+/* requisites editor */
+.px-scope .cf-req{display:flex;flex-direction:column;gap:8px}
+.px-scope .cf-req-row{display:grid;grid-template-columns:190px minmax(0,1fr) 28px;gap:8px;align-items:center}
+@media (max-width:640px){.px-scope .cf-req-row{grid-template-columns:1fr}}
+.px-scope .cf-req-empty{font-size:11.5px;color:var(--fg-3);padding:4px 0 8px}
+
+/* assignees by department */
+.px-scope .cf-dept{border:1px solid var(--line-2);border-radius:10px;background:#fff;padding:10px;margin-bottom:8px}
+.px-scope .cf-dept-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.px-scope .cf-dept-h .t{font-size:11.5px;font-weight:600;color:var(--ink)}
+.px-scope .cf-dept-h .all{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--fg-3);cursor:pointer;background:none;border:0;font-family:inherit;padding:0}
+.px-scope .cf-user{display:flex;align-items:center;gap:9px;width:100%;font-size:12px;color:var(--fg-2);padding:4px 2px;cursor:pointer;text-align:left}
+.px-scope .cf-user:hover{color:var(--ink)}
+.px-scope .cf-picked{font-size:11px;color:var(--fg-3);margin-top:10px;line-height:1.5}
+
+/* metric strip */
+.px-scope .cf-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line-2);border-radius:12px;background:#fff;overflow:hidden;margin-bottom:18px}
+@media (max-width:900px){.px-scope .cf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.px-scope .cf-metric{padding:13px 16px;border-right:1px solid var(--line-3)}
+.px-scope .cf-metric:last-child{border-right:0}
+.px-scope .cf-metric .k{font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3)}
+.px-scope .cf-metric .v{font-family:var(--ff-display);font-size:23px;font-weight:600;letter-spacing:-.025em;color:var(--ink);margin-top:5px;line-height:1.1}
+.px-scope .cf-metric .d{font-size:11px;color:var(--fg-3);margin-top:3px}
+
+/* analytics */
+.px-scope .cf-ana{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line-3)}
+@media (max-width:820px){.px-scope .cf-ana{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.px-scope .cf-ana>div{padding:15px 16px;border-right:1px solid var(--line-3);border-bottom:1px solid var(--line-3)}
+.px-scope .cf-ana .k{font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3)}
+.px-scope .cf-ana .v{font-family:var(--ff-display);font-size:21px;font-weight:600;letter-spacing:-.02em;color:var(--ink);margin-top:5px}
+.px-scope .cf-ana .d{font-size:11px;color:var(--fg-3);margin-top:3px}
+
+/* horizontal status bars */
+.px-scope .cf-bars{display:flex;flex-direction:column;gap:9px}
+.px-scope .cf-bar{display:grid;grid-template-columns:132px minmax(0,1fr) 40px;gap:11px;align-items:center;font-size:12px}
+.px-scope .cf-bar .l{color:var(--fg-2)}
+.px-scope .cf-bar .t{height:7px;border-radius:4px;background:var(--bg-soft);overflow:hidden}
+.px-scope .cf-bar .t i{display:block;height:100%;border-radius:4px;background:var(--ink)}
+.px-scope .cf-bar .t i.soft{background:var(--fg-4)}
+.px-scope .cf-bar .n{font-family:var(--ff-mono);font-size:11.5px;color:var(--ink);text-align:right}
+
+/* funnel */
+.px-scope .cf-funnel{display:flex;flex-direction:column;gap:7px}
+.px-scope .cf-fn{display:grid;grid-template-columns:minmax(0,1fr) 74px;gap:11px;align-items:center}
+.px-scope .cf-fn .band{height:30px;border:1px solid var(--line-2);border-radius:7px;background:var(--bg-soft);display:flex;align-items:center;padding:0 11px;font-size:12px;color:var(--ink);position:relative;overflow:hidden}
+.px-scope .cf-fn .band span{position:relative}
+.px-scope .cf-fn .band i{position:absolute;left:0;top:0;bottom:0;background:#e4e4e4}
+.px-scope .cf-fn .band.won i{background:#eef5f0}
+.px-scope .cf-fn .band.lost i{background:#faf0f2}
+.px-scope .cf-fn .m{font-family:var(--ff-mono);font-size:11.5px;color:var(--fg-2);text-align:right}
+
+/* mini table inside tabs */
+.px-scope .cf-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.px-scope .cf-tbl th{text-align:left;font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--fg-3);font-weight:400;padding:9px 16px;border-bottom:1px solid var(--line-2);background:var(--bg-muted);white-space:nowrap}
+.px-scope .cf-tbl th.r, .px-scope .cf-tbl td.r{text-align:right}
+.px-scope .cf-tbl td{padding:11px 16px;border-bottom:1px solid var(--line-3);vertical-align:middle}
+.px-scope .cf-tbl tr:last-child td{border-bottom:0}
+.px-scope .cf-tbl tbody tr:hover{background:var(--bg-muted)}
+.px-scope .cf-tbl .nm{font-weight:500;color:var(--ink)}
+.px-scope .cf-tbl .sub{font-size:11px;color:var(--fg-3);margin-top:2px}
+.px-scope .cf-mono{font-family:var(--ff-mono);font-size:11.5px;color:var(--fg-2);white-space:nowrap}
+.px-scope .cf-sum{font-family:var(--ff-mono);font-size:12.5px;font-weight:600;color:var(--ink)}
+
+/* task columns */
+.px-scope .cf-tasks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line-3)}
+@media (max-width:900px){.px-scope .cf-tasks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.px-scope .cf-tcol{border-right:1px solid var(--line-3);min-height:150px;padding:12px}
+.px-scope .cf-tcol:last-child{border-right:0}
+.px-scope .cf-tcol-h{display:flex;justify-content:space-between;align-items:center;font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--fg-3);padding-bottom:9px;border-bottom:1px dashed var(--line-2);margin-bottom:9px}
+.px-scope .cf-task{border:1px solid var(--line-2);border-radius:9px;background:#fff;padding:9px 10px;margin-bottom:7px}
+.px-scope .cf-task .t{font-size:12px;color:var(--ink);font-weight:500;line-height:1.35}
+.px-scope .cf-task .m{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;font-family:var(--ff-mono);font-size:10px;color:var(--fg-3)}
+.px-scope .cf-task .m .due.late{color:#a3283c}
+
+.px-scope .cf-empty{padding:44px 20px;text-align:center}
+.px-scope .cf-empty .t{font-family:var(--ff-display);font-size:15px;font-weight:600;color:var(--ink);margin-bottom:5px}
+.px-scope .cf-empty .d{font-size:12.5px;color:var(--fg-3);max-width:360px;margin:0 auto 16px;line-height:1.5}
+
+.px-scope .cf-idbox{font-family:var(--ff-mono);font-size:11px;color:var(--fg-3);word-break:break-all}
+
+/* Company tasks tab — unified tasks (company + project + lead) */
+.px-scope .cf-tsrc{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+.px-scope .cf-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line-2);background:#fff;color:var(--fg-2);border-radius:999px;padding:4px 11px;cursor:pointer;transition:background .12s,border-color .12s}
+.px-scope .cf-chip:hover{border-color:var(--line-1,#ccc)}
+.px-scope .cf-chip .n{font-family:var(--ff-mono);font-size:10px;color:var(--fg-3)}
+.px-scope .cf-chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.px-scope .cf-chip.on .n{color:rgba(255,255,255,.7)}
+.px-scope .cf-task .cf-src{display:flex;align-items:center;gap:6px;font-family:var(--ff-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-3);margin-bottom:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.px-scope .cf-task .cf-src i{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.px-scope .cf-task .cf-src.project i{background:#3b6fd4}
+.px-scope .cf-task .cf-src.lead i{background:#d08a1a}
+.px-scope .cf-task .d{font-size:11px;color:var(--fg-3);line-height:1.4;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.px-scope .cf-task .pl{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.px-scope .cf-task .pl .cl-pill{font-size:10px;padding:1.5px 7px}
+.px-scope .cf-task .chk{display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--ff-mono);font-size:10px;color:var(--fg-3)}
+.px-scope .cf-task .chk .bar{flex:1;height:4px;border-radius:999px;background:var(--line-3);overflow:hidden}
+.px-scope .cf-task .chk .bar i{display:block;height:100%;background:#1e6b46;border-radius:999px}
+.px-scope .cf-task:hover{border-color:var(--fg-4)}

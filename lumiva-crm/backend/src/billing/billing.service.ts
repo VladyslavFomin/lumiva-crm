@@ -9,6 +9,7 @@ import { TenantPlanActivationService, type BillingProviderCode } from './provide
 import { PaymentProviderResolverService } from './providers/payment-provider-resolver.service';
 import { YookassaBillingProvider } from './providers/yookassa-billing.provider';
 import { IyzicoBillingProvider } from './providers/iyzico-billing.provider';
+import { BillingAlertsService } from './billing-alerts.service';
 
 type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
 type BillingPeriod = 'month' | 'year';
@@ -40,6 +41,7 @@ export class BillingService {
     private readonly providerResolver: PaymentProviderResolverService,
     private readonly yookassaProvider: YookassaBillingProvider,
     private readonly iyzicoProvider: IyzicoBillingProvider,
+    private readonly billingAlerts: BillingAlertsService,
   ) {}
 
   private getStripeClient(secretKey: string) {
@@ -303,6 +305,11 @@ export class BillingService {
         monthlyPrice: String(monthly),
         yearlyDiscount: String(yearlyDiscount),
       },
+      // Дублируем tenantId и на PaymentIntent — событие payment_intent.payment_failed (отклонённая
+      // карта) присылает PaymentIntent, а не Checkout Session, и своей metadata Session'а не видит.
+      payment_intent_data: {
+        metadata: { tenantId: tenant.id },
+      },
       customer: await this.getOrCreateStripeCustomerId(tenant, stripe),
     });
 
@@ -391,6 +398,21 @@ export class BillingService {
     } else if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object as Stripe.Invoice;
       await this.handlePaymentFailed(invoice.customer as string);
+    } else if (event.type === 'payment_intent.payment_failed') {
+      // Отклонённая карта на разовом чекауте основного тарифа (main plan — mode:'payment', не
+      // Subscription, поэтому invoice.payment_failed сюда не долетает — только этот ивент).
+      const pi = event.data.object as Stripe.PaymentIntent;
+      const tenantId = pi.metadata?.tenantId;
+      if (tenantId) {
+        await this.billingAlerts.notifyPaymentFailed(tenantId, pi.last_payment_error?.message);
+      }
+    } else if (event.type === 'checkout.session.async_payment_failed') {
+      // Отложенные способы оплаты (например SEPA/iDEAL), которые не смогли списать средства.
+      const session = event.data.object as Stripe.Checkout.Session;
+      const tenantId = session.metadata?.tenantId;
+      if (tenantId) {
+        await this.billingAlerts.notifyPaymentFailed(tenantId);
+      }
     }
 
     return { ok: true };
@@ -410,6 +432,7 @@ export class BillingService {
     if (!tenant) return;
     tenant.lastPaymentFailedAt = new Date();
     await this.tenantsRepo.save(tenant);
+    await this.billingAlerts.notifyPaymentFailed(tenant.id);
   }
 
   async createAiAddonCheckoutSession(input: {

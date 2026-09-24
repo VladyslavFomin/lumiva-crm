@@ -1,3 +1,5 @@
+import { Tenant } from '../tenants/tenant.entity';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -17,6 +19,8 @@ export interface BookingAnalyticsSummary {
   totalRevenue: number;
   avgCheck: number;
   occupancyRate: number;
+  /** Валюта, в которую приведены totalRevenue/avgCheck (основная валюта тенанта) */
+  currency: string;
 }
 
 export interface AtRiskCustomerRow {
@@ -25,6 +29,7 @@ export interface AtRiskCustomerRow {
   lastVisit: string;
   visits: number;
   ltv: number;
+  currency: string;
 }
 
 const DEFAULT_DAILY_MINUTES = 11 * 60; // 09:00–20:00, если рабочие часы локации не заданы
@@ -44,7 +49,23 @@ export class BookingsAnalyticsService {
     private readonly staffProfilesRepo: Repository<BookingStaffProfile>,
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
+    private readonly currencyRates: CurrencyRatesService,
   ) {}
+
+  /** У каждой брони своя валюта (Reservation.currency) — суммы приводим к основной валюте тенанта
+   * по курсу, а не складываем числами вперемешку. */
+  private async priceConverter(tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'primaryCurrency'] });
+    const currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+    const rates = await this.currencyRates.getRates();
+    return {
+      currency,
+      convert: (price: unknown, from?: string | null) =>
+        this.currencyRates.convertWithRates(Number(price) || 0, (from || currency).toUpperCase(), currency, rates),
+    };
+  }
 
   private dayRange(dateStr?: string) {
     const day = dateStr ? new Date(dateStr) : new Date();
@@ -72,8 +93,10 @@ export class BookingsAnalyticsService {
       (r) => r.status === 'cancelled_by_business' || r.status === 'cancelled_by_customer' || r.status === 'rejected',
     ).length;
     const noShow = reservations.filter((r) => r.status === 'no_show').length;
+    const fx = await this.priceConverter(tenantId);
     const revenueRows = reservations.filter((r) => r.status === 'completed' && r.price);
-    const totalRevenue = revenueRows.reduce((sum, r) => sum + Number(r.price || 0), 0);
+    const totalRevenue =
+      Math.round(revenueRows.reduce((sum, r) => sum + fx.convert(r.price, r.currency), 0) * 100) / 100;
 
     const occupancyRate = await this.getOccupancyRate(tenantId, fromDate, toDate);
 
@@ -86,6 +109,7 @@ export class BookingsAnalyticsService {
       totalRevenue,
       avgCheck: revenueRows.length ? Math.round((totalRevenue / revenueRows.length) * 100) / 100 : 0,
       occupancyRate,
+      currency: fx.currency,
     };
   }
 
@@ -151,6 +175,7 @@ export class BookingsAnalyticsService {
       where: { tenantId },
       order: { startAt: 'DESC' },
     });
+    const fx = await this.priceConverter(tenantId);
     const byContact = new Map<string, AtRiskCustomerRow>();
     for (const r of reservations) {
       if (!r.contactId) continue;
@@ -162,11 +187,12 @@ export class BookingsAnalyticsService {
           customerName: r.customerName,
           lastVisit: r.startAt.toISOString(),
           visits: 1,
-          ltv: Number(r.price || 0),
+          ltv: fx.convert(r.price, r.currency),
+          currency: fx.currency,
         });
       } else {
         existing.visits += 1;
-        existing.ltv += Number(r.price || 0);
+        existing.ltv += fx.convert(r.price, r.currency);
         if (r.startAt.toISOString() > existing.lastVisit) {
           existing.lastVisit = r.startAt.toISOString();
           existing.customerName = r.customerName;
@@ -213,23 +239,36 @@ export class BookingsAnalyticsService {
     const rows = await this.reservationsRepo
       .createQueryBuilder('r')
       .select('r.serviceId', 'serviceId')
+      .addSelect('r.currency', 'currency')
       .addSelect('COUNT(*)', 'count')
       .addSelect('SUM(COALESCE(r.price, 0))', 'revenue')
       .where('r.tenantId = :tenantId', { tenantId })
       .andWhere('r.createdAt BETWEEN :from AND :to', { from: fromDate, to: toDate })
       .andWhere('r.serviceId IS NOT NULL')
       .groupBy('r.serviceId')
-      .orderBy('count', 'DESC')
-      .limit(10)
+      .addGroupBy('r.currency')
       .getRawMany();
     const services = await this.servicesRepo.find({ where: { tenantId } });
     const byId = new Map(services.map((s) => [s.id, s.name]));
-    return rows.map((r) => ({
-      serviceId: r.serviceId,
-      name: byId.get(r.serviceId) || r.serviceId,
-      count: Number(r.count),
-      revenue: Number(r.revenue),
-    }));
+    const fx = await this.priceConverter(tenantId);
+    // Группировка идёт ещё и по валюте — сливаем строки одной услуги, приводя выручку к основной валюте.
+    const merged = new Map<string, { serviceId: string; count: number; revenue: number }>();
+    for (const r of rows) {
+      const row = merged.get(r.serviceId) || { serviceId: r.serviceId, count: 0, revenue: 0 };
+      row.count += Number(r.count);
+      row.revenue += fx.convert(r.revenue, r.currency);
+      merged.set(r.serviceId, row);
+    }
+    return [...merged.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+      .map((row) => ({
+        serviceId: row.serviceId,
+        name: byId.get(row.serviceId) || row.serviceId,
+        count: row.count,
+        revenue: Math.round(row.revenue * 100) / 100,
+        currency: fx.currency,
+      }));
   }
 
   async getStaffUtilization(tenantId: string, from?: string, to?: string) {
@@ -237,22 +276,34 @@ export class BookingsAnalyticsService {
     const rows = await this.reservationsRepo
       .createQueryBuilder('r')
       .select('r.staffUserId', 'staffUserId')
+      .addSelect('r.currency', 'currency')
       .addSelect('COUNT(*)', 'count')
       .addSelect('SUM(COALESCE(r.price, 0))', 'revenue')
       .where('r.tenantId = :tenantId', { tenantId })
       .andWhere('r.createdAt BETWEEN :from AND :to', { from: fromDate, to: toDate })
       .andWhere('r.staffUserId IS NOT NULL')
       .groupBy('r.staffUserId')
-      .orderBy('count', 'DESC')
+      .addGroupBy('r.currency')
       .getRawMany();
     const staff = await this.staffRepo.find({ where: { tenantId } });
     const byId = new Map(staff.map((s) => [s.id, s.fullName]));
-    return rows.map((r) => ({
-      staffUserId: r.staffUserId,
-      name: byId.get(r.staffUserId) || r.staffUserId,
-      count: Number(r.count),
-      revenue: Number(r.revenue),
-    }));
+    const fx = await this.priceConverter(tenantId);
+    const merged = new Map<string, { staffUserId: string; count: number; revenue: number }>();
+    for (const r of rows) {
+      const row = merged.get(r.staffUserId) || { staffUserId: r.staffUserId, count: 0, revenue: 0 };
+      row.count += Number(r.count);
+      row.revenue += fx.convert(r.revenue, r.currency);
+      merged.set(r.staffUserId, row);
+    }
+    return [...merged.values()]
+      .sort((a, b) => b.count - a.count)
+      .map((row) => ({
+        staffUserId: row.staffUserId,
+        name: byId.get(row.staffUserId) || row.staffUserId,
+        count: row.count,
+        revenue: Math.round(row.revenue * 100) / 100,
+        currency: fx.currency,
+      }));
   }
 
   async getSourceBreakdown(tenantId: string, from?: string, to?: string) {
@@ -282,6 +333,7 @@ export class BookingsAnalyticsService {
       }),
     ]);
     const todayFiltered = todayReservations.filter((r) => r.startAt >= dayStart && r.startAt < dayEnd);
+    const fx = await this.priceConverter(tenantId);
 
     return locations.map((location) => {
       const locationResources = resources.filter((r) => r.locationId === location.id);
@@ -291,7 +343,7 @@ export class BookingsAnalyticsService {
       const todayAtLocation = todayFiltered.filter((r) => r.locationId === location.id);
       const todayRevenue = todayAtLocation
         .filter((r) => r.status === 'completed')
-        .reduce((sum, r) => sum + Number(r.price || 0), 0);
+        .reduce((sum, r) => sum + fx.convert(r.price, r.currency), 0);
 
       const availableMinutes = locationResources.reduce(
         (sum, r) => sum + this.estimateDailyMinutes(location.workingHours) * r.quantity,
@@ -310,7 +362,8 @@ export class BookingsAnalyticsService {
         staffCount,
         resourceCount: locationResources.length,
         todayReservations: todayAtLocation.length,
-        todayRevenue,
+        todayRevenue: Math.round(todayRevenue * 100) / 100,
+        currency: fx.currency,
         occupancy,
       };
     });

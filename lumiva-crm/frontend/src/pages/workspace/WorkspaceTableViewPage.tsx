@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SyncSourcesStrip } from './SyncSourcesStrip';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -12,6 +13,7 @@ import {
   createCustomObjectRecord,
   deleteCustomObjectField,
   deleteCustomObjectRecord,
+  fetchAllCustomObjectRecords,
   fetchCustomObjectFields,
   fetchCustomObjectRecordsPage,
   fetchCustomObjectValueKeys,
@@ -21,6 +23,8 @@ import {
   updateCustomObjectField,
   updateCustomObjectRecord,
   uploadWorkspaceFile,
+  refreshWorkspaceAiColumn,
+  refreshWorkspaceAiColumnAll,
   WORKSPACE_UPLOAD_MAX_FILE_LABEL,
   type CustomObject,
   type CustomObjectField,
@@ -28,6 +32,10 @@ import {
   type CustomObjectRecord,
   type WorkspaceFileFieldValue,
 } from '../../api/customObjects';
+import { fetchAiAssignableRoster, type AiAssignableRosterItem } from '../../api/aiEmployees';
+import { aiColumnErrorMessage } from './workspaceAiErrors';
+import { WsFieldTypeIcon, WsFieldTypeGrid } from '../../components/workspace/WorkspaceFieldTypePicker';
+import { WorkspaceFieldsManagerDrawer } from '../../components/workspace/WorkspaceFieldsManagerDrawer';
 import { PushToBoardModal } from '../../components/workspace/PushToBoardModal';
 import { getWorkspaceDataLink } from '../../workspace/workspaceRecordLink';
 import { WsAreaBar } from '../../components/workspace/WsAreaBar';
@@ -79,6 +87,20 @@ const FIELD_TYPES: CustomObjectFieldType[] = [
   'multiselect',
   'file',
 ];
+
+/** Готовые шаблоны для умной колонки (как AI-блоки у Monday: Categorize/Summarize/Translate/
+ * Extract/Person Assignment) — просто подставляют промпт в textarea, чтобы не писать с нуля;
+ * пользователь может дальше отредактировать текст как угодно. 'assign' дополнительно включает
+ * meta.ai.mode='person' на бэкенде — модель обязана выбрать реальное имя сотрудника. */
+const AI_COLUMN_PRESETS = [
+  { key: 'summarize', labelKey: 'crm.workspace.table.aiPresetSummarize', promptKey: 'crm.workspace.table.aiPresetSummarizePrompt', mode: 'text' as const },
+  { key: 'categorize', labelKey: 'crm.workspace.table.aiPresetCategorize', promptKey: 'crm.workspace.table.aiPresetCategorizePrompt', mode: 'text' as const },
+  { key: 'extract', labelKey: 'crm.workspace.table.aiPresetExtract', promptKey: 'crm.workspace.table.aiPresetExtractPrompt', mode: 'text' as const },
+  { key: 'translate', labelKey: 'crm.workspace.table.aiPresetTranslate', promptKey: 'crm.workspace.table.aiPresetTranslatePrompt', mode: 'text' as const },
+  { key: 'assign', labelKey: 'crm.workspace.table.aiPresetAssign', promptKey: 'crm.workspace.table.aiPresetAssignPrompt', mode: 'person' as const },
+] as const;
+
+/** Иконки для сетки выбора типа поля (замена старого native-select без подписей/иконок). */
 const STATUS_PALETTE = [
   'bg-emerald-100 text-emerald-700 border border-emerald-200',
   'bg-amber-100 text-amber-700 border border-amber-200',
@@ -143,6 +165,61 @@ const normalizePriorityBucket = (raw: string) => {
   }
   return 'normal';
 };
+
+/** Та же проверка "голого числа", что и в backend computeRollupByGroupKey (SQL regex) — держим
+ * в синхроне вручную, чтобы клиентское превью совпадало с тем, что реально посчитает сервер. */
+const looksLikeRollupNumber = (s: string) => /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s.trim());
+
+/**
+ * Клиентская копия backend computeRollupByGroupKey — считает то же самое (сумма/count/avg/
+ * min/max по группе), но по уже загруженным records, для живого превью в модалке редактирования
+ * поля ДО сохранения биндинга (никакого нового backend-эндпоинта не требуется).
+ */
+function computeClientRollupPreview(
+  records: CustomObjectRecord[],
+  groupByFieldKey: string,
+  valueFieldKey: string,
+  aggregate: 'sum' | 'count' | 'avg' | 'min' | 'max',
+): Array<{ key: string; value: number }> {
+  const buckets = new Map<string, { count: number; nums: number[] }>();
+  for (const rec of records) {
+    const groupRaw = rec.values?.[groupByFieldKey];
+    if (groupRaw === null || groupRaw === undefined || String(groupRaw).trim() === '') continue;
+    const key = String(groupRaw);
+    if (!buckets.has(key)) buckets.set(key, { count: 0, nums: [] });
+    const bucket = buckets.get(key)!;
+    bucket.count += 1;
+    const valRaw = rec.values?.[valueFieldKey];
+    const valStr = valRaw === null || valRaw === undefined ? '' : String(valRaw).trim();
+    if (valStr && looksLikeRollupNumber(valStr)) bucket.nums.push(parseFloat(valStr));
+  }
+  const rows: Array<{ key: string; value: number }> = [];
+  for (const [key, b] of buckets) {
+    let value: number;
+    switch (aggregate) {
+      case 'sum':
+        value = b.nums.reduce((a, c) => a + c, 0);
+        break;
+      case 'count':
+        value = b.count;
+        break;
+      case 'avg':
+        value = b.nums.length ? b.nums.reduce((a, c) => a + c, 0) / b.nums.length : 0;
+        break;
+      case 'min':
+        value = b.nums.length ? Math.min(...b.nums) : 0;
+        break;
+      case 'max':
+        value = b.nums.length ? Math.max(...b.nums) : 0;
+        break;
+      default:
+        value = 0;
+    }
+    rows.push({ key, value: Math.round(value * 100) / 100 });
+  }
+  rows.sort((a, b) => b.value - a.value);
+  return rows;
+}
 
 type Subitem = {
   id: string;
@@ -265,6 +342,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [objectMeta, setObjectMeta] = useState<CustomObject['meta'] | null>(null);
   const [workspaceTableName, setWorkspaceTableName] = useState<string | null>(null);
   const [records, setRecords] = useState<CustomObjectRecord[]>([]);
+  const [aiCellBusyKey, setAiCellBusyKey] = useState<string | null>(null);
   const [recordsTotal, setRecordsTotal] = useState(0);
   const [tablePage, setTablePage] = useState(0);
   const [pageSize, setPageSize] = useState(100);
@@ -316,10 +394,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
   } | null>(null);
 
   const [showAddField, setShowAddField] = useState(false);
+  const [showManageFields, setShowManageFields] = useState(false);
   const [newFieldKey, setNewFieldKey] = useState('');
   const [newFieldLabel, setNewFieldLabel] = useState('');
   const [newFieldType, setNewFieldType] = useState<string>('text');
   const [newFieldOptionsText, setNewFieldOptionsText] = useState('');
+  const [newFieldAiAgentId, setNewFieldAiAgentId] = useState('');
+  const [newFieldAiPrompt, setNewFieldAiPrompt] = useState('');
+  const [newFieldAiMode, setNewFieldAiMode] = useState<'text' | 'person'>('text');
   /** Пусто — значение в json под ключом колонки; иначе — ключ из импорта (meta.mapsToImportedKey). */
   const [newFieldMapsToImportKey, setNewFieldMapsToImportKey] = useState('');
   const [importValueKeys, setImportValueKeys] = useState<string[]>([]);
@@ -336,7 +418,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [activeSubitemOwnerMenu, setActiveSubitemOwnerMenu] = useState<{
     recordId: string;
     subitemId: string;
+    pos: { top: number; left: number };
+    draft: string[];
   } | null>(null);
+  const [subitemOwnerSearch, setSubitemOwnerSearch] = useState('');
   const [activePriorityMenu, setActivePriorityMenu] = useState<{ recordId: string; fieldKey: string } | null>(null);
   const [activeSubitemPriorityMenu, setActiveSubitemPriorityMenu] = useState<{
     recordId: string;
@@ -344,6 +429,13 @@ export const WorkspaceTableViewPage: React.FC = () => {
   } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [rowMenuRecordId, setRowMenuRecordId] = useState<string | null>(null);
+  /** Экранные координаты кнопки "⋯" на момент открытия — меню рендерится порталом в body
+   * (fixed + зажато в границы viewport), чтобы не обрезаться overflow горизонтально
+   * прокручиваемой таблицы (реальный баг: кнопка у левого края широкой таблицы — меню, ранее
+   * позиционированное absolute внутри строки, уезжало за левый край и обрезалось). */
+  const [rowMenuPos, setRowMenuPos] = useState<{ top: number; left: number; showPushToBoard: boolean } | null>(
+    null,
+  );
   const [bulkTargetGroup, setBulkTargetGroup] = useState('');
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [showEditField, setShowEditField] = useState(false);
@@ -352,12 +444,28 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [editFieldLabel, setEditFieldLabel] = useState('');
   const [editFieldType, setEditFieldType] = useState<CustomObjectFieldType | 'fixed'>('text');
   const [editFieldOptionsText, setEditFieldOptionsText] = useState('');
+  const [editFieldAiAgentId, setEditFieldAiAgentId] = useState('');
+  const [editFieldAiPrompt, setEditFieldAiPrompt] = useState('');
+  const [editFieldAiMode, setEditFieldAiMode] = useState<'text' | 'person'>('text');
+  const [aiRoster, setAiRoster] = useState<AiAssignableRosterItem[] | null>(null);
+  const [aiRefreshAllBusy, setAiRefreshAllBusy] = useState(false);
+  const [aiRefreshAllResult, setAiRefreshAllResult] = useState('');
   const [editBindMode, setEditBindMode] = useState<
     'off' | 'from_pushed_source' | 'lookup_by_key' | 'pick_from_data' | 'rollup'
   >('off');
   const [editBindSourceField, setEditBindSourceField] = useState('');
   const [editBindPickDataField, setEditBindPickDataField] = useState('');
   const [editBindDataObjectId, setEditBindDataObjectId] = useState('');
+  /** pick_from_data/rollup — несколько источников сразу (lookup_by_key/from_pushed_source
+   * остаются на editBindDataObjectId, там семантика "одно совпадение" на несколько таблиц не
+   * масштабируется однозначно). */
+  const [editBindDataObjectIds, setEditBindDataObjectIds] = useState<string[]>([]);
+  /** Живой предпросмотр результата привязки (pick_from_data/rollup) в модалке — до сохранения. */
+  const [bindingPreview, setBindingPreview] = useState<{
+    loading: boolean;
+    rows: Array<{ key: string; value: string }>;
+    totalCount: number;
+  } | null>(null);
   const [editBindBoardMatch, setEditBindBoardMatch] = useState('');
   const [editBindDataMatch, setEditBindDataMatch] = useState('');
   const [editBindDataDisplay, setEditBindDataDisplay] = useState('');
@@ -407,6 +515,18 @@ export const WorkspaceTableViewPage: React.FC = () => {
     {},
   );
 
+  // Список нанятых ИИ-сотрудников для пикера умной колонки — грузим лениво один раз, когда
+  // модалка добавления/редактирования поля впервые открывается (не при каждом рендере страницы).
+  // objectId — только те, у кого реально есть доступ к ЭТОЙ таблице (иначе пикер предлагал бы
+  // выбрать любого нанятого сотрудника, включая тех, кому владелец не выдавал доступ к ней).
+  useEffect(() => {
+    if ((showAddField || showEditField) && aiRoster === null) {
+      fetchAiAssignableRoster(objectId, 'write')
+        .then(setAiRoster)
+        .catch(() => setAiRoster([]));
+    }
+  }, [showAddField, showEditField, aiRoster]);
+
   useEffect(() => {
     if (!isBoardTable || !fields.length) return;
     let cancelled = false;
@@ -415,19 +535,21 @@ export const WorkspaceTableViewPage: React.FC = () => {
     for (const f of fields) {
       const b = parseWorkspaceColumnBindingV1(f.meta as Record<string, unknown> | null);
       if (b?.mode !== 'pick_from_data') continue;
-      const cacheKey = `${b.dataObjectId}\x1e${b.dataFieldKey}`;
-      if (seen.has(cacheKey)) continue;
-      seen.add(cacheKey);
-      loads.push(
-        fetchCustomObjectDistinctFieldValues(b.dataObjectId, b.dataFieldKey).then((res) => {
-          if (!cancelled) {
-            setPickFromDataOptionsByKey((prev) => ({
-              ...prev,
-              [cacheKey]: res.values || [],
-            }));
-          }
-        }),
-      );
+      for (const oid of b.dataObjectIds) {
+        const cacheKey = `${oid}\x1e${b.dataFieldKey}`;
+        if (seen.has(cacheKey)) continue;
+        seen.add(cacheKey);
+        loads.push(
+          fetchCustomObjectDistinctFieldValues(oid, b.dataFieldKey).then((res) => {
+            if (!cancelled) {
+              setPickFromDataOptionsByKey((prev) => ({
+                ...prev,
+                [cacheKey]: res.values || [],
+              }));
+            }
+          }),
+        );
+      }
     }
     void Promise.all(loads);
     return () => {
@@ -442,10 +564,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
     relativePath: string;
   } | null>(null);
 
-  const [commentDraft, setCommentDraft] = useState('');
-  const [commentsByRecord, setCommentsByRecord] = useState<
-    Record<string, Array<{ id: string; text: string; createdAt: string; author: string }>>
-  >({});
   const [activityByRecord, setActivityByRecord] = useState<
     Record<string, Array<{ id: string; text: string; createdAt: string }>>
   >({});
@@ -612,8 +730,42 @@ export const WorkspaceTableViewPage: React.FC = () => {
     setJustCreatedRecordId(null);
   }, [justCreatedRecordId]);
 
+  const isMultiSourceBindMode = editBindMode === 'pick_from_data' || editBindMode === 'rollup';
+
   useEffect(() => {
-    if (!showEditField || !editBindDataObjectId) {
+    if (!showEditField) {
+      setDataBindingFieldKeys([]);
+      return;
+    }
+    // pick_from_data/rollup: несколько источников — поле должно существовать (тем же field.key)
+    // во ВСЕХ выбранных таблицах, иначе агрегат/подстановка молча промахнутся мимо части данных.
+    // Показываем только пересечение — так пользователь физически не выберет "плохое" поле.
+    if (isMultiSourceBindMode) {
+      if (!editBindDataObjectIds.length) {
+        setDataBindingFieldKeys([]);
+        return;
+      }
+      let cancelled = false;
+      Promise.all(editBindDataObjectIds.map((id) => fetchCustomObjectFields(id).catch(() => [])))
+        .then((lists) => {
+          if (cancelled) return;
+          const keySets = lists.map(
+            (list) => new Set(list.filter((f) => f.isActive).map((f) => f.key)),
+          );
+          const common =
+            keySets.length > 0
+              ? [...keySets[0]].filter((k) => keySets.every((s) => s.has(k)))
+              : [];
+          setDataBindingFieldKeys(common.sort((a, b) => a.localeCompare(b)));
+        })
+        .catch(() => {
+          if (!cancelled) setDataBindingFieldKeys([]);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!editBindDataObjectId) {
       setDataBindingFieldKeys([]);
       return;
     }
@@ -632,7 +784,80 @@ export const WorkspaceTableViewPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [showEditField, editBindDataObjectId]);
+  }, [showEditField, isMultiSourceBindMode, editBindDataObjectId, editBindDataObjectIds]);
+
+  /** Живое превью для pick_from_data/rollup в модалке — до сохранения поля, чтобы неправильный
+   * выбор колонок/таблиц был виден сразу, а не после Apply (реальный кейс — см. баг с mapsToImportedKey). */
+  useEffect(() => {
+    if (!showEditField || editBindMode !== 'pick_from_data' || !editBindDataObjectIds.length || !editBindPickDataField) {
+      if (editBindMode === 'pick_from_data') setBindingPreview(null);
+      return;
+    }
+    let cancelled = false;
+    setBindingPreview({ loading: true, rows: [], totalCount: 0 });
+    Promise.all(
+      editBindDataObjectIds.map((id) =>
+        fetchCustomObjectDistinctFieldValues(id, editBindPickDataField).catch(() => ({ values: [] as string[] })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const merged = Array.from(new Set(results.flatMap((r) => r.values || []))).sort((a, b) =>
+        a.localeCompare(b),
+      );
+      setBindingPreview({
+        loading: false,
+        rows: merged.slice(0, 10).map((v) => ({ key: v, value: '' })),
+        totalCount: merged.length,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEditField, editBindMode, editBindDataObjectIds, editBindPickDataField]);
+
+  useEffect(() => {
+    if (
+      !showEditField ||
+      editBindMode !== 'rollup' ||
+      !editBindDataObjectIds.length ||
+      !editBindGroupBy ||
+      !editBindValueField
+    ) {
+      if (editBindMode === 'rollup') setBindingPreview(null);
+      return;
+    }
+    let cancelled = false;
+    setBindingPreview({ loading: true, rows: [], totalCount: 0 });
+    Promise.all(
+      editBindDataObjectIds.map((id) =>
+        fetchAllCustomObjectRecords(id).catch(() => [] as CustomObjectRecord[]),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const allRecords = results.flat();
+      const rows = computeClientRollupPreview(
+        allRecords,
+        editBindGroupBy,
+        editBindValueField,
+        editBindAggregate,
+      );
+      setBindingPreview({
+        loading: false,
+        rows: rows.slice(0, 8).map((r) => ({ key: r.key, value: String(r.value) })),
+        totalCount: rows.length,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showEditField,
+    editBindMode,
+    editBindDataObjectIds,
+    editBindGroupBy,
+    editBindValueField,
+    editBindAggregate,
+  ]);
 
   useEffect(() => {
     if (!showEditField || editBindMode !== 'from_pushed_source' || !dataTablesInArea.length) {
@@ -664,13 +889,11 @@ export const WorkspaceTableViewPage: React.FC = () => {
       const groupHiddenRaw = localStorage.getItem(`workspace_hidden_cols_by_group_${objectId}`);
       const rowOrderRaw = localStorage.getItem(`workspace_row_order_${objectId}`);
       const hiddenRowsRaw = localStorage.getItem(`workspace_hidden_rows_${objectId}`);
-      const commentsRaw = localStorage.getItem(`workspace_comments_${objectId}`);
       const activityRaw = localStorage.getItem(`workspace_activity_${objectId}`);
       if (hiddenRaw) setHiddenColumns(JSON.parse(hiddenRaw));
       if (groupHiddenRaw) setGroupHiddenColumns(JSON.parse(groupHiddenRaw));
       if (rowOrderRaw) setRowOrderByGroup(JSON.parse(rowOrderRaw));
       if (hiddenRowsRaw) setHiddenRows(JSON.parse(hiddenRowsRaw));
-      if (commentsRaw) setCommentsByRecord(JSON.parse(commentsRaw));
       if (activityRaw) setActivityByRecord(JSON.parse(activityRaw));
     } catch {
       // ignore
@@ -687,7 +910,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
       );
       localStorage.setItem(`workspace_row_order_${objectId}`, JSON.stringify(rowOrderByGroup));
       localStorage.setItem(`workspace_hidden_rows_${objectId}`, JSON.stringify(hiddenRows));
-      localStorage.setItem(`workspace_comments_${objectId}`, JSON.stringify(commentsByRecord));
       localStorage.setItem(`workspace_activity_${objectId}`, JSON.stringify(activityByRecord));
     } catch {
       // ignore
@@ -698,7 +920,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
     groupHiddenColumns,
     rowOrderByGroup,
     hiddenRows,
-    commentsByRecord,
     activityByRecord,
   ]);
 
@@ -824,7 +1045,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
       activeMultiCell != null ||
       activePriorityMenu != null ||
       activeSubitemOwnerMenu != null ||
-      activeSubitemPriorityMenu != null;
+      activeSubitemPriorityMenu != null ||
+      rowMenuRecordId != null;
     if (!hasOpen) return;
 
     const closeInlineMenus = () => {
@@ -832,6 +1054,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
       setActivePriorityMenu(null);
       setActiveSubitemOwnerMenu(null);
       setActiveSubitemPriorityMenu(null);
+      setRowMenuRecordId(null);
+      setRowMenuPos(null);
     };
 
     const onOutsidePointer = (e: MouseEvent | PointerEvent) => {
@@ -856,7 +1080,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
       window.removeEventListener('blur', closeInlineMenus);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [activeMultiCell, activePriorityMenu, activeSubitemOwnerMenu, activeSubitemPriorityMenu]);
+  }, [activeMultiCell, activePriorityMenu, activeSubitemOwnerMenu, activeSubitemPriorityMenu, rowMenuRecordId]);
 
   useEffect(() => {
     if (!activeMultiCell) return;
@@ -1384,6 +1608,44 @@ export const WorkspaceTableViewPage: React.FC = () => {
     );
   };
 
+  /** Кнопка "Обновить" на ячейке умной колонки прямо в сетке — не через saveRecord (это не
+   * человеческое изменение, значение уже посчитано и записано на бэкенде ai-refresh'ем). */
+  const refreshAiCell = async (record: CustomObjectRecord, field: CustomObjectField) => {
+    const key = `${record.id}:${field.key}`;
+    setAiCellBusyKey(key);
+    try {
+      const res = await refreshWorkspaceAiColumn(objectId, record.id, field.key);
+      if (res.ok && typeof res.value === 'string') {
+        const val = res.value;
+        setRecords((prev) =>
+          prev.map((r) => (r.id === record.id ? { ...r, values: { ...(r.values || {}), [field.key]: val } } : r)),
+        );
+      } else {
+        setActionError(aiColumnErrorMessage(t, res.error));
+      }
+    } catch {
+      setActionError(aiColumnErrorMessage(t, null));
+    } finally {
+      setAiCellBusyKey(null);
+    }
+  };
+
+  /** "Пересчитать все строки" — кнопка в редакторе умной колонки; перезагружает всю таблицу после,
+   * т.к. затрагивает потенциально все записи, а не одну (проще, чем точечно патчить локальный стейт). */
+  const refreshAiColumnAllRows = async (field: CustomObjectField) => {
+    setAiRefreshAllBusy(true);
+    setAiRefreshAllResult('');
+    try {
+      const res = await refreshWorkspaceAiColumnAll(objectId, field.key);
+      setAiRefreshAllResult(t('crm.workspace.table.aiRefreshAllResult', { succeeded: res.succeeded, total: res.total }));
+      await loadRecords();
+    } catch {
+      setAiRefreshAllResult(aiColumnErrorMessage(t, null));
+    } finally {
+      setAiRefreshAllBusy(false);
+    }
+  };
+
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -1636,6 +1898,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
       setEditBindMode('from_pushed_source');
       setEditBindSourceField(b.sourceFieldKey);
       setEditBindDataObjectId('');
+      setEditBindDataObjectIds([]);
       setEditBindPickDataField('');
       setEditBindBoardMatch('');
       setEditBindDataMatch('');
@@ -1647,6 +1910,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
       setEditBindMode('lookup_by_key');
       setEditBindSourceField('');
       setEditBindDataObjectId(b.dataObjectId);
+      setEditBindDataObjectIds([]);
       setEditBindBoardMatch(b.boardMatchFieldKey);
       setEditBindDataMatch(b.dataMatchFieldKey);
       setEditBindDataDisplay(b.dataDisplayFieldKey);
@@ -1657,7 +1921,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
     } else if (b?.mode === 'pick_from_data') {
       setEditBindMode('pick_from_data');
       setEditBindSourceField('');
-      setEditBindDataObjectId(b.dataObjectId);
+      setEditBindDataObjectId('');
+      setEditBindDataObjectIds(b.dataObjectIds);
       setEditBindPickDataField(b.dataFieldKey);
       setEditBindBoardMatch('');
       setEditBindDataMatch('');
@@ -1668,7 +1933,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
     } else if (b?.mode === 'rollup') {
       setEditBindMode('rollup');
       setEditBindSourceField('');
-      setEditBindDataObjectId(b.dataObjectId);
+      setEditBindDataObjectId('');
+      setEditBindDataObjectIds(b.dataObjectIds);
       setEditBindPickDataField('');
       setEditBindBoardMatch(b.boardMatchFieldKey);
       setEditBindDataMatch('');
@@ -1680,6 +1946,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
       setEditBindMode('off');
       setEditBindSourceField('');
       setEditBindDataObjectId('');
+      setEditBindDataObjectIds([]);
       setEditBindPickDataField('');
       setEditBindBoardMatch('');
       setEditBindDataMatch('');
@@ -1691,6 +1958,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
     const mk = (field.meta as Record<string, unknown> | undefined)?.[WORKSPACE_MAPS_TO_IMPORTED_KEY];
     setEditMapsToImportedKey(typeof mk === 'string' ? mk : '');
     setEditCrmEntityRef(parseWorkspaceEntityRef(field.meta as Record<string, unknown> | null) ?? 'none');
+    const aiCfg = (field.meta as Record<string, unknown> | null)?.ai as
+      | { agentId?: string; prompt?: string; mode?: 'text' | 'person' }
+      | undefined;
+    setEditFieldAiAgentId(aiCfg?.agentId || '');
+    setEditFieldAiPrompt(aiCfg?.prompt || '');
+    setEditFieldAiMode(aiCfg?.mode === 'person' ? 'person' : 'text');
+    setAiRefreshAllResult('');
+    setBindingPreview(null);
     setShowEditField(true);
   };
 
@@ -1705,8 +1980,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
           ? (editingField.meta as Record<string, unknown>)
           : {}),
       };
+      // "Ключ импорта" (алиас сырой колонки) и "привязка колонки" — разные, несовместимые
+      // механизмы получения значения: у поля с активным биндингом (pick_from_data/lookup_by_key/
+      // rollup/from_pushed_source) значение вычисляется enrichRecordsColumnBindings, поэтому
+      // mapsToImportedKey для него не сохраняем (баг: значение из другой колонки молча
+      // подставлялось как "сырое" в поле с биндингом и падало на валидации типа).
+      const bindingActiveForThisField = isBoardTable && editBindMode !== 'off';
       const mapTrim = editMapsToImportedKey.trim();
-      if (mapTrim && mapTrim !== normalizedKey) {
+      if (!bindingActiveForThisField && mapTrim && mapTrim !== normalizedKey) {
         baseMeta[WORKSPACE_MAPS_TO_IMPORTED_KEY] = mapTrim;
       } else {
         delete baseMeta[WORKSPACE_MAPS_TO_IMPORTED_KEY];
@@ -1729,6 +2010,11 @@ export const WorkspaceTableViewPage: React.FC = () => {
         }
       } else {
         delete baseMeta[WORKSPACE_ENTITY_REF_KEY];
+      }
+      if (editFieldType === 'ai') {
+        baseMeta.ai = { agentId: editFieldAiAgentId.trim(), prompt: editFieldAiPrompt.trim(), mode: editFieldAiMode };
+      } else {
+        delete baseMeta.ai;
       }
       if (isBoardTable) {
         delete baseMeta.columnBinding;
@@ -1755,18 +2041,18 @@ export const WorkspaceTableViewPage: React.FC = () => {
           };
         } else if (
           editBindMode === 'pick_from_data' &&
-          editBindDataObjectId &&
+          editBindDataObjectIds.length &&
           editBindPickDataField.trim()
         ) {
           baseMeta.columnBinding = {
             version: 1,
             mode: 'pick_from_data',
-            dataObjectId: editBindDataObjectId,
+            dataObjectIds: editBindDataObjectIds,
             dataFieldKey: editBindPickDataField.trim(),
           };
         } else if (
           editBindMode === 'rollup' &&
-          editBindDataObjectId &&
+          editBindDataObjectIds.length &&
           editBindBoardMatch.trim() &&
           editBindGroupBy.trim() &&
           editBindValueField.trim()
@@ -1774,7 +2060,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
           baseMeta.columnBinding = {
             version: 1,
             mode: 'rollup',
-            dataObjectId: editBindDataObjectId,
+            dataObjectIds: editBindDataObjectIds,
             boardMatchFieldKey: editBindBoardMatch.trim(),
             groupByFieldKey: editBindGroupBy.trim(),
             valueFieldKey: editBindValueField.trim(),
@@ -1832,6 +2118,9 @@ export const WorkspaceTableViewPage: React.FC = () => {
       if (isCrmProject) meta[WORKSPACE_ENTITY_REF_KEY] = 'project';
       if (isCrmCompany) meta[WORKSPACE_ENTITY_REF_KEY] = 'company';
       if (isReadonlyPseudo) meta[WORKSPACE_IS_READONLY_KEY] = true;
+      if (resolvedFieldType === 'ai') {
+        meta.ai = { agentId: newFieldAiAgentId.trim(), prompt: newFieldAiPrompt.trim(), mode: newFieldAiMode };
+      }
       await createCustomObjectField(objectId, {
         key: normalizedKey,
         label: newFieldLabel.trim(),
@@ -1849,6 +2138,9 @@ export const WorkspaceTableViewPage: React.FC = () => {
       setNewFieldType('text');
       setNewFieldOptionsText('');
       setNewFieldMapsToImportKey('');
+      setNewFieldAiAgentId('');
+      setNewFieldAiPrompt('');
+      setNewFieldAiMode('text');
       setAddFieldError(null);
       setShowAddField(false);
       await reloadAll();
@@ -1981,34 +2273,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
       .split(/[,;/]+/)
       .map((v) => v.trim())
       .filter(Boolean);
-
-  const toggleSubitemOwner = async (
-    record: CustomObjectRecord,
-    subitemId: string,
-    ownerName: string,
-  ) => {
-    const subitem = getSubitems(record).find((s) => s.id === subitemId);
-    const owners = parseOwnerValues(subitem?.values?.owner);
-    const nextOwners = owners.includes(ownerName)
-      ? owners.filter((name) => name !== ownerName)
-      : [...owners, ownerName];
-    await updateSubitem(record, subitemId, 'owner', nextOwners.join(', '));
-  };
-
-  const toggleSubitemDepartment = async (
-    record: CustomObjectRecord,
-    subitemId: string,
-    users: StaffUser[],
-  ) => {
-    const subitem = getSubitems(record).find((s) => s.id === subitemId);
-    const owners = parseOwnerValues(subitem?.values?.owner);
-    const userNames = users.map((u) => u.fullName);
-    const everySelected = userNames.every((name) => owners.includes(name));
-    const nextOwners = everySelected
-      ? owners.filter((name) => !userNames.includes(name))
-      : Array.from(new Set([...owners, ...userNames]));
-    await updateSubitem(record, subitemId, 'owner', nextOwners.join(', '));
-  };
 
   const getMobilePreviewFieldRank = (field: CustomObjectField) => {
     const key = field.key.toLowerCase();
@@ -2157,6 +2421,32 @@ export const WorkspaceTableViewPage: React.FC = () => {
 
     if (isDataTable) {
       // --- DATA TABLE: read-only display, no editing ---
+      if (field.type === 'ai') {
+        const cellKey = `${record.id}:${field.key}`;
+        const isBusy = aiCellBusyKey === cellKey;
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 140 }}>
+            <div className="flex items-center justify-center gap-1.5">
+              <span aria-hidden className="text-violet-500 text-xs flex-shrink-0">✦</span>
+              <div className="min-w-0 flex-1 text-center text-xs text-slate-700 whitespace-pre-line break-words">
+                {textValue || <span className="text-slate-400">—</span>}
+              </div>
+              <button
+                type="button"
+                title={t('crm.workspace.recordDrawer.aiColumnRefresh')}
+                disabled={isBusy}
+                onClick={() => void refreshAiCell(record, field)}
+                className="flex-shrink-0 rounded-md border border-transparent p-0.5 text-slate-400 hover:border-slate-200 hover:text-violet-600 disabled:opacity-50"
+              >
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={isBusy ? 'animate-spin' : ''}>
+                  <path d="M21 12a9 9 0 11-3-6.7" />
+                  <path d="M21 4v5h-5" />
+                </svg>
+              </button>
+            </div>
+          </td>
+        );
+      }
       if (field.type === 'file') {
         const raw = record.values?.[getWorkspaceFieldValueStorageKey(field)];
         const fileVal =
@@ -2310,8 +2600,48 @@ export const WorkspaceTableViewPage: React.FC = () => {
       );
     }
 
-    // Board table: readonly fields — display only, no editing
-    if (isWorkspaceReadOnlyField(field)) {
+    const cellBinding = isBoardTable
+      ? parseWorkspaceColumnBindingV1(field.meta as Record<string, unknown> | null)
+      : null;
+
+    // Board table: readonly fields — display only, no editing. Колонки lookup_by_key/rollup
+    // тоже сюда: их значение backend пересчитывает и перезаписывает при КАЖДОМ чтении (не
+    // только когда ячейка пустая, см. enrichRecordsColumnBindings), так что ручной ввод там
+    // всё равно молча затирается на следующей перезагрузке — плюс обычный <input defaultValue=…>
+    // ниже неконтролируемый и не подхватывает новое значение после loadRecords() без полной
+    // перезагрузки страницы (реальный баг: "Sold" не обновлялся при смене "Country" без F5).
+    if (field.type === 'ai') {
+      const cellKey = `${record.id}:${field.key}`;
+      const isBusy = aiCellBusyKey === cellKey;
+      return (
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 140 }}>
+          <div className="flex items-center justify-center gap-1.5">
+            <span aria-hidden className="text-violet-500 text-xs flex-shrink-0">✦</span>
+            <div className="min-w-0 flex-1 text-center text-xs text-slate-700 whitespace-pre-line break-words">
+              {textValue || <span className="text-slate-400">—</span>}
+            </div>
+            <button
+              type="button"
+              title={t('crm.workspace.recordDrawer.aiColumnRefresh')}
+              disabled={isBusy}
+              onClick={() => void refreshAiCell(record, field)}
+              className="flex-shrink-0 rounded-md border border-transparent p-0.5 text-slate-400 hover:border-slate-200 hover:text-violet-600 disabled:opacity-50"
+            >
+              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={isBusy ? 'animate-spin' : ''}>
+                <path d="M21 12a9 9 0 11-3-6.7" />
+                <path d="M21 4v5h-5" />
+              </svg>
+            </button>
+          </div>
+        </td>
+      );
+    }
+
+    if (
+      isWorkspaceReadOnlyField(field) ||
+      cellBinding?.mode === 'lookup_by_key' ||
+      cellBinding?.mode === 'rollup'
+    ) {
       return (
         <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
           <div className="min-w-0 text-center text-xs text-slate-700 whitespace-pre-line break-words">
@@ -2321,15 +2651,18 @@ export const WorkspaceTableViewPage: React.FC = () => {
       );
     }
 
-    const pickBind = isBoardTable
-      ? parseWorkspaceColumnBindingV1(field.meta as Record<string, unknown> | null)
-      : null;
+    const pickBind = cellBinding;
     if (
       pickBind?.mode === 'pick_from_data' &&
       (field.type === 'text' || field.type === 'number' || field.type === 'select')
     ) {
-      const optKey = `${pickBind.dataObjectId}\x1e${pickBind.dataFieldKey}`;
-      const opts = pickFromDataOptionsByKey[optKey] || [];
+      const opts = Array.from(
+        new Set(
+          pickBind.dataObjectIds.flatMap(
+            (oid) => pickFromDataOptionsByKey[`${oid}\x1e${pickBind.dataFieldKey}`] || [],
+          ),
+        ),
+      ).sort((a, b) => a.localeCompare(b));
       const multiline = textValue.includes('\n');
       return (
         <td
@@ -3018,9 +3351,257 @@ export const WorkspaceTableViewPage: React.FC = () => {
     );
   };
 
+  const renderRowMenuPortal = (): React.ReactNode => {
+    if (!rowMenuRecordId || !rowMenuPos || typeof document === 'undefined') return null;
+    const record = records.find((r) => r.id === rowMenuRecordId);
+    if (!record) return null;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const panelWidth = 176; // w-44
+    const left = Math.max(8, Math.min(rowMenuPos.left, vw - panelWidth - 8));
+    const top = Math.max(8, Math.min(rowMenuPos.top, vh - 8));
+    const close = () => {
+      setRowMenuRecordId(null);
+      setRowMenuPos(null);
+    };
+
+    return createPortal(
+      <div
+        data-workspace-inline-popover
+        className="fixed z-[100000] w-44 rounded-xl border border-slate-200 bg-white shadow-2xl p-1.5"
+        style={{ top, left }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setActiveRecord(record);
+            close();
+          }}
+          className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+        >
+          {t('crm.workspace.table.openRow')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void duplicateRow(record);
+            close();
+          }}
+          className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+        >
+          {t('crm.workspace.table.duplicateRow')}
+        </button>
+        {rowMenuPos.showPushToBoard && (
+          <button
+            type="button"
+            onClick={() => {
+              setPushBoardRecordIds([record.id]);
+              setPushBoardOpen(true);
+              close();
+            }}
+            className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+          >
+            {t('crm.workspace.table.pushToBoardRow')}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setHiddenRows((prev) => ({ ...prev, [record.id]: true }));
+            close();
+          }}
+          className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+        >
+          {t('crm.workspace.table.hideRow')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void deleteRow(record.id);
+            close();
+          }}
+          className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-[#9a1f31] hover:bg-[#fbecef]"
+        >
+          {t('crm.workspace.table.deleteRow')}
+        </button>
+      </div>,
+      document.body,
+    );
+  };
+
+  /**
+   * Портал вместо инлайн-рендера: попап выбора ответственного для подзадачи раньше рендерился
+   * внутри .overflow-x-auto обёртки таблицы подзадач — тот же CSS-квирк, что и в основной
+   * таблице (overflow-x:auto молча делает и overflow-y не-visible), поэтому попап обрезался
+   * и казался "не отображается". Портал в document.body с позицией по getBoundingClientRect
+   * — тот же приём, что уже используется в renderRowMenuPortal.
+   */
+  const renderSubitemOwnerPortal = (): React.ReactNode => {
+    if (!activeSubitemOwnerMenu || typeof document === 'undefined') return null;
+    const record = records.find((r) => r.id === activeSubitemOwnerMenu.recordId);
+    const subitem = record && getSubitems(record).find((s) => s.id === activeSubitemOwnerMenu.subitemId);
+    if (!record || !subitem) return null;
+
+    const menu = activeSubitemOwnerMenu;
+    const draft = menu.draft;
+    const allStaff = staffByDepartment.flatMap((dept) => dept.users);
+    const query = subitemOwnerSearch.trim().toLowerCase();
+    const visibleStaff = query ? allStaff.filter((u) => u.fullName.toLowerCase().includes(query)) : allStaff;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const panelWidth = 280;
+    const left = Math.max(8, Math.min(menu.pos.left, vw - panelWidth - 8));
+    const top = Math.max(8, Math.min(menu.pos.top, vh - 8));
+    const close = () => setActiveSubitemOwnerMenu(null);
+
+    return createPortal(
+      <div
+        data-workspace-inline-popover
+        className="lv-owner-popover lv-owner-popover--fixed"
+        style={{ top, left }}
+      >
+        <div className="lv-popover-title">{t('crm.projects.list.owner.title')}</div>
+        <div className="lv-popover-search">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.5-4.5" />
+          </svg>
+          <input
+            autoFocus
+            value={subitemOwnerSearch}
+            onChange={(e) => setSubitemOwnerSearch(e.target.value)}
+            placeholder={t('crm.projects.list.owner.search')}
+          />
+        </div>
+        <div className="lv-owner-pop-list">
+          {visibleStaff.map((user) => {
+            const on = draft.includes(user.fullName);
+            return (
+              <div
+                key={user.id}
+                className={`lv-owner-pop-item${on ? ' on' : ''}`}
+                onClick={() =>
+                  setActiveSubitemOwnerMenu((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          draft: prev.draft.includes(user.fullName)
+                            ? prev.draft.filter((name) => name !== user.fullName)
+                            : [...prev.draft, user.fullName],
+                        }
+                      : prev,
+                  )
+                }
+              >
+                <div className="ava">{getInitials(user.fullName)}</div>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.fullName}</span>
+                <span className="check">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 12l4 4 10-10" />
+                  </svg>
+                </span>
+              </div>
+            );
+          })}
+          {!visibleStaff.length && (
+            <div style={{ padding: '8px 10px', fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.projects.list.owner.empty')}</div>
+          )}
+        </div>
+        <div className="lv-owner-pop-foot">
+          <button type="button" className="lv-tb-btn" onClick={close}>
+            {t('crm.common.cancel')}
+          </button>
+          <button
+            type="button"
+            className="lv-tb-btn"
+            style={{ background: '#222', color: '#fff', borderColor: '#222' }}
+            onClick={() => {
+              void updateSubitem(record, subitem.id, 'owner', draft.join(', '));
+              close();
+            }}
+          >
+            {t('crm.common.save')}
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
+  };
+
+  /** Мультивыбор таблиц данных для pick_from_data/rollup — переиспользуется в обоих блоках. */
+  const renderDataTableMultiPicker = () => (
+    <div>
+      <div
+        className="space-y-1 rounded-lg border border-slate-200 p-2"
+        style={{ maxHeight: 140, overflowY: 'auto' }}
+      >
+        {dataTablesInArea.length === 0 && (
+          <p className="ws-note">{t('crm.workspace.table.columnBindingNoDataTables')}</p>
+        )}
+        {dataTablesInArea.map((o) => {
+          const checked = editBindDataObjectIds.includes(o.id);
+          return (
+            <label
+              key={o.id}
+              className="flex items-center gap-2 text-xs cursor-pointer py-0.5"
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() =>
+                  setEditBindDataObjectIds((prev) =>
+                    checked ? prev.filter((id) => id !== o.id) : [...prev, o.id],
+                  )
+                }
+              />
+              <span>{o.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="ws-note">{t('crm.workspace.table.columnBindingMultiSourceHint')}</p>
+    </div>
+  );
+
+  /** Живой предпросмотр результата pick_from_data/rollup — до сохранения поля. */
+  const renderBindingPreview = () => {
+    if (!bindingPreview) return null;
+    if (bindingPreview.loading) {
+      return <p className="ws-note">{t('crm.workspace.table.columnBindingPreviewLoading')}</p>;
+    }
+    if (!bindingPreview.rows.length) {
+      return <p className="ws-note">{t('crm.workspace.table.columnBindingPreviewEmpty')}</p>;
+    }
+    const isRollup = editBindMode === 'rollup';
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2 space-y-1">
+        <div className="text-xs font-medium text-slate-700">
+          {isRollup
+            ? t('crm.workspace.table.columnBindingPreviewTitleRollup', {
+                count: bindingPreview.totalCount,
+              })
+            : t('crm.workspace.table.columnBindingPreviewTitlePick', {
+                count: bindingPreview.totalCount,
+              })}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+          {bindingPreview.rows.map((r) => (
+            <span key={r.key}>
+              {r.key}
+              {isRollup ? ` → ${r.value}` : ''}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <MainLayout>
       {renderWorkspaceMultiCellPortal()}
+      {renderRowMenuPortal()}
+      {renderSubitemOwnerPortal()}
       <div
         className="lv-pt ws-page w-full pb-8 min-w-0"
         style={{
@@ -3057,6 +3638,9 @@ export const WorkspaceTableViewPage: React.FC = () => {
             {isDataTable && (
               <p className="sub max-w-2xl">{t('crm.workspace.table.dataLayerSubtitle')}</p>
             )}
+            {objectId && /^[0-9a-f-]{36}$/i.test(objectId) && (
+              <SyncSourcesStrip objectId={objectId} meta={objectMeta} onChanged={reloadAll} />
+            )}
           </div>
           <div className="page-head-actions">
             <button
@@ -3077,6 +3661,13 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 {t('crm.workspace.table.clearAllButton')}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setShowManageFields(true)}
+              className="tb-icon-btn"
+            >
+              {t('crm.workspace.table.manageFieldsButton')}
+            </button>
             <button
               type="button"
               onClick={() => setShowAddField(true)}
@@ -3694,9 +4285,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                               [record.id]: !prev[record.id],
                                             }))
                                           }
-                                          className="hidden shrink-0 text-[11px] text-slate-500 hover:text-slate-800 group-hover/row:inline-block"
+                                          className={`lv-task-toggle${expanded ? ' expanded' : ''}`}
+                                          aria-expanded={expanded}
                                         >
-                                          {expanded ? '▼' : '▶'}
+                                          <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden>
+                                            <path d="M4.5 3L7.5 6L4.5 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                          </svg>
                                         </button>
                                         <button
                                           type="button"
@@ -3705,73 +4299,33 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                             e.stopPropagation();
                                             setActiveRecord(record);
                                           }}
-                                          title="Open"
-                                          className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-[#b8c6d8] text-[10px] leading-none text-slate-700"
+                                          title={t('crm.workspace.table.openRow')}
+                                          className="lv-task-toggle"
                                         >
-                                          ↗
+                                          <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden>
+                                            <path d="M3.5 8.5L8.5 3.5M4.5 3.5H8.5V7.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                          </svg>
                                         </button>
                                         <div className="relative shrink-0">
                                           <button
                                             type="button"
                                             onMouseDown={(e) => e.stopPropagation()}
-                                            onClick={() =>
-                                              setRowMenuRecordId((prev) => (prev === record.id ? null : record.id))
-                                            }
+                                            onClick={(e) => {
+                                              if (rowMenuRecordId === record.id) {
+                                                setRowMenuRecordId(null);
+                                                setRowMenuPos(null);
+                                                return;
+                                              }
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              setRowMenuRecordId(record.id);
+                                              setRowMenuPos({ top: rect.bottom + 4, left: rect.left, showPushToBoard: true });
+                                            }}
                                             className={`h-6 w-6 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 ${
                                               rowMenuRecordId === record.id ? 'inline-block' : 'hidden group-hover/row:inline-block'
                                             }`}
                                           >
                                             ⋯
                                           </button>
-                                          {rowMenuRecordId === record.id && (
-                                            <div className="absolute right-0 top-full mt-1 z-[300] w-44 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5">
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  void duplicateRow(record);
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
-                                              >
-                                                {t('crm.workspace.table.duplicateRow')}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  setPushBoardRecordIds([record.id]);
-                                                  setPushBoardOpen(true);
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
-                                              >
-                                                {t('crm.workspace.table.pushToBoardRow')}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  setHiddenRows((prev) => ({ ...prev, [record.id]: true }));
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
-                                              >
-                                                {t('crm.workspace.table.hideRow')}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  void deleteRow(record.id);
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-[#9a1f31] hover:bg-[#fbecef]"
-                                              >
-                                                {t('crm.workspace.table.deleteRow')}
-                                              </button>
-                                            </div>
-                                          )}
                                         </div>
                                         </div>
                                         <div className="mt-1 basis-full space-y-1 md:hidden">
@@ -3809,16 +4363,19 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                       <td colSpan={orderedColumns.length + 1} className="px-3 py-2">
                                         <div className="mt-2 rounded-2xl border border-[var(--line-2)] bg-[var(--bg-muted)] p-3 pl-5 relative">
                                           <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-[var(--fg-4)]" />
+                                          <span className="lv-drawer-title mb-2 block">
+                                            {t('crm.workspace.table.subitemsTitle')} · {subitems.length}
+                                          </span>
                                           <div className="overflow-x-auto">
-                                          <table className="w-full min-w-[760px] text-xs [&_tbody>tr>td]:text-center [&_tbody>tr>td]:align-middle [&_thead>tr>th]:text-center [&_tbody>tr>td_select]:text-center [&_tbody>tr>td_input]:text-center [&_tbody>tr>td_button]:text-center">
-                                            <thead className="bg-[var(--bg-muted)]">
-                                              <tr className="text-[10px] uppercase tracking-wide text-slate-500">
-                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColTask')}</th>
-                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColOwner')}</th>
-                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColStatus')}</th>
-                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColPriority')}</th>
-                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColDue')}</th>
-                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColActions')}</th>
+                                          <table className="lv-task-table">
+                                            <thead>
+                                              <tr>
+                                                <th>{t('crm.workspace.table.subitemColTask')}</th>
+                                                <th>{t('crm.workspace.table.subitemColOwner')}</th>
+                                                <th>{t('crm.workspace.table.subitemColStatus')}</th>
+                                                <th>{t('crm.workspace.table.subitemColPriority')}</th>
+                                                <th>{t('crm.workspace.table.subitemColDue')}</th>
+                                                <th style={{ width: 44 }} />
                                               </tr>
                                             </thead>
                                             <tbody>
@@ -3826,124 +4383,74 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                 const subStatus = String(subitem.values?.status || 'todo');
                                                 const subPriority = String(subitem.values?.priority || 'normal');
                                                 return (
-                                                  <tr key={subitem.id} className="border-t border-slate-100">
-                                                    <td className="px-2 py-1.5">
+                                                  <tr key={subitem.id}>
+                                                    <td>
                                                       <input
                                                         defaultValue={String(subitem.values?.name || '')}
                                                         onBlur={(e) => void updateSubitem(record, subitem.id, 'name', e.target.value)}
                                                         placeholder={t('crm.workspace.table.subitemTitlePlaceholder')}
-                                                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700"
+                                                        className="lv-task-input"
                                                       />
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <div className="relative" data-workspace-inline-popover>
                                                         {(() => {
                                                           const selectedOwners = parseOwnerValues(subitem.values?.owner);
-                                                          const menuOpen =
-                                                            activeSubitemOwnerMenu?.recordId === record.id &&
-                                                            activeSubitemOwnerMenu?.subitemId === subitem.id;
                                                           return (
                                                             <>
                                                               <button
                                                                 type="button"
-                                                                onClick={() =>
-                                                                  setActiveSubitemOwnerMenu((prev) =>
-                                                                    prev?.recordId === record.id &&
-                                                                    prev?.subitemId === subitem.id
-                                                                      ? null
-                                                                      : { recordId: record.id, subitemId: subitem.id },
-                                                                  )
+                                                                onClick={(e) =>
+                                                                  setActiveSubitemOwnerMenu((prev) => {
+                                                                    if (prev?.recordId === record.id && prev?.subitemId === subitem.id) return null;
+                                                                    setSubitemOwnerSearch('');
+                                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                                    return {
+                                                                      recordId: record.id,
+                                                                      subitemId: subitem.id,
+                                                                      pos: { top: rect.bottom + 4, left: rect.left },
+                                                                      draft: selectedOwners,
+                                                                    };
+                                                                  })
                                                                 }
-                                                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs"
+                                                                className="lv-task-cell"
                                                               >
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                  <div className="flex items-center justify-center gap-1.5 min-w-0">
-                                                                    {selectedOwners.length ? (
-                                                                      <>
-                                                                        {selectedOwners.slice(0, 3).map((name) => (
-                                                                          <span
-                                                                            key={name}
-                                                                            title={name}
-                                                                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-700"
-                                                                          >
-                                                                            {getInitials(name)}
-                                                                          </span>
-                                                                        ))}
-                                                                        {selectedOwners.length > 3 && (
-                                                                          <span className="text-[10px] text-slate-500">+{selectedOwners.length - 3}</span>
-                                                                        )}
-                                                                      </>
-                                                                    ) : (
-                                                                      <span className="truncate text-slate-500">{t('crm.workspace.table.selectOwner')}</span>
+                                                                {selectedOwners.length ? (
+                                                                  <>
+                                                                    {selectedOwners.slice(0, 3).map((name) => (
+                                                                      <span
+                                                                        key={name}
+                                                                        title={name}
+                                                                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--bg-soft)] text-[10px] font-semibold text-[var(--ink)]"
+                                                                      >
+                                                                        {getInitials(name)}
+                                                                      </span>
+                                                                    ))}
+                                                                    {selectedOwners.length > 3 && (
+                                                                      <span className="text-[10px] text-[var(--fg-3)]">+{selectedOwners.length - 3}</span>
                                                                     )}
-                                                                  </div>
-                                                                  <span className="text-[10px] text-slate-500">{selectedOwners.length}</span>
-                                                                </div>
+                                                                  </>
+                                                                ) : (
+                                                                  <span className="truncate text-[var(--fg-3)]">{t('crm.workspace.table.selectOwner')}</span>
+                                                                )}
                                                               </button>
-                                                              {menuOpen && (
-                                                                <div className="absolute z-[220] mt-1 w-72 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white shadow-2xl ring-1 ring-slate-100 p-2">
-                                                                  {staffByDepartment.map((dept) => {
-                                                                    const deptNames = dept.users.map((u) => u.fullName);
-                                                                    const deptSelected =
-                                                                      deptNames.length > 0 &&
-                                                                      deptNames.every((name) => selectedOwners.includes(name));
-                                                                    return (
-                                                                      <div key={dept.department} className="mb-2 last:mb-0">
-                                                                        <button
-                                                                          type="button"
-                                                                          onClick={() =>
-                                                                            void toggleSubitemDepartment(record, subitem.id, dept.users)
-                                                                          }
-                                                                          className={`w-full text-center rounded-lg px-2 py-1 text-[11px] font-semibold ${
-                                                                            deptSelected
-                                                                              ? 'bg-[var(--bg-soft)] text-[var(--ink)]'
-                                                                              : 'text-slate-600 hover:bg-slate-50'
-                                                                          }`}
-                                                                        >
-                                                                          {dept.department}
-                                                                        </button>
-                                                                        <div className="mt-1 space-y-1">
-                                                                          {dept.users.map((user) => {
-                                                                            const selected = selectedOwners.includes(user.fullName);
-                                                                            return (
-                                                                              <label
-                                                                                key={user.id}
-                                                                                className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-50"
-                                                                              >
-                                                                                <input
-                                                                                  type="checkbox"
-                                                                                  checked={selected}
-                                                                                  onChange={() =>
-                                                                                    void toggleSubitemOwner(record, subitem.id, user.fullName)
-                                                                                  }
-                                                                                />
-                                                                                <span className="text-xs text-slate-700">{user.fullName}</span>
-                                                                              </label>
-                                                                            );
-                                                                          })}
-                                                                        </div>
-                                                                      </div>
-                                                                    );
-                                                                  })}
-                                                                </div>
-                                                              )}
                                                             </>
                                                           );
                                                         })()}
                                                       </div>
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <select
                                                         value={subStatus}
                                                         onChange={(e) => void updateSubitem(record, subitem.id, 'status', e.target.value)}
-                                                        className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${getSubitemStatusColor(subStatus)} font-medium`}
+                                                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] ${getSubitemStatusColor(subStatus)} font-medium`}
                                                       >
                                                         {subitemStatusOptions.map((opt) => (
                                                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                                                         ))}
                                                       </select>
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <div className="relative" data-workspace-inline-popover>
                                                         <button
                                                           type="button"
@@ -3955,14 +4462,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                                 : { recordId: record.id, subitemId: subitem.id },
                                                             )
                                                           }
-                                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-medium text-slate-800"
+                                                          className="lv-task-cell"
                                                         >
-                                                          <div className="flex items-center justify-center gap-2">
-                                                            <span className="truncate">
-                                                              {subitemPriorityOptions.find((o) => o.value === subPriority)?.label || subPriority}
-                                                            </span>
-                                                            <span className="text-slate-400">▾</span>
-                                                          </div>
+                                                          <span className="truncate">
+                                                            {subitemPriorityOptions.find((o) => o.value === subPriority)?.label || subPriority}
+                                                          </span>
+                                                          <span className="text-[var(--fg-3)]">▾</span>
                                                         </button>
                                                         {activeSubitemPriorityMenu?.recordId === record.id &&
                                                           activeSubitemPriorityMenu?.subitemId === subitem.id && (
@@ -3991,20 +4496,20 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                           )}
                                                       </div>
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <input
                                                         type="date"
                                                         lang={i18n.language}
                                                         value={String(subitem.values?.due_date || '')}
                                                         onChange={(e) => void updateSubitem(record, subitem.id, 'due_date', e.target.value)}
-                                                        className="w-full min-w-[132px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-center text-xs leading-5"
+                                                        className="w-full min-w-[110px] border-0 bg-transparent px-0 text-xs leading-5 text-[var(--fg-2)] outline-0"
                                                       />
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <button
                                                         type="button"
                                                         onClick={() => void deleteSubitem(record, subitem.id)}
-                                                        className="mx-auto block text-[11px] text-[#9a1f31] hover:text-[#9a1f31] hover:bg-[#fbecef] rounded"
+                                                        className="lv-task-action danger"
                                                       >
                                                         {t('crm.workspace.table.bulkDelete')}
                                                       </button>
@@ -4012,12 +4517,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   </tr>
                                                 );
                                               })}
-                                              <tr className="border-t border-slate-100">
-                                                <td colSpan={6} className="px-2 py-1.5">
+                                              <tr>
+                                                <td colSpan={6}>
                                                   <button
                                                     type="button"
                                                     onClick={() => void addSubitem(record)}
-                                                    className="mx-auto block text-xs text-[var(--ink)] hover:underline"
+                                                    className="lv-task-action"
                                                   >
                                                     {t('crm.workspace.table.addSubitem')}
                                                   </button>
@@ -4589,9 +5094,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                               [record.id]: !prev[record.id],
                                             }))
                                           }
-                                          className="hidden shrink-0 text-[11px] text-slate-500 hover:text-slate-800 group-hover/row:inline-block"
+                                          className={`lv-task-toggle${expanded ? ' expanded' : ''}`}
+                                          aria-expanded={expanded}
                                         >
-                                          {expanded ? '▼' : '▶'}
+                                          <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden>
+                                            <path d="M4.5 3L7.5 6L4.5 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                          </svg>
                                         </button>
                                         {!mondayBoardUi && (
                                         <button
@@ -4601,10 +5109,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                             e.stopPropagation();
                                             setActiveRecord(record);
                                           }}
-                                          title="Open"
-                                          className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-[#b8c6d8] text-[10px] leading-none text-slate-700"
+                                          title={t('crm.workspace.table.openRow')}
+                                          className="lv-task-toggle"
                                         >
-                                          ↗
+                                          <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden>
+                                            <path d="M3.5 8.5L8.5 3.5M4.5 3.5H8.5V7.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                          </svg>
                                         </button>
                                         )}
                                         {isBoardTable &&
@@ -4626,52 +5136,22 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                           <button
                                             type="button"
                                             onMouseDown={(e) => e.stopPropagation()}
-                                            onClick={() =>
-                                              setRowMenuRecordId((prev) => (prev === record.id ? null : record.id))
-                                            }
+                                            onClick={(e) => {
+                                              if (rowMenuRecordId === record.id) {
+                                                setRowMenuRecordId(null);
+                                                setRowMenuPos(null);
+                                                return;
+                                              }
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              setRowMenuRecordId(record.id);
+                                              setRowMenuPos({ top: rect.bottom + 4, left: rect.left, showPushToBoard: false });
+                                            }}
                                             className={`h-6 w-6 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 ${
                                               rowMenuRecordId === record.id ? 'inline-block' : 'hidden group-hover/row:inline-block'
                                             }`}
                                           >
                                             ⋯
                                           </button>
-                                          {rowMenuRecordId === record.id && (
-                                            <div className="absolute right-0 top-full mt-1 z-[300] w-44 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5">
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  void duplicateRow(record);
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
-                                              >
-                                                {t('crm.workspace.table.duplicateRow')}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  setHiddenRows((prev) => ({ ...prev, [record.id]: true }));
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
-                                              >
-                                                {t('crm.workspace.table.hideRow')}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={() => {
-                                                  void deleteRow(record.id);
-                                                  setRowMenuRecordId(null);
-                                                }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-[#9a1f31] hover:bg-[#fbecef]"
-                                              >
-                                                {t('crm.workspace.table.deleteRow')}
-                                              </button>
-                                            </div>
-                                          )}
                                         </div>
                                         </div>
                                         <div className="mt-1 basis-full space-y-1 md:hidden">
@@ -4709,28 +5189,19 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                       <td colSpan={groupColumns.length + 1} className="px-3 py-2">
                                         <div className="mt-2 rounded-2xl border border-[var(--line-2)] bg-[var(--bg-muted)] p-3 pl-5 relative">
                                           <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-[var(--fg-4)]" />
+                                          <span className="lv-drawer-title mb-2 block">
+                                            {t('crm.workspace.table.subitemsTitle')} · {subitems.length}
+                                          </span>
                                           <div className="overflow-x-auto">
-                                          <table className="w-full min-w-[760px] text-xs [&_tbody>tr>td]:text-center [&_tbody>tr>td]:align-middle [&_thead>tr>th]:text-center [&_tbody>tr>td_select]:text-center [&_tbody>tr>td_input]:text-center [&_tbody>tr>td_button]:text-center">
-                                            <thead className="bg-[var(--bg-muted)]">
-                                              <tr className="text-[10px] uppercase tracking-wide text-slate-500">
-                                                <th className="px-2 py-2">
-                                                  {t('crm.workspace.table.subitemColTask')}
-                                                </th>
-                                                <th className="px-2 py-2">
-                                                  {t('crm.workspace.table.subitemColOwner')}
-                                                </th>
-                                                <th className="px-2 py-2">
-                                                  {t('crm.workspace.table.subitemColStatus')}
-                                                </th>
-                                                <th className="px-2 py-2">
-                                                  {t('crm.workspace.table.subitemColPriority')}
-                                                </th>
-                                                <th className="px-2 py-2">
-                                                  {t('crm.workspace.table.subitemColDue')}
-                                                </th>
-                                                <th className="px-2 py-2">
-                                                  {t('crm.workspace.table.subitemColActions')}
-                                                </th>
+                                          <table className="lv-task-table">
+                                            <thead>
+                                              <tr>
+                                                <th>{t('crm.workspace.table.subitemColTask')}</th>
+                                                <th>{t('crm.workspace.table.subitemColOwner')}</th>
+                                                <th>{t('crm.workspace.table.subitemColStatus')}</th>
+                                                <th>{t('crm.workspace.table.subitemColPriority')}</th>
+                                                <th>{t('crm.workspace.table.subitemColDue')}</th>
+                                                <th style={{ width: 44 }} />
                                               </tr>
                                             </thead>
                                             <tbody>
@@ -4738,125 +5209,75 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                 const subStatus = String(subitem.values?.status || 'todo');
                                                 const subPriority = String(subitem.values?.priority || 'normal');
                                                 return (
-                                                  <tr key={subitem.id} className="border-t border-slate-100">
-                                                    <td className="px-2 py-1.5">
+                                                  <tr key={subitem.id}>
+                                                    <td>
                                                       <input
                                                         defaultValue={String(subitem.values?.name || '')}
                                                         onBlur={(e) =>
                                                           void updateSubitem(record, subitem.id, 'name', e.target.value)
                                                         }
                                                         placeholder={t('crm.workspace.table.subitemTitlePlaceholder')}
-                                                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700"
+                                                        className="lv-task-input"
                                                       />
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <div className="relative" data-workspace-inline-popover>
                                                         {(() => {
                                                           const selectedOwners = parseOwnerValues(subitem.values?.owner);
-                                                          const menuOpen =
-                                                            activeSubitemOwnerMenu?.recordId === record.id &&
-                                                            activeSubitemOwnerMenu?.subitemId === subitem.id;
                                                           return (
                                                             <>
                                                               <button
                                                                 type="button"
-                                                                onClick={() =>
-                                                                  setActiveSubitemOwnerMenu((prev) =>
-                                                                    prev?.recordId === record.id &&
-                                                                    prev?.subitemId === subitem.id
-                                                                      ? null
-                                                                      : { recordId: record.id, subitemId: subitem.id },
-                                                                  )
+                                                                onClick={(e) =>
+                                                                  setActiveSubitemOwnerMenu((prev) => {
+                                                                    if (prev?.recordId === record.id && prev?.subitemId === subitem.id) return null;
+                                                                    setSubitemOwnerSearch('');
+                                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                                    return {
+                                                                      recordId: record.id,
+                                                                      subitemId: subitem.id,
+                                                                      pos: { top: rect.bottom + 4, left: rect.left },
+                                                                      draft: selectedOwners,
+                                                                    };
+                                                                  })
                                                                 }
-                                                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs"
+                                                                className="lv-task-cell"
                                                               >
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                  <div className="flex items-center justify-center gap-1.5 min-w-0">
-                                                                    {selectedOwners.length ? (
-                                                                      <>
-                                                                        {selectedOwners.slice(0, 3).map((name) => (
-                                                                          <span
-                                                                            key={name}
-                                                                            title={name}
-                                                                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-700"
-                                                                          >
-                                                                            {getInitials(name)}
-                                                                          </span>
-                                                                        ))}
-                                                                        {selectedOwners.length > 3 && (
-                                                                          <span className="text-[10px] text-slate-500">
-                                                                            +{selectedOwners.length - 3}
-                                                                          </span>
-                                                                        )}
-                                                                      </>
-                                                                    ) : (
-                                                                      <span className="truncate text-slate-500">
-                                                                        {t('crm.workspace.table.selectOwner')}
+                                                                {selectedOwners.length ? (
+                                                                  <>
+                                                                    {selectedOwners.slice(0, 3).map((name) => (
+                                                                      <span
+                                                                        key={name}
+                                                                        title={name}
+                                                                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--bg-soft)] text-[10px] font-semibold text-[var(--ink)]"
+                                                                      >
+                                                                        {getInitials(name)}
+                                                                      </span>
+                                                                    ))}
+                                                                    {selectedOwners.length > 3 && (
+                                                                      <span className="text-[10px] text-[var(--fg-3)]">
+                                                                        +{selectedOwners.length - 3}
                                                                       </span>
                                                                     )}
-                                                                  </div>
-                                                                  <span className="text-[10px] text-slate-500">{selectedOwners.length}</span>
-                                                                </div>
+                                                                  </>
+                                                                ) : (
+                                                                  <span className="truncate text-[var(--fg-3)]">
+                                                                    {t('crm.workspace.table.selectOwner')}
+                                                                  </span>
+                                                                )}
                                                               </button>
-                                                              {menuOpen && (
-                                                                <div className="absolute z-[220] mt-1 w-72 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white shadow-2xl ring-1 ring-slate-100 p-2">
-                                                                  {staffByDepartment.map((group) => {
-                                                                    const groupNames = group.users.map((u) => u.fullName);
-                                                                    const groupSelected =
-                                                                      groupNames.length > 0 &&
-                                                                      groupNames.every((name) => selectedOwners.includes(name));
-                                                                    return (
-                                                                      <div key={group.department} className="mb-2 last:mb-0">
-                                                                        <button
-                                                                          type="button"
-                                                                          onClick={() =>
-                                                                            void toggleSubitemDepartment(record, subitem.id, group.users)
-                                                                          }
-                                                                          className={`w-full text-center rounded-lg px-2 py-1 text-[11px] font-semibold ${
-                                                                            groupSelected
-                                                                              ? 'bg-[var(--bg-soft)] text-[var(--ink)]'
-                                                                              : 'text-slate-600 hover:bg-slate-50'
-                                                                          }`}
-                                                                        >
-                                                                          {group.department}
-                                                                        </button>
-                                                                        <div className="mt-1 space-y-1">
-                                                                          {group.users.map((user) => {
-                                                                            const selected = selectedOwners.includes(user.fullName);
-                                                                            return (
-                                                                              <label
-                                                                                key={user.id}
-                                                                                className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-50"
-                                                                              >
-                                                                                <input
-                                                                                  type="checkbox"
-                                                                                  checked={selected}
-                                                                                  onChange={() =>
-                                                                                    void toggleSubitemOwner(record, subitem.id, user.fullName)
-                                                                                  }
-                                                                                />
-                                                                                <span className="text-xs text-slate-700">{user.fullName}</span>
-                                                                              </label>
-                                                                            );
-                                                                          })}
-                                                                        </div>
-                                                                      </div>
-                                                                    );
-                                                                  })}
-                                                                </div>
-                                                              )}
                                                             </>
                                                           );
                                                         })()}
                                                       </div>
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <select
                                                         value={subStatus}
                                                         onChange={(e) =>
                                                           void updateSubitem(record, subitem.id, 'status', e.target.value)
                                                         }
-                                                        className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${getSubitemStatusColor(subStatus)} font-medium`}
+                                                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] ${getSubitemStatusColor(subStatus)} font-medium`}
                                                       >
                                                         {subitemStatusOptions.map((opt) => (
                                                           <option key={opt.value} value={opt.value}>
@@ -4865,7 +5286,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                         ))}
                                                       </select>
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <div className="relative" data-workspace-inline-popover>
                                                         <button
                                                           type="button"
@@ -4877,15 +5298,13 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                                 : { recordId: record.id, subitemId: subitem.id },
                                                             )
                                                           }
-                                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-medium text-slate-800"
+                                                          className="lv-task-cell"
                                                         >
-                                                          <div className="flex items-center justify-center gap-2">
-                                                            <span className="truncate">
-                                                              {subitemPriorityOptions.find((o) => o.value === subPriority)?.label ||
-                                                                subPriority}
-                                                            </span>
-                                                            <span className="text-slate-400">▾</span>
-                                                          </div>
+                                                          <span className="truncate">
+                                                            {subitemPriorityOptions.find((o) => o.value === subPriority)?.label ||
+                                                              subPriority}
+                                                          </span>
+                                                          <span className="text-[var(--fg-3)]">▾</span>
                                                         </button>
                                                         {activeSubitemPriorityMenu?.recordId === record.id &&
                                                           activeSubitemPriorityMenu?.subitemId === subitem.id && (
@@ -4914,7 +5333,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                           )}
                                                       </div>
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <input
                                                         type="date"
                                                         lang={i18n.language}
@@ -4922,14 +5341,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                         onChange={(e) =>
                                                           void updateSubitem(record, subitem.id, 'due_date', e.target.value)
                                                         }
-                                                        className="w-full min-w-[132px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-center text-xs leading-5"
+                                                        className="w-full min-w-[110px] border-0 bg-transparent px-0 text-xs leading-5 text-[var(--fg-2)] outline-0"
                                                       />
                                                     </td>
-                                                    <td className="px-2 py-1.5">
+                                                    <td>
                                                       <button
                                                         type="button"
                                                         onClick={() => void deleteSubitem(record, subitem.id)}
-                                                        className="mx-auto block text-[11px] text-[#9a1f31] hover:text-[#9a1f31] hover:bg-[#fbecef] rounded"
+                                                        className="lv-task-action danger"
                                                       >
                                                         {t('crm.workspace.table.bulkDelete')}
                                                       </button>
@@ -4937,12 +5356,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   </tr>
                                                 );
                                               })}
-                                              <tr className="border-t border-slate-100">
-                                                <td colSpan={6} className="px-2 py-1.5">
+                                              <tr>
+                                                <td colSpan={6}>
                                                   <button
                                                     type="button"
                                                     onClick={() => void addSubitem(record)}
-                                                    className="mx-auto block text-xs text-[var(--ink)] hover:underline"
+                                                    className="lv-task-action"
                                                   >
                                                     {t('crm.workspace.table.addSubitem')}
                                                   </button>
@@ -5270,12 +5689,9 @@ export const WorkspaceTableViewPage: React.FC = () => {
           titleField={titleField}
           statusField={statusField ?? undefined}
           staffByDepartment={staffByDepartment}
-          commentsByRecord={commentsByRecord}
-          setCommentsByRecord={setCommentsByRecord}
+          staff={staff}
           activityByRecord={activityByRecord}
           pushActivity={pushActivity}
-          commentDraft={commentDraft}
-          setCommentDraft={setCommentDraft}
           saveRecord={saveRecord}
           savingRecordId={savingRecordId}
           showAddFieldButton
@@ -5322,22 +5738,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 </div>
                 <div className="ws-field">
                   <label>{t('crm.workspace.table.fieldTypeGroupBasic')}</label>
-                <select
-                  value={editFieldType}
-                  onChange={(e) => setEditFieldType(e.target.value as CustomObjectFieldType | 'fixed')}
-                  className="ws-input"
-                >
-                  <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
-                    {FIELD_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label={t('crm.workspace.table.fieldTypeGroupOther')}>
-                    <option value="fixed">{t('crm.workspace.table.fieldTypeReadonly')}</option>
-                  </optgroup>
-                </select>
+                  <WsFieldTypeGrid
+                    value={editFieldType}
+                    onChange={(v) => setEditFieldType(v as CustomObjectFieldType | 'fixed')}
+                    options={[
+                      ...FIELD_TYPES.map((type) => ({ value: type, label: t(`crm.workspace.table.fieldTypes.${type}`) })),
+                      { value: 'fixed', label: t('crm.workspace.table.fieldTypeReadonly') },
+                    ]}
+                  />
                 </div>
                 {editFieldType === 'text' && (
                   <div className="ws-field">
@@ -5360,6 +5768,71 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     </select>
                   </div>
                 )}
+                {editFieldType === 'ai' && (
+                  <div className="ws-ai-config">
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.table.aiColumnAgent')}</label>
+                      <select
+                        value={editFieldAiAgentId}
+                        onChange={(e) => setEditFieldAiAgentId(e.target.value)}
+                        className="ws-input"
+                      >
+                        <option value="">{t('crm.workspace.table.aiColumnAgentPick')}</option>
+                        {(aiRoster || []).map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} · {a.roleShortTitle}
+                          </option>
+                        ))}
+                      </select>
+                      {aiRoster !== null && aiRoster.length === 0 ? (
+                        <p className="ws-note">{t('crm.workspace.table.aiColumnNoEligible')}</p>
+                      ) : null}
+                    </div>
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.table.aiColumnPresets')}</label>
+                      <div className="ws-preset-row">
+                        {AI_COLUMN_PRESETS.map((preset) => (
+                          <button
+                            key={preset.key}
+                            type="button"
+                            className="tb-icon-btn"
+                            onClick={() => {
+                              setEditFieldAiPrompt(t(preset.promptKey));
+                              setEditFieldAiMode(preset.mode);
+                            }}
+                          >
+                            {t(preset.labelKey)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.table.aiColumnPrompt')}</label>
+                      <textarea
+                        value={editFieldAiPrompt}
+                        onChange={(e) => setEditFieldAiPrompt(e.target.value)}
+                        placeholder={t('crm.workspace.table.aiColumnPromptPlaceholder')}
+                        className="ws-input ws-ta"
+                        rows={3}
+                      />
+                      {editFieldAiMode === 'person' ? (
+                        <p className="ws-note">{t('crm.workspace.table.aiColumnPersonModeHint')}</p>
+                      ) : null}
+                    </div>
+                    <p className="ws-note">{t('crm.workspace.table.aiColumnHint')}</p>
+                    <div className="ws-field">
+                      <button
+                        type="button"
+                        className="tb-icon-btn"
+                        disabled={aiRefreshAllBusy || !editingField}
+                        onClick={() => editingField && void refreshAiColumnAllRows(editingField)}
+                      >
+                        {aiRefreshAllBusy ? t('crm.workspace.table.aiRefreshAllRunning') : t('crm.workspace.table.aiRefreshAllButton')}
+                      </button>
+                      {aiRefreshAllResult ? <p className="ws-note">{aiRefreshAllResult}</p> : null}
+                    </div>
+                  </div>
+                )}
                 {(editFieldType === 'status' ||
                   editFieldType === 'select' ||
                   editFieldType === 'multiselect') && (
@@ -5370,7 +5843,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     className="ws-input"
                   />
                 )}
-                {(isDataTable || isBoardTable) && (
+                {(isDataTable || (isBoardTable && editBindMode === 'off')) && (
                   <div className="ws-check" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
                     <div className="ws-k" style={{ marginBottom: 0 }}>
                       {t('crm.workspace.table.columnImportKeySection')}
@@ -5449,25 +5922,17 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     )}
                     {editBindMode === 'pick_from_data' && (
                       <>
-                        <select
-                          value={editBindDataObjectId}
-                          onChange={(e) => setEditBindDataObjectId(e.target.value)}
-                          className="ws-input" style={{ width: '100%' }}
-                        >
-                          <option value="">{t('crm.workspace.table.columnBindingDataTable')}</option>
-                          {dataTablesInArea.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="ws-note" style={{ fontWeight: 500 }}>
+                          {t('crm.workspace.table.columnBindingDataTable')}
+                        </label>
+                        {renderDataTableMultiPicker()}
                         <label className="ws-note" style={{ fontWeight: 500 }}>
                           {t('crm.workspace.table.columnBindingPickFromDataField')}
                         </label>
                         <select
                           value={editBindPickDataField}
                           onChange={(e) => setEditBindPickDataField(e.target.value)}
-                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          disabled={!editBindDataObjectIds.length || dataBindingFieldKeys.length === 0}
                           className="ws-input" style={{ width: '100%' }}
                         >
                           <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
@@ -5480,6 +5945,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                         <p className="ws-note">
                           {t('crm.workspace.table.columnBindingHintPickFromData')}
                         </p>
+                        {renderBindingPreview()}
                       </>
                     )}
                     {editBindMode === 'lookup_by_key' && (
@@ -5550,18 +6016,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     )}
                     {editBindMode === 'rollup' && (
                       <>
-                        <select
-                          value={editBindDataObjectId}
-                          onChange={(e) => setEditBindDataObjectId(e.target.value)}
-                          className="ws-input" style={{ width: '100%' }}
-                        >
-                          <option value="">{t('crm.workspace.table.columnBindingDataTable')}</option>
-                          {dataTablesInArea.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="ws-note" style={{ fontWeight: 500 }}>
+                          {t('crm.workspace.table.columnBindingDataTable')}
+                        </label>
+                        {renderDataTableMultiPicker()}
                         <label className="ws-note" style={{ fontWeight: 500 }}>
                           {t('crm.workspace.table.columnBindingBoardKey')}
                         </label>
@@ -5583,7 +6041,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                         <select
                           value={editBindGroupBy}
                           onChange={(e) => setEditBindGroupBy(e.target.value)}
-                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          disabled={!editBindDataObjectIds.length || dataBindingFieldKeys.length === 0}
                           className="ws-input" style={{ width: '100%' }}
                         >
                           <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
@@ -5599,7 +6057,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                         <select
                           value={editBindValueField}
                           onChange={(e) => setEditBindValueField(e.target.value)}
-                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          disabled={!editBindDataObjectIds.length || dataBindingFieldKeys.length === 0}
                           className="ws-input" style={{ width: '100%' }}
                         >
                           <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
@@ -5627,6 +6085,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                         <p className="ws-note">
                           {t('crm.workspace.table.columnBindingHintRollup')}
                         </p>
+                        {renderBindingPreview()}
                       </>
                     )}
                   </div>
@@ -5652,6 +6111,25 @@ export const WorkspaceTableViewPage: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {showManageFields && (
+          <WorkspaceFieldsManagerDrawer
+            objectId={objectId}
+            fields={fields}
+            onClose={() => setShowManageFields(false)}
+            onChanged={() => void reloadAll()}
+            onEditField={(field) => {
+              setShowManageFields(false);
+              openEditColumn(field);
+            }}
+            onAddField={() => {
+              setShowManageFields(false);
+              setShowAddField(true);
+            }}
+            onDuplicateField={(field) => void duplicateColumn(field)}
+            onDeleteField={(field) => void deleteColumn(field)}
+          />
         )}
 
         {showAddField && (
@@ -5711,27 +6189,17 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 </div>
                 <div className="ws-field">
                   <label>{t('crm.workspace.table.fieldTypeGroupBasic')}</label>
-                  <select
+                  <WsFieldTypeGrid
                     value={newFieldType}
-                    onChange={(e) => setNewFieldType(e.target.value)}
-                    className="ws-input"
-                  >
-                    <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
-                      {FIELD_TYPES.map((ft) => (
-                        <option key={ft} value={ft}>
-                          {ft}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={t('crm.workspace.table.fieldTypeGroupCrm')}>
-                      <option value="crm_lead">{t('crm.workspace.table.fieldTypeCrmLead')}</option>
-                      <option value="crm_project">{t('crm.workspace.table.fieldTypeCrmProject')}</option>
-                      <option value="crm_company">{t('crm.workspace.table.fieldTypeCrmCompany')}</option>
-                    </optgroup>
-                    <optgroup label={t('crm.workspace.table.fieldTypeGroupOther')}>
-                      <option value="readonly">{t('crm.workspace.table.fieldTypeReadonly')}</option>
-                    </optgroup>
-                  </select>
+                    onChange={setNewFieldType}
+                    options={[
+                      ...FIELD_TYPES.map((ft) => ({ value: ft, label: t(`crm.workspace.table.fieldTypes.${ft}`) })),
+                      { value: 'crm_lead', label: t('crm.workspace.table.fieldTypeCrmLead') },
+                      { value: 'crm_project', label: t('crm.workspace.table.fieldTypeCrmProject') },
+                      { value: 'crm_company', label: t('crm.workspace.table.fieldTypeCrmCompany') },
+                      { value: 'readonly', label: t('crm.workspace.table.fieldTypeReadonly') },
+                    ]}
+                  />
                 </div>
                 {(newFieldType === 'status' ||
                   newFieldType === 'select' ||
@@ -5744,6 +6212,60 @@ export const WorkspaceTableViewPage: React.FC = () => {
                       placeholder={t('crm.workspace.table.statusOptionsPlaceholder')}
                       className="ws-input"
                     />
+                  </div>
+                )}
+                {newFieldType === 'ai' && (
+                  <div className="ws-ai-config">
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.table.aiColumnAgent')}</label>
+                      <select
+                        value={newFieldAiAgentId}
+                        onChange={(e) => setNewFieldAiAgentId(e.target.value)}
+                        className="ws-input"
+                      >
+                        <option value="">{t('crm.workspace.table.aiColumnAgentPick')}</option>
+                        {(aiRoster || []).map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} · {a.roleShortTitle}
+                          </option>
+                        ))}
+                      </select>
+                      {aiRoster !== null && aiRoster.length === 0 ? (
+                        <p className="ws-note">{t('crm.workspace.table.aiColumnNoEligible')}</p>
+                      ) : null}
+                    </div>
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.table.aiColumnPresets')}</label>
+                      <div className="ws-preset-row">
+                        {AI_COLUMN_PRESETS.map((preset) => (
+                          <button
+                            key={preset.key}
+                            type="button"
+                            className="tb-icon-btn"
+                            onClick={() => {
+                              setNewFieldAiPrompt(t(preset.promptKey));
+                              setNewFieldAiMode(preset.mode);
+                            }}
+                          >
+                            {t(preset.labelKey)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.table.aiColumnPrompt')}</label>
+                      <textarea
+                        value={newFieldAiPrompt}
+                        onChange={(e) => setNewFieldAiPrompt(e.target.value)}
+                        placeholder={t('crm.workspace.table.aiColumnPromptPlaceholder')}
+                        className="ws-input ws-ta"
+                        rows={3}
+                      />
+                      {newFieldAiMode === 'person' ? (
+                        <p className="ws-note">{t('crm.workspace.table.aiColumnPersonModeHint')}</p>
+                      ) : null}
+                    </div>
+                    <p className="ws-note">{t('crm.workspace.table.aiColumnHint')}</p>
                   </div>
                 )}
                 {(isDataTable || isBoardTable) && (

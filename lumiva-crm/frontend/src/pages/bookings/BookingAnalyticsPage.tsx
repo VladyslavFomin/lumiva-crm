@@ -134,7 +134,7 @@ export const BookingAnalyticsPage: React.FC = () => {
           <div className="bk-kpi-grid" style={{ margin: '16px 0' }}>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.total')}</div><div className="v">{summary.totalReservations}</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.occupancy')}</div><div className="v">{summary.occupancyRate}%</div></div>
-            <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.avgCheck')}</div><div className="v">{summary.avgCheck || '—'}</div></div>
+            <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.avgCheck')}</div><div className="v">{summary.avgCheck ? `${summary.avgCheck.toLocaleString()} ${summary.currency}` : '—'}</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.noShow')}</div><div className="v">{summary.noShowRate}%</div></div>
           </div>
         )}
@@ -161,7 +161,7 @@ export const BookingAnalyticsPage: React.FC = () => {
                     <div>
                       <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink)' }}>{c.customerName || t('crm.bookings.analytics.atRisk.noName')}</div>
                       <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 2 }}>
-                        LTV {c.ltv} ₽ · {t(c.visits === 1 ? 'crm.bookings.analytics.atRisk.visitOne' : 'crm.bookings.analytics.atRisk.visitOther', { count: c.visits })} · {t('crm.bookings.analytics.atRisk.wasVisit', { date: new Date(c.lastVisit).toLocaleDateString(dateLocale) })}
+                        LTV {Math.round(c.ltv).toLocaleString()} {c.currency} · {t(c.visits === 1 ? 'crm.bookings.analytics.atRisk.visitOne' : 'crm.bookings.analytics.atRisk.visitOther', { count: c.visits })} · {t('crm.bookings.analytics.atRisk.wasVisit', { date: new Date(c.lastVisit).toLocaleDateString(dateLocale) })}
                       </div>
                     </div>
                   </div>
@@ -174,7 +174,7 @@ export const BookingAnalyticsPage: React.FC = () => {
               <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
                 {topServices.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.bookings.analytics.topServices.empty')}</div>}
                 {topServices.map((s) => (
-                  <div key={s.serviceId} className="bk-info-row"><span className="l">{s.name} <span style={{ color: 'var(--fg-4)' }}>· {s.count}</span></span><span className="v">{s.revenue} ₽</span></div>
+                  <div key={s.serviceId} className="bk-info-row"><span className="l">{s.name} <span style={{ color: 'var(--fg-4)' }}>· {s.count}</span></span><span className="v">{s.revenue.toLocaleString()} {s.currency}</span></div>
                 ))}
               </div>
             </div>
@@ -186,7 +186,7 @@ export const BookingAnalyticsPage: React.FC = () => {
                 {staffUtil.map((m) => (
                   <div key={m.staffUserId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0' }}>
                     <span style={{ fontWeight: 500 }}>{m.name}</span>
-                    <span style={{ color: 'var(--fg-3)', fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{m.count} · {m.revenue} ₽</span>
+                    <span style={{ color: 'var(--fg-3)', fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{m.count} · {m.revenue.toLocaleString()} {m.currency}</span>
                   </div>
                 ))}
               </div>

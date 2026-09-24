@@ -6,7 +6,10 @@ import {
   IsArray,
   MaxLength,
   IsUUID,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { EntityCommentDto } from '../../common/comment.types';
 
 export class CreateCompanyDto {
   @IsString()
@@ -121,4 +124,15 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsArray()
   legalRequisites?: { id: string; type: string; value: string }[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  assignedUserIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EntityCommentDto)
+  comments?: EntityCommentDto[];
 }

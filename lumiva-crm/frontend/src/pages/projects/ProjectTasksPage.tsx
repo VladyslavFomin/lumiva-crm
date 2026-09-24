@@ -159,7 +159,7 @@ export const ProjectTasksPage: React.FC = () => {
     if (!status) return false;
     const normalized = status.toString().trim().toLowerCase();
     return (
-      normalized.includes('выполн') ||
+      (normalized.includes('выполн') && !normalized.startsWith('к ')) ||
       normalized.includes('готов') ||
       normalized.includes('done') ||
       normalized.includes('complete') ||

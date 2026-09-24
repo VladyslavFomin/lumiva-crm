@@ -69,11 +69,11 @@ function bindingSummary(b: WorkspaceColumnBindingV1, nameOf: (id: string) => str
     case 'lookup_by_key':
       return `${nameOf(b.dataObjectId)}: ${b.dataMatchFieldKey} = ${b.boardMatchFieldKey} → ${b.dataDisplayFieldKey}`;
     case 'pick_from_data':
-      return `${nameOf(b.dataObjectId)}.${b.dataFieldKey}`;
+      return `${b.dataObjectIds.map(nameOf).join(' + ')}.${b.dataFieldKey}`;
     case 'cached_snapshot':
       return b.sourceLabel || '—';
     case 'rollup':
-      return `${nameOf(b.dataObjectId)}: ${b.aggregate}(${b.valueFieldKey}) / ${b.groupByFieldKey}`;
+      return `${b.dataObjectIds.map(nameOf).join(' + ')}: ${b.aggregate}(${b.valueFieldKey}) / ${b.groupByFieldKey}`;
     default:
       return '—';
   }

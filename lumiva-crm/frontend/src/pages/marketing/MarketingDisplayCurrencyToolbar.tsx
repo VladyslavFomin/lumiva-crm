@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchMarketingFxRates } from '../../api/marketing';
+import { resolveDefaultDisplayCurrency } from '../../dashboard/dashboardFx';
 import {
   MARKETING_ALLOWED_CURRENCIES,
   type MarketingCurrencyMode,
@@ -31,6 +32,22 @@ export function useMarketingDisplayCurrencyPrefs(_currenciesPresent: string[]) {
       ...prev,
       displayCurrency: normalizeMarketingDisplayCurrency(prev.displayCurrency),
     }));
+  }, []);
+
+  // Пока «Валюту отчёта» никто не выбирал — по умолчанию основная валюта компании, а не EUR.
+  useEffect(() => {
+    let cancelled = false;
+    resolveDefaultDisplayCurrency().then((cur) => {
+      if (cancelled || !cur) return;
+      setStateInternal((prev) => {
+        const next: MarketingDisplayCurrencyState = { ...prev, displayCurrency: cur, rates: { [cur]: 1 } };
+        saveMarketingDisplayCurrency(next);
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

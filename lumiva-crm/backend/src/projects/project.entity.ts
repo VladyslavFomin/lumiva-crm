@@ -24,6 +24,18 @@ export interface ProjectFileLink {
   createdAt: string;
 }
 
+/** Тот же формат, что у Lead.meta.meetings — чтобы календарь и AI-инструменты работали с обоими одинаково. */
+export interface ProjectMeeting {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  meetingUrl: string;
+  notes: string;
+  attendeeUserIds: string[];
+  closedAt?: string;
+}
+
 export type ProjectStatus =
   | 'Новый'
   | 'В работе'
@@ -142,6 +154,10 @@ export class Project {
   // ==== CUSTOM FIELDS ====
   @Column({ type: 'jsonb', nullable: true })
   customFields: Record<string, any> | null;
+
+  // ==== ВСТРЕЧИ (та же форма, что у Lead.meta.meetings; см. миграцию в AiEmployeesSchemaService) ====
+  @Column({ type: 'jsonb', nullable: true })
+  meetings: ProjectMeeting[] | null;
   
   // ==== AUDIT ====
   @CreateDateColumn({ name: 'created_at' })

@@ -19,6 +19,27 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditLogChange } from '../audit-log/audit-log.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StaffUsersService } from '../staff/staff-users.service';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
+import { Tenant } from '../tenants/tenant.entity';
+
+// Статусы проекта, которые ещё "в работе" (не имеют финального исхода) — считаются в
+// pipeline/"потенциале", а не в выручке и не в потерях.
+const PROJECT_OPEN_STATUSES = ['Новый', 'В работе', 'На проверке', 'Заморожен'];
+const PROJECT_LOST_STATUSES = ['Проиграно'];
+
+// Реальные тенанты используют "Выиграно" как статус выигранного проекта (см. project.entity.ts
+// ProjectStatus), а не буквально "Закрыт" — со старой логикой ниже (`p.status === 'Закрыт'`)
+// закрытая выручка ВСЕГДА была 0, потому что ни один реальный проект не имеет статуса "Закрыт".
+const PROJECT_WON_STATUSES = ['Закрыт', 'Выиграно'];
+
+function sumProjectsByCurrency(projects: Project[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  projects.forEach((p) => {
+    const cur = p.currency || '—';
+    map[cur] = (map[cur] || 0) + (parseFloat(p.amount || '0') || 0);
+  });
+  return map;
+}
 
 @Injectable()
 export class CompaniesService {
@@ -33,11 +54,14 @@ export class CompaniesService {
     private readonly contactRepo: Repository<Contact>,
     @InjectRepository(CompanyTask)
     private readonly taskRepo: Repository<CompanyTask>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
     private readonly auditLog: AuditLogService,
     private readonly notifications: NotificationsService,
     private readonly staffUsersService: StaffUsersService,
+    private readonly currencyRates: CurrencyRatesService,
   ) {}
 
   /** Уведомляет в колокольчик новоназначенного ответственного (только если поле реально
@@ -180,24 +204,21 @@ export class CompaniesService {
     ];
     const allLeads = excludeTrashedLeads(allLeadsMerged);
 
-    // Проекты компании (через лиды)
+    // Проекты компании — объединение по companyId (проект привязан к компании напрямую) и по
+    // lead_id (проект создан из лида этой компании); проект без lead_id иначе выпадал бы
+    // отсюда полностью (см. тот же фикс в getCompanyAnalytics).
     const leadIds = allLeads.map((l) => l.id);
-    let projects: Project[] = [];
-    if (leadIds.length > 0) {
-      if (leadIds.length === 1) {
-        projects = await this.projectRepo.find({
-          where: { tenantId, leadId: leadIds[0] } as any,
-          order: { createdAt: 'DESC' } as any,
-        });
-      } else {
-        projects = await this.projectRepo
-          .createQueryBuilder('project')
-          .where('project.tenant_id = :tenantId', { tenantId })
-          .andWhere('project.lead_id IN (:...leadIds)', { leadIds })
-          .orderBy('project.created_at', 'DESC')
-          .getMany();
-      }
-    }
+    const projects = await this.projectRepo
+      .createQueryBuilder('project')
+      .where('project.tenant_id = :tenantId', { tenantId })
+      .andWhere(
+        leadIds.length > 0
+          ? '(project.company_id = :companyId OR project.lead_id IN (:...leadIds))'
+          : 'project.company_id = :companyId',
+        { companyId: id, leadIds },
+      )
+      .orderBy('project.created_at', 'DESC')
+      .getMany();
 
     // Задачи компании
     const tasks = await this.taskRepo.find({
@@ -241,6 +262,7 @@ export class CompaniesService {
       tags: dto.tags || [],
       assignedUserId: dto.assignedUserId || null,
       assignedTo: dto.assignedTo || null,
+      assignedUserIds: Array.isArray(dto.assignedUserIds) ? dto.assignedUserIds : [],
       status: dto.status || 'active',
       customFields: dto.customFields || null,
       legalRequisites: Array.isArray(dto.legalRequisites)
@@ -322,8 +344,11 @@ export class CompaniesService {
     if (dto.assignedUserId !== undefined)
       company.assignedUserId = dto.assignedUserId || null;
     if (dto.assignedTo !== undefined) company.assignedTo = dto.assignedTo || null;
+    if (dto.assignedUserIds !== undefined)
+      company.assignedUserIds = Array.isArray(dto.assignedUserIds) ? dto.assignedUserIds : [];
     if (dto.status !== undefined) company.status = dto.status;
     if (dto.customFields !== undefined) company.customFields = dto.customFields;
+    if (dto.comments !== undefined) company.comments = dto.comments as any;
     if (dto.legalRequisites !== undefined) {
       company.legalRequisites = Array.isArray(dto.legalRequisites)
         ? dto.legalRequisites.filter((it) => it && it.value && String(it.value).trim())
@@ -458,27 +483,28 @@ export class CompaniesService {
       ...leadsByCompany.map((l) => l.id),
       ...leadsByContact.map((l) => l.id),
     ]);
-    const allLeads = [
+    // корзина (meta.deleted) не участвует в аналитике
+    const allLeads = excludeTrashedLeads([
       ...leadsByCompany,
       ...leadsByContact.filter((l) => !allLeadIds.has(l.id) || !leadsByCompany.find((lc) => lc.id === l.id)),
-    ];
+    ]);
 
-    // Проекты компании (через лиды)
+    // Проекты компании — раньше искали ТОЛЬКО через lead_id (проекты, созданные из лида),
+    // но проект можно привязать к компании и напрямую (companyId), без лида (например, вручную
+    // через "Проекты"/"Новый проект") — такие проекты полностью выпадали из аналитики (не
+    // считались в "Выручка"/"Потенциал"), хотя видны в самой вкладке "Проекты" (та фильтрует
+    // по companyId на фронте). Теперь берём объединение обоих условий.
     const leadIds = allLeads.map((l) => l.id);
-    let projects: Project[] = [];
-    if (leadIds.length > 0) {
-      if (leadIds.length === 1) {
-        projects = await this.projectRepo.find({
-          where: { tenantId, leadId: leadIds[0] } as any,
-        });
-      } else {
-        projects = await this.projectRepo
-          .createQueryBuilder('project')
-          .where('project.tenant_id = :tenantId', { tenantId })
-          .andWhere('project.lead_id IN (:...leadIds)', { leadIds })
-          .getMany();
-      }
-    }
+    const projectsQb = this.projectRepo
+      .createQueryBuilder('project')
+      .where('project.tenant_id = :tenantId', { tenantId })
+      .andWhere(
+        leadIds.length > 0
+          ? '(project.company_id = :companyId OR project.lead_id IN (:...leadIds))'
+          : 'project.company_id = :companyId',
+        { companyId, leadIds },
+      );
+    const projects = await projectsQb.getMany();
 
     // Статистика по лидам
     const leadsStats = {
@@ -501,17 +527,28 @@ export class CompaniesService {
         'На проверке': projects.filter((p) => p.status === 'На проверке').length,
         Заморожен: projects.filter((p) => p.status === 'Заморожен').length,
         Закрыт: projects.filter((p) => p.status === 'Закрыт').length,
+        Выиграно: projects.filter((p) => p.status === 'Выиграно').length,
+        Проиграно: projects.filter((p) => p.status === 'Проиграно').length,
       },
       totalAmount: projects.reduce((sum, p) => {
         const amount = parseFloat(p.amount || '0');
         return sum + amount;
       }, 0),
       closedAmount: projects
-        .filter((p) => p.status === 'Закрыт')
+        .filter((p) => PROJECT_WON_STATUSES.includes(p.status))
         .reduce((sum, p) => {
           const amount = parseFloat(p.amount || '0');
           return sum + amount;
         }, 0),
+      // Проекты одной компании могут быть в разных валютах (currency — поле проекта, а не
+      // тенанта) — totalAmount/closedAmount выше остаются "смешанной" суммой для обратной
+      // совместимости (используется в кросс-компанийной BI-аналитике), а тут — честная
+      // разбивка по валюте для отображения в карточке конкретной компании.
+      totalAmountByCurrency: sumProjectsByCurrency(projects),
+      closedAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_WON_STATUSES.includes(p.status))),
+      // "Потенциал"/"В работе" — сделки без финального исхода (не выиграны и не проиграны).
+      pipelineAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_OPEN_STATUSES.includes(p.status))),
+      lostAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_LOST_STATUSES.includes(p.status))),
     };
 
     // Конверсия лидов в проекты
@@ -523,6 +560,33 @@ export class CompaniesService {
     // Пока упрощенный расчет: сумма проектов / количество лидов
     const avgProjectValue = projects.length > 0
       ? projectsStats.totalAmount / projects.length
+      : 0;
+    const countByCurrency: Record<string, number> = {};
+    projects.forEach((p) => {
+      const cur = p.currency || '—';
+      countByCurrency[cur] = (countByCurrency[cur] || 0) + 1;
+    });
+    const avgProjectValueByCurrency: Record<string, number> = {};
+    Object.entries(projectsStats.totalAmountByCurrency).forEach(([cur, sum]) => {
+      avgProjectValueByCurrency[cur] = Math.round((sum / countByCurrency[cur]) * 100) / 100;
+    });
+
+    // Деньги считаются ТОЛЬКО по проектам (сделкам), не по лидам — лиды остаются просто
+    // списком заявок без денежной семантики (см. lumiva_currency_conversion_and_deals memory).
+    // У проектов одной компании может быть разная валюта — конвертируем всё в основную валюту
+    // тенанта (tenant.primaryCurrency) по актуальному курсу вместо смешивания сумм.
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const primaryCurrency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+    const rates = await this.currencyRates.getRates();
+    const conv = (byCur: Record<string, number>) =>
+      this.currencyRates.convertMapToSingleWithRates(byCur, primaryCurrency, rates);
+
+    const totalRevenueConverted = conv(projectsStats.closedAmountByCurrency);
+    const pipelineRevenueConverted = conv(projectsStats.pipelineAmountByCurrency);
+    const lostRevenueConverted = conv(projectsStats.lostAmountByCurrency);
+    const totalAmountConverted = conv(projectsStats.totalAmountByCurrency);
+    const avgProjectValueConverted = projects.length
+      ? Math.round((totalAmountConverted / projects.length) * 100) / 100
       : 0;
 
     return {
@@ -538,8 +602,17 @@ export class CompaniesService {
       metrics: {
         conversionRate: Math.round(conversionRate * 100) / 100,
         avgProjectValue: Math.round(avgProjectValue * 100) / 100,
+        avgProjectValueByCurrency,
         totalRevenue: projectsStats.closedAmount,
         potentialRevenue: projectsStats.totalAmount,
+        // Сконвертированные в primaryCurrency тенанта — единое число для показа в UI вместо
+        // "N EUR + M TRY". "Потенциал" = pipeline (открытые, без исхода) сделки.
+        currency: primaryCurrency,
+        totalRevenueConverted,
+        potentialRevenueConverted: pipelineRevenueConverted,
+        pipelineRevenueConverted,
+        lostRevenueConverted,
+        avgProjectValueConverted,
       },
     };
   }
@@ -554,20 +627,24 @@ export class CompaniesService {
       companies.map((company) => this.getCompanyAnalytics(tenantId, company.id)),
     );
 
-    // Агрегированная статистика
+    // Агрегированная статистика — раньше складывались "сырые" totalRevenue/potentialRevenue
+    // разных компаний вперемешку по валютам; теперь у каждой компании уже есть *Converted в
+    // единой primaryCurrency тенанта, поэтому сумма по всем компаниям корректна.
+    const primaryCurrency = analytics[0]?.metrics.currency || 'EUR';
     const totalLeads = analytics.reduce((sum, a) => sum + a.leads.total, 0);
     const totalProjects = analytics.reduce((sum, a) => sum + a.projects.total, 0);
-    const totalRevenue = analytics.reduce((sum, a) => sum + a.metrics.totalRevenue, 0);
-    const totalPotentialRevenue = analytics.reduce((sum, a) => sum + a.metrics.potentialRevenue, 0);
+    const totalRevenue = analytics.reduce((sum, a) => sum + a.metrics.totalRevenueConverted, 0);
+    const totalPotentialRevenue = analytics.reduce((sum, a) => sum + a.metrics.pipelineRevenueConverted, 0);
+    const totalWonLeads = analytics.reduce((sum, a) => sum + a.leads.byStatus.won, 0);
 
     // Топ компаний по выручке
     const topByRevenue = [...analytics]
-      .sort((a, b) => b.metrics.totalRevenue - a.metrics.totalRevenue)
+      .sort((a, b) => b.metrics.totalRevenueConverted - a.metrics.totalRevenueConverted)
       .slice(0, 10)
       .map((a) => ({
         companyId: a.company.id,
         companyName: a.company.name,
-        revenue: a.metrics.totalRevenue,
+        revenue: a.metrics.totalRevenueConverted,
         projects: a.projects.total,
         leads: a.leads.total,
       }));
@@ -580,7 +657,7 @@ export class CompaniesService {
         companyId: a.company.id,
         companyName: a.company.name,
         projects: a.projects.total,
-        revenue: a.metrics.totalRevenue,
+        revenue: a.metrics.totalRevenueConverted,
         leads: a.leads.total,
       }));
 
@@ -589,14 +666,32 @@ export class CompaniesService {
         totalCompanies: companies.length,
         totalLeads,
         totalProjects,
-        totalRevenue,
-        totalPotentialRevenue,
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalPotentialRevenue: Math.round(totalPotentialRevenue * 100) / 100,
+        currency: primaryCurrency,
+        totalWonLeads,
         avgConversionRate: totalLeads > 0
           ? Math.round((totalProjects / totalLeads) * 10000) / 100
           : 0,
+        // Лид → клиент (won), в отличие от avgConversionRate выше (лид → проект).
+        avgWonConversionRate: totalLeads > 0 ? Math.round((totalWonLeads / totalLeads) * 10000) / 100 : 0,
       },
       topByRevenue,
       topByProjects,
+      // Полный список по каждой компании — для колонок "Выручка"/"Потенциал"/"Сделки" на
+      // странице списка компаний (topByRevenue/topByProjects режут до 10, этого недостаточно).
+      // Считается ТОЛЬКО по проектам (сделкам), уже сконвертировано в primaryCurrency тенанта.
+      perCompany: analytics.map((a) => ({
+        companyId: a.company.id,
+        contacts: a.contacts.total,
+        leads: a.leads.total,
+        projects: a.projects.total,
+        revenue: a.metrics.totalRevenueConverted,
+        potential: a.metrics.pipelineRevenueConverted,
+        avgProjectValue: a.metrics.avgProjectValueConverted,
+        currency: a.metrics.currency,
+        wonLeads: a.leads.byStatus.won,
+      })),
     };
   }
 
@@ -825,7 +920,7 @@ export class CompaniesService {
    * Массовое обновление компаний
    */
   async bulkUpdate(tenantId: string, dto: BulkUpdateCompaniesDto) {
-    const { companyIds, assignedUserId, assignedTo, status, tagsToAdd, tagsToRemove } = dto;
+    const { companyIds, assignedUserId, assignedTo, status, type, tagsToAdd, tagsToRemove } = dto;
 
     if (!companyIds || companyIds.length === 0) {
       throw new NotFoundException('No companies selected');
@@ -850,6 +945,9 @@ export class CompaniesService {
       }
       if (status !== undefined) {
         company.status = status;
+      }
+      if (type !== undefined) {
+        company.type = type;
       }
       if (tagsToAdd && tagsToAdd.length > 0) {
         const currentTags = company.tags || [];

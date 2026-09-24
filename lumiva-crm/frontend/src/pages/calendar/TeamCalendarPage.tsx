@@ -23,6 +23,7 @@ const addDays = (date: Date, days: number) =>
 
 const TYPE_META: Record<CalendarEventType, { labelKey: string; color: string; dot: string }> = {
   lead_meeting: { labelKey: 'leadMeeting', color: '#3b6cb6', dot: 'bg-[#3b6cb6]' },
+  project_meeting: { labelKey: 'projectMeeting', color: '#7c3aed', dot: 'bg-[#7c3aed]' },
   project_task: { labelKey: 'projectTask', color: '#a06b1a', dot: 'bg-[#a06b1a]' },
   booking: { labelKey: 'booking', color: '#1f8a5e', dot: 'bg-[#1f8a5e]' },
   hotel_reservation: { labelKey: 'hotelReservation', color: '#7a4fc9', dot: 'bg-[#7a4fc9]' },

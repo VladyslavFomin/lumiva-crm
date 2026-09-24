@@ -1,1080 +1,976 @@
 // src/pages/contacts/ContactsListPage.tsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// Редизайн по мокапу Claude Design (contacts.html / components/contacts-list.jsx) —
+// визуальная структура портирована 1:1, данные и все действия реальные (API).
+import { useAiAssignees, notifyAiAssignmentsChanged } from '../../components/ai/useAiAssignees';
+import { setAiAssignment, fetchAiEmployees, type AiAgent } from '../../api/aiEmployees';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
-import { LottieIcon } from '../../components/LottieIcon';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   fetchContacts,
-  type Contact,
   deleteContact,
   bulkUpdateContacts,
-  type BulkUpdateContactsDto,
+  createContact,
+  type Contact,
 } from '../../api/contacts';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { fetchCompanies, type Company } from '../../api/companies';
 import { fetchLeads, isLeadInTrash, type Lead } from '../../api/leads';
-import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
-import '../projects/ProjectsListPage.css';
+import { fetchProjects } from '../../api/projects';
+import type { Project } from '../projects/projectTypes';
+import { fetchDedupOverview } from '../../api/deduplication';
+import { fetchAuditLog, type AuditLogEntry } from '../../api/auditLog';
 import {
-  OwnerAvatarsRow,
-  resolveContactManagerDisplay,
-} from '../../components/crm/OwnerAvatarsRow';
-import { useAlertModal } from '../../contexts/AlertModalContext';
+  cl,
+  initials,
+  Ic,
+  LIC,
+  Chk,
+  Own,
+  Tags,
+  Search,
+  Seg,
+  Chips,
+  Drawer,
+  KV,
+  Pg,
+  sumByCurrency,
+  fmtByCurrency,
+} from './CrmListShared';
+import './crm-lists-design.css';
 
-type ContactsCustomGroup = {
-  id: string;
-  name: string;
-  order: number;
-};
+const PAGE_SIZE = 50;
+const FETCH_LIMIT = 2000;
 
-const CONTACTS_GROUPS_KEY = 'contacts_custom_groups_v1';
-const CONTACTS_GROUP_ASSIGNMENTS_KEY = 'contacts_custom_group_assignments_v1';
-const CONTACTS_TABLE_COLUMNS_KEY = 'contacts_table_columns_v1';
+const getST = (t: (k: string) => string): Record<string, [string, string]> => ({
+  active: ['ok', t('crm.contacts.list.statusPill.active')],
+  inactive: ['mute', t('crm.contacts.list.statusPill.inactive')],
+  archived: ['mute', t('crm.contacts.list.statusPill.archived')],
+});
 
-type ContactTableColId =
-  | 'contact'
-  | 'email'
-  | 'phone'
-  | 'company'
-  | 'manager'
-  | 'status'
-  | 'lead'
-  | 'group'
-  | 'tags'
-  | 'actions';
+type GroupMode = 'company' | 'manager' | 'status' | 'none';
+
+function csvEscape(v: string): string {
+  if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows.map((r) => r.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export const ContactsListPage: React.FC = () => {
   const { t } = useTranslation();
+  const ST = getST(t);
   const { showAlert, showConfirm } = useAlertModal();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const companyIdFilter = searchParams.get('companyId');
+
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState<string>('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkModalOpen, setBulkModalOpen] = useState<boolean>(false);
-  const [bulkSaving, setBulkSaving] = useState<boolean>(false);
+  const aiAssignees = useAiAssignees('contact', contacts.map((x) => x.id));
+  const [total, setTotal] = useState(0);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [companiesMap, setCompaniesMap] = useState<Record<string, Company>>({});
-  const [leadByContactId, setLeadByContactId] = useState<Record<string, Lead>>({});
-  const [bulkAssignedUserId, setBulkAssignedUserId] = useState<string>('');
-  const [bulkStatus, setBulkStatus] = useState<string>('');
-  const [bulkTags, setBulkTags] = useState<string>('');
-  const [groupMode, setGroupMode] = useState<'none' | 'company' | 'status' | 'manager' | 'custom'>('company');
-  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
-  const [customGroups, setCustomGroups] = useState<ContactsCustomGroup[]>([]);
-  const [contactGroupMap, setContactGroupMap] = useState<Record<string, string>>({});
-  const [draggingContactId, setDraggingContactId] = useState<string | null>(null);
-  const [dragOverGroupKey, setDragOverGroupKey] = useState<string | null>(null);
-  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
-  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
-  const [columnOrder, setColumnOrder] = useState<string[]>([]);
-  const navigate = useNavigate();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [dedupCount, setDedupCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
+  const [q, setQ] = useState('');
+  const [st, setSt] = useState('all');
+  const [grp, setGrp] = useState<GroupMode>('company');
+  const [view, setView] = useState<'table' | 'cards'>('table');
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState<string | null>(null);
+  const [kpi, setKpi] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [history, setHistory] = useState<AuditLogEntry[]>([]);
+
+  const load = () => {
     setLoading(true);
     setError(null);
-
     Promise.all([
-      fetchContacts({ search: search || undefined, limit: 100 }),
+      fetchContacts({ limit: FETCH_LIMIT }),
       fetchStaff(),
-      fetchCompanies({ limit: 500 }),
+      fetchCompanies({ limit: FETCH_LIMIT }),
       fetchLeads(),
+      fetchProjects().then((r) => r.items).catch(() => []),
+      fetchDedupOverview('contact').catch(() => null),
     ])
-      .then(([contactsData, staffData, companiesData, leadsData]) => {
-        if (!alive) return;
+      .then(([contactsData, staffData, companiesData, leadsData, projectsData, dedup]) => {
         setContacts(contactsData.items);
+        setTotal(contactsData.total ?? contactsData.items.length);
         setStaff(staffData);
         const map: Record<string, Company> = {};
-        companiesData.items.forEach((company) => {
-          map[company.id] = company;
-        });
+        companiesData.items.forEach((c) => (map[c.id] = c));
         setCompaniesMap(map);
-        const leadMap: Record<string, Lead> = {};
-        leadsData.forEach((lead) => {
-          if (!lead.contactId || isLeadInTrash(lead)) return;
-          if (!leadMap[lead.contactId]) leadMap[lead.contactId] = lead;
-        });
-        setLeadByContactId(leadMap);
+        setLeads(leadsData);
+        setProjects(projectsData);
+        if (dedup) setDedupCount(dedup.groupsCount);
       })
-      .catch((e) => {
-        console.error(e);
-        if (!alive) return;
-        setError(e.message || t('crm.contacts.list.errors.loadFailed'));
-      })
-      .finally(() => {
-        if (!alive) return;
-        setLoading(false);
-      });
+      .catch((e: any) => setError(e.message || t('crm.contacts.list.errors.loadFailed')))
+      .finally(() => setLoading(false));
+  };
 
+  useEffect(load, []);
+
+  const managerLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    staff.forEach((s) => map.set(s.id, s.fullName || s.email));
+    return map;
+  }, [staff]);
+
+  const managerOf = (c: Contact): string | null =>
+    (c.assignedUserId && managerLabelById.get(c.assignedUserId)) || c.assignedTo || null;
+
+  const companyNameOf = (c: Contact): string | null =>
+    (c.companyId && companiesMap[c.companyId]?.name) || c.company || null;
+
+  const activeLeadByContactId = useMemo(() => {
+    const map: Record<string, Lead> = {};
+    leads.forEach((l) => {
+      if (!l.contactId || isLeadInTrash(l)) return;
+      if (!map[l.contactId]) map[l.contactId] = l;
+    });
+    return map;
+  }, [leads]);
+
+  // Колонка "Сделка" показывает не лид (лиды — просто заявки), а основной проект компании
+  // контакта; если проектов несколько — остальные доступны через "+N" рядом.
+  const projectsByCompanyId = useMemo(() => {
+    const map: Record<string, Project[]> = {};
+    projects.forEach((p) => {
+      if (!p.companyId) return;
+      (map[p.companyId] ||= []).push(p);
+    });
+    return map;
+  }, [projects]);
+
+  const counts = useMemo(
+    () => ({
+      all: contacts.length,
+      active: contacts.filter((c) => c.status === 'active').length,
+      inactive: contacts.filter((c) => c.status === 'inactive').length,
+      archived: contacts.filter((c) => c.status === 'archived').length,
+    }),
+    [contacts],
+  );
+
+  const rows = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    return contacts.filter((c) => {
+      if (companyIdFilter && c.companyId !== companyIdFilter) return false;
+      if (st !== 'all' && c.status !== st) return false;
+      if (kpi === 'noman' && managerOf(c)) return false;
+      if (kpi === 'nocomp' && companyNameOf(c)) return false;
+      if (kpi === 'lead' && !activeLeadByContactId[c.id]) return false;
+      if (query) {
+        const fullName = c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+        const hay = `${fullName}${c.email || ''}${c.phone || ''}${companyNameOf(c) || ''}`.toLowerCase();
+        if (!hay.includes(query)) return false;
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts, q, st, kpi, companyIdFilter, activeLeadByContactId, companiesMap, managerLabelById]);
+
+  const groups = useMemo(() => {
+    if (grp === 'none') return [{ key: 'all', label: t('crm.contacts.list.group.allContacts'), items: rows }];
+    const keyOf = (c: Contact) => {
+      if (grp === 'company') return companyNameOf(c) || t('crm.contacts.list.group.noCompany');
+      if (grp === 'manager') return managerOf(c) || t('crm.contacts.list.group.noManager');
+      return ST[c.status]?.[1] || c.status || t('crm.contacts.list.group.noStatus');
+    };
+    const m = new Map<string, Contact[]>();
+    rows.forEach((c) => {
+      const k = keyOf(c);
+      m.set(k, [...(m.get(k) || []), c]);
+    });
+    return [...m.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'ru'))
+      .map(([key, items]) => ({ key, label: key, items }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, grp, companiesMap, managerLabelById]);
+
+  const pagedRows = useMemo(() => {
+    if (grp !== 'none') return rows;
+    return rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [rows, grp, page]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+
+  useEffect(() => setPage(1), [q, st, kpi, grp]);
+
+  const toggle = (id: string) =>
+    setSel((p) => {
+      const n = new Set(p);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  const allOn = rows.length > 0 && rows.every((r) => sel.has(r.id));
+  const toggleAll = () => setSel(allOn ? new Set() : new Set(rows.map((r) => r.id)));
+  const cur = open ? contacts.find((c) => c.id === open) || null : null;
+
+  useEffect(() => {
+    if (!open) {
+      setHistory([]);
+      return;
+    }
+    let alive = true;
+    fetchAuditLog({ entityType: 'contact', entityId: open, limit: 12 })
+      .then((r) => alive && setHistory(r.items))
+      .catch(() => alive && setHistory([]));
     return () => {
       alive = false;
     };
-  }, [search]);
+  }, [open]);
+
+  const KPIS: Array<[string, string, number, string]> = [
+    ['all', t('crm.contacts.list.kpis.all.label'), contacts.length, t('crm.contacts.list.kpis.all.hint', { total })],
+    [
+      'lead',
+      t('crm.contacts.list.kpis.lead.label'),
+      contacts.filter((c) => activeLeadByContactId[c.id]).length,
+      t('crm.contacts.list.kpis.lead.hint'),
+    ],
+    [
+      'noman',
+      t('crm.contacts.list.kpis.noman.label'),
+      contacts.filter((c) => !managerOf(c)).length,
+      t('crm.contacts.list.kpis.noman.hint'),
+    ],
+    [
+      'nocomp',
+      t('crm.contacts.list.kpis.nocomp.label'),
+      contacts.filter((c) => !companyNameOf(c)).length,
+      t('crm.contacts.list.kpis.nocomp.hint'),
+    ],
+  ];
 
   const handleCreate = () => navigate('/app/contacts/new');
-  const handleOpen = (id: string) => navigate(`/app/contacts/${id}`);
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleOpenContact = (id: string) => navigate(`/app/contacts/${id}`);
+
+  const handleDelete = async (id: string) => {
     const ok = await showConfirm(t('crm.contacts.list.deleteConfirm'), {
-      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
-      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      title: t('crm.contacts.list.deleteTitle'),
+      confirmLabel: t('crm.contacts.list.deleteLabel'),
       danger: true,
     });
     if (!ok) return;
     try {
       await deleteContact(id);
-      setContacts(contacts.filter((c) => c.id !== id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
+      setContacts((prev) => prev.filter((c) => c.id !== id));
+      setSel((prev) => {
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
       });
-    } catch (err: any) {
-      showAlert(err.message || t('crm.contacts.list.errors.deleteFailed'), {
-        variant: 'error',
-      });
-    }
-  };
-
-  const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleSelectAll = () => {
-    if (selectedIds.size === contacts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(contacts.map((c) => c.id)));
-    }
-  };
-
-  const handleBulkUpdate = async () => {
-    if (selectedIds.size === 0) return;
-
-    setBulkSaving(true);
-    try {
-      const dto: BulkUpdateContactsDto = {
-        contactIds: Array.from(selectedIds),
-      };
-
-      if (bulkAssignedUserId) {
-        const staffMember = staff.find((s) => s.id === bulkAssignedUserId);
-        dto.assignedUserId = bulkAssignedUserId;
-        dto.assignedTo = staffMember?.fullName || staffMember?.email || null;
-      }
-
-      if (bulkStatus) {
-        dto.status = bulkStatus;
-      }
-
-      if (bulkTags.trim()) {
-        dto.tagsToAdd = bulkTags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-      }
-
-      await bulkUpdateContacts(dto);
-      setBulkModalOpen(false);
-      setSelectedIds(new Set());
-      setBulkAssignedUserId('');
-      setBulkStatus('');
-      setBulkTags('');
-
-      // Перезагружаем список
-      const data = await fetchContacts({ search: search || undefined, limit: 100 });
-      setContacts(data.items);
+      if (open === id) setOpen(null);
     } catch (e: any) {
-      console.error(e);
-      showAlert(e.message || t('crm.contacts.bulk.errors.updateFailed'), {
-        variant: 'error',
-      });
-    } finally {
-      setBulkSaving(false);
+      showAlert(e.message || t('crm.contacts.list.errors.deleteFailed'), { variant: 'error' });
     }
   };
 
-  const managerLabelById = useMemo(() => {
-    const map = new Map<string, string>();
-    staff.forEach((member) => map.set(member.id, member.fullName || member.email));
-    return map;
-  }, [staff]);
-
-  const contactColumnDefs = useMemo((): { id: ContactTableColId; label: string }[] => {
-    return [
-      { id: 'contact', label: t('crm.contacts.list.table.contact') },
-      { id: 'email', label: 'E-mail' },
-      { id: 'phone', label: t('crm.contacts.form.fields.phone') },
-      { id: 'company', label: t('crm.contacts.form.fields.company') },
-      { id: 'manager', label: t('crm.contacts.list.table.manager') },
-      { id: 'status', label: t('crm.contacts.form.fields.status') },
-      { id: 'lead', label: t('crm.contacts.list.table.lead') },
-      { id: 'group', label: t('crm.contacts.list.table.group') },
-      { id: 'tags', label: t('crm.contacts.bulk.tags') },
-      { id: 'actions', label: t('crm.projects.tasks.table.headers.actions') },
-    ];
-  }, [t]);
-
-  const orderedContactColumns = useMemo(() => {
-    if (!contactColumnDefs.length) return [];
-    const map = new Map(contactColumnDefs.map((col) => [col.id, col]));
-    const order =
-      columnOrder.length > 0 ? columnOrder : contactColumnDefs.map((col) => col.id);
-    const result: typeof contactColumnDefs = [];
-    order.forEach((id) => {
-      const col = map.get(id as ContactTableColId);
-      if (col) result.push(col);
-    });
-    contactColumnDefs.forEach((col) => {
-      if (!result.find((r) => r.id === col.id)) result.push(col);
-    });
-    return result;
-  }, [contactColumnDefs, columnOrder]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(CONTACTS_TABLE_COLUMNS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.order)) setColumnOrder(parsed.order);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CONTACTS_TABLE_COLUMNS_KEY, JSON.stringify({ order: columnOrder }));
-    } catch {
-      // ignore
-    }
-  }, [columnOrder]);
-
-  useEffect(() => {
-    if (!contactColumnDefs.length) return;
-    setColumnOrder((prev) => {
-      if (!prev.length) return contactColumnDefs.map((c) => c.id);
-      const ids = contactColumnDefs.map((c) => c.id);
-      const filtered = prev.filter((id) => ids.includes(id as ContactTableColId));
-      const missing = ids.filter((cid) => !filtered.includes(cid));
-      return [...filtered, ...missing];
-    });
-  }, [contactColumnDefs]);
-
-  const reorderColumns = useCallback((dragId: string, targetId: string) => {
-    setColumnOrder((prev) => {
-      const next = [...prev];
-      const from = next.indexOf(dragId);
-      const to = next.indexOf(targetId);
-      if (from === -1 || to === -1) return prev;
-      next.splice(from, 1);
-      next.splice(to, 0, dragId);
-      return next;
-    });
-  }, []);
-
-  const { getThProps, draggingColumnKey, columnDragOverKey } =
-    useWorkspaceStyleColumnDrag(reorderColumns, 'light');
-
-  const contactColClass = (colId: ContactTableColId): string =>
-    colId === 'contact'
-      ? 'lv-tcol-name'
-      : colId === 'actions'
-        ? 'lv-tcol-actions'
-        : 'lv-tcol-center';
-
-  const renderContactCellContent = (
-    contact: Contact,
-    colId: ContactTableColId,
-    fullName: string,
-  ): React.ReactNode => {
-    switch (colId) {
-      case 'contact':
-        return <span className="text-[12.5px] font-medium text-[var(--ink)]">{fullName}</span>;
-      case 'email':
-        return <span className="text-[12.5px] text-[var(--ink)]">{contact.email || '—'}</span>;
-      case 'phone':
-        return <span className="text-[12.5px] text-[var(--ink)]">{contact.phone || '—'}</span>;
-      case 'company':
-        return contact.companyId ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/app/companies/${contact.companyId}`);
-            }}
-            className="text-lumiva-accent hover:underline text-[12.5px]"
-          >
-            {companiesMap[contact.companyId]?.name ||
-              contact.company ||
-              t('crm.contacts.list.groups.noCompany')}
-          </button>
-        ) : (
-          <span className="text-[12.5px] text-[var(--ink)]">{contact.company || '—'}</span>
-        );
-      case 'manager': {
-        const items = resolveContactManagerDisplay(contact, staff);
-        return items.length ? (
-          <OwnerAvatarsRow items={items} readOnly />
-        ) : (
-          <span className="text-[var(--fg-3)]">—</span>
-        );
-      }
-      case 'status':
-        return <span className="text-[12.5px] text-[var(--ink)]">{contact.status || '—'}</span>;
-      case 'lead':
-        return leadByContactId[contact.id] ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/app/leads/${leadByContactId[contact.id].id}`);
-            }}
-            className="lv-cell-pill"
-          >
-            <span className="dot" style={{ background: '#60a5fa' }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {leadByContactId[contact.id].name || t('crm.contacts.list.table.openLead')}
-            </span>
-          </button>
-        ) : (
-          <span className="text-[var(--fg-3)]">—</span>
-        );
-      case 'group':
-        return groupMode === 'custom' ? (
-          <select
-            value={contactGroupMap[contact.id] || ''}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              e.stopPropagation();
-              assignContactGroup(contact.id, e.target.value);
-            }}
-            className="w-full rounded-md border border-[var(--line-2)] bg-white px-2 py-1 text-[11px] text-[var(--ink)] outline-none"
-          >
-            <option value="">{t('crm.contacts.list.groups.ungrouped')}</option>
-            {customGroupsOrdered.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-[var(--fg-3)]">—</span>
-        );
-      case 'tags':
-        return (
-          <span className="text-[12.5px] text-[var(--fg-2)]">
-            {contact.tags?.length ? contact.tags.join(', ') : '—'}
-          </span>
-        );
-      case 'actions':
-        return (
-          <button
-            type="button"
-            onClick={(e) => handleDelete(contact.id, e)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {t('crm.contacts.list.delete')}
-          </button>
-        );
-      default:
-        return null;
-    }
-  };
-
-  useEffect(() => {
-    try {
-      const rawGroups = localStorage.getItem(CONTACTS_GROUPS_KEY);
-      const rawAssignments = localStorage.getItem(CONTACTS_GROUP_ASSIGNMENTS_KEY);
-      if (rawGroups) {
-        const parsed = JSON.parse(rawGroups);
-        if (Array.isArray(parsed)) {
-          setCustomGroups(
-            parsed
-              .filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string')
-              .map((item, index) => ({
-                id: item.id,
-                name: item.name,
-                order: typeof item.order === 'number' ? item.order : index,
-              })),
-          );
-        }
-      }
-      if (rawAssignments) {
-        const parsed = JSON.parse(rawAssignments);
-        if (parsed && typeof parsed === 'object') {
-          setContactGroupMap(parsed);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CONTACTS_GROUPS_KEY, JSON.stringify(customGroups));
-      localStorage.setItem(CONTACTS_GROUP_ASSIGNMENTS_KEY, JSON.stringify(contactGroupMap));
-    } catch {
-      // ignore
-    }
-  }, [customGroups, contactGroupMap]);
-
-  const customGroupsOrdered = useMemo(
-    () => [...customGroups].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'ru')),
-    [customGroups],
-  );
-
-  const createCustomGroup = () => {
-    const name = window.prompt(t('crm.contacts.list.groups.prompts.newName'));
-    if (!name || !name.trim()) return;
-    setCustomGroups((prev) => [
-      ...prev,
-      {
-        id: `cg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-        name: name.trim(),
-        order: prev.length,
-      },
-    ]);
-  };
-
-  const renameCustomGroup = (groupId: string) => {
-    const current = customGroups.find((group) => group.id === groupId);
-    if (!current) return;
-    const next = window.prompt(t('crm.contacts.list.groups.prompts.rename'), current.name);
-    if (!next || !next.trim()) return;
-    setCustomGroups((prev) =>
-      prev.map((group) => (group.id === groupId ? { ...group, name: next.trim() } : group)),
-    );
-  };
-
-  const deleteCustomGroup = async (groupId: string) => {
-    const ok = await showConfirm(t('crm.contacts.list.groups.confirmDelete'), {
-      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
-      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+  const handleBulkDelete = async () => {
+    const ok = await showConfirm(t('crm.contacts.list.bulk.deleteConfirm', { count: sel.size }), {
+      title: t('crm.contacts.list.deleteTitle'),
+      confirmLabel: t('crm.contacts.list.deleteLabel'),
       danger: true,
     });
     if (!ok) return;
-    setCustomGroups((prev) => prev.filter((group) => group.id !== groupId));
-    setContactGroupMap((prev) => {
-      const next: Record<string, string> = {};
-      Object.entries(prev).forEach(([contactId, assignedGroupId]) => {
-        if (assignedGroupId !== groupId) next[contactId] = assignedGroupId;
-      });
-      return next;
-    });
-    setCollapsedGroups((prev) => prev.filter((item) => item !== groupId));
-  };
-
-  const assignContactGroup = (contactId: string, groupId: string) => {
-    setContactGroupMap((prev) => {
-      if (!groupId) {
-        const next = { ...prev };
-        delete next[contactId];
-        return next;
-      }
-      return { ...prev, [contactId]: groupId };
-    });
-  };
-
-  const moveCustomGroup = (groupId: string, direction: 'up' | 'down') => {
-    const ordered = [...customGroupsOrdered];
-    const index = ordered.findIndex((group) => group.id === groupId);
-    if (index === -1) return;
-    const nextIndex = direction === 'up' ? index - 1 : index + 1;
-    if (nextIndex < 0 || nextIndex >= ordered.length) return;
-    const next = [...ordered];
-    const [moved] = next.splice(index, 1);
-    next.splice(nextIndex, 0, moved);
-    setCustomGroups(next.map((group, order) => ({ ...group, order })));
-  };
-
-  const reorderCustomGroups = (sourceGroupId: string, targetGroupId: string) => {
-    if (sourceGroupId === targetGroupId) return;
-    const ordered = [...customGroupsOrdered];
-    const sourceIndex = ordered.findIndex((group) => group.id === sourceGroupId);
-    const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
-    if (sourceIndex === -1 || targetIndex === -1) return;
-    const next = [...ordered];
-    const [moved] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, moved);
-    setCustomGroups(next.map((group, order) => ({ ...group, order })));
-  };
-
-  const groupedContacts = useMemo(() => {
-    if (groupMode === 'none') {
-      return [{ key: 'all', label: t('crm.common.all'), items: contacts }];
+    try {
+      await Promise.all(Array.from(sel).map((id) => deleteContact(id)));
+      setContacts((prev) => prev.filter((c) => !sel.has(c.id)));
+      setSel(new Set());
+    } catch (e: any) {
+      showAlert(e.message || t('crm.contacts.list.errors.deleteFailed'), { variant: 'error' });
     }
-    if (groupMode === 'custom') {
-      const grouped = customGroupsOrdered.map((group) => ({
-        key: group.id,
-        label: group.name,
-        items: contacts.filter((contact) => contactGroupMap[contact.id] === group.id),
-      }));
-      const ungrouped = contacts.filter((contact) => !contactGroupMap[contact.id]);
-      return [
-        ...grouped,
-        { key: 'ungrouped', label: t('crm.contacts.list.groups.ungrouped'), items: ungrouped },
-      ];
+  };
+
+  const [aiAgents, setAiAgents] = useState<AiAgent[]>([]);
+  useEffect(() => {
+    fetchAiEmployees()
+      .then((r) => setAiAgents(r.items.filter((a) => a.status === 'active')))
+      .catch(() => undefined);
+  }, []);
+  const assignAiBulk = async (agentId: string) => {
+    if (sel.size === 0) return;
+    try {
+      await Promise.all(
+        Array.from(sel).map((id) => setAiAssignment({ agentId, entityType: 'contact', entityId: id, assigned: true })),
+      );
+      notifyAiAssignmentsChanged();
+      showAlert(t('crm.aiEmployees.assignee.bulkAssigned'), { variant: 'success' });
+    } catch (e: any) {
+      showAlert(e.message || t('crm.aiEmployees.errors.generic'), { variant: 'error' });
     }
-    const map = new Map<string, Contact[]>();
-    const getGroup = (contact: Contact) => {
-      if (groupMode === 'company') {
-        if (contact.companyId && companiesMap[contact.companyId]?.name) {
-          return companiesMap[contact.companyId].name;
-        }
-        return contact.company || t('crm.contacts.list.groups.noCompany');
+  };
+
+  const applyBulk = async (patch: { assignedUserId?: string; status?: string }, refreshMsg?: string) => {
+    if (sel.size === 0) return;
+    try {
+      const dto: any = { contactIds: Array.from(sel) };
+      if (patch.assignedUserId !== undefined) {
+        const member = staff.find((s) => s.id === patch.assignedUserId);
+        dto.assignedUserId = patch.assignedUserId;
+        dto.assignedTo = member?.fullName || member?.email || null;
       }
-      if (groupMode === 'status') return contact.status || t('crm.contacts.list.groups.noStatus');
-      if (groupMode === 'manager') {
-        if (contact.assignedUserId && managerLabelById.has(contact.assignedUserId)) {
-          return managerLabelById.get(contact.assignedUserId) as string;
+      if (patch.status !== undefined) dto.status = patch.status;
+      await bulkUpdateContacts(dto);
+      load();
+      if (refreshMsg) showAlert(refreshMsg, { variant: 'success' });
+    } catch (e: any) {
+      showAlert(e.message || t('crm.contacts.bulk.errors.updateFailed'), { variant: 'error' });
+    }
+  };
+
+  const handleBulkTag = async () => {
+    const tag = window.prompt(t('crm.contacts.list.bulk.tagPrompt'));
+    if (!tag || !tag.trim()) return;
+    try {
+      await bulkUpdateContacts({ contactIds: Array.from(sel), tagsToAdd: [tag.trim()] });
+      load();
+    } catch (e: any) {
+      showAlert(e.message || t('crm.contacts.bulk.errors.updateFailed'), { variant: 'error' });
+    }
+  };
+
+  const handleBulkMail = () => {
+    const emails = Array.from(sel)
+      .map((id) => contacts.find((c) => c.id === id)?.email)
+      .filter(Boolean);
+    if (!emails.length) {
+      showAlert(t('crm.contacts.list.bulk.noEmail'), { variant: 'error' });
+      return;
+    }
+    window.location.href = `mailto:?bcc=${encodeURIComponent(emails.join(','))}`;
+  };
+
+  const handleBulkExport = () => {
+    const list = contacts.filter((c) => sel.has(c.id));
+    const rowsCsv = [
+      [
+        t('crm.contacts.list.csv.name'),
+        t('crm.contacts.list.csv.email'),
+        t('crm.contacts.list.csv.phone'),
+        t('crm.contacts.list.csv.company'),
+        t('crm.contacts.list.csv.status'),
+        t('crm.contacts.list.csv.manager'),
+      ],
+      ...list.map((c) => [
+        c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+        c.email || '',
+        c.phone || '',
+        companyNameOf(c) || '',
+        ST[c.status]?.[1] || c.status,
+        managerOf(c) || '',
+      ]),
+    ];
+    downloadCsv(`contacts-${Date.now()}.csv`, rowsCsv);
+  };
+
+  const handleImportFile = (file: File) => {
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const text = String(reader.result || '');
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        if (lines.length < 2) throw new Error(t('crm.contacts.list.import.emptyFile'));
+        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+        const idx = (names: string[]) => headers.findIndex((h) => names.includes(h));
+        const iName = idx(['имя', 'name', 'fullname', 'фио']);
+        const iEmail = idx(['email', 'почта']);
+        const iPhone = idx(['телефон', 'phone']);
+        const iCompany = idx(['компания', 'company']);
+        let created = 0;
+        for (const line of lines.slice(1)) {
+          const cells = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+          const fullName = iName >= 0 ? cells[iName] : '';
+          const email = iEmail >= 0 ? cells[iEmail] : '';
+          const phone = iPhone >= 0 ? cells[iPhone] : '';
+          const company = iCompany >= 0 ? cells[iCompany] : '';
+          if (!fullName && !email && !phone) continue;
+          const [firstName, ...rest] = fullName.split(' ');
+          await createContact({
+            firstName: firstName || undefined,
+            lastName: rest.join(' ') || undefined,
+            email: email || undefined,
+            phone: phone || undefined,
+            company: company || undefined,
+          });
+          created += 1;
         }
-        return contact.assignedTo || t('crm.contacts.list.groups.noManager');
+        showAlert(t('crm.contacts.list.import.success', { count: created }), { variant: 'success' });
+        load();
+      } catch (e: any) {
+        showAlert(e.message || t('crm.contacts.list.import.failed'), { variant: 'error' });
+      } finally {
+        setImporting(false);
       }
-      return t('crm.common.all');
     };
-    contacts.forEach((contact) => {
-      const key = getGroup(contact).trim() || t('crm.contacts.list.groups.ungrouped');
-      const list = map.get(key) || [];
-      list.push(contact);
-      map.set(key, list);
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => a[0].localeCompare(b[0], 'ru'))
-      .map(([key, items]) => ({ key, label: key, items }));
-  }, [contacts, groupMode, managerLabelById, companiesMap, t, customGroupsOrdered, contactGroupMap]);
+    reader.readAsText(file, 'utf-8');
+  };
 
-  const toggleGroup = (key: string) => {
-    setCollapsedGroups((prev) =>
-      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="px-scope">
+          <div className="cl-empty">{t('crm.contacts.list.loading')}</div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const Row = (c: Contact) => {
+    const fullName = c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || '—';
+    const company = companyNameOf(c);
+    const manager = managerOf(c);
+    const companyProjects = c.companyId ? projectsByCompanyId[c.companyId] || [] : [];
+    const mainProject = companyProjects[0];
+    return (
+      <tr
+        key={c.id}
+        className={cl('row', sel.has(c.id) && 'sel', open === c.id && 'act')}
+        onClick={() => setOpen(c.id)}
+      >
+        <td className="col-chk" onClick={(e) => e.stopPropagation()}>
+          <Chk on={sel.has(c.id)} onClick={() => toggle(c.id)} />
+        </td>
+        <td>
+          <div className="cl-idn">
+            <div className="cl-av">{initials(fullName)}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="nm">{fullName}</div>
+              <div className="sub">{c.position || '—'}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div className="cl-ch">
+            {c.email ? (
+              <a href={`mailto:${c.email}`} onClick={(e) => e.stopPropagation()}>
+                {c.email}
+              </a>
+            ) : (
+              <span className="cl-dash">—</span>
+            )}
+            {c.phone && <span className="p">{c.phone}</span>}
+          </div>
+        </td>
+        <td>
+          {c.companyId ? (
+            <a
+              className="cl-link"
+              href={`/app/companies/${c.companyId}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(`/app/companies/${c.companyId}`);
+              }}
+            >
+              {company}
+            </a>
+          ) : (
+            <span className="cl-dash">{company || t('crm.contacts.list.table.privatePerson')}</span>
+          )}
+        </td>
+        <td>
+          <span className="cl-mono">{c.city || '—'}</span>
+        </td>
+        <td>
+          <Own name={manager} ai={aiAssignees[c.id]} />
+        </td>
+        <td>
+          <span className={cl('cl-pill', ST[c.status]?.[0])}>
+            <span className="dot" />
+            {ST[c.status]?.[1] || c.status}
+          </span>
+        </td>
+        <td>
+          {mainProject ? (
+            <div className="cl-ch" style={{ alignItems: 'center' }}>
+              <a
+                className="cl-link"
+                href={`/app/projects/${mainProject.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate(`/app/projects/${mainProject.id}`);
+                }}
+              >
+                <Ic d={LIC.bolt} size={11} />
+                {mainProject.name || t('crm.contacts.list.table.openProject')}
+              </a>
+              {companyProjects.length > 1 && (
+                <a
+                  className="cl-pill"
+                  href={`/app/companies/${c.companyId}?tab=projects`}
+                  title={companyProjects
+                    .slice(1)
+                    .map((p) => p.name)
+                    .join(', ')}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/app/companies/${c.companyId}?tab=projects`);
+                  }}
+                >
+                  +{companyProjects.length - 1}
+                </a>
+              )}
+            </div>
+          ) : (
+            <span className="cl-dash">—</span>
+          )}
+        </td>
+        <td>
+          <Tags list={c.tags} />
+        </td>
+        <td className="col-act" onClick={(e) => e.stopPropagation()}>
+          <div className="cl-acts">
+            <a className="cl-ib" title={t('crm.contacts.list.table.mailTitle')} href={c.email ? `mailto:${c.email}` : undefined}>
+              <Ic d={LIC.mail} size={13} />
+            </a>
+            <button
+              type="button"
+              className="cl-ib"
+              title={t('crm.contacts.list.table.editTitle')}
+              onClick={() => navigate(`/app/contacts/${c.id}`)}
+            >
+              <Ic d={LIC.pen} size={13} />
+            </button>
+            <button type="button" className="cl-ib danger" title={t('crm.contacts.list.table.deleteTitle')} onClick={() => handleDelete(c.id)}>
+              <Ic d={LIC.trash} size={13} />
+            </button>
+          </div>
+        </td>
+      </tr>
     );
   };
 
   return (
     <MainLayout>
       <PageHelpButton topic="contacts" />
-      <div
-        className="lv-pt w-full pb-8 min-w-0"
-        style={{
-          marginLeft: -24,
-          marginRight: -24,
-          paddingLeft: 24,
-          paddingRight: 24,
-          width: 'calc(100% + 48px)',
-        }}
-      >
-        <div className="lv-pt-head">
-          <div>
-            <h1>{t('crm.contacts.list.title')}</h1>
-            <div className="sub">
-              {t('crm.contacts.list.subtitle')}
-              {selectedIds.size > 0 && (
-                <span className="ml-2" style={{ color: 'var(--ink)' }}>
-                  ({selectedIds.size} {t('crm.contacts.list.selected')})
+      <div className="px-scope">
+        <div className="cl-wrap">
+          <div className="cl-hero">
+            <div>
+              <h1>
+                {t('crm.contacts.list.header.title')}
+                <span className="cnt">
+                  {rows.length} {t('crm.contacts.list.footer.of')} {contacts.length}
                 </span>
-              )}
+              </h1>
+              <p>
+                {companyIdFilter ? (
+                  <>
+                    {t('crm.contacts.list.header.filteredByCompany', { name: companiesMap[companyIdFilter]?.name || '—' })}{' '}
+                    <a
+                      href="/app/contacts"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSearchParams({});
+                      }}
+                    >
+                      {t('crm.contacts.list.header.resetFilter')}
+                    </a>
+                  </>
+                ) : (
+                  t('crm.contacts.list.header.subtitle')
+                )}
+              </p>
+            </div>
+            <div className="cl-hero-a">
+              <button type="button" className="btn btn-sm" onClick={() => navigate('/app/contacts/duplicates')}>
+                <Ic d={LIC.merge} size={13} />
+                {t('crm.contacts.list.actions.duplicates')}
+                {dedupCount > 0 && (
+                  <span className="cl-chip n" style={{ border: 0, padding: 0 }}>
+                    {dedupCount}
+                  </span>
+                )}
+              </button>
+              <label className="btn btn-sm" style={{ cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}>
+                <Ic d={LIC.import} size={13} />
+                {importing ? t('crm.contacts.list.actions.importing') : t('crm.contacts.list.actions.import')}
+                <input
+                  type="file"
+                  accept=".csv"
+                  disabled={importing}
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImportFile(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <button type="button" className="btn btn-sm btn-primary" onClick={handleCreate}>
+                <Ic d={LIC.plus} size={13} />
+                {t('crm.contacts.list.actions.newContact')}
+              </button>
             </div>
           </div>
-          <div className="lv-pt-head-actions">
-            {selectedIds.size > 0 && (
-              <button type="button" onClick={() => setBulkModalOpen(true)} className="lv-tb-btn">
-                {t('crm.contacts.list.bulkOperations')} ({selectedIds.size})
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="lv-tb-btn"
-              style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
+
+          {error && (
+            <div
+              style={{
+                marginBottom: 14,
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1px solid #f0c8cf',
+                background: '#fbecef',
+                fontSize: 12,
+                color: '#9a1f31',
+              }}
             >
-              + {t('crm.contacts.list.create')}
-            </button>
+              {error}
+            </div>
+          )}
+
+          <div className="cl-kpis">
+            {KPIS.map(([id, k, v, d]) => (
+              <button
+                key={id}
+                type="button"
+                className={cl('cl-kpi', (kpi === id || (id === 'all' && !kpi)) && 'on')}
+                onClick={() => setKpi(id === 'all' ? null : kpi === id ? null : id)}
+              >
+                <div className="k">{k}</div>
+                <div className="v">{v}</div>
+                <div className="d">{d}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="cl-panel">
+            {sel.size > 0 ? (
+              <div className="cl-bulk">
+                <span className="cnt">
+                  <span className="n">{sel.size}</span>
+                  {t('crm.contacts.list.bulk.selected')}
+                </span>
+                <div className="cl-div" />
+                <select
+                  className="cl-sel"
+                  value=""
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) return;
+                    if (v.startsWith('ai:')) void assignAiBulk(v.slice(3));
+                    else applyBulk({ assignedUserId: v }, t('crm.contacts.list.bulk.managerAssigned'));
+                  }}
+                >
+                  <option value="">{t('crm.contacts.list.bulk.assignManager')}</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.fullName || s.email}
+                    </option>
+                  ))}
+                  {aiAgents.length > 0 && (
+                    <optgroup label={t('crm.aiEmployees.assignee.title')}>
+                      {aiAgents.map((a) => (
+                        <option key={a.id} value={`ai:${a.id}`}>
+                          ✦ {a.name} · {t('crm.aiEmployees.assignee.badge')}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <select
+                  className="cl-sel"
+                  value=""
+                  onChange={(e) => e.target.value && applyBulk({ status: e.target.value }, t('crm.contacts.list.bulk.statusUpdated'))}
+                >
+                  <option value="">{t('crm.contacts.list.bulk.statusPlaceholder')}</option>
+                  <option value="active">{t('crm.contacts.list.statusOptions.active')}</option>
+                  <option value="inactive">{t('crm.contacts.list.statusOptions.inactive')}</option>
+                  <option value="archived">{t('crm.contacts.list.statusOptions.archived')}</option>
+                </select>
+                <button type="button" className="btn btn-sm" onClick={handleBulkTag}>
+                  <Ic d={LIC.plus} size={12} />
+                  {t('crm.contacts.list.bulk.tag')}
+                </button>
+                <button type="button" className="btn btn-sm" onClick={handleBulkMail}>
+                  <Ic d={LIC.mail} size={12} />
+                  {t('crm.contacts.list.bulk.mail')}
+                </button>
+                <button type="button" className="btn btn-sm" onClick={handleBulkExport}>
+                  <Ic d={LIC.dl} size={12} />
+                  {t('crm.contacts.list.bulk.export')}
+                </button>
+                <div className="cl-spacer" />
+                <button type="button" className="btn btn-sm btn-danger" onClick={handleBulkDelete}>
+                  <Ic d={LIC.trash} size={12} />
+                  {t('crm.contacts.list.bulk.delete')}
+                </button>
+                <button type="button" className="btn btn-sm" onClick={() => setSel(new Set())}>
+                  {t('crm.contacts.list.bulk.deselect')}
+                </button>
+              </div>
+            ) : (
+              <div className="cl-bar">
+                <Search v={q} set={setQ} ph={t('crm.contacts.list.search.placeholder')} />
+                <div className="cl-div" />
+                <Chips
+                  v={st}
+                  set={setSt}
+                  opts={[
+                    ['all', t('crm.contacts.list.filters.all'), counts.all],
+                    ['active', t('crm.contacts.list.filters.active'), counts.active],
+                    ['inactive', t('crm.contacts.list.filters.inactive'), counts.inactive],
+                    ['archived', t('crm.contacts.list.filters.archived'), counts.archived],
+                  ]}
+                />
+                <div className="cl-div" />
+                <span className="cl-lbl">{t('crm.contacts.list.group.label')}</span>
+                <select className="cl-sel" value={grp} onChange={(e) => setGrp(e.target.value as GroupMode)}>
+                  <option value="company">{t('crm.contacts.list.group.byCompany')}</option>
+                  <option value="manager">{t('crm.contacts.list.group.byManager')}</option>
+                  <option value="status">{t('crm.contacts.list.group.byStatus')}</option>
+                  <option value="none">{t('crm.contacts.list.group.none')}</option>
+                </select>
+                <div className="cl-spacer" />
+                <Seg
+                  v={view}
+                  set={(v) => setView(v as 'table' | 'cards')}
+                  opts={[
+                    ['table', '', LIC.table],
+                    ['cards', '', LIC.cards],
+                  ]}
+                />
+              </div>
+            )}
+
+            {rows.length === 0 ? (
+              <div className="cl-empty">
+                <div className="t">{t('crm.contacts.list.empty.title')}</div>
+                <div className="d">{t('crm.contacts.list.empty.desc')}</div>
+                <button type="button" className="btn btn-sm btn-primary" onClick={handleCreate}>
+                  <Ic d={LIC.plus} size={13} />
+                  {t('crm.contacts.list.actions.newContact')}
+                </button>
+              </div>
+            ) : view === 'table' ? (
+              <div className="cl-scroll">
+                <table className="cl-tbl">
+                  <thead>
+                    <tr>
+                      <th className="col-chk">
+                        <Chk on={allOn} ind={!allOn && sel.size > 0} onClick={toggleAll} />
+                      </th>
+                      <th>{t('crm.contacts.list.table.contact')}</th>
+                      <th>{t('crm.contacts.list.table.contactInfo')}</th>
+                      <th>{t('crm.contacts.list.table.company')}</th>
+                      <th>{t('crm.contacts.list.table.city')}</th>
+                      <th>{t('crm.contacts.list.table.manager')}</th>
+                      <th>{t('crm.contacts.list.table.status')}</th>
+                      <th>{t('crm.contacts.list.table.deal')}</th>
+                      <th>{t('crm.contacts.list.table.tags')}</th>
+                      <th className="col-act r">{t('crm.contacts.list.table.actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grp === 'none'
+                      ? pagedRows.map(Row)
+                      : groups.map((g) => {
+                          const isClosed = closed.has(g.key);
+                          return (
+                            <React.Fragment key={g.key}>
+                              <tr className="cl-grp">
+                                <td colSpan={10}>
+                                  <div className="cl-grp-in">
+                                    <button
+                                      type="button"
+                                      className={cl('cl-caret', isClosed && 'col')}
+                                      onClick={() =>
+                                        setClosed((p) => {
+                                          const n = new Set(p);
+                                          n.has(g.key) ? n.delete(g.key) : n.add(g.key);
+                                          return n;
+                                        })
+                                      }
+                                    >
+                                      <Ic d={LIC.chev} size={11} />
+                                    </button>
+                                    <span className="t">{g.label}</span>
+                                    <span className="n">{g.items.length}</span>
+                                    <span className="agg">
+                                      {g.items.filter((i) => activeLeadByContactId[i.id]).length} {t('crm.contacts.list.group.withLead')}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                              {!isClosed && g.items.map(Row)}
+                            </React.Fragment>
+                          );
+                        })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="cl-cards">
+                {(grp === 'none' ? pagedRows : rows).map((c) => {
+                  const fullName = c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || '—';
+                  return (
+                    <div key={c.id} className="cl-card" onClick={() => setOpen(c.id)}>
+                      <div className="cl-card-top">
+                        <div className="cl-av">{initials(fullName)}</div>
+                        <span className={cl('cl-pill', ST[c.status]?.[0])}>
+                          <span className="dot" />
+                          {ST[c.status]?.[1] || c.status}
+                        </span>
+                      </div>
+                      <div className="nm">{fullName}</div>
+                      <div className="sub">
+                        {c.position || ''}
+                        {companyNameOf(c) ? ` · ${companyNameOf(c)}` : ''}
+                      </div>
+                      <div className="cl-card-m">
+                        <div>
+                          <div className="k">{t('crm.contacts.list.card.email')}</div>
+                          <div className="v" style={{ fontSize: 11 }}>
+                            {c.email || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="k">{t('crm.contacts.list.card.phone')}</div>
+                          <div className="v" style={{ fontSize: 11 }}>
+                            {c.phone || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="k">{t('crm.contacts.list.card.city')}</div>
+                          <div className="v" style={{ fontSize: 11 }}>
+                            {c.city || '—'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="cl-card-f">
+                        <Own name={managerOf(c)} ai={aiAssignees[c.id]} />
+                        <Ic d={LIC.chevR} size={13} className="cl-dash" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="cl-foot">
+              <span>
+                {t('crm.contacts.list.footer.shown')} <b>{grp === 'none' ? pagedRows.length : rows.length}</b>{' '}
+                {t('crm.contacts.list.footer.of')} <b>{contacts.length}</b>
+                {sel.size > 0 && (
+                  <>
+                    {' '}
+                    · {t('crm.contacts.list.footer.selected')} <b>{sel.size}</b>
+                  </>
+                )}
+              </span>
+              {grp === 'none' && pageCount > 1 && <Pg page={page} pages={pageCount} set={setPage} />}
+            </div>
           </div>
         </div>
 
-        {error && (
-          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-[8px] px-3 py-2 mb-[14px]">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="text-[12px] text-slate-400 mb-[14px]">{t('crm.contacts.list.loading')}</div>
-        ) : contacts.length === 0 ? (
-          <div
-            className="rounded-[10px] border p-8 text-center"
-            style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
-          >
-            {!search && (
-              <div className="flex justify-center mb-1">
-                <LottieIcon name="add-plus" size={64} />
-              </div>
-            )}
-            <div className="text-[12px] text-[var(--fg-3)]">
-              {search ? t('crm.contacts.list.notFound') : t('crm.contacts.list.empty')}
-            </div>
-            {!search && (
-              <button
-                type="button"
-                onClick={handleCreate}
-                className="mt-4 lv-tb-btn"
-                style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
-              >
-                {t('crm.contacts.list.createFirst')}
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="lv-toolbar">
-              <div className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: 320 }}>
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  style={{ color: 'var(--fg-4)', flexShrink: 0 }}
-                  aria-hidden
-                >
-                  <circle cx="6.5" cy="6.5" r="5.5" />
-                  <path d="M11 11l3.5 3.5" />
-                </svg>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t('crm.contacts.list.search')}
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    style={{
-                      background: 'none',
-                      border: 0,
-                      cursor: 'pointer',
-                      color: 'var(--fg-3)',
-                      fontSize: 14,
-                      padding: 0,
-                      lineHeight: 1,
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-
-              <div className="lv-toolbar-divider" />
-
-              <label className="lv-tb-select">
-                <span className="lbl">{t('crm.leads.list.groupMode.label')}:</span>
-                <select
-                  value={groupMode}
-                  onChange={(e) =>
-                    setGroupMode(e.target.value as 'none' | 'company' | 'status' | 'manager' | 'custom')
-                  }
-                >
-                  <option value="company">{t('crm.contacts.list.groupMode.company')}</option>
-                  <option value="status">{t('crm.contacts.list.groupMode.status')}</option>
-                  <option value="manager">{t('crm.contacts.list.groupMode.manager')}</option>
-                  <option value="custom">{t('crm.contacts.list.groupMode.custom')}</option>
-                  <option value="none">{t('crm.contacts.list.groupMode.none')}</option>
-                </select>
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: 'var(--fg-3)', flexShrink: 0 }}
-                  aria-hidden
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </label>
-
-              {groupMode === 'custom' && (
-                <>
-                  <div className="lv-toolbar-divider" />
-                  <button type="button" className="lv-tb-btn" onClick={createCustomGroup}>
-                    + {t('crm.contacts.list.groups.new')}
-                  </button>
-                  {customGroupsOrdered.map((group) => (
-                    <div
-                      key={group.id}
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggingGroupId(group.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', group.id);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDragOverGroupId(group.id);
-                      }}
-                      onDragLeave={() => {
-                        setDragOverGroupId((prev) => (prev === group.id ? null : prev));
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (!draggingGroupId) return;
-                        reorderCustomGroups(draggingGroupId, group.id);
-                        setDraggingGroupId(null);
-                        setDragOverGroupId(null);
-                      }}
-                      onDragEnd={() => {
-                        setDraggingGroupId(null);
-                        setDragOverGroupId(null);
-                      }}
-                      className="lv-tb-btn"
-                      style={{
-                        borderColor: dragOverGroupId === group.id ? 'var(--ink)' : undefined,
-                      }}
-                    >
-                      <span style={{ fontSize: 11 }}>{group.name}</span>
-                      <button
-                        type="button"
-                        className="lv-tb-btn"
-                        style={{ padding: '2px 6px', fontSize: 10 }}
-                        onClick={() => moveCustomGroup(group.id, 'up')}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="lv-tb-btn"
-                        style={{ padding: '2px 6px', fontSize: 10 }}
-                        onClick={() => moveCustomGroup(group.id, 'down')}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="lv-tb-btn"
-                        style={{ padding: '2px 6px', fontSize: 10 }}
-                        onClick={() => renameCustomGroup(group.id)}
-                      >
-                        {t('crm.contacts.list.groups.renameShort')}
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        onClick={() => deleteCustomGroup(group.id)}
-                      >
-                        {t('crm.contacts.list.groups.deleteShort')}
-                      </button>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-
-            <div className="lv-proj-wrap">
-            <div className="lv-proj-scroll">
-              <table className="lv-proj-table lv-leads-table lv-contacts-table min-w-[1368px]">
-                <thead>
-                  <tr>
-                    <th className="lv-col-check">
-                      <button
-                        type="button"
-                        className={`lv-checkbox${
-                          contacts.length > 0 && selectedIds.size === contacts.length
-                            ? ' checked'
-                            : selectedIds.size > 0
-                              ? ' indet'
-                              : ''
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectAll();
-                        }}
-                        role="checkbox"
-                        aria-checked={contacts.length > 0 && selectedIds.size === contacts.length}
-                      >
-                        {selectedIds.size > 0 && (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <path d="M5 12l4 4 10-10" />
-                          </svg>
-                        )}
-                      </button>
-                    </th>
-                    {orderedContactColumns.map((col) => {
-                      const isDragging = draggingColumnKey === col.id;
-                      const isDropTarget = columnDragOverKey === col.id && !isDragging;
-                      return (
-                        <th
-                          key={col.id}
-                          {...(() => {
-                            const props = getThProps(col.id, col.label, '');
-                            const { className: _c, ...rest } = props as any;
-                            return rest;
-                          })()}
-                          className={[
-                            isDragging ? 'lv-col-dragging' : '',
-                            isDropTarget ? 'lv-col-drop-target' : '',
-                            contactColClass(col.id),
-                            `col-${col.id}`,
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                        >
-                          <span className="lv-th-inner">
-                            <span className="lv-th-grip">⋮⋮</span>
-                            {col.label}
-                          </span>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedContacts.map((group) => {
-                    const collapsed = collapsedGroups.includes(group.key);
-                    return (
-                      <React.Fragment key={group.key}>
-                        <tr
-                          className="lv-proj-group-row"
-                          style={
-                            groupMode === 'custom' && dragOverGroupKey === group.key
-                              ? { boxShadow: 'inset 0 0 0 2px rgba(59, 130, 246, 0.35)' }
-                              : undefined
-                          }
-                          onDragOver={(e) => {
-                            if (groupMode !== 'custom' || !draggingContactId) return;
-                            e.preventDefault();
-                            setDragOverGroupKey(group.key);
-                          }}
-                          onDragLeave={() => {
-                            if (groupMode !== 'custom') return;
-                            setDragOverGroupKey((prev) => (prev === group.key ? null : prev));
-                          }}
-                          onDrop={(e) => {
-                            if (groupMode !== 'custom' || !draggingContactId) return;
-                            e.preventDefault();
-                            assignContactGroup(
-                              draggingContactId,
-                              group.key === 'ungrouped' ? '' : group.key,
-                            );
-                            setDraggingContactId(null);
-                            setDragOverGroupKey(null);
-                          }}
-                        >
-                          <td colSpan={1 + orderedContactColumns.length}>
-                            <div className="lv-proj-group-inner">
-                              <button
-                                type="button"
-                                className={`lv-group-toggle${collapsed ? ' collapsed' : ''}`}
-                                onClick={() => toggleGroup(group.key)}
-                              >
-                                <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
-                                  <path d="M2.5 4.5L6 8L9.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              </button>
-                              <span style={{ fontWeight: 500, fontSize: 12.5, color: 'var(--ink)' }}>
-                                {group.label}
-                              </span>
-                              <span className="lv-group-meta">{group.items.length}</span>
-                            </div>
-                          </td>
-                        </tr>
-                        {!collapsed &&
-                          group.items.map((contact) => {
-                            const fullName =
-                              contact.fullName ||
-                              `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
-                              t('crm.projects.detail.fields.leadNameFallback');
-                            return (
-                              <tr
-                                key={contact.id}
-                                className={`lv-proj-row${selectedIds.has(contact.id) ? ' selected' : ''}`}
-                                onClick={() => handleOpen(contact.id)}
-                                draggable={groupMode === 'custom'}
-                                onDragStart={(e) => {
-                                  if (groupMode !== 'custom') return;
-                                  setDraggingContactId(contact.id);
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  e.dataTransfer.setData('text/plain', contact.id);
-                                }}
-                                onDragEnd={() => {
-                                  setDraggingContactId(null);
-                                  setDragOverGroupKey(null);
-                                }}
-                              >
-                                <td className="lv-col-check" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    type="button"
-                                    className={`lv-checkbox${selectedIds.has(contact.id) ? ' checked' : ''}`}
-                                    onClick={() => handleToggleSelect(contact.id)}
-                                    role="checkbox"
-                                    aria-checked={selectedIds.has(contact.id)}
-                                  >
-                                    {selectedIds.has(contact.id) && (
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                        <path d="M5 12l4 4 10-10" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                </td>
-                                {orderedContactColumns.map((col) => (
-                                  <td
-                                    key={col.id}
-                                    className={[
-                                      contactColClass(col.id),
-                                      `col-${col.id}`,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(' ')}
-                                    onClick={(e) => {
-                                      if (
-                                        ['manager', 'lead', 'group', 'actions', 'company'].includes(
-                                          col.id,
-                                        )
-                                      ) {
-                                        e.stopPropagation();
-                                      }
-                                    }}
-                                  >
-                                    {renderContactCellContent(contact, col.id, fullName)}
-                                  </td>
-                                ))}
-                              </tr>
-                            );
-                          })}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="lv-proj-foot">
-              <div className="lv-proj-foot-stats">
-                <span>
-                  <span className="lbl">{t('crm.leads.list.footerTotal')}:</span>
-                  <strong>{contacts.length}</strong>
+        {cur && (
+          <Drawer
+            title={cur.fullName || `${cur.firstName || ''} ${cur.lastName || ''}`.trim() || '—'}
+            sub={`${cur.position || ''}${companyNameOf(cur) ? ' · ' + companyNameOf(cur) : ''}`}
+            badge={
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span className={cl('cl-pill', ST[cur.status]?.[0])}>
+                  <span className="dot" />
+                  {ST[cur.status]?.[1] || cur.status}
                 </span>
               </div>
-            </div>
-          </div>
-          </>
-        )}
-        {groupMode === 'custom' && draggingContactId && (
-          <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-border-default bg-white px-3 py-2 text-[11px] text-text-secondary shadow-card">
-            {dragOverGroupKey
-              ? t('crm.contacts.list.groups.dragToGroup', {
-                  group:
-                    groupedContacts.find((g) => g.key === dragOverGroupKey)?.label ||
-                    t('crm.contacts.list.groups.ungrouped'),
-                })
-              : t('crm.contacts.list.groups.dragHint')}
-          </div>
-        )}
-
-        {/* Модальное окно массовых операций */}
-        {bulkModalOpen && (
-          <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-2xl modal-panel p-5">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <div className="text-xs font-semibold text-[#111827]">
-                    {t('crm.contacts.bulk.title')}
-                  </div>
-                  <div className="mt-1 text-[11px] text-text-tertiary">
-                    {t('crm.contacts.bulk.subtitle', { count: selectedIds.size })}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setBulkModalOpen(false)}
-                  className="text-text-tertiary hover:text-[#111827] text-xl leading-none"
-                  type="button"
-                >
-                  ×
+            }
+            onClose={() => setOpen(null)}
+            actions={
+              <>
+                {cur.email && (
+                  <a className="btn btn-sm btn-primary" href={`mailto:${cur.email}`}>
+                    <Ic d={LIC.mail} size={13} />
+                    {t('crm.contacts.list.drawer.write')}
+                  </a>
+                )}
+                <button type="button" className="btn btn-sm" onClick={() => navigate('/app/my-documents')}>
+                  <Ic d={LIC.note} size={12} />
+                  {t('crm.contacts.list.drawer.document')}
                 </button>
-              </div>
+                <button type="button" className="btn btn-sm" onClick={() => navigate(`/app/contacts/${cur.id}`)}>
+                  <Ic d={LIC.pen} size={12} />
+                  {t('crm.contacts.list.drawer.edit')}
+                </button>
+              </>
+            }
+          >
+            <div className="cl-dr-sec">{t('crm.contacts.list.drawer.sectionContact')}</div>
+            <KV k={t('crm.contacts.list.drawer.mail')} v={cur.email} />
+            <KV k={t('crm.contacts.list.drawer.phone')} v={cur.phone} mono />
+            <KV k="Telegram" v={cur.telegram} mono />
+            <KV k="LinkedIn" v={cur.linkedin} mono />
+            <KV k={t('crm.contacts.list.drawer.city')} v={cur.city} />
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[10px] text-text-tertiary mb-1.5">
-                    {t('crm.contacts.bulk.assignedTo')}
-                  </label>
-                  <select
-                    value={bulkAssignedUserId}
-                    onChange={(e) => setBulkAssignedUserId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
-                  >
-                    <option value="">{t('crm.contacts.bulk.noChange')}</option>
-                    {staff.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.fullName || s.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-text-tertiary mb-1.5">{t('crm.contacts.bulk.status')}</label>
-                  <select
-                    value={bulkStatus}
-                    onChange={(e) => setBulkStatus(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
-                  >
-                    <option value="">{t('crm.contacts.bulk.noChange')}</option>
-                    <option value="active">{t('crm.contacts.form.statuses.active')}</option>
-                    <option value="inactive">{t('crm.contacts.form.statuses.inactive')}</option>
-                    <option value="archived">{t('crm.contacts.form.statuses.archived')}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-text-tertiary mb-1.5">
-                    {t('crm.contacts.bulk.tags')}
-                  </label>
-                  <input
-                    type="text"
-                    value={bulkTags}
-                    onChange={(e) => setBulkTags(e.target.value)}
-                    placeholder={t('crm.contacts.bulk.tagsPlaceholder')}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500"
+            <div className="cl-dr-sec">{t('crm.contacts.list.drawer.sectionCrm')}</div>
+            <KV k={t('crm.contacts.list.drawer.company')} v={companyNameOf(cur)} />
+            <KV k={t('crm.contacts.list.drawer.manager')} v={managerOf(cur)} />
+            <KV k={t('crm.contacts.list.drawer.deal')} v={(cur.companyId && projectsByCompanyId[cur.companyId]?.[0]?.name) || null} />
+            {(() => {
+              const contactLeads = leads.filter((l) => l.contactId === cur.id && !isLeadInTrash(l));
+              const contactProjects = projects.filter((p) => p.contactId === cur.id);
+              const wonByCurrency = sumByCurrency(
+                contactProjects.filter((p) => p.status === 'Выиграно' || p.status === 'Закрыт'),
+                (p) => Number(p.amount) || 0,
+                (p) => p.currency,
+              );
+              return (
+                <>
+                  <KV k={t('crm.contacts.list.drawer.totalLeads')} v={String(contactLeads.length)} mono />
+                  <KV
+                    k={t('crm.contacts.list.drawer.wonSum')}
+                    v={Object.keys(wonByCurrency).length ? fmtByCurrency(wonByCurrency) : null}
+                    mono
                   />
-                </div>
-              </div>
+                </>
+              );
+            })()}
+            <KV k={t('crm.contacts.list.drawer.created')} v={cur.createdAt ? new Date(cur.createdAt).toLocaleDateString('ru-RU') : null} mono />
+            <KV k={t('crm.contacts.list.drawer.tags')} v={cur.tags?.length ? <Tags list={cur.tags} /> : null} />
 
-              <div className="mt-6 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBulkModalOpen(false)}
-                  className="btn-secondary btn-secondary-sm"
-                >
-                  {t('crm.contacts.bulk.cancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBulkUpdate}
-                  disabled={bulkSaving}
-                  className="btn-primary btn-secondary-sm disabled:opacity-50"
-                >
-                  {bulkSaving ? t('crm.contacts.bulk.saving') : t('crm.contacts.bulk.apply')}
-                </button>
+            <div className="cl-dr-sec">{t('crm.contacts.list.drawer.sectionHistory')}</div>
+            {history.length === 0 ? (
+              <div className="cl-dash" style={{ fontSize: 12 }}>
+                {t('crm.contacts.list.drawer.noHistory')}
               </div>
-            </div>
-          </div>
+            ) : (
+              history.map((h) => (
+                <div key={h.id} className="cl-tl">
+                  <span className="tm">{new Date(h.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="pt" />
+                  <span className="tx">
+                    {h.summary || h.action} {h.actorName ? `· ${h.actorName}` : ''}
+                  </span>
+                </div>
+              ))
+            )}
+          </Drawer>
         )}
       </div>
     </MainLayout>

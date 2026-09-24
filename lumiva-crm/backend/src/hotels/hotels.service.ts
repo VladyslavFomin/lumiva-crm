@@ -7,6 +7,8 @@ import { HotelRoomType } from './hotel-room-type.entity';
 import { HotelMarketGroup } from './hotel-market-group.entity';
 import { HotelMarket } from './hotel-market.entity';
 import { HotelReservation } from './hotel-reservation.entity';
+import { Tenant } from '../tenants/tenant.entity';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
 
 const DEFAULT_MARKET_GROUPS = ['Batı Avrupa', 'Doğu Avrupa', 'İç Pazar (TR)'];
 const OCCUPIED_STATUSES = ['confirmed', 'pending', 'checked_in'];
@@ -35,6 +37,9 @@ export class HotelsService {
     private readonly marketsRepo: Repository<HotelMarket>,
     @InjectRepository(HotelReservation)
     private readonly reservationsRepo: Repository<HotelReservation>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
+    private readonly currencyRates: CurrencyRatesService,
   ) {}
 
   async list(tenantId: string) {
@@ -199,16 +204,25 @@ export class HotelsService {
     ).length;
     const occupancyToday = totalRooms > 0 ? Math.round((occupiedToday / totalRooms) * 100) : 0;
 
+    // Брони не хранят валюту — она берётся от отеля. Отели одного тенанта могут быть в разных валютах (USD/EUR/RUB),
+    // поэтому складывать «как есть» нельзя: приводим каждую бронь к основной валюте тенанта по актуальному курсу.
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+    const rates = await this.currencyRates.getRates();
+    const hotelCurrency = new Map(hotels.map((h) => [h.id, (h.currency || 'EUR').toUpperCase()]));
+    const toPrimary = (amount: unknown, hotelId: string) =>
+      this.currencyRates.convertWithRates(toNum(amount as string | number), hotelCurrency.get(hotelId) || currency, currency, rates);
+
     const revenueRows = reservations.filter((r) => REVENUE_STATUSES.includes(r.status));
     const totalNights = revenueRows.reduce((s, r) => s + nightsBetween(r.checkIn, r.checkOut), 0);
-    const totalRoomRevenue = revenueRows.reduce((s, r) => s + toNum(r.roomTotal), 0);
+    const totalRoomRevenue = revenueRows.reduce((s, r) => s + toPrimary(r.roomTotal, r.hotelId), 0);
     const adr = totalNights > 0 ? Math.round(totalRoomRevenue / totalNights) : 0;
 
     const last30 = reservations.filter(
       (r) => REVENUE_STATUSES.includes(r.status) && r.createdAt.toISOString().slice(0, 10) >= since30,
     );
     const bookings30d = last30.length;
-    const revenue30d = Math.round(last30.reduce((s, r) => s + toNum(r.total), 0));
+    const revenue30d = Math.round(last30.reduce((s, r) => s + toPrimary(r.total, r.hotelId), 0));
 
     return {
       hotelsCount: hotels.length,
@@ -217,6 +231,8 @@ export class HotelsService {
       adr,
       bookings30d,
       revenue30d,
+      /** Валюта adr/revenue30d — основная валюта тенанта (брони пересчитаны из валют своих отелей). */
+      currency,
     };
   }
 }

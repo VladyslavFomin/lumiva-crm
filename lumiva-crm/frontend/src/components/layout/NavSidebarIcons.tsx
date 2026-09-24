@@ -53,7 +53,7 @@ export const NavIconContacts: React.FC<{ className?: string }> = ({ className })
 const CALENDAR_DAYS_PATH =
   'M6.75 3V5.25M17.25 3V5.25M3 18.75V7.5C3 6.25736 4.00736 5.25 5.25 5.25H18.75C19.9926 5.25 21 6.25736 21 7.5V18.75M3 18.75C3 19.9926 4.00736 21 5.25 21H18.75C19.9926 21 21 19.9926 21 18.75M3 18.75V11.25C3 10.0074 4.00736 9 5.25 9H18.75C19.9926 9 21 10.0074 21 11.25V18.75M12 12.75H12.0075V12.7575H12V12.75ZM12 15H12.0075V15.0075H12V15ZM12 17.25H12.0075V17.2575H12V17.25ZM9.75 15H9.7575V15.0075H9.75V15ZM9.75 17.25H9.7575V17.2575H9.75V17.25ZM7.5 15H7.5075V15.0075H7.5V15ZM7.5 17.25H7.5075V17.2575H7.5V17.25ZM14.25 12.75H14.2575V12.7575H14.25V12.75ZM14.25 15H14.2575V15.0075H14.25V15ZM14.25 17.25H14.2575V17.2575H14.25V17.25ZM16.5 12.75H16.5075V12.7575H16.5V12.75ZM16.5 15H16.5075V15.0075H16.5V15Z';
 
-/** Heroicons v2 outline (calendar-days) */
+/** Heroicons v2 outline (rectangle-stack) */
 export const NavIconProjects: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     className={`${iconClass} ${className || ''}`}
@@ -64,7 +64,7 @@ export const NavIconProjects: React.FC<{ className?: string }> = ({ className })
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d={CALENDAR_DAYS_PATH} />
+    <path d="M6 6.878V6a2.25 2.25 0 012.25-2.25h7.5A2.25 2.25 0 0118 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 004.5 9v.878m13.5-3A2.25 2.25 0 0119.5 9v.878m0 0a2.246 2.246 0 00-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0121 12v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6c0-.98.626-1.813 1.5-2.122" />
   </svg>
 );
 
@@ -261,6 +261,56 @@ export const NavIconDots: React.FC<{ className?: string }> = ({ className }) => 
   </svg>
 );
 
+
+const mk =
+  (paths: string[]): React.FC<{ className?: string }> =>
+  ({ className }) => (
+    <svg
+      className={`${iconClass} ${className || ''}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths.map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+
+/** Heroicons v2 outline (ticket) — бронирования */
+export const NavIconTicket = mk([
+  'M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z',
+]);
+/** Heroicons v2 outline (building-office) — отели */
+export const NavIconHotel = mk([
+  'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21',
+]);
+/** Heroicons v2 outline (phone) — телефония */
+export const NavIconPhone = mk([
+  'M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z',
+]);
+/** Спасательный круг — хелпдеск */
+export const NavIconLifebuoy = mk([
+  'M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  'M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z',
+  'M5.64 5.64l3.71 3.71M18.36 5.64l-3.71 3.71M5.64 18.36l3.71-3.71M18.36 18.36l-3.71-3.71',
+]);
+/** Heroicons v2 outline (pencil-square) — подпись документов */
+export const NavIconSign = mk([
+  'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
+]);
+/** Heroicons v2 outline (sparkles) — AI-сотрудники */
+export const NavIconSparkles = mk([
+  'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z',
+]);
+/** Heroicons v2 outline (briefcase) — клиентские счета */
+export const NavIconBriefcase = mk([
+  'M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z',
+]);
+
 export const NAV_ICON_MAP = {
   home: NavIconHome,
   leads: NavIconLeads,
@@ -281,6 +331,13 @@ export const NAV_ICON_MAP = {
   gantt: NavIconGantt,
   workspaceNew: NavIconWorkspaceNew,
   folder: NavIconFolder,
+  ticket: NavIconTicket,
+  hotel: NavIconHotel,
+  phone: NavIconPhone,
+  lifebuoy: NavIconLifebuoy,
+  sign: NavIconSign,
+  sparkles: NavIconSparkles,
+  briefcase: NavIconBriefcase,
 } as const;
 
 export type NavIconKey = keyof typeof NAV_ICON_MAP;

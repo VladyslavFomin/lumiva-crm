@@ -6,8 +6,12 @@ import {
   MaxLength,
   IsUUID,
   IsObject,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { SaleStatus } from '../sale-status.enum';
+import { EntityCommentDto } from '../../common/comment.types';
 
 export class UpdateSaleDto {
   @IsOptional()
@@ -32,4 +36,10 @@ export class UpdateSaleDto {
   @IsOptional()
   @IsObject()
   customFields?: Record<string, any>;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EntityCommentDto)
+  comments?: EntityCommentDto[];
 }

@@ -421,7 +421,7 @@ export const ReservationDetailPage: React.FC = () => {
                 <div><div className="v">{customerStats?.visits ?? '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.visits')}</div></div>
                 <div><div className="v">{customerStats?.cancellations ?? '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.cancellations')}</div></div>
                 <div><div className="v">{customerStats?.noShows ?? '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.noShows')}</div></div>
-                <div><div className="v">{customerStats ? `${customerStats.ltv} ₽` : '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.turnover')}</div></div>
+                <div><div className="v">{customerStats ? `${customerStats.ltv.toLocaleString()} ${customerStats.currency}` : '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.turnover')}</div></div>
               </div>
               {!reservation.contactId && (
                 <div style={{ marginTop: 16, fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.bookings.detail.clientTab.noContact')}</div>

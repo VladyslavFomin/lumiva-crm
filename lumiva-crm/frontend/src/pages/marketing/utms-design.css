@@ -1,0 +1,153 @@
+/* ============================================
+   MARKETING · UTM — конструктор меток и шаблоны
+   Ported from Claude Design (marketing-utms.html / styles/utms.css) onto the shared
+   .px-scope convention (see ../contacts/crm-lists-design.css — tokens, .btn).
+   Mobile layout is additional to the mockup: breakpoints 1100 / 900 / 680 / 560.
+   ============================================ */
+
+.px-scope.utm-scope {
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.px-scope.utm-scope, .px-scope.utm-scope *, .px-scope.utm-scope *::before, .px-scope.utm-scope *::after { box-sizing: border-box; }
+.px-scope .btn.btn-ghost { background: transparent; border-color: transparent; }
+.px-scope .ut-wrap { width: 100%; }
+
+.px-scope .ut-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 6px 0 18px; border-bottom: 1px solid var(--line-2); margin-bottom: 18px; flex-wrap: wrap; }
+.px-scope .ut-head h1 { font-family: var(--ff-display); font-size: 26px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
+.px-scope .ut-head .kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.px-scope .ut-head .kicker .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); flex-shrink: 0; }
+.px-scope .ut-head .sub { font-size: 13px; color: var(--fg-3); margin-top: 6px; max-width: 600px; line-height: 1.45; }
+.px-scope .ut-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* notices */
+.px-scope .ut-note { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg-muted); font-size: 12.5px; color: var(--fg-2); margin-bottom: 16px; }
+.px-scope .ut-note .sp { flex: 1; min-width: 0; }
+.px-scope .ut-note .x { border: 0; background: none; font-size: 18px; line-height: 1; color: inherit; opacity: .6; padding: 0 2px; cursor: pointer; }
+.px-scope .ut-note.err { border-color: color-mix(in srgb, #cc2f47 35%, var(--line-2)); background: color-mix(in srgb, #cc2f47 5%, #fff); color: #a32338; }
+.px-scope .ut-note.ok { border-color: color-mix(in srgb, #1f8a5e 35%, var(--line-2)); background: color-mix(in srgb, #1f8a5e 6%, #fff); color: #17704b; }
+
+/* поток: зачем это нужно */
+.px-scope .ut-flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line-2); border-radius: 12px; background: #fff; overflow: hidden; margin-bottom: 18px; }
+.px-scope .ut-step { padding: 14px 16px 15px; border-right: 1px solid var(--line-2); position: relative; }
+.px-scope .ut-step:last-child { border-right: 0; }
+.px-scope .ut-step .n { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--fg-4); text-transform: uppercase; }
+.px-scope .ut-step .t { font-family: var(--ff-display); font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; margin-top: 7px; color: var(--ink); }
+.px-scope .ut-step .d { font-size: 11.5px; color: var(--fg-3); line-height: 1.45; margin-top: 5px; }
+.px-scope .ut-step.on { background: var(--bg-muted); }
+
+/* сетка */
+.px-scope .ut-cols { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.px-scope .ut-card { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; margin-bottom: 16px; min-width: 0; }
+.px-scope .ut-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
+.px-scope .ut-card-head h3 { font-family: var(--ff-display); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.px-scope .ut-card-head .meta { font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+
+/* каналы */
+.px-scope .ut-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 18px 4px; }
+.px-scope .ut-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border: 1px solid var(--line-2); border-radius: 999px; background: #fff; font: inherit; font-size: 12.5px; color: var(--fg-2); cursor: pointer; transition: border-color .12s, background .12s, color .12s; }
+.px-scope .ut-chip:hover { border-color: var(--ink); color: var(--ink); }
+.px-scope .ut-chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.px-scope .ut-chip .mono { font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.04em; opacity: .65; }
+
+/* поля */
+.px-scope .ut-fields { padding: 14px 18px 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.px-scope .ut-f { min-width: 0; }
+.px-scope .ut-f.wide { grid-column: 1 / -1; }
+.px-scope .ut-f .l { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.px-scope .ut-f .l b { font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); font-weight: 500; }
+.px-scope .ut-f .l span { font-size: 11px; color: var(--fg-3); }
+.px-scope .ut-input { width: 100%; height: 36px; font: inherit; font-size: 13px; font-family: var(--ff-mono); padding: 0 11px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; color: var(--ink); }
+.px-scope .ut-input::placeholder { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: var(--fg-4); }
+.px-scope .ut-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.px-scope .ut-input.bad { border-color: #c08319; background: color-mix(in srgb, #c08319 5%, #fff); }
+.px-scope .ut-input.body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+.px-scope .ut-warn { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: #7a5411; margin-top: 6px; }
+.px-scope .ut-warn button { border: 0; background: none; padding: 0; font: inherit; font-size: 11.5px; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+
+/* результат */
+.px-scope .ut-out { margin: 16px 18px 18px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg-muted); overflow: hidden; }
+.px-scope .ut-out-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line-2); }
+.px-scope .ut-out-head .l { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); }
+.px-scope .ut-url { padding: 12px; font-family: var(--ff-mono); font-size: 12.5px; line-height: 1.7; overflow-wrap: anywhere; word-break: break-all; color: var(--fg-2); }
+.px-scope .ut-url .base { color: var(--ink); font-weight: 500; }
+.px-scope .ut-url .k { color: var(--fg-3); }
+.px-scope .ut-url .v { color: var(--ink); background: var(--bg-soft); border-radius: 4px; padding: 1px 4px; }
+.px-scope .ut-url .err { color: #cc2f47; }
+.px-scope .ut-url .hint { color: var(--fg-4); font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+
+.px-scope .ut-save { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: end; padding: 14px 18px; border-top: 1px solid var(--line-2); background: var(--bg-muted); border-radius: 0 0 11px 11px; }
+
+/* карточка «как увидит CRM» */
+.px-scope .ut-lead { padding: 4px 18px 16px; }
+.px-scope .ut-lead-row { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-3); align-items: baseline; }
+.px-scope .ut-lead-row:last-child { border-bottom: 0; }
+.px-scope .ut-lead-row .k { font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+.px-scope .ut-lead-row .v { font-size: 13px; color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.px-scope .ut-lead-row .v.empty { color: var(--fg-4); font-weight: 400; }
+.px-scope .ut-foot { padding: 12px 18px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--fg-3); line-height: 1.5; background: var(--bg-muted); border-radius: 0 0 11px 11px; }
+
+/* шаблоны */
+.px-scope .ut-tpl { display: flex; align-items: flex-start; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line-3); }
+.px-scope .ut-tpl:last-of-type { border-bottom: 0; }
+.px-scope .ut-tpl.on { background: var(--bg-muted); box-shadow: inset 2px 0 0 var(--ink); }
+.px-scope .ut-tpl .nm { flex: 1; min-width: 0; }
+.px-scope .ut-tpl .nm b { display: block; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.px-scope .ut-tpl .nm .p { font-family: var(--ff-mono); font-size: 10.5px; color: var(--fg-3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.px-scope .ut-tpl-acts { display: flex; gap: 6px; flex-shrink: 0; }
+.px-scope .ut-ico { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--line-2); background: #fff; color: var(--fg-2); display: inline-grid; place-items: center; cursor: pointer; transition: border-color .12s, color .12s; }
+.px-scope .ut-ico:hover { border-color: var(--ink); color: var(--ink); }
+.px-scope .ut-ico.danger:hover { border-color: #cc2f47; color: #cc2f47; }
+.px-scope .ut-empty { padding: 28px 18px; text-align: center; color: var(--fg-3); font-size: 12.5px; line-height: 1.5; }
+
+/* кому нужно + правила */
+.px-scope .ut-bottom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.px-scope .ut-role { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; padding: 16px 18px; }
+.px-scope .ut-role .r { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); }
+.px-scope .ut-role .t { font-family: var(--ff-display); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; margin-top: 8px; }
+.px-scope .ut-role .d { font-size: 12.5px; color: var(--fg-2); line-height: 1.5; margin-top: 6px; }
+.px-scope .ut-rules { list-style: none; margin: 0; padding: 0; }
+.px-scope .ut-rules li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--line-3); font-size: 12.5px; color: var(--fg-2); line-height: 1.45; }
+.px-scope .ut-rules li:last-child { border-bottom: 0; }
+.px-scope .ut-rules li i { color: var(--fg-4); font-style: normal; font-family: var(--ff-mono); font-size: 11px; }
+.px-scope .ut-rules code { font-family: var(--ff-mono); font-size: 11.5px; background: var(--bg-soft); border-radius: 4px; padding: 1px 5px; color: var(--ink); overflow-wrap: anywhere; }
+
+.px-scope .ut-skel { border-radius: 12px; background: linear-gradient(90deg, var(--bg-soft), #fff, var(--bg-soft)); background-size: 200% 100%; animation: ut-skel 1.2s ease-in-out infinite; }
+@keyframes ut-skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .px-scope .ut-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .px-scope .ut-step { border-bottom: 1px solid var(--line-2); }
+  .px-scope .ut-step:nth-child(2n) { border-right: 0; }
+  .px-scope .ut-step:last-child { border-bottom: 0; grid-column: 1 / -1; border-right: 0; }
+  .px-scope .ut-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .px-scope .ut-bottom { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 680px) {
+  .px-scope .ut-fields { grid-template-columns: minmax(0, 1fr); padding: 14px 14px 4px; }
+  .px-scope .ut-save { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .px-scope .ut-save .btn { justify-content: center; min-height: 40px; }
+}
+@media (max-width: 560px) {
+  .px-scope .ut-head { padding-top: 0; gap: 14px; align-items: stretch; }
+  .px-scope .ut-head h1 { font-size: 22px; }
+  .px-scope .ut-head .sub { font-size: 12.5px; }
+  .px-scope .ut-head-actions .btn { flex: 1 1 100%; justify-content: center; min-height: 40px; }
+  .px-scope .ut-flow { grid-template-columns: minmax(0, 1fr); }
+  .px-scope .ut-step { border-right: 0; border-bottom: 1px solid var(--line-2); padding: 12px 14px; }
+  .px-scope .ut-step:last-child { border-bottom: 0; }
+  .px-scope .ut-card-head { padding: 12px 14px; }
+  .px-scope .ut-chips { padding: 12px 14px 4px; }
+  .px-scope .ut-chip { min-height: 36px; }
+  .px-scope .ut-input { height: 42px; font-size: 16px; }
+  .px-scope .ut-out { margin: 14px; }
+  .px-scope .ut-out-head .btn { min-height: 34px; }
+  .px-scope .ut-lead { padding: 4px 14px 14px; }
+  .px-scope .ut-lead-row { grid-template-columns: 96px minmax(0, 1fr); }
+  .px-scope .ut-tpl { padding: 12px 14px; }
+  .px-scope .ut-ico { width: 34px; height: 34px; }
+  .px-scope .ut-rules li { padding: 10px 14px; }
+  .px-scope .ut-note { flex-wrap: wrap; }
+}

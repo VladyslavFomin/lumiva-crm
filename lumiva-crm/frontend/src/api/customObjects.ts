@@ -10,7 +10,9 @@ export type CustomObjectFieldType =
   | 'status'
   | 'select'
   | 'multiselect'
-  | 'file';
+  | 'file'
+  /** Умная колонка — значение пишет назначенный ИИ-сотрудник (meta.ai = {agentId, prompt}). */
+  | 'ai';
 
 export interface CustomObject {
   id: string;
@@ -178,6 +180,38 @@ export async function updateCustomObjectField(
   );
 }
 
+/** Пересчитать одну ячейку умной колонки (type: 'ai') по кнопке "Обновить". */
+export async function refreshWorkspaceAiColumn(objectId: string, recordId: string, fieldKey: string) {
+  return api.post<{ ok: boolean; value?: string; error?: string }>(
+    `/custom-objects/${objectId}/records/${recordId}/fields/${encodeURIComponent(fieldKey)}/ai-refresh`,
+    {},
+  );
+}
+
+/** Пересчитать умную колонку сразу для ВСЕХ строк таблицы (как run_backfill у Monday). */
+export async function refreshWorkspaceAiColumnAll(objectId: string, fieldKey: string) {
+  return api.post<{ ok: boolean; total: number; succeeded: number; failed: number }>(
+    `/custom-objects/${objectId}/fields/${encodeURIComponent(fieldKey)}/ai-refresh-all`,
+    {},
+  );
+}
+
+export interface WorkspaceAiAnalytics {
+  agentId: string;
+  agentName: string;
+  text: string;
+  question: string | null;
+  computedAt: string;
+}
+
+/** Аналитика по всей таблице (кэшируется в CustomObject.meta.aiAnalytics — читается обычным fetchCustomObject/fetchCustomObjects). */
+export async function analyzeWorkspaceTable(objectId: string, agentId: string, question?: string) {
+  return api.post<{ ok: boolean; text?: string; computedAt?: string; error?: string }>(
+    `/custom-objects/${objectId}/ai-analytics`,
+    { agentId, question: question || '' },
+  );
+}
+
 export async function deleteCustomObjectField(objectId: string, fieldId: string) {
   return api.delete<{ ok: boolean }>(`/custom-objects/${objectId}/fields/${fieldId}`);
 }
@@ -328,6 +362,38 @@ export async function previewCustomObjectImport(
     throw new Error(data?.message || 'Failed to preview import');
   }
   return data as CustomObjectImportPreview;
+}
+
+export interface CustomObjectImportReshapePlanField {
+  key: string;
+  label: string;
+  type: string;
+  rawLabels: string[];
+}
+
+export interface CustomObjectImportReshapePlan {
+  kind: 'pivot';
+  groupKeyColumns: string[];
+  pivotLabelColumn: string;
+  pivotValueColumn: string;
+  passthroughColumns: string[];
+  outputFields: CustomObjectImportReshapePlanField[];
+}
+
+/**
+ * ИИ-разбор "сырого" файла произвольной формы (напр. merged-колонка на N строк метрик — см.
+ * WorkspaceImportPage) в плоскую таблицу. Возвращает либо новый preview (та же форма, что и
+ * previewCustomObjectImport — дальше обычный map → apply flow), либо alreadyFlat, если файл
+ * и так подходит для прямого импорта.
+ */
+export async function reshapeCustomObjectImportWithAi(
+  objectId: string,
+  importId: string,
+): Promise<
+  | (CustomObjectImportPreview & { plan: CustomObjectImportReshapePlan })
+  | { alreadyFlat: true }
+> {
+  return api.post(`/custom-objects/${objectId}/import/${importId}/reshape-ai`, {});
 }
 
 export type WorkspaceFileFieldValue = {
@@ -503,3 +569,75 @@ export async function applyCustomObjectImport(
   }>(`/custom-objects/${objectId}/import/apply`, payload);
 }
 
+
+/* ── Источники синхронизации таблицы (backend/src/workspace-sync) ── */
+
+export type SyncSourceKind = 'marketing_monthly' | 'marketing_rows' | 'integration_import';
+
+export interface SyncSourceDto {
+  id: string;
+  kind: SyncSourceKind;
+  label?: string;
+  params: Record<string, any>;
+  autoRefresh: boolean;
+  schedule: { type: 'nightly' } | { type: 'interval'; everyMinutes: number };
+  lastRefreshAt?: string;
+  lastRefreshStatus?: 'ok' | 'error' | 'running';
+  lastRefreshError?: string | null;
+  lastRecordCount?: number;
+}
+
+type SyncResult = { ok: boolean; error?: string; hint?: string; message?: string; [k: string]: unknown };
+
+/** Источники из меты таблицы; старый meta.marketingSource — как одиночный marketing_monthly. */
+export function getSyncSourcesFromMeta(meta: Record<string, any> | null | undefined): SyncSourceDto[] {
+  const m = meta && typeof meta === 'object' ? meta : {};
+  if (Array.isArray(m.syncSources)) return m.syncSources as SyncSourceDto[];
+  const legacy = m.marketingSource as Record<string, any> | undefined;
+  if (legacy?.params) {
+    return [
+      {
+        id: 'legacy-monthly',
+        kind: 'marketing_monthly',
+        params: legacy.params,
+        autoRefresh: legacy.autoRefresh === true,
+        schedule: { type: 'nightly' },
+        lastRefreshAt: legacy.lastRefreshAt,
+        lastRefreshStatus: legacy.lastRefreshStatus,
+        lastRefreshError: legacy.lastRefreshError ?? null,
+        lastRecordCount: legacy.lastRecordCount,
+      },
+    ];
+  }
+  return [];
+}
+
+const syncBase = (objectId: string) => `/ai/workspace-tables/${objectId}`;
+
+export const addSyncSource = (
+  objectId: string,
+  body: {
+    kind: SyncSourceKind;
+    params: Record<string, any>;
+    label?: string;
+    autoRefresh?: boolean;
+    skipInitialRefresh?: boolean;
+  },
+) => api.post<SyncResult>(`${syncBase(objectId)}/sync-sources`, body);
+
+export const updateSyncSource = (
+  objectId: string,
+  sourceId: string,
+  body: { autoRefresh?: boolean; label?: string },
+) => api.patch<SyncResult>(`${syncBase(objectId)}/sync-sources/${sourceId}`, body);
+
+export const removeSyncSource = (objectId: string, sourceId: string, deleteRows = false) =>
+  api.delete<SyncResult>(`${syncBase(objectId)}/sync-sources/${sourceId}?deleteRows=${deleteRows ? 1 : 0}`);
+
+export const refreshSyncSource = (objectId: string, sourceId: string) =>
+  api.post<SyncResult>(`${syncBase(objectId)}/sync-sources/${sourceId}/refresh`);
+
+export const refreshAllSyncSources = (objectId: string) => api.post<SyncResult>(`${syncBase(objectId)}/refresh`);
+
+export const fetchSyncSources = (objectId: string) =>
+  api.get<{ sources: SyncSourceDto[] }>(`${syncBase(objectId)}/sync-sources`);

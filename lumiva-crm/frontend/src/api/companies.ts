@@ -16,10 +16,14 @@ export interface Company {
   address: string | null;
   industry: string | null;
   size: string | null;
+  /** Стадия отношений с компанией: client/nego/lead/partner/own/archived (см. companies.html) */
+  type: string | null;
   description: string | null;
   tags: string[];
   assignedUserId: string | null;
   assignedTo: string | null;
+  /** Несколько ответственных (карточка компании); [0] обычно совпадает с assignedUserId. */
+  assignedUserIds: string[];
   status: string;
   customFields: Record<string, any> | null;
   legalRequisites: LegalRequisiteItem[] | null;
@@ -39,10 +43,12 @@ export interface CreateCompanyDto {
   address?: string;
   industry?: string;
   size?: string;
+  type?: string;
   description?: string;
   tags?: string[];
   assignedUserId?: string;
   assignedTo?: string;
+  assignedUserIds?: string[];
   status?: string;
   customFields?: Record<string, any>;
   legalRequisites?: LegalRequisiteItem[];
@@ -113,15 +119,32 @@ export interface CompanyAnalytics {
       'На проверке': number;
       Заморожен: number;
       Закрыт: number;
+      Выиграно: number;
+      Проиграно: number;
     };
     totalAmount: number;
     closedAmount: number;
+    /** Разбивка по валюте проекта — служебное; для отображения используйте metrics.*Converted. */
+    totalAmountByCurrency: Record<string, number>;
+    closedAmountByCurrency: Record<string, number>;
+    pipelineAmountByCurrency: Record<string, number>;
+    lostAmountByCurrency: Record<string, number>;
   };
   metrics: {
     conversionRate: number;
     avgProjectValue: number;
+    avgProjectValueByCurrency: Record<string, number>;
     totalRevenue: number;
     potentialRevenue: number;
+    /** Основная валюта тенанта — все *Converted ниже уже в ней. */
+    currency: string;
+    /** Выручка (выигранные проекты), сконвертирована в currency по курсу. */
+    totalRevenueConverted: number;
+    /** = pipelineRevenueConverted (открытые сделки) — оставлено для обратной совместимости. */
+    potentialRevenueConverted: number;
+    pipelineRevenueConverted: number;
+    lostRevenueConverted: number;
+    avgProjectValueConverted: number;
   };
 }
 
@@ -132,7 +155,11 @@ export interface AllCompaniesAnalytics {
     totalProjects: number;
     totalRevenue: number;
     totalPotentialRevenue: number;
+    currency: string;
+    totalWonLeads: number;
     avgConversionRate: number;
+    /** Лид → клиент (won), в отличие от avgConversionRate (лид → проект). */
+    avgWonConversionRate: number;
   };
   topByRevenue: Array<{
     companyId: string;
@@ -147,6 +174,18 @@ export interface AllCompaniesAnalytics {
     projects: number;
     revenue: number;
     leads: number;
+  }>;
+  perCompany: Array<{
+    companyId: string;
+    contacts: number;
+    leads: number;
+    projects: number;
+    /** Уже сконвертировано в currency (единая валюта тенанта), считается по проектам. */
+    revenue: number;
+    potential: number;
+    avgProjectValue: number;
+    currency: string;
+    wonLeads: number;
   }>;
 }
 
@@ -250,6 +289,7 @@ export interface BulkUpdateCompaniesDto {
   assignedUserId?: string | null;
   assignedTo?: string | null;
   status?: string;
+  type?: string;
   tagsToAdd?: string[];
   tagsToRemove?: string[];
 }

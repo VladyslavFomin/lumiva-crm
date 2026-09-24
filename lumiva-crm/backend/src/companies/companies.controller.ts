@@ -103,15 +103,28 @@ export class CompaniesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('withRelations') withRelations?: string,
   ) {
-    const company =
-      withRelations === 'true'
-        ? await this.companiesService.findOneWithRelations(user.tenantId, id)
-        : await this.companiesService.findOne(user.tenantId, id);
     const visibility = await this.resolveVisibility(user);
-    if (visibility.forceOwnOnly && (company as unknown as Company).assignedUserId !== visibility.forceOwnOnly) {
+
+    // withRelations=true возвращает {company, contacts, leads, projects, tasks} — НЕ саму Company.
+    // Раньше весь этот объект прогонялся через maskOne(...) как если бы это была Company: проверка
+    // forceOwnOnly читала company.assignedUserId (undefined на этой форме — always-deny своих же
+    // записей), а маскировка email/phone добавляла бутафорские `phone: null, email: null` поля
+    // РЯДОМ с company/contacts/leads/projects/tasks, не трогая реальные email/phone внутри
+    // вложенного company — то есть контакты компании фактически никогда не маскировались для
+    // ролей с contact_masking != 'show'. Теперь работаем с вложенным company.
+    if (withRelations === 'true') {
+      const result = await this.companiesService.findOneWithRelations(user.tenantId, id);
+      if (visibility.forceOwnOnly && result.company.assignedUserId !== visibility.forceOwnOnly) {
+        throw new NotFoundException('Company not found');
+      }
+      return { ...result, company: this.maskOne(result.company, visibility.staffId, visibility.contactMaskingMode) };
+    }
+
+    const company = await this.companiesService.findOne(user.tenantId, id);
+    if (visibility.forceOwnOnly && company.assignedUserId !== visibility.forceOwnOnly) {
       throw new NotFoundException('Company not found');
     }
-    return this.maskOne(company as unknown as Company, visibility.staffId, visibility.contactMaskingMode);
+    return this.maskOne(company, visibility.staffId, visibility.contactMaskingMode);
   }
 
   @Post()

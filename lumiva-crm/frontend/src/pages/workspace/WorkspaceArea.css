@@ -13,7 +13,10 @@
   --line-3: #f0f0f0;
   --bg-muted: #fafafa;
   --bg-soft: #f5f5f5;
-  --ws-ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Aligned to .lv-proj-table's --ff-mono (ProjectsListPage.css) — that variable is actually
+     Poppins, not a monospace font; keeping the same value here is what makes table captions
+     across Workspace and Projects read as one design system instead of two. */
+  --ws-ff-mono: 'Poppins', system-ui, -apple-system, sans-serif;
   --ws-ff-head: 'Inter Tight', 'Poppins', system-ui, -apple-system, sans-serif;
 }
 
@@ -186,6 +189,38 @@
 .ws-check { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink); border: 1px solid var(--line-2); border-radius: 8px; padding: 9px 11px; background: var(--bg-muted); }
 .ws-check input { accent-color: #222; width: 14px; height: 14px; }
 .ws-note { font-size: 11.5px; color: var(--fg-3); line-height: 1.5; }
+.ws-ta { resize: vertical; min-height: 60px; font-family: inherit; line-height: 1.45; }
+
+/* Сетка выбора типа поля — замена плоского native <select> в модалках добавления/редактирования колонки. */
+.ws-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ws-type-card { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 9px; background: #fff; color: var(--fg-2); font-size: 12px; cursor: pointer; text-align: left; transition: border-color .12s, background .12s, color .12s; }
+.ws-type-card:hover { border-color: var(--fg-3); }
+.ws-type-card.on { border-color: var(--ink); background: var(--bg-muted); color: var(--ink); font-weight: 500; }
+.ws-type-card svg { flex-shrink: 0; }
+.ws-type-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Настройка умной колонки (type: 'ai') внутри той же модалки. */
+.ws-ai-config { display: flex; flex-direction: column; gap: 12px; border: 1px solid #e0d7f7; border-radius: 10px; padding: 12px; background: linear-gradient(135deg,#f7f3ff,#eef5ff); }
+.ws-preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-preset-row .tb-icon-btn { font-size: 11px; padding: 5px 9px; }
+
+/* Значок умной колонки на карточке Kanban. */
+.kb-ai-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #6d28d9; background: #f5f0ff; border: 1px solid #e0d7f7; border-radius: 6px; padding: 2px 7px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* "Управление колонками" — реордер + быстрые действия по всем полям таблицы. */
+.ws-fields-list { display: flex; flex-direction: column; gap: 6px; }
+.ws-field-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); border-radius: 9px; padding: 8px 10px; background: #fff; cursor: grab; }
+.ws-field-row:active { cursor: grabbing; }
+.ws-field-row.off { opacity: .55; background: var(--bg-muted); }
+.ws-field-row .drag { color: var(--fg-4); font-size: 12px; flex-shrink: 0; letter-spacing: -1px; }
+.ws-field-row .ic { flex-shrink: 0; color: var(--fg-3); display: flex; }
+.ws-field-row .info { min-width: 0; flex: 1; }
+.ws-field-row .lbl { font-size: 12.5px; color: var(--ink); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.ws-field-row .lbl .badge { font-family: var(--ws-ff-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; }
+.ws-field-row .key { font-family: var(--ws-ff-mono); font-size: 10px; color: var(--fg-4); margin-top: 2px; }
+.ws-field-row .actions { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.ws-field-row .actions .tb-icon-btn { padding: 4px 8px; font-size: 11px; }
+.ws-field-row .actions .tb-icon-btn.danger { color: #9a1f31; border-color: #f0c8cf; }
 
 /* breadcrumb */
 .ws-page .ws-bar { display: flex; align-items: center; gap: 8px; padding: 8px 0 14px; font-size: 12.5px; color: var(--fg-3); flex-wrap: wrap; }
@@ -197,6 +232,11 @@
 /* settings / new-table: two-column layout */
 .ws-page .ws-cols { display: grid; grid-template-columns: 216px 1fr; gap: 20px; align-items: start; }
 @media (max-width: 900px) { .ws-page .ws-cols { grid-template-columns: 1fr; } }
+
+/* new-table: main column + fixed-width preview sidebar (was an inline style — couldn't respond
+   to the mobile media query below, so the 300px sidebar stayed squeezed next to 1fr on phones) */
+.ws-page .ws-cols-newtable { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .ws-page .ws-cols-newtable { grid-template-columns: 1fr; } }
 .ws-page .ws-side { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 74px; }
 .ws-page .ws-side a, .ws-page .ws-side button { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; color: var(--fg-2); background: none; border: 0; font-family: inherit; text-align: left; cursor: pointer; transition: background .12s, color .12s; }
 .ws-page .ws-side a:hover, .ws-page .ws-side button:hover { background: var(--bg-soft); color: var(--ink); }
@@ -236,7 +276,7 @@
 .ws-page .ws-tog .sw.on::after { transform: translateX(14px); }
 .ws-page .ws-tog .sw:disabled { opacity: .5; cursor: not-allowed; }
 .ws-page .ws-tog .sp { flex: 1; }
-.ws-page .ws-tog .h { font-size: 11.5px; color: var(--fg-3); margin-top: 2px; }
+.ws-page .ws-tog .h { display: block; font-size: 11.5px; color: var(--fg-3); margin-top: 2px; font-weight: 400; line-height: 1.4; }
 
 .ws-page .ws-mrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-3); }
 .ws-page .ws-mrow:last-child { border-bottom: 0; }
@@ -278,17 +318,19 @@
 .ws-page .ws-areacard.add { border-style: dashed; align-items: center; justify-content: center; color: var(--fg-3); font-size: 12.5px; min-height: 180px; cursor: pointer; background: none; }
 
 /* ---- record grid (table view / data table) ---- */
-.ws-page .ws-tablewrap { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; overflow: auto; }
+.ws-page .ws-tablewrap { border: 1px solid var(--line-2); border-radius: 10px; background: #fff; overflow: auto; }
 .ws-page .ws-tablewrap.drop-target { box-shadow: inset 0 0 0 2px var(--fg-3); }
 .ws-page .ws-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; table-layout: fixed; min-width: 900px; }
-.ws-page .ws-tbl thead th { padding: 8px 12px; text-align: left; background: var(--bg-muted); border-bottom: 1px solid var(--line-2); white-space: nowrap; position: sticky; top: 0; z-index: 2; vertical-align: bottom; }
-.ws-page .ws-tbl th .lb { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--ink); }
+.ws-page .ws-tbl thead th { padding: 10px 14px; text-align: left; background: var(--bg-muted); border-bottom: 1px solid var(--line-2); white-space: nowrap; position: sticky; top: 0; z-index: 2; vertical-align: bottom; user-select: none; }
+.ws-page .ws-tbl th .lb { display: flex; align-items: center; gap: 6px; font-family: var(--ws-ff-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); }
 .ws-page .ws-tbl th .bd { display: inline-flex; align-items: center; gap: 4px; font-family: var(--ws-ff-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); margin-top: 3px; }
 .ws-page .ws-tbl th .bd i { width: 5px; height: 5px; border-radius: 1px; background: var(--fg-3); display: inline-block; }
-.ws-page .ws-tbl td { padding: 9px 12px; border-bottom: 1px solid var(--line-3); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-page .ws-tbl td { padding: 10px 14px; border-bottom: 1px solid var(--line-3); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ws-page .ws-tbl td:first-child, .ws-page .ws-tbl th:first-child { overflow: visible; text-overflow: clip; padding-right: 0; }
 .ws-page .ws-tbl tbody tr:hover td { background: var(--bg-muted); cursor: pointer; }
 .ws-page .ws-tbl tbody tr.sel td { background: var(--bg-soft); }
+.ws-page .ws-tbl tbody tr.sel td:first-child { position: relative; }
+.ws-page .ws-tbl tbody tr.sel td:first-child::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--ink); z-index: 1; }
 .ws-page .ws-tbl td.num { text-align: right; font-family: var(--ws-ff-mono); font-size: 11.5px; letter-spacing: 0.02em; }
 .ws-page .ws-tbl td.mono { font-family: var(--ws-ff-mono); font-size: 11px; color: var(--fg-2); letter-spacing: 0.03em; }
 .ws-page .ws-tbl .cellbind { box-shadow: inset 2px 0 0 var(--line-2); }
@@ -308,10 +350,14 @@
 
 /* sticky lead columns (checkbox + title) so wide boards keep them visible while scrolling */
 @media (min-width: 768px) {
-  .ws-page .ws-tbl th.lead { width: 56px; min-width: 3.5rem; position: sticky; left: 0; z-index: 4; background: var(--bg-muted); box-shadow: 1px 0 0 var(--line-2); }
-  .ws-page .ws-tbl th.lead-title { position: sticky; left: 56px; z-index: 3; background: var(--bg-muted); box-shadow: 1px 0 0 var(--line-2); }
-  .ws-page .ws-tbl td.lead { width: 56px; min-width: 3.5rem; position: sticky; left: 0; z-index: 2; background: #fff; box-shadow: 1px 0 0 var(--line-3); }
-  .ws-page .ws-tbl td.lead-title { position: sticky; left: 56px; z-index: 1; background: #fff; box-shadow: 1px 0 0 var(--line-3); }
+  /* 92px: td.lead holds a checkbox (18px) + the lv-task-toggle expand chevron (18px) + the
+     lv-task-toggle "open record" icon (18px), each separated by an 8px gap, on top of the
+     cell's 14px left padding (:first-child rule zeroes the right padding) — 14+18+8+18+8+18=84,
+     +8px buffer. Widen this again if another icon is ever added to the lead column. */
+  .ws-page .ws-tbl th.lead { width: 92px; min-width: 5.75rem; position: sticky; left: 0; z-index: 4; background: var(--bg-muted); box-shadow: 1px 0 0 var(--line-2); }
+  .ws-page .ws-tbl th.lead-title { position: sticky; left: 92px; z-index: 3; background: var(--bg-muted); box-shadow: 1px 0 0 var(--line-2); }
+  .ws-page .ws-tbl td.lead { width: 92px; min-width: 5.75rem; position: sticky; left: 0; z-index: 2; background: #fff; box-shadow: 1px 0 0 var(--line-3); }
+  .ws-page .ws-tbl td.lead-title { position: sticky; left: 92px; z-index: 1; background: #fff; box-shadow: 1px 0 0 var(--line-3); }
   .ws-page .ws-tbl tbody tr:hover td.lead, .ws-page .ws-tbl tbody tr:hover td.lead-title { background: var(--bg-muted); }
   .ws-page .ws-tbl td.lead.menu-open, .ws-page .ws-tbl td.lead-title.menu-open { z-index: 212; }
 }

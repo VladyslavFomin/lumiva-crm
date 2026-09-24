@@ -6,6 +6,7 @@ import { CustomObjectRecord } from './custom-object-record.entity';
 import { CustomObjectView } from './custom-object-view.entity';
 import { CustomObjectImportSession } from './custom-object-import-session.entity';
 import { CustomObjectsService } from './custom-objects.service';
+import { CustomObjectImportAiService } from './custom-object-import-ai.service';
 import { CustomObjectsController } from './custom-objects.controller';
 import { CustomObjectsPublicController } from './custom-objects-public.controller';
 import { AutomationsModule } from '../automations/automations.module';
@@ -36,7 +37,12 @@ import { WorkspaceAreaActivityLogModule } from '../workspace-areas/workspace-are
     WorkspaceAreaActivityLogModule,
   ],
   controllers: [CustomObjectsController, CustomObjectsPublicController],
-  providers: [CustomObjectsService, ApiTokenGuard, WorkspaceAreaAccessGuard],
+  providers: [
+    CustomObjectsService,
+    CustomObjectImportAiService,
+    ApiTokenGuard,
+    WorkspaceAreaAccessGuard,
+  ],
   exports: [CustomObjectsService],
 })
 export class CustomObjectsModule {}

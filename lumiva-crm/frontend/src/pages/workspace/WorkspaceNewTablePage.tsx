@@ -511,8 +511,8 @@ export const WorkspaceNewTablePage: React.FC = () => {
             : t('crm.workspace.views.analytics');
 
   return (
-    <MainLayout>
-      <div className="ws-page max-w-5xl mx-auto">
+    <MainLayout fullBleed>
+      <div className="ws-page w-full px-4 py-4 md:px-8 md:py-6">
         {area && <WsAreaBar areaId={area.id} areaName={area.name} areaIconKey={area.iconKey} current={t('crm.workspace.newTable.title')} />}
         <div className="page-head">
           <div>
@@ -521,7 +521,7 @@ export const WorkspaceNewTablePage: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="ws-cols" style={{ gridTemplateColumns: '1fr 300px' }}>
+        <form onSubmit={handleSubmit} className="ws-cols-newtable">
           <div>
             <div className="ws-sec">
               <div className="ws-sec-head">

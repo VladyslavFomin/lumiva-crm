@@ -7,6 +7,9 @@ export const WORKSPACE_ENTITY_REF_KEY = 'workspaceEntityRef' as const;
 export const WORKSPACE_IS_READONLY_KEY = 'workspaceIsReadOnly' as const;
 
 export function isWorkspaceReadOnlyField(field: CustomObjectField): boolean {
+  // Умная колонка (type: 'ai') — значение всегда пишет назначенный ИИ, вручную не редактируется
+  // (то же место, где остальной код уже проверяет "можно ли кликнуть и отредактировать ячейку").
+  if (field.type === 'ai') return true;
   return (
     typeof field.meta === 'object' &&
     field.meta !== null &&

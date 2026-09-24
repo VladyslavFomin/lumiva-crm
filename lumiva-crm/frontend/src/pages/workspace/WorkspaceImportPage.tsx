@@ -16,14 +16,19 @@ import {
   type WooWorkspacePreviewResult,
 } from '../../api/integrations';
 import {
+  addSyncSource,
+  fetchSyncSources,
+  removeSyncSource,
   applyCustomObjectImport,
   createCustomObjectField,
   fetchCustomObject,
   fetchCustomObjectFields,
   fetchCustomObjectRecords,
   previewCustomObjectImport,
+  reshapeCustomObjectImportWithAi,
   type CustomObjectField,
   type CustomObjectImportPreview,
+  type CustomObjectImportReshapePlan,
 } from '../../api/customObjects';
 import {
   fetchWorkspaceArea,
@@ -52,6 +57,27 @@ const DEFAULT_STATUS_FIELD_OPTIONS: Array<{ value: string; label: string }> = [
 
 function slugifyStatusValue(label: string): string {
   return normalizeOptionToken(label);
+}
+
+/**
+ * Эвристика для баннера "разобрать через ИИ" — файл похож на "сырой" pivot-отчёт (напр.
+ * merged-колонка сущности на N строк метрик), а не на обычную плоскую таблицу. Ловит два
+ * сигнала: явный пробел в заголовке (makeUniqueHeaders на бэкенде подставляет "Column N")
+ * и колонку с маленьким фиксированным набором значений, почти ровно делящим общее число
+ * строк — характерный признак повторяющейся label-колонки (допуск в пару строк — реальные
+ * файлы часто теряют/добавляют 1-2 строки из-за пустых строк, лишнего "итого" и т.п.).
+ * Ложные срабатывания не страшны: кнопка "разобрать через ИИ" доступна всегда, баннер лишь
+ * подсказывает, когда стоит попробовать.
+ */
+function looksLikeMessyPivot(preview: CustomObjectImportPreview): boolean {
+  if (preview.columns.some((c) => /^Column \d+$/.test(c.trim()))) return true;
+  const uniqueByColumn = preview.uniqueValuesByColumn || {};
+  return preview.columns.some((c) => {
+    const uniques = uniqueByColumn[c];
+    if (!uniques || uniques.length < 2 || uniques.length > 10) return false;
+    if (preview.totalRows < uniques.length * 3) return false;
+    return preview.totalRows % uniques.length <= 2;
+  });
 }
 
 /** Уникальные строки из файла → { value, label } для поля status (как на бэкенде при импорте). */
@@ -102,6 +128,8 @@ type ChannelImportState = {
   importMode: 'full' | 'aggregate';
   /** Ключи колонок превью для GROUP BY при суммировании */
   aggregateGroupByColumns: string[];
+  /** Сохранить этот импорт как источник автообновления таблицы */
+  autoRefresh: boolean;
 };
 
 function pickDefaultGroupColumns(columns: string[]): string[] {
@@ -135,7 +163,36 @@ function emptyChannelImport(): ChannelImportState {
     wooSyncHintVisible: false,
     importMode: 'full',
     aggregateGroupByColumns: [],
+    autoRefresh: false,
   };
+}
+
+
+function AutoRefreshToggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <label className="mb-2 flex cursor-pointer items-start gap-2 text-[12px] text-neutral-600">
+      <input
+        type="checkbox"
+        className="mt-0.5"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        {t('crm.workspace.import.autoRefreshLabel')}
+        <span className="block text-[11px] text-neutral-400">{t('crm.workspace.import.autoRefreshHint')}</span>
+      </span>
+    </label>
+  );
 }
 
 function ImportGranularityControls({
@@ -236,6 +293,11 @@ export const WorkspaceImportPage: React.FC = () => {
   const [existingGroups, setExistingGroups] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [applyErrors, setApplyErrors] = useState<Array<{ row: number; reason: string }>>([]);
+  /** Эвристика при handlePreview заподозрила "сырую" структуру файла (merged-колонки и т.п.) */
+  const [aiReshapeOffer, setAiReshapeOffer] = useState(false);
+  const [aiReshapeLoading, setAiReshapeLoading] = useState(false);
+  const [aiReshapeNote, setAiReshapeNote] = useState<string | null>(null);
+  const [aiReshapeError, setAiReshapeError] = useState<string | null>(null);
   /** Все включённые подключения, привязанные к рабочей области этой таблицы. */
   const [boundConnections, setBoundConnections] = useState<IntegrationConnectionDto[]>([]);
   /** Интеграции из раздела «Маркетинг» (Meta Ads и т.д.) для привязок области. */
@@ -744,6 +806,35 @@ export const WorkspaceImportPage: React.FC = () => {
     };
   };
 
+  /** Запоминает только что выполненный вручную импорт как источник автообновления таблицы. */
+  const persistAutoRefresh = async (
+    via: 'hub_woo' | 'hub_meta_ads' | 'marketing_meta_ads' | 'marketing_ga4',
+    connectionId: string,
+    mapping: unknown,
+    label: string,
+  ): Promise<string | null> => {
+    if (!objectId) return null;
+    try {
+      // Повторное сохранение того же подключения заменяет прежний источник, а не дублирует его.
+      const existing = await fetchSyncSources(objectId);
+      for (const src of existing.sources) {
+        if (src.kind === 'integration_import' && src.params?.connectionId === connectionId && src.params?.via === via) {
+          await removeSyncSource(objectId, src.id, false);
+        }
+      }
+      const res = await addSyncSource(objectId, {
+        kind: 'integration_import',
+        params: { via, connectionId, mapping },
+        label,
+        autoRefresh: true,
+        skipInitialRefresh: true,
+      });
+      return res.ok ? null : String(res.hint || res.error || t('crm.workspace.import.autoRefreshFailed'));
+    } catch (e: any) {
+      return e?.message || t('crm.workspace.import.autoRefreshFailed');
+    }
+  };
+
   const runChannelSync = async (c: IntegrationConnectionDto, st: ChannelImportState) => {
     const mode = getWorkspaceTableImportMode(c);
     if (!mode || !objectId) return;
@@ -808,6 +899,15 @@ export const WorkspaceImportPage: React.FC = () => {
               })),
         wooSyncHintVisible: mode === 'woo',
       });
+      if (st.autoRefresh) {
+        const autoErr = await persistAutoRefresh(
+          mode === 'woo' ? 'hub_woo' : 'hub_meta_ads',
+          c.id,
+          payload,
+          c.name || (mode === 'woo' ? 'WooCommerce' : 'Meta Ads'),
+        );
+        mergeCh(c.id, { message: autoErr ? autoErr : t('crm.workspace.import.autoRefreshSaved') });
+      }
       await refreshChannelIntegrationsAfterSync();
     } catch (e: any) {
       mergeCh(c.id, { syncing: false, wooSyncHintVisible: false, message: e?.message || 'Sync failed' });
@@ -857,6 +957,10 @@ export const WorkspaceImportPage: React.FC = () => {
           }),
         wooSyncHintVisible: false,
       });
+      if (st.autoRefresh) {
+        const autoErr = await persistAutoRefresh('marketing_meta_ads', row.id, payload, 'Meta Ads');
+        mergeCh(key, { message: autoErr ? autoErr : t('crm.workspace.import.autoRefreshSaved') });
+      }
       await refreshChannelIntegrationsAfterSync();
     } catch (e: any) {
       mergeCh(key, { syncing: false, message: e?.message || 'Sync failed' });
@@ -943,32 +1047,47 @@ export const WorkspaceImportPage: React.FC = () => {
           }),
         wooSyncHintVisible: false,
       });
+      if (st.autoRefresh) {
+        const autoErr = await persistAutoRefresh('marketing_ga4', row.id, payload, 'GA4');
+        mergeCh(key, { message: autoErr ? autoErr : t('crm.workspace.import.autoRefreshSaved') });
+      }
       await refreshChannelIntegrationsAfterSync();
     } catch (e: any) {
       mergeCh(key, { syncing: false, message: e?.message || 'Sync failed' });
     }
   };
 
+  /** Общая часть handlePreview/handleAiReshape — applied preview + пересчёт маппинга колонка→поле. */
+  const applyImportPreviewResult = (
+    previewRes: CustomObjectImportPreview,
+    freshFields: CustomObjectField[],
+  ) => {
+    setPreview(previewRes);
+    setFields(freshFields);
+    const nextMap: Record<string, string> = {};
+    previewRes.columns.forEach((column) => {
+      const suggestedField = freshFields.find(
+        (f) => previewRes.suggestedMapping?.[f.key] === column,
+      );
+      nextMap[column] = suggestedField?.key || '';
+    });
+    setColumnToField(nextMap);
+  };
+
   const handlePreview = async () => {
     if (!file) return;
     setLoading(true);
     setMessage(null);
+    setAiReshapeNote(null);
+    setAiReshapeError(null);
     try {
       const [previewRes, fields, records] = await Promise.all([
         previewCustomObjectImport(objectId, file),
         fetchCustomObjectFields(objectId),
         fetchCustomObjectRecords(objectId).catch(() => ({ items: [], total: 0 })),
       ]);
-      setPreview(previewRes);
-      setFields(fields);
-      const nextMap: Record<string, string> = {};
-      previewRes.columns.forEach((column) => {
-        const suggestedField = fields.find(
-          (f) => previewRes.suggestedMapping?.[f.key] === column,
-        );
-        nextMap[column] = suggestedField?.key || '';
-      });
-      setColumnToField(nextMap);
+      applyImportPreviewResult(previewRes, fields);
+      setAiReshapeOffer(looksLikeMessyPivot(previewRes));
       const groupCandidate =
         fields.find((f) => {
           const key = f.key.toLowerCase();
@@ -993,6 +1112,39 @@ export const WorkspaceImportPage: React.FC = () => {
       setMessage(e?.message || t('crm.workspace.import.previewError'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * ИИ смотрит на сэмпл строк файла и сам проектирует план реструктуризации (группировка +
+   * разворот label/value в колонки) — бэкенд детерминированно применяет его ко всем строкам и
+   * возвращает новый preview той же формы, дальше обычный map → create field → apply flow.
+   */
+  const handleAiReshape = async () => {
+    if (!preview) return;
+    setAiReshapeLoading(true);
+    setAiReshapeError(null);
+    setAiReshapeNote(null);
+    try {
+      const res = await reshapeCustomObjectImportWithAi(objectId, preview.importId);
+      if ('alreadyFlat' in res) {
+        setAiReshapeOffer(false);
+        setAiReshapeNote(t('crm.workspace.import.aiReshapeAlreadyFlat'));
+        return;
+      }
+      const freshFields = await fetchCustomObjectFields(objectId);
+      applyImportPreviewResult(res, freshFields);
+      setAiReshapeOffer(false);
+      setAiReshapeNote(
+        t('crm.workspace.import.aiReshapeDone', {
+          groupBy: res.plan.groupKeyColumns.join(', '),
+          columns: res.plan.outputFields.map((f) => f.label).join(', '),
+        }),
+      );
+    } catch (e: any) {
+      setAiReshapeError(e?.message || t('crm.workspace.import.aiReshapeError'));
+    } finally {
+      setAiReshapeLoading(false);
     }
   };
 
@@ -1518,6 +1670,11 @@ export const WorkspaceImportPage: React.FC = () => {
                               </div>
                             ))}
                           </div>
+                          <AutoRefreshToggle
+                            checked={st.autoRefresh}
+                            disabled={st.syncing}
+                            onChange={(v) => mergeCh(conn.id, { autoRefresh: v })}
+                          />
                           <button
                             type="button"
                             disabled={st.syncing}
@@ -1705,6 +1862,11 @@ export const WorkspaceImportPage: React.FC = () => {
                               </div>
                             ))}
                           </div>
+                          <AutoRefreshToggle
+                            checked={st.autoRefresh}
+                            disabled={st.syncing}
+                            onChange={(v) => mergeCh(marketingMetaChannelKey(mrow), { autoRefresh: v })}
+                          />
                           <button
                             type="button"
                             disabled={st.syncing}
@@ -1881,6 +2043,11 @@ export const WorkspaceImportPage: React.FC = () => {
                               </div>
                             ))}
                           </div>
+                          <AutoRefreshToggle
+                            checked={st.autoRefresh}
+                            disabled={st.syncing}
+                            onChange={(v) => mergeCh(marketingMetaChannelKey(grow), { autoRefresh: v })}
+                          />
                           <button
                             type="button"
                             disabled={st.syncing}
@@ -2006,6 +2173,44 @@ export const WorkspaceImportPage: React.FC = () => {
               </span>
             </div>
             <div className="ws-sec-body">
+            <div
+              className="rounded-xl border p-3 space-y-2 text-sm"
+              style={
+                aiReshapeOffer
+                  ? { borderColor: 'var(--lumiva-accent, #6366f1)', background: 'rgba(99,102,241,0.06)' }
+                  : { borderColor: 'var(--line-2)', background: 'var(--bg-muted)' }
+              }
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span style={{ fontWeight: 600 }}>
+                  {aiReshapeOffer
+                    ? t('crm.workspace.import.aiReshapeOfferTitle')
+                    : t('crm.workspace.import.aiReshapeManualTitle')}
+                </span>
+                <span className="sp" />
+                <button
+                  type="button"
+                  onClick={handleAiReshape}
+                  disabled={aiReshapeLoading}
+                  className={aiReshapeOffer ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
+                >
+                  {aiReshapeLoading
+                    ? t('crm.workspace.import.aiReshapeLoading')
+                    : t('crm.workspace.import.aiReshapeButton')}
+                </button>
+              </div>
+              {aiReshapeOffer && (
+                <p className="ws-note">{t('crm.workspace.import.aiReshapeOfferHint')}</p>
+              )}
+              {aiReshapeNote && (
+                <p className="ws-note" role="status">{aiReshapeNote}</p>
+              )}
+              {aiReshapeError && (
+                <p className="ws-note" role="alert" style={{ color: 'var(--danger, #dc2626)' }}>
+                  {aiReshapeError}
+                </p>
+              )}
+            </div>
             {groupField && (
               <div className="ws-field" style={{ marginBottom: 14 }}>
                 <label>{t('crm.workspace.import.importTargetGroup')}</label>

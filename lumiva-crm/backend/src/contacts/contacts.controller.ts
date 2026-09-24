@@ -119,15 +119,28 @@ export class ContactsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('withRelations') withRelations?: string,
   ) {
-    const contact =
-      withRelations === 'true'
-        ? await this.contactsService.findOneWithRelations(user.tenantId, id)
-        : await this.contactsService.findOne(user.tenantId, id);
     const visibility = await this.resolveVisibility(user);
-    if (visibility.forceOwnOnly && (contact as unknown as Contact).assignedUserId !== visibility.forceOwnOnly) {
+
+    // withRelations=true возвращает {contact, company, leads, projects} — НЕ саму Contact. Тот же
+    // баг, что был в CompaniesController.findOne(): раньше весь этот объект прогонялся через
+    // maskOne(...) как если бы это была Contact (см. as unknown as Contact ниже, которого больше
+    // нет) — forceOwnOnly читал .assignedUserId (undefined на этой форме, always-deny своих же
+    // записей), а маскировка (phone/email + DETAIL_FIELDS вроде address/customFields) добавляла
+    // бутафорские поля РЯДОМ с contact/company/leads/projects, не трогая настоящие поля внутри
+    // вложенного contact — то есть контакт был виден ограниченным ролям без маскировки вообще.
+    if (withRelations === 'true') {
+      const result = await this.contactsService.findOneWithRelations(user.tenantId, id);
+      if (visibility.forceOwnOnly && result.contact.assignedUserId !== visibility.forceOwnOnly) {
+        throw new NotFoundException('Contact not found');
+      }
+      return { ...result, contact: this.maskOne(result.contact, visibility.staffId, visibility.maskDetails, visibility.contactMaskingMode) };
+    }
+
+    const contact = await this.contactsService.findOne(user.tenantId, id);
+    if (visibility.forceOwnOnly && contact.assignedUserId !== visibility.forceOwnOnly) {
       throw new NotFoundException('Contact not found');
     }
-    return this.maskOne(contact as unknown as Contact, visibility.staffId, visibility.maskDetails, visibility.contactMaskingMode);
+    return this.maskOne(contact, visibility.staffId, visibility.maskDetails, visibility.contactMaskingMode);
   }
 
   @Post()

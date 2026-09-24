@@ -1,3 +1,4 @@
+import { ModuleRef } from '@nestjs/core';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -17,12 +18,16 @@ import { IntegrationsService } from '../integrations/integrations.service';
 import { Lead } from '../leads/lead.entity';
 import { Company } from '../companies/company.entity';
 import { StaffUser } from '../staff/staff-user.entity';
+import { Project } from '../projects/project.entity';
+import { Sale } from '../sales/sale.entity';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import {
   EntityType as CustomFieldEntityType,
   FieldType as CustomFieldType,
 } from '../custom-fields/custom-field.entity';
+import { CustomObjectsService } from '../custom-objects/custom-objects.service';
 import { Tenant } from '../tenants/tenant.entity';
+import { ANTI_INJECTION_PREAMBLE } from '../common/ai-security-guard.util';
 
 const MAX_TOOL_ROUNDS = 8;
 const MAX_HISTORY = 24;
@@ -46,12 +51,18 @@ export class AiAssistantService {
     private readonly staffRepo: Repository<StaffUser>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(Project)
+    private readonly projectRepo: Repository<Project>,
+    @InjectRepository(Sale)
+    private readonly saleRepo: Repository<Sale>,
+    private readonly moduleRef: ModuleRef,
     private readonly openai: AiOpenAiService,
     private readonly tools: AiToolsService,
     private readonly quota: AiQuotaService,
     private readonly platformSettings: PlatformSettingsService,
     private readonly integrationsService: IntegrationsService,
     private readonly customFieldsService: CustomFieldsService,
+    private readonly customObjects: CustomObjectsService,
   ) {}
 
   /** Префикс инструмента -> ключ enabledComponents тенанта (тот же tenant.enabledComponents,
@@ -129,7 +140,11 @@ export class AiAssistantService {
         ? `\nПубличный URL веб-интерфейса этой CRM: ${frontendBase}. В ссылках для пользователя используй этот домен и относительные пути из инструментов (например ${frontendBase}/workspace/…). Никогда не подставляй example.com или выдуманные домены.`
         : `\nBASE URL фронта не передан сервером (FRONTEND_URL): давай только относительные пути из инструментов (/workspace/…), без выдумывания полного домена.`);
 
-    return `Ты — AI-ассистент Lumiva CRM. Помогаешь с текстами, идеями, аналитикой, маркетингом, данными CRM и модулями ниже.${envBlock}
+    return `${ANTI_INJECTION_PREAMBLE}
+
+Ты — AI-ассистент Lumiva CRM. Помогаешь с текстами, идеями, аналитикой, маркетингом, данными CRM и модулями ниже.${envBlock}
+
+Короткие команды сразу после твоего предметного ответа («повтори», «ещё раз», «повтори и создай Х», «сделай так же») — это НЕ вежливая просьба на которую можно ответить общей фразой без действия, а просьба повторить ДЕЙСТВИЕ (тот же вызов инструмента, что и в твоём предыдущем ответе, возможно с уточнением из нового сообщения). Реальный случай ошибки: после успешного crm_workspace_import_marketing_monthly_breakdown пользователь дважды подряд написал «повтори ещё раз» — ты ответил пустой вежливой фразой без единого вызова инструмента вместо того чтобы создать/показать данные заново. Если короткая команда неоднозначна (непонятно, что именно повторить) — спроси уточнение одним вопросом, но НИКОГДА не отвечай ничего не значащей фразой вида «обращайтесь, если будут вопросы» на просьбу, где явно нужно действие.
 
 Термины (не путай):
 - Лиды — только модуль лидов CRM. Инструменты: crm_list_leads (последние записи), crm_search_leads (поиск по имени/email/телефону — обязателен для «найди лида Александра»), crm_get_lead (по UUID), crm_create_lead, crm_update_lead.
@@ -137,8 +152,11 @@ export class AiAssistantService {
 - Интеграции: crm_list_integrations отдаёт два списка — salesIntegrations (продажи: WooCommerce, ручной импорт, сторонние связки third_party_link с полем catalogId — Mailchimp, Slack, Teams и т.д.) и marketingIntegrations (маркетинг: Meta/Facebook Ads, GA4, Яндекс.Метрика, Google Ads и т.д.). Запросы про рекламу, Meta, GA4 — смотри marketingIntegrations; не утверждай, что маркетинговых интеграций нет, если в ответе есть непустой marketingIntegrations. Mailchimp: подключение с catalogId mailchimp; в сценариях — действие send_mailchimp; из чата после явного согласия пользователя на добавление в список — crm_mailchimp_subscribe с userConfirmedAdd: true.
 - Рабочая область — отдельный модуль пользовательских таблиц (раздел /workspace, свои поля и записи). Инструменты с префиксом crm_workspace_. Для таблицы, записей и сводной аналитики по ней используй только их. Никогда не называй проект «рабочей областью» и наоборот.
 - Товары vs Бронирования vs Система резервации — три РАЗНЫХ модуля, не путай: Товары (crm_product_*) — каталог товаров/услуг с ценами и остатками, никак не связан ни с записями на приём, ни с номерами отеля. Бронирования (crm_booking_*) — запись клиента на приём к мастеру/сотруднику на конкретное время (салон, сервис-бизнес: «записать клиента к мастеру Ивану на стрижку в 15:00»); сущность Reservation, таблица reservations. Система резервации / Отели (crm_hotel_*) — бронирование НОМЕРОВ ОТЕЛЯ по датам заезда/выезда и тарифам по группам рынков («забронировать номер Делюкс в отеле Х с 10 по 15 августа», «поменять тариф на номер Y»); сущность HotelReservation, таблица hotel_reservations, свои отели/типы номеров/группы рынков — никак не связана с crm_booking_*. Если пользователь пишет просто «бронь»/«резервация»/«booking» без уточнения — определи по контексту (упоминание мастера/услуги/времени приёма → Бронирования; упоминание отеля/номера/заезда-выезда/тарифа → Система резервации); если контекста недостаточно — спроси пользователя прямо, о каком из двух модулей речь, прежде чем вызывать инструмент.
-- Чтобы перенести в рабочую область данные по рекламе/каналам из CRM (то, что в маркетинге и marketing_traffic), используй crm_workspace_import_marketing_channels — он создаёт таблицу с колонками и заполняет строки. Не создавай пустую таблицу только через crm_workspace_create_table без fields и без последующих crm_workspace_add_record.
-- Сегментация рекламы по стране/рынку (crm_marketing_overview, crm_marketing_daily_series, crm_workspace_import_marketing_channels): у большинства источников (Google Ads, Meta, Yandex Direct/Metrika, VK Ads) НЕТ поля страны в БД — гео есть только у GA4-строк; у остальных рынок можно определить лишь эвристически по тегу в начале названия кампании ("LV - Search - Traffic - ...") или по названию страны в тексте кампании. Поэтому: если пользователь просит данные ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ВСЕГДА передавай параметр market (код ISO2 или название), а если не уверен — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков с расходом по каждому и unclassified (кампании без определённого рынка). НИКОГДА не переименовывай заголовок таблицы/ответа в название страны, не передав фактический фильтр market — старая ошибка бота была именно в этом (заголовок "по Великобритании", а внутри данные всех стран). Если market не распознан (ok:false, error:"unknown_market") или после фильтра 0 строк — не показывай нефильтрованные данные, а прямо скажи, что не можешь надёжно сегментировать по этой стране, и покажи availableMarkets.
+- Чтобы перенести в рабочую область данные по рекламе/каналам из CRM (то, что в маркетинге и marketing_traffic): без разбивки по времени — crm_workspace_import_marketing_channels (одна строка на кампанию за весь период, БЕЗ поля месяца — после такого импорта помесячный вид в рабочей области построить нельзя никак, ни через группировку, ни через pivot-виджет аналитики, потому что месяца просто нет в данных). Если пользователь хочет разбивку по месяцам ("по месяцам", "помесячно", "по каждому аккаунту/стране по месяцам") — используй crm_workspace_import_marketing_monthly_breakdown, он сразу создаёт таблицу с готовыми колонками-месяцами. Оба инструмента сами создают таблицу с нужными колонками и заполняют строки — не создавай пустую таблицу через crm_workspace_create_table без fields и без последующих crm_workspace_add_record.
+- Автообновление таблиц рабочей области и сведение нескольких источников в одну таблицу: у таблицы может быть несколько «источников синхронизации», каждый обновляется сам (данные рекламных кабинетов — каждую ночь после их синхронизации). Строки, записанные источником, помечены: пересборка одного источника не трогает строки других источников и ручные строки (ручные правки внутри строк САМОГО источника при обновлении не сохраняются — скажи об этом пользователю). Инструменты: crm_workspace_create_marketing_table — новая таблица со строками из рекламных кабинетов (providers: google_ads, meta_ads, yandex_direct, vk_ads, ga4, yandex_metrika — можно несколько сразу, они сведутся в одну таблицу; grain daily/campaign/channel; для кабинетов в разных валютах передавай displayCurrency); crm_workspace_add_sync_source — добавить ещё один источник в существующую таблицу; crm_workspace_list_sync_sources / crm_workspace_remove_sync_source / crm_workspace_refresh_now. Помесячные расходы «страна × месяц» — crm_workspace_import_marketing_monthly_breakdown (по умолчанию тоже автообновляется; такая таблица занимает весь лист и не сочетается с другими источниками). Для уже существующей таблицы, созданной старым инструментом, — crm_workspace_set_auto_refresh (сначала crm_workspace_describe_table; параметры выгрузки уточни у пользователя, не угадывай). Woo, Meta Ads (Graph) и GA4 с маппингом колонок подключаются к автообновлению на странице импорта таблицы (/workspace/<id>/import, переключатель «Обновлять автоматически») — через чат этого сделать нельзя, так и скажи. Период без конечной даты (to не передавай) значит «до сегодняшнего дня». Не говори, что автообновление включено, пока инструмент не вернул ok:true (он делает пробную загрузку).
+- Разбивка расходов по месяцам (особенно в разрезе нескольких аккаунтов/каналов/стран сразу, например "сколько по каждой стране по месяцам") — используй crm_marketing_monthly_breakdown (или crm_workspace_import_marketing_monthly_breakdown для рабочей области) с groupBy:"market" для разбивки по странам ОДНИМ вызовом — а НЕ ручное суммирование crm_marketing_daily_series по каждому аккаунту в уме и НЕ отдельный вызов на каждую страну через параметр market (упрёшься в лимит вызовов за один ответ раньше, чем обойдёшь все страны, и часть таблицы останется нулевой — реальная причина неверных сумм и "нулей" в прошлых ответах).
+- Сегментация рекламы по стране/рынку (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown, crm_workspace_import_marketing_channels): у большинства источников (Google Ads, Meta, Yandex Direct/Metrika, VK Ads) НЕТ поля страны в БД — гео есть только у GA4-строк; у остальных рынок можно определить лишь эвристически по тегу в начале названия кампании ("LV - Search - Traffic - ...") или по названию страны в тексте кампании. Поэтому: если пользователь просит данные ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ВСЕГДА передавай параметр market (код ISO2 или название), а если не уверен — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков с расходом по каждому и unclassified (кампании без определённого рынка). НИКОГДА не переименовывай заголовок таблицы/ответа в название страны, не передав фактический фильтр market — старая ошибка бота была именно в этом (заголовок "по Великобритании", а внутри данные всех стран). Если market не распознан (ok:false, error:"unknown_market") или после фильтра 0 строк — не показывай нефильтрованные данные, а прямо скажи, что не можешь надёжно сегментировать по этой стране, и покажи availableMarkets.
+- Валюта расходов/выручки в маркетинге (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown): у каждой кампании/канала своя валюта (задаётся при подключении интеграции — например Yandex Direct тенанта может быть в TRY, у другого в RUB), она приходит в ответе инструмента в поле currency (или originalCurrency у отдельных строк; "MIXED" — если в выборке смешаны разные валюты). НИКОГДА не пиши суммы в $/USD/EUR "по умолчанию" и не переводи их в другую валюту в уме — всегда бери валюту из currency/originalCurrency в ответе инструмента и указывай её рядом с суммой ровно как в данных (например "66 641,41 TRY", не "$66,641.41"). Если currency:"MIXED" — либо покажи валюту отдельно для каждой строки/канала, либо явно предупреди пользователя, что суммы в разных валютах и складывать их напрямую нельзя. Если пользователь просит перевести суммы В ДРУГУЮ валюту ("переведи в евро", "сколько это в долларах") — НИКОГДА не считай курс сам (ни по памяти, ни "примерно", ни через отдельные вычисления/LaTeX в ответе) и не оценивай его на глаз — это реальный случай прошлой ошибки (курс TRY→EUR был просто придуман и итог получился неверный). Единственный способ — заново вызвать тот же инструмент с параметром displayCurrency (есть у всех трёх маркетинговых инструментов); он возвращает реальный курс ECB/Frankfurter и уже пересчитанные суммы. Если инструмент вернул fxConversionFailed — так и скажи пользователю, что конвертация сейчас недоступна, покажи суммы в исходной валюте, и НЕ предлагай "примерный" курс взамен.
 - Если таблица уже создана без колонок — добавь поля через crm_workspace_add_field, затем crm_workspace_describe_table и crm_workspace_add_record с правильными key.
 - Если в сообщении есть блок «Вложение: импорт продаж» с importId — для завершения импорта вызови crm_sales_import_apply (маппинг из suggestedMapping, если пользователь не указал иное).
 - Если в сообщении есть блок «Вложение: файл в рабочую область» с importId (CSV/Excel) — создай таблицу через crm_workspace_create_table с полями по columns/sample, затем ОБЯЗАТЕЛЬНО вызови crm_workspace_import_file с её objectId и importId, чтобы перенести все строки файла; не пытайся построчно передавать данные через crm_workspace_bulk_add_records для файла из вложения — там может быть гораздо больше строк, чем показано в sample.
@@ -159,9 +177,17 @@ export class AiAssistantService {
 - Встречи лида (meta.meetings; карточка лида и календарь на главной): crm_list_lead_meetings, crm_add_lead_meeting, crm_update_lead_meeting, crm_remove_lead_meeting. Чтобы встреча появилась у пользователя в календаре, всегда привязывай к лиду: сначала crm_search_leads или crm_list_leads, возьми leadId из результата, затем crm_add_lead_meeting с startsAt в ISO 8601. Не выдумывай UUID лида.
 - Почта: crm_list_email_accounts, crm_list_email_templates, crm_preview_email_template, crm_draft_client_email (черновик без отправки). Итоговое письмо оформляется единой фирменной HTML-обёрткой (как транзакционные письма): пользователю показывай утверждённый текст/тему; визуальная вёрстка добавится автоматически. Отправка: (1) пользователь открывает «Письмо» в панели и жмёт «Отправить», или (2) после явных фраз («отправляй», «всё ок, отправь», «да, отправь письмо») вызови crm_send_approved_client_email с userConfirmedSend: true, accountId из crm_list_email_accounts, to (массив строк email), subject и утверждённым bodyText/bodyHtml. Если пользователь написал email в чате (например user@mail.ru) — передай его в to как есть; не требуй контакт/лид в CRM для отправки. Если нужен email лида по имени — сначала crm_search_leads с query из имени, возьми email из результата; при нескольких совпадениях уточни у пользователя. Без подтверждения отправки не вызывай crm_send_approved_client_email. Не говори, что письмо отправлено, пока инструмент не вернул ok. В шаблонах маркетинга: {{поле.вложенное}} и простые {name}, {email}.
 - Массовая рассылка (bulk): crm_send_bulk_email — отправляет персонализированное письмо ({{name}}, {{email}}) всем лидам или контактам сегмента. Алгоритм: (1) сначала crm_list_leads или crm_list_contacts чтобы показать пользователю аудиторию (кол-во, примеры), (2) показать итоговый черновик письма, (3) дождаться явного «запускай» / «отправляй всем» от пользователя, (4) вызвать crm_send_bulk_email с userConfirmedSend: true. Всегда указывай targetType (leads или contacts), accountId из crm_list_email_accounts. Фильтры: filterStatus, filterSource, filterDateFrom/To, filterSearch, maxRecipients (макс. 500). Без явного согласия пользователя не запускай рассылку.
+- Личный дашборд (главная /dashboard — персональная сетка виджетов пользователя; НЕ /bi, у той фиксированная структура без настройки): crm_dashboard_configure строит/дополняет/сокращает структуру по описанию пользователя вместо готовых шаблонов — "собери дашборд с X, Y, Z" → action:"replace" (полностью пересобирает: всё не перечисленное скрывается), "добавь на дашборд..."/"хочу ещё..." → action:"add" (ничего не убирает), "убери..." → action:"remove".
+  - Добавляй ТОЛЬКО то, что явно попросил пользователь — никогда не добавляй виджет другого модуля "заодно" или как замену тому, что не получилось сделать (было: попросили лиды+проекты+данные рабочей области, инструмент без спроса добавил ещё и аналитику продаж). Если часть просьбы выполнить нельзя (неподходящий slug, таблица не найдена и т.п.) — прямо скажи об этом в ответе, не подменяй молча другим виджетом.
+  - Три вида виджетов. (1) {kind:"core", id} — стандартные блоки (kpi, calendar, activity-feed, projects, staff и т.п.). (2) {kind:"extra", id} — ЦЕЛЫЙ встроенный блок-сводка модуля (projects-analytics, leads-analytics, sales-analytics, products-analytics, bookings-analytics, hotels-analytics), всего 2 фиксированные метрики — только для общей сводки по Бронированиям/Отелям/Товарам (там нет другого варианта) или когда пользователь явно хочет именно общую сводку модуля. НЕ используй extra, если просят таблицу/список/график/"по статусам"/"по категориям" по Лидам/Проектам/Продажам — extra не даёт ни таблицы, ни графика (было: на "таблица проектов" добавили extra projects-analytics вместо нужного preset table-projects — получилось 2 бессмысленных числа вместо таблицы). (3) {kind:"preset", source, slug} — ОДНА конкретная метрика/график/таблица: source leads/projects/sales — обычные модули; source "workspace" — ЛЮБАЯ таблица рабочей области, включая выгруженную туда рекламу (Google Ads/Meta/Яндекс.Директ через crm_workspace_import_marketing_channels/_monthly_breakdown) — ОБЯЗАТЕЛЕН sourceRef, сначала найди нужную таблицу по названию через crm_workspace_list_tables (при сомнении в полях — crm_workspace_describe_table), никогда не выдумывай objectId. slug: metric-total/metric-amount/metric-owners/metric-won/chart-status/chart-categories/table-projects — "таблица"/"список"/"все записи" → именно table-projects.
+  - По умолчанию не ограничивайся одной голой цифрой на тему — пользователь ждёт наглядный дашборд, а не только числа. На каждую запрошенную тему добавляй небольшой набор: metric + один подходящий график (chart-status или chart-categories) + table-projects, если просили таблицу/список. Один голый metric — только если пользователь прямо попросил именно одно число и больше ничего.
+  - title — необязательный свой заголовок виджета; ОБЯЗАТЕЛЕН для source:"workspace" (иначе непонятно, какая это таблица — например title:"Google Ads — сессии/расход") и рекомендуется, если на дашборде может оказаться больше одного похожего виджета (у стандартных заголовков пресетов нет привязки к источнику — "leads"+metric-total и "sales"+metric-total выглядят одинаково без title).
+  - Период для preset — filters:{dateFrom,dateTo} ("за последний месяц/квартал" и т.п.); без него виджет считает за весь период.
+  - Для action:"remove" нужен точный id — core/extra id или pid_ пресета, который инструмент вернул в structure в ЭТОМ ЖЕ диалоге; если pid неизвестен, не угадывай — предложи action:"replace" с новым полным списком.
+  - После вызова кратко перечисли пользователю итоговую структуру (из поля structure ответа); если что-то из просьбы не попало в дашборд — явно скажи что и почему. Напомни, что изменения появятся на /dashboard (обновить страницу, если уже открыта).
 - Команда: crm_list_staff_members — список сотрудников тенанта (id, ФИО, email, роль, отдел). Используй для получения assignedUserId при назначении лидов/задач или для рассылки внутри команды.
 - Автоматизации: crm_list_automations, crm_create_automation, crm_update_automation, crm_delete_automation. Периодические сценарии: triggerEvent scheduled и meta.schedule с полями scheduleFrequency (weekly|daily|monthly|quarterly), scheduleTime (HH:mm), scheduleTimezone (IANA), scheduleDayOfWeek (1–7 пн=1 для weekly), scheduleDayOfMonth. В действии send_email для scheduled укажи accountId и to (массив email) и/или templateId. Mailchimp: send_mailchimp — один подписчик в аудиторию; send_mailchimp_campaign — одна email-кампания на всю аудиторию (subject, htmlBody, replyTo с верифицированного домена).
-- AI-сотрудники: crm_list_ai_employees показывает доступных AI Employees (в т.ч. scheduleMode и autonomyMode); crm_assign_ai_employee_task ставит задачу конкретному AI-сотруднику; crm_ask_ai_employee задаёт вопрос AI-сотруднику и возвращает ответ от его роли по CRM-данным. Именование для пользователя: этот чат — универсальный CRM-помощник по всей системе; AI Employees — именованные специалисты с ролями (можно ссылаться по имени из списка). Если у сотрудника scheduleMode не manual, бэкенд может сам запускать фоновые циклы и ежедневный отчёт по dailyReportTime; новые лиды могут автоматически ставить задачи lead_manager/sales_manager (если не read_only и не отключено в settings.proactive.reactToNewLeads). Если пользователь просит «дай задачу AI-маркетологу/лид-менеджеру» или «спроси у AI-сотрудника», используй эти инструменты.
+- AI-сотрудники: crm_list_ai_employees показывает доступных AI Employees (в т.ч. scheduleMode и autonomyMode); crm_assign_ai_employee_task ставит задачу конкретному AI-сотруднику; crm_ask_ai_employee задаёт вопрос AI-сотруднику и возвращает ответ от его роли по CRM-данным. Именование для пользователя: этот чат — универсальный CRM-помощник по всей системе; AI Employees — именованные специалисты с ролями (можно ссылаться по имени из списка). Если у сотрудника scheduleMode не manual, бэкенд может сам запускать фоновые циклы и ежедневный отчёт по dailyReportTime; новые лиды могут автоматически ставить задачи lead_manager/sales_manager (если не отключено в settings.proactive.reactToNewLeads). Если пользователь просит «дай задачу AI-маркетологу/лид-менеджеру» или «спроси у AI-сотрудника», используй эти инструменты. Когда ТЫ рекомендуешь поручить работу AI-сотруднику (назначить его ответственным за лид/проект/компанию/контакт/задачу, вести переписку с клиентом, выполнить шаги) — вызывай crm_propose_ai_employee_action: пользователь увидит кнопки «Одобрить»/«Отклонить», после «Одобрить» AI-сотрудник сам берёт запись в работу. Не проси печатать «да» и не выполняй сам до одобрения.
 - Товары: crm_product_search (поиск по названию/SKU), crm_product_get, crm_product_list_categories — без подтверждения. Изменение цены/скидки — crm_product_update_price: сначала crm_product_get чтобы показать текущую цену, назови старую и новую цену/валюту в чате и дождись согласия («меняй», «да, ставь такую цену»), только после этого вызови повторно с userConfirmedPriceChange: true. Так же для статуса (crm_product_update_status, userConfirmedStatusChange — статус влияет на видимость на витрине), массовых изменений (crm_product_bulk_update, userConfirmedBulkUpdate) и корректировки остатков (crm_product_adjust_stock, userConfirmedStockAdjust) — во всех случаях сначала покажи, что именно изменится, и дождись явного «да»/«делай». Создание товара — crm_product_create (без подтверждения, кроме случая явного риска): если currency не задана явно пользователем — не выдумывай и не подставляй EUR по умолчанию, оставь поле пустым, инструмент сам определит валюту по уже существующим товарам тенанта (в ответе будет currency — сверься с ним, если нужно сообщить пользователю). Категория: если пользователь называет её словами (не UUID) — передай в category (текстом), инструмент сам найдёт существующую или создаст новую (ответ содержит createdCategory: true, если создал — обязательно сообщи об этом пользователю); crm_product_create_category — только если нужно завести категорию отдельно/заранее.
 - Бронирования (запись на приём — мастер/услуга/время, НЕ номера отеля): crm_booking_list_services/crm_booking_list_staff/crm_booking_list_locations/crm_booking_list_resources для резолва названий в id (если совпадений по имени больше одного — покажи варианты и спроси пользователя, не выбирай сам, как с лидами). Если пользователь просит назначить/сменить мастера, но не назвал конкретное имя ("назначь мастера") — вызови crm_booking_list_staff и СПРОСИ, кого именно назначить; не выбирай сотрудника сам по умолчанию/наугад. "Мастер услуги" и "мастер брони/записи" — РАЗНЫЕ вещи, часто путаются: crm_booking_manage_service.staffUserIds — это справочник "кто вообще умеет оказывать эту услугу" (никак не виден в конкретной записи клиента и не отражается в списке броней); crm_booking_update.staffUserId — это мастер, назначенный на конкретную бронь конкретного клиента (то, что видно в таблице записей в колонке "Мастер"). Если из фразы пользователя неясно, что из двух он имеет в виду ("добавь мастера этой услуге" может означать оба варианта) — СПРОСИ, прежде чем вызывать инструмент, не угадывай: неверный выбор выглядит как "ничего не изменилось", хотя технически один из двух объектов был изменён. crm_booking_check_availability перед созданием — не требует подтверждения. crm_booking_search/crm_booking_get — чтение. crm_booking_search сам подстраховывается: если поиск с именем клиента (query) + датой ничего не дал, он автоматически повторяет поиск без имени и возвращает найденное в possibleMatchesByDate с пояснением в note (имя в базе могло отличаться от указанного — опечатка/другой род, напр. "Александр" вместо "Александра"). В этом случае прочти note, покажи пользователю найденные записи (имя из базы, время, услуга) и уточни, это ли нужная — НЕ говори "не найдено", если possibleMatchesByDate не пуст, и НЕ вызывай поиск повторно вручную, это уже сделано за тебя. Создание (crm_booking_create) — ВСЕГДА сначала озвучь клиента, мастера/услугу, дату и время в чате и дождись явного согласия, затем userConfirmedBooking: true. Изменение существующей брони (перенос времени, смена мастера/кабинета/локации/услуги, данные клиента, кол-во участников, цена, статус оплаты) — единый инструмент crm_booking_update: reservationId + любые поля для изменения (в т.ч. serviceId — чтобы поменять саму услугу, напр. "ресницы" на "покраска"), сначала озвучь пользователю, что именно меняется, дождись согласия, затем userConfirmedChange: true. Не утверждай, что бронь изменена, если crm_booking_update не вернул ok:true с обновлённой записью — сверься с полем serviceId/staffUserId и т.п. в ответе, а не с тем, что ты только что просил изменить. Смена статуса брони — единый инструмент crm_booking_set_status с параметром action (confirm/cancel/reject/check_in/complete/mark_no_show): для confirm/cancel/reject дождись согласия пользователя и передай userConfirmed: true; check_in/complete/mark_no_show лишь фиксируют факт, подтверждения не требуют. Управление справочниками (обычно нужны права руководителя/настройки бронирований — если инструмент вернёт forbidden, так и скажи пользователю, не обходи другим способом) — тоже единые инструменты с action: crm_booking_manage_location (create/update/delete) — локации/филиалы; crm_booking_manage_service (create/update/delete) — услуги (длительность, цена, к каким локациям/мастерам привязаны); crm_booking_manage_resource (create/update/delete) — ресурсы/кабинеты (переговорки, столы, оборудование) в конкретной локации; delete необратим — озвучь пользователю и дождись согласия. Профиль мастера — crm_booking_manage_staff_profile (доступность для записи, недельный график mon..sun, привязка к локациям/услугам, лимит одновременных броней, цвет календаря — НЕ создаёт нового сотрудника, только настраивает существующего для модуля «Бронирования») и crm_booking_manage_staff_time_off (action add/remove — отпуска/выходные); особые даты локации — crm_booking_manage_location_closure (action add/remove — закрытый день/сокращённые часы). Аналитика (загрузка, доход, динамика) — crm_booking_analytics, без подтверждения. Удаления брони как такового нет — вместо него используй crm_booking_set_status с action cancel/reject.
 - Система резервации / Отели (номера отеля, тарифы по датам — НЕ путать с Бронированиями выше): crm_hotel_list/crm_hotel_get для отеля, crm_hotel_list_room_types для типа номера по названию. crm_hotel_list_market_groups ОБЯЗАТЕЛЬНО перед любым изменением тарифа — у отеля может быть несколько групп рынков (например «Западная Европа»/«Восточная Европа»/«Внутренний рынок»), тариф хранится отдельно для каждой; если групп больше одной и пользователь не назвал нужную — спроси, для какой менять цену, не угадывай. crm_hotel_get_daily_rates — текущий тариф, используй чтобы показать «было» перед «станет». Изменение тарифа — crm_hotel_update_rate: назови группу рынков, дату, старую и новую цену, дождись согласия, затем userConfirmedRateChange: true. Стоп-продажа даты — crm_hotel_set_stop_sale, userConfirmedStopSale: true. Бронирование номера — crm_hotel_reservation_create (имя гостя, отель, тип номера, даты заезда/выезда) — это ДРУГАЯ сущность, чем Бронирования выше; параметр market — свободный текст региона гостя (например «Германия»), НЕ id группы рынков из crm_hotel_list_market_groups, не путай их. Перенос/отмена/смена статуса — crm_hotel_reservation_update. Все создающие/меняющие инструменты этого блока требуют явного согласия пользователя и соответствующего userConfirmed*: true. Данные/наполнение номера (название, площадь, вместимость, кол-во номеров, удобства-amenities, обложка, стоп-продажа) — crm_hotel_update_room_type, БЕЗ подтверждения (это не цена и не бронь). Плоские тарифы по рынкам для конкретного типа номера — crm_hotel_list_markets, отдельно от групп рынков и посуточных тарифов, не путай эти три механизма цены. При изменении кол-ва гостей (pax) в существующей брони (crm_hotel_reservation_update) сумма пересчитывается автоматически ТОЛЬКО из ночей×ставки — сама ставка при смене pax не меняется сама по себе: если новая вместимость должна дать другую цену, узнай актуальную ставку (crm_hotel_get_daily_rates/crm_hotel_list_markets) и передай новый grossPerNight/ppPerNight вместе с pax в одном вызове. Аналитика (загрузка, доход, воронка, рынки/агентства/демография гостей) — crm_hotel_analytics, без подтверждения. Структура отеля (обычно нужны права руководителя — при forbidden сообщи об этом, не обходи): crm_hotel_create — новый отель; crm_hotel_create_room_type — новый тип номера (автоматически заводит 2 базовых варианта размещения); crm_hotel_list_room_units + crm_hotel_manage_room_unit (action create/update/delete) — конкретные номера с реальными названиями (напр. "101"); crm_hotel_list_occupancy_types + crm_hotel_manage_occupancy_type (action create/update/remove) — варианты размещения (SGL/2 AD и т.п.) с коэффициентом к базовой цене, на них опираются посуточные тарифы; delete/remove необратимы — озвучь пользователю и дождись согласия.
@@ -300,6 +326,7 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
     imageUrl?: string | null;
     imageRevisedPrompt?: string | null;
     usingOwnKey: boolean;
+    proposals?: Array<Record<string, unknown>>;
   }> {
     const text = String(input.message || '').trim();
     const hasSalesAtt = Boolean(input.salesImportContext?.importId);
@@ -419,6 +446,7 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
     let finalAssistantText = '';
     let lastGeneratedImage: { url: string; revised_prompt?: string } | null =
       null;
+    const proposals: Array<Record<string, unknown>> = [];
 
     const openAiOverride = await this.resolveTenantOpenAiOverride(input.tenantId);
     const tenantTools = await this.buildToolsForTenant(input.tenantId);
@@ -449,12 +477,15 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
             role: 'assistant',
             content: finalAssistantText,
             toolCalls: null,
-            meta: lastGeneratedImage?.url
-              ? {
-                  imageUrl: lastGeneratedImage.url,
-                  revised_prompt: lastGeneratedImage.revised_prompt ?? null,
-                }
-              : null,
+            meta:
+              lastGeneratedImage?.url || proposals.length
+                ? {
+                    ...(lastGeneratedImage?.url
+                      ? { imageUrl: lastGeneratedImage.url, revised_prompt: lastGeneratedImage.revised_prompt ?? null }
+                      : {}),
+                    ...(proposals.length ? { proposals } : {}),
+                  }
+                : null,
           }),
         );
         break;
@@ -484,6 +515,14 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
           telegramUsername: input.telegramUsername,
           telegramChatId: input.telegramChatId,
         });
+        if (name === 'crm_propose_ai_employee_action') {
+          try {
+            const p = JSON.parse(result) as { ok?: boolean; proposal?: Record<string, unknown> };
+            if (p?.ok && p.proposal) proposals.push(p.proposal);
+          } catch {
+            /* ignore */
+          }
+        }
         if (name === 'crm_generate_image') {
           try {
             const p = JSON.parse(result) as {
@@ -562,10 +601,57 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
         completion_tokens: totalCompletion,
         costCents,
       },
+      proposals,
       imageUrl: lastGeneratedImage?.url ?? null,
       imageRevisedPrompt: lastGeneratedImage?.revised_prompt ?? null,
       usingOwnKey: Boolean(openAiOverride),
     };
+  }
+
+  /**
+   * «Одобрить / Отклонить» под рекомендацией в чате. Одобрение = AI-сотрудник становится ответственным за запись
+   * и сразу берёт задание в работу (дальше действует по своим правам/автономности).
+   */
+  async decideProposal(
+    input: { tenantId: string; userId: string; messageId: string; proposalId: string; decision: 'approve' | 'reject' },
+  ) {
+    const msg = await this.messages.findOne({ where: { id: input.messageId } });
+    if (!msg) throw new NotFoundException('Message not found');
+    const session = await this.sessions.findOne({ where: { id: msg.sessionId, tenantId: input.tenantId, userId: input.userId } });
+    if (!session) throw new NotFoundException('Message not found');
+    const list = Array.isArray((msg.meta as any)?.proposals) ? ([...(msg.meta as any).proposals] as Array<Record<string, any>>) : [];
+    const idx = list.findIndex((p) => p.id === input.proposalId);
+    if (idx < 0) throw new NotFoundException('Proposal not found');
+    const proposal = { ...list[idx] };
+    if (proposal.status !== 'pending') return { proposal };
+
+    if (input.decision === 'approve') {
+      const { AiEmployeesService } = await import('../ai-employees/ai-employees.service.js');
+      const svc = this.moduleRef.get(AiEmployeesService, { strict: false });
+      if (proposal.entityType && proposal.entityId && proposal.assign !== false) {
+        await svc.setEntityAssignment(input.tenantId, input.userId, {
+          agentId: proposal.agentId,
+          entityType: proposal.entityType,
+          entityId: proposal.entityId,
+          assigned: true,
+          silent: true,
+        });
+      }
+      await svc.assignTask(input.tenantId, proposal.agentId, input.userId, {
+        task: proposal.task,
+        entityType: proposal.entityType ?? undefined,
+        entityId: proposal.entityId ?? undefined,
+        runNow: true,
+      });
+      proposal.status = 'approved';
+    } else {
+      proposal.status = 'rejected';
+    }
+    proposal.decidedAt = new Date().toISOString();
+    list[idx] = proposal;
+    msg.meta = { ...(msg.meta || {}), proposals: list };
+    await this.messages.save(msg);
+    return { proposal };
   }
 
   private async quickCompletion(tenantId: string, prompt: string): Promise<string> {
@@ -1079,5 +1165,658 @@ ${existingFieldsList}
     } catch {
       return { ok: false, error: 'parse_failed', filters: {}, description: query };
     }
+  }
+
+  // ── «Разобрать через АИ» — автопостроение аналитического дашборда ──────────
+  //
+  // Конфиги виджетов нигде не хранятся на бэкенде (только localStorage на фронте — см.
+  // ProjectsAnalyticsPage.tsx / LeadsAnalyticsPageV2.tsx / SalesAnalyticsPageV2.tsx), поэтому
+  // здесь мы НЕ пишем ничего в БД — только считаем реальную статистику по тенанту, просим LLM
+  // собрать по ней осмысленный набор блоков, валидируем ссылки на реальные поля/значения и
+  // отдаём готовый JSON — страница сама применяет его через уже существующий setWidgets/setLayouts
+  // + persist-в-localStorage эффект.
+
+  private topValueCounts(
+    rows: Array<{ k: string | null; c: string | number }>,
+    limit = 12,
+  ): Array<{ value: string; count: number }> {
+    return rows
+      .filter((r) => r.k != null && String(r.k).trim() !== '')
+      .map((r) => ({ value: String(r.k), count: Number(r.c) || 0 }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+  }
+
+  private fmtValueStats(label: string, key: string, values: Array<{ value: string; count: number }>): string {
+    if (!values.length) return `- ${label} (chartKey/dimensionKey "${key}"): нет данных`;
+    const sample = values.map((v) => `${v.value} (${v.count})`).join(', ');
+    return `- ${label} (chartKey/dimensionKey "${key}"): ${values.length} уникальных значений, топ: ${sample}`;
+  }
+
+  async buildAnalyticsDashboard(
+    tenantId: string,
+    userId: string,
+    input: { module?: string; workspaceObjectId?: string; periodFrom?: string; periodTo?: string },
+  ): Promise<{
+    ok: boolean;
+    module: string;
+    widgets?: Record<string, unknown>[];
+    layouts?: Record<string, Record<string, unknown>[]>;
+    note?: string;
+    error?: string;
+  }> {
+    const module = String(input.module || '').trim();
+    if (!['projects', 'workspace', 'leads', 'sales'].includes(module)) {
+      throw new BadRequestException('module must be one of projects|workspace|leads|sales');
+    }
+    const range = this.parsePeriodRange(input.periodFrom, input.periodTo);
+    try {
+      if (module === 'projects' || module === 'workspace') {
+        const workspaceObjectId = input.workspaceObjectId ? String(input.workspaceObjectId).trim() : undefined;
+        if (module === 'workspace' && !workspaceObjectId) {
+          throw new BadRequestException('workspaceObjectId required for module "workspace"');
+        }
+        const widgets = await this.buildProjectsStyleDashboard(tenantId, module, workspaceObjectId, range);
+        if (!widgets.length) {
+          return { ok: false, module, error: 'no_data', note: 'Недостаточно данных для построения дашборда.' };
+        }
+        return { ok: true, module, widgets };
+      }
+      // leads | sales
+      const layouts = await this.buildBlockStyleDashboard(tenantId, module as 'leads' | 'sales', range);
+      const totalBlocks = Object.values(layouts).reduce((s, v) => s + v.length, 0);
+      if (!totalBlocks) {
+        return { ok: false, module, error: 'no_data', note: 'Недостаточно данных для построения дашборда.' };
+      }
+      return { ok: true, module, layouts };
+    } catch (e: any) {
+      if (e instanceof BadRequestException) throw e;
+      this.log.error(`buildAnalyticsDashboard(${module}) failed: ${e?.message || e}`);
+      return { ok: false, module, error: e?.message || 'build_failed' };
+    }
+  }
+
+  private parsePeriodRange(from?: string, to?: string): { from: Date; to: Date } | null {
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
+    if (!fromDate && !toDate) return null;
+    return {
+      from: fromDate && Number.isFinite(fromDate.getTime()) ? fromDate : new Date(0),
+      to: toDate && Number.isFinite(toDate.getTime()) ? toDate : new Date(),
+    };
+  }
+
+  private formatPeriodLabel(range?: { from: Date; to: Date } | null): string | undefined {
+    if (!range) return undefined;
+    const fmt = (d: Date) => d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${fmt(range.from)} – ${fmt(range.to)}`;
+  }
+
+  /** Колонка вида "m_2026_09" / "2026-09" или подпись "Сентябрь 2026" → 1-е число месяца.
+   * Тот же приём, что и на фронтенде (ProjectsAnalyticsPage.tsx) — нужен, чтобы отличать "широкие"
+   * таблицы (строка = категория, колонки = месяцы) от обычных таблиц с датой создания записи. */
+  private parseMonthFieldDate(field: { key: string; label?: string }): Date | null {
+    const keyMatch = /^m_(\d{4})_(\d{1,2})$/.exec(field.key) || /^(\d{4})-(\d{1,2})$/.exec(field.key);
+    if (keyMatch) {
+      const year = Number(keyMatch[1]);
+      const monthNum = Number(keyMatch[2]);
+      if (year >= 1990 && year <= 2100 && monthNum >= 1 && monthNum <= 12) return new Date(year, monthNum - 1, 1);
+    }
+    const label = (field.label || '').toLowerCase().trim();
+    const yearMatch = /\b(19|20)\d{2}\b/.exec(label);
+    if (yearMatch) {
+      const monthPart = label.replace(yearMatch[0], '').trim();
+      const monthNames = [
+        ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'],
+        ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'],
+        ['ocak', 'şubat', 'mart', 'nisan', 'mayıs', 'haziran', 'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık'],
+      ];
+      for (const names of monthNames) {
+        const idx = names.findIndex((name) => monthPart === name || monthPart.startsWith(name.slice(0, 4)));
+        if (idx >= 0) return new Date(Number(yearMatch[0]), idx, 1);
+      }
+    }
+    return null;
+  }
+
+  private monthOverlapsRange(monthStart: Date, range: { from: Date; to: Date }): boolean {
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59, 999);
+    return monthStart <= range.to && monthEnd >= range.from;
+  }
+
+  /** module: 'projects' | 'workspace' → WidgetConfig[] (схема ProjectsAnalyticsPage.tsx). */
+  private async buildProjectsStyleDashboard(
+    tenantId: string,
+    module: 'projects' | 'workspace',
+    workspaceObjectId?: string,
+    range?: { from: Date; to: Date } | null,
+  ): Promise<Record<string, unknown>[]> {
+    let totalCount = 0;
+    let dimensionLines: string[] = [];
+    let numericLines: string[] = [];
+    let validChartKeys = new Set<string>();
+    let validMetricKeys = new Set<string>(['total']);
+    let validTableKeys = new Set<string>();
+    const validNumericFieldKeys = new Set<string>();
+    let wideNumericColumnsWarning = '';
+    let subjectLabel = 'проекты';
+
+    if (module === 'workspace') {
+      const obj = await this.customObjects.getObject(tenantId, workspaceObjectId!);
+      subjectLabel = `таблица «${obj.name}»`;
+      const fields = await this.customObjects.listFields(tenantId, workspaceObjectId!);
+      const { items, total } = await this.customObjects.listRecords(tenantId, workspaceObjectId!, { limit: 3000 });
+      validTableKeys.add('projects');
+
+      // "Широкая" таблица (строка = категория, колонка на каждый месяц, напр. расходы по странам
+      // из маркетингового импорта) — у строк нет своей даты события (дата в listRecords — дата
+      // ИМПОРТА, не расхода), поэтому период сужает не набор строк, а то, какие месячные колонки
+      // идут в статистику. Обычная таблица со своей датой создания — фильтруем строки как раньше.
+      const monthFieldDates = new Map<string, Date>();
+      for (const f of fields) {
+        if (String(f.type || '').toLowerCase() === 'number') {
+          const d = this.parseMonthFieldDate(f);
+          if (d) monthFieldDates.set(f.key, d);
+        }
+      }
+      const isWideMonthly = monthFieldDates.size >= 2;
+
+      let scopedItems = items as any[];
+      if (range && !isWideMonthly) {
+        scopedItems = items.filter((r: any) => {
+          const created = r.createdAt ? new Date(r.createdAt) : null;
+          if (!created || !Number.isFinite(created.getTime())) return true;
+          return created >= range.from && created <= range.to;
+        });
+      }
+      totalCount = range && !isWideMonthly ? scopedItems.length : (total ?? items.length);
+
+      let numericFieldsCount = 0;
+
+      for (const f of fields) {
+        const key = `field:${f.key}`;
+        const type = String(f.type || '').toLowerCase();
+        if (type === 'number') {
+          numericFieldsCount += 1;
+          const monthDate = monthFieldDates.get(f.key);
+          if (isWideMonthly && monthDate) {
+            // Отдельная месячная колонка "широкой" таблицы — НЕ даём строить по ней отдельный
+            // KPI/график: заголовок такого виджета жёстко ссылался бы на этот месяц текстом и не
+            // менялся бы при смене периода на странице (значение обнулится, а заголовок — нет,
+            // получится вводящее в заблуждение "Август 2024: 0"). Эти данные видны через строки
+            // таблицы (tableKey "projects"), которая и так показывает все месячные колонки.
+            continue;
+          }
+          let nums: number[];
+          if (isWideMonthly) {
+            // Агрегатное поле (напр. "Итого") — реальное его значение = сумма месячных колонок,
+            // попадающих в период (или всех колонок, если период не выбран). Заголовок и значение
+            // такого виджета одинаково корректны при ЛЮБОМ периоде — их и нужно предлагать ИИ.
+            nums = scopedItems.map((r: any) => {
+              let s = 0;
+              monthFieldDates.forEach((d, mk) => {
+                if (!range || this.monthOverlapsRange(d, range)) s += Number(r.values?.[mk]) || 0;
+              });
+              return s;
+            });
+          } else {
+            nums = scopedItems
+              .map((r: any) => Number(r.values?.[f.key]))
+              .filter((n: number) => Number.isFinite(n));
+          }
+          if (nums.length) {
+            const sum = nums.reduce((a: number, b: number) => a + b, 0);
+            validMetricKeys.add(`sum:${f.key}`);
+            validMetricKeys.add(`avg:${f.key}`);
+            validNumericFieldKeys.add(key);
+            numericLines.push(
+              `- ${f.label} (числовое поле "${key}", НЕ измерение для группировки — только metricKey "sum:${f.key}"/"avg:${f.key}" или chartValueField/pivot valueField): sum=${Math.round(sum)}, avg=${Math.round(sum / nums.length)}, заполнено в ${nums.length}/${scopedItems.length} строк`,
+            );
+          }
+          continue;
+        }
+        if (['text', 'date', 'datetime', 'boolean', 'file'].includes(type)) {
+          validMetricKeys.add(`filled:${f.key}`);
+          continue;
+        }
+        const counts = new Map<string, number>();
+        for (const r of scopedItems as any[]) {
+          const raw = r.values?.[f.key];
+          const vals = Array.isArray(raw) ? raw : raw != null && raw !== '' ? [raw] : [];
+          for (const v of vals) counts.set(String(v), (counts.get(String(v)) || 0) + 1);
+        }
+        const top = [...counts.entries()]
+          .map(([value, count]) => ({ value, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 12);
+        validMetricKeys.add(`filled:${f.key}`);
+        // Группировка (chartKey/tableKey/pivot*Key) имеет смысл только для категориальных полей
+        // с 2+ реальными значениями — иначе донат/бар/пивот выйдет вырожденным или бессмысленным.
+        if (counts.size < 2) continue;
+        validChartKeys.add(key);
+        validTableKeys.add(key);
+        dimensionLines.push(this.fmtValueStats(f.label, key, top));
+      }
+
+      if (numericFieldsCount >= 3) {
+        wideNumericColumnsWarning =
+          '\nВАЖНО: у этой таблицы много числовых полей — одна колонка на период/месяц ("широкий" формат). Отдельные месячные колонки НЕ включены в список допустимых metricKey/chartValueField/pivot valueField вообще (даже если технически существуют) — их НЕЛЬЗЯ использовать ни как chartKey/tableKey/dimensionKey/pivotRowKey/pivotColKey (группировка по ним даст бессмысленные "категории" вроде "834.41"), ни как отдельный metricKey/chartValueField для KPI-карточки (заголовок такого виджета жёстко ссылался бы на конкретный месяц текстом и не менялся бы при смене периода на странице — значение обнулится, а заголовок нет, получится вводящий в заблуждение результат). Для сумм/средних используй ТОЛЬКО агрегатное поле из списка допустимых metricKey/chartValueField ниже (например "Итого") — его значение и смысл остаются верными при любом выбранном периоде. Для общей картины по всем месяцам сразу используй table (tableKey "projects" — она и так покажет все числовые колонки построчно). ИСКЛЮЧЕНИЕ: добавь ОДИН виджет type:"line" — для таблиц такого формата он автоматически строит тренд по месяцам (по всем месячным колонкам сразу), chartKey у него формально обязателен для валидации, но на сам график не влияет — укажи туда любой из допустимых chartKey ниже.';
+      }
+    } else {
+      const withRange = <T extends { andWhere: (...args: any[]) => T }>(qb: T): T =>
+        range ? qb.andWhere('p.createdAt BETWEEN :rFrom AND :rTo', { rFrom: range.from, rTo: range.to }) : qb;
+
+      totalCount = await withRange(
+        this.projectRepo.createQueryBuilder('p').where('p.tenantId = :tenantId', { tenantId }),
+      ).getCount();
+      validChartKeys = new Set(['status', 'category', 'owner', 'tag']);
+      validTableKeys = new Set(['projects', 'owners', 'categories']);
+      validMetricKeys = new Set([
+        'total', 'amount', 'avgAmount', 'filteredPercent', 'owners', 'categories', 'tags', 'statuses',
+      ]);
+
+      const statusRows = await withRange(
+        this.projectRepo.createQueryBuilder('p')
+          .select('p.status', 'k').addSelect('COUNT(*)', 'c')
+          .where('p.tenantId = :tenantId', { tenantId }),
+      ).groupBy('p.status').getRawMany();
+      const categoryRows = await withRange(
+        this.projectRepo.createQueryBuilder('p')
+          .select('p.category', 'k').addSelect('COUNT(*)', 'c')
+          .where('p.tenantId = :tenantId', { tenantId }).andWhere('p.category IS NOT NULL'),
+      ).groupBy('p.category').getRawMany();
+      const ownerRows = await withRange(
+        this.projectRepo.createQueryBuilder('p')
+          .select('p.ownerName', 'k').addSelect('COUNT(*)', 'c')
+          .where('p.tenantId = :tenantId', { tenantId }).andWhere('p.ownerName IS NOT NULL'),
+      ).groupBy('p.ownerName').getRawMany();
+      const amountRow = await withRange(
+        this.projectRepo.createQueryBuilder('p')
+          .select('COALESCE(SUM(p.amount),0)', 'sum').addSelect('COALESCE(AVG(p.amount),0)', 'avg')
+          .where('p.tenantId = :tenantId', { tenantId }),
+      ).getRawOne();
+
+      dimensionLines = [
+        this.fmtValueStats('Статус', 'status', this.topValueCounts(statusRows)),
+        this.fmtValueStats('Категория', 'category', this.topValueCounts(categoryRows)),
+        this.fmtValueStats('Ответственный', 'owner', this.topValueCounts(ownerRows)),
+      ];
+      numericLines = [
+        `- Сумма (metricKey "amount"/"avgAmount", chartValueField "amount"): sum=${Math.round(Number(amountRow?.sum) || 0)}, avg=${Math.round(Number(amountRow?.avg) || 0)}`,
+      ];
+      validNumericFieldKeys.add('amount');
+
+      const customFields = await this.customFieldsService.findByEntityType(tenantId, CustomFieldEntityType.PROJECT);
+      for (const f of customFields) {
+        const type = String(f.type || '').toLowerCase();
+        if (type === 'number') {
+          validMetricKeys.add(`sum:${f.key}`);
+          validMetricKeys.add(`avg:${f.key}`);
+          validNumericFieldKeys.add(`field:${f.key}`);
+          numericLines.push(`- ${f.label} (кастомное числовое поле, metricKey "sum:${f.key}"/"avg:${f.key}", chartValueField "field:${f.key}")`);
+        }
+      }
+    }
+
+    const prompt = this.buildDashboardPrompt({
+      subjectLabel,
+      totalCount,
+      dimensionLines,
+      numericLines,
+      extraNote: wideNumericColumnsWarning,
+      widgetTypes: 'metric | donut | bar | line | funnel | leaderboard | table | heatmap | note | formula | pivot',
+      outputShape: 'WIDGET_ARRAY',
+      validChartKeys: [...validChartKeys],
+      validMetricKeys: [...validMetricKeys],
+      validTableKeys: [...validTableKeys],
+      validNumericFieldKeys: [...validNumericFieldKeys],
+      periodLabel: this.formatPeriodLabel(range),
+    });
+
+    const raw = await this.quickCompletion(tenantId, prompt);
+    const parsed = this.parseJsonLoose<{ widgets?: Record<string, unknown>[] }>(raw);
+    const widgets = Array.isArray(parsed?.widgets) ? parsed!.widgets : [];
+    return this.sanitizeWidgetArray(widgets, {
+      validChartKeys, validMetricKeys, validTableKeys, validNumericFieldKeys,
+    });
+  }
+
+  /** module: 'leads' | 'sales' → Record<ViewId, AnalyticsBlock[]> (схема *AnalyticsPageV2.tsx). */
+  private async buildBlockStyleDashboard(
+    tenantId: string,
+    module: 'leads' | 'sales',
+    range?: { from: Date; to: Date } | null,
+  ): Promise<Record<string, Record<string, unknown>[]>> {
+    const views = ['overview', 'sources', 'managers', 'funnel'];
+    let totalCount = 0;
+    let dimensionLines: string[] = [];
+    let numericLines: string[] = [];
+    const validDimensionKeys = new Set<string>();
+    const validMetricKeys = new Set<string>(['total']);
+    const validNumericFieldKeys = new Set<string>();
+
+    if (module === 'leads') {
+      // лиды в корзине/архиве (meta.deleted/archived) в отчёт не входят — как и в остальных AI-инструментах
+      const withRange = <T extends { andWhere: (...args: any[]) => T }>(qb: T): T => {
+        const visible = qb.andWhere(
+          `NOT (COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"archived":true}'::jsonb OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"archived":"true"}'::jsonb)`,
+        );
+        return range ? visible.andWhere('l.createdAt BETWEEN :rFrom AND :rTo', { rFrom: range.from, rTo: range.to }) : visible;
+      };
+
+      totalCount = await withRange(
+        this.leadRepo.createQueryBuilder('l').where('l.tenantId = :tenantId', { tenantId }),
+      ).getCount();
+      validDimensionKeys.add('field:status');
+      validDimensionKeys.add('field:source');
+      validDimensionKeys.add('field:manager');
+      validMetricKeys.add('conversion');
+      validMetricKeys.add('revenue');
+      validMetricKeys.add('avgRevenue');
+      validMetricKeys.add('won');
+      validMetricKeys.add('lost');
+
+      const statusRows = await withRange(
+        this.leadRepo.createQueryBuilder('l')
+          .select('l.status', 'k').addSelect('COUNT(*)', 'c')
+          .where('l.tenantId = :tenantId', { tenantId }),
+      ).groupBy('l.status').getRawMany();
+      const sourceRows = await withRange(
+        this.leadRepo.createQueryBuilder('l')
+          .select('l.source', 'k').addSelect('COUNT(*)', 'c')
+          .where('l.tenantId = :tenantId', { tenantId }).andWhere('l.source IS NOT NULL'),
+      ).groupBy('l.source').getRawMany();
+      const managerRows = await withRange(
+        this.leadRepo.createQueryBuilder('l')
+          .select('l.assignedTo', 'k').addSelect('COUNT(*)', 'c')
+          .where('l.tenantId = :tenantId', { tenantId }).andWhere('l.assignedTo IS NOT NULL'),
+      ).groupBy('l.assignedTo').getRawMany();
+      const amountRow = await withRange(
+        this.leadRepo.createQueryBuilder('l')
+          .select('COALESCE(SUM(l.amount),0)', 'sum').addSelect('COALESCE(AVG(l.amount),0)', 'avg')
+          .where('l.tenantId = :tenantId', { tenantId }),
+      ).getRawOne();
+
+      dimensionLines = [
+        this.fmtValueStats('Статус', 'field:status', this.topValueCounts(statusRows)),
+        this.fmtValueStats('Источник', 'field:source', this.topValueCounts(sourceRows)),
+        this.fmtValueStats('Менеджер', 'field:manager', this.topValueCounts(managerRows)),
+      ];
+      numericLines = [
+        `- Сумма сделки (metricKey "revenue"/"avgRevenue"): sum=${Math.round(Number(amountRow?.sum) || 0)}, avg=${Math.round(Number(amountRow?.avg) || 0)}`,
+      ];
+
+      const customFields = await this.customFieldsService.findByEntityType(tenantId, CustomFieldEntityType.LEAD);
+      for (const f of customFields) {
+        if (String(f.type || '').toLowerCase() === 'number') {
+          validMetricKeys.add(`sum:${f.key}`);
+          validMetricKeys.add(`avg:${f.key}`);
+          validNumericFieldKeys.add(`field:${f.key}`);
+          numericLines.push(`- ${f.label} (кастомное числовое поле, НЕ измерение для группировки — только metricKey "sum:${f.key}"/"avg:${f.key}")`);
+        } else {
+          validDimensionKeys.add(`field:${f.key}`);
+        }
+      }
+    } else {
+      const withRange = <T extends { andWhere: (...args: any[]) => T }>(qb: T): T =>
+        range ? qb.andWhere('s.createdAt BETWEEN :rFrom AND :rTo', { rFrom: range.from, rTo: range.to }) : qb;
+
+      totalCount = await withRange(
+        this.saleRepo.createQueryBuilder('s').where('s.tenantId = :tenantId', { tenantId }),
+      ).getCount();
+      validDimensionKeys.add('field:status');
+      validDimensionKeys.add('field:channel');
+      validDimensionKeys.add('field:market');
+      validDimensionKeys.add('field:manager');
+      validMetricKeys.add('conversion');
+      validMetricKeys.add('revenue');
+      validMetricKeys.add('avgRevenue');
+      validMetricKeys.add('won');
+      validMetricKeys.add('lost');
+      validMetricKeys.add('channels');
+
+      const statusRows = await withRange(
+        this.saleRepo.createQueryBuilder('s')
+          .select('s.status', 'k').addSelect('COUNT(*)', 'c')
+          .where('s.tenantId = :tenantId', { tenantId }),
+      ).groupBy('s.status').getRawMany();
+      const channelRows = await withRange(
+        this.saleRepo.createQueryBuilder('s')
+          .leftJoin('s.channel', 'ch')
+          .select('ch.name', 'k').addSelect('COUNT(*)', 'c')
+          .where('s.tenantId = :tenantId', { tenantId }).andWhere('ch.name IS NOT NULL'),
+      ).groupBy('ch.name').getRawMany();
+      const marketRows = await withRange(
+        this.saleRepo.createQueryBuilder('s')
+          .select('s.market', 'k').addSelect('COUNT(*)', 'c')
+          .where('s.tenantId = :tenantId', { tenantId }).andWhere('s.market IS NOT NULL'),
+      ).groupBy('s.market').getRawMany();
+      const managerRows = await withRange(
+        this.saleRepo.createQueryBuilder('s')
+          .select('s.agentName', 'k').addSelect('COUNT(*)', 'c')
+          .where('s.tenantId = :tenantId', { tenantId }).andWhere('s.agentName IS NOT NULL'),
+      ).groupBy('s.agentName').getRawMany();
+      const amountRow = await withRange(
+        this.saleRepo.createQueryBuilder('s')
+          .select('COALESCE(SUM(s.amount),0)', 'sum').addSelect('COALESCE(AVG(s.amount),0)', 'avg')
+          .where('s.tenantId = :tenantId', { tenantId }),
+      ).getRawOne();
+
+      dimensionLines = [
+        this.fmtValueStats('Статус', 'field:status', this.topValueCounts(statusRows)),
+        this.fmtValueStats('Канал продаж', 'field:channel', this.topValueCounts(channelRows)),
+        this.fmtValueStats('Рынок', 'field:market', this.topValueCounts(marketRows)),
+        this.fmtValueStats('Менеджер', 'field:manager', this.topValueCounts(managerRows)),
+      ];
+      numericLines = [
+        `- Сумма заказа (metricKey "revenue"/"avgRevenue"): sum=${Math.round(Number(amountRow?.sum) || 0)}, avg=${Math.round(Number(amountRow?.avg) || 0)}`,
+      ];
+
+      const customFields = await this.customFieldsService.findByEntityType(tenantId, CustomFieldEntityType.SALE);
+      for (const f of customFields) {
+        if (String(f.type || '').toLowerCase() === 'number') {
+          validMetricKeys.add(`sum:${f.key}`);
+          validMetricKeys.add(`avg:${f.key}`);
+          validNumericFieldKeys.add(`field:${f.key}`);
+          numericLines.push(`- ${f.label} (кастомное числовое поле, НЕ измерение для группировки — только metricKey "sum:${f.key}"/"avg:${f.key}")`);
+        } else {
+          validDimensionKeys.add(`field:${f.key}`);
+        }
+      }
+    }
+
+    const prompt = this.buildDashboardPrompt({
+      subjectLabel: module === 'leads' ? 'лиды' : 'продажи/заказы',
+      totalCount,
+      dimensionLines,
+      numericLines,
+      widgetTypes: 'metric | formula | line | donut | bar | funnel | leaderboard | table | heatmap | note',
+      outputShape: 'VIEW_LAYOUTS',
+      validChartKeys: [...validDimensionKeys],
+      validMetricKeys: [...validMetricKeys],
+      validTableKeys: [...validDimensionKeys],
+      validNumericFieldKeys: [...validNumericFieldKeys],
+      periodLabel: this.formatPeriodLabel(range),
+      views,
+    });
+
+    const raw = await this.quickCompletion(tenantId, prompt);
+    const parsed = this.parseJsonLoose<{ layouts?: Record<string, Record<string, unknown>[]> }>(raw);
+    const layouts = parsed?.layouts && typeof parsed.layouts === 'object' ? parsed.layouts : {};
+
+    const out: Record<string, Record<string, unknown>[]> = {};
+    for (const view of views) {
+      const blocks = Array.isArray(layouts[view]) ? layouts[view] : [];
+      out[view] = this.sanitizeBlockArray(blocks, {
+        validDimensionKeys,
+        validMetricKeys,
+        validNumericFieldKeys,
+      });
+    }
+    return out;
+  }
+
+  private buildDashboardPrompt(input: {
+    subjectLabel: string;
+    totalCount: number;
+    dimensionLines: string[];
+    numericLines: string[];
+    widgetTypes: string;
+    outputShape: 'WIDGET_ARRAY' | 'VIEW_LAYOUTS';
+    validChartKeys: string[];
+    validMetricKeys: string[];
+    validTableKeys: string[];
+    validNumericFieldKeys?: string[];
+    extraNote?: string;
+    views?: string[];
+    periodLabel?: string;
+  }): string {
+    const outputSpec =
+      input.outputShape === 'WIDGET_ARRAY'
+        ? `Верни строго JSON (без markdown, без пояснений вне JSON):
+{
+  "widgets": [
+    {
+      "id": "<короткий уникальный slug>",
+      "type": "<${input.widgetTypes}>",
+      "title": "<заголовок на русском>",
+      "size": "sm" | "md" | "lg",
+      "metricKey": "<только для type=metric — одно из перечисленных ниже>",
+      "chartKey": "<только для type=donut/bar/line/funnel/leaderboard/heatmap — одно из перечисленных ниже>",
+      "chartValueMode": "count" | "sum",
+      "chartValueField": "<ключ числового поля, только если chartValueMode=sum>",
+      "tableKey": "<только для type=table — одно из перечисленных ниже>",
+      "pivotRowKey": "<только для type=pivot>",
+      "pivotColKey": "<только для type=pivot, отличное от pivotRowKey>",
+      "pivotMeasures": [{"id":"m1","mode":"count"}],
+      "formulaFn": "sumif" | "count" | "percent" | "ratio" | "diff",
+      "formulaLeftType": "<scope>", "formulaLeftKey": "<value>",
+      "formulaRightType": "<scope>", "formulaRightKey": "<value>",
+      "formulaMode": "count" | "percent" | "sum",
+      "compareDisplay": "number" | "bar" | "line" | "donut" | "table"
+    }
+  ]
+}`
+        : `Верни строго JSON (без markdown, без пояснений вне JSON) — по блокам НА КАЖДУЮ вкладку (${(input.views || []).join(', ')}):
+{
+  "layouts": {
+    ${(input.views || []).map((v) => `"${v}": [ { "id": "<slug>", "type": "<${input.widgetTypes}>", "title": "<заголовок>", "span": 4|6|12, "height": 240, "metricKey": "...", "dimensionKey": "...", "valueMode": "count"|"sum", "valueField": "...", "formulaFn": "...", "formulaMode": "...", "formulaLeftType": "...", "formulaLeftKey": "...", "formulaRightType": "...", "formulaRightKey": "...", "compareDisplay": "number"|"bar"|"line"|"donut"|"table", "tableColumns": ["..."] } ]`).join(',\n    ')}
+  }
+}`;
+
+    return `Ты — старший бизнес-аналитик, который строит профессиональный аналитический дашборд для владельца бизнеса в CRM. Тебе НЕЛЬЗЯ делать игрушечный набор из 2-3 одинаковых карточек — нужен полноценный, разнообразный дашборд, максимально задействующий доступные типы блоков, как это сделал бы опытный BI-аналитик: KPI-метрики, распределение по статусу/категории/источнику, лидеры/рейтинг по ответственным, тренд по времени (если есть данные), таблица с деталями, и хотя бы одна формула/конверсия или сводная таблица (pivot), если для неё есть подходящие два измерения.
+
+Предмет анализа: ${input.subjectLabel}. Период анализа: ${input.periodLabel || 'всё время'}. Всего записей в периоде: ${input.totalCount}.
+Заголовки и пояснения в блоках должны соответствовать этому периоду (не пиши "за всё время", если период уже, и наоборот).
+
+Реальные измерения (группировки) и их фактические значения в БД — используй ТОЛЬКО эти ключи и, где уместно, ссылайся на реально существующие значения (не выдумывай):
+${input.dimensionLines.join('\n') || '(нет измерений с данными)'}
+
+Реальные числовые метрики:
+${input.numericLines.join('\n') || '(нет числовых полей)'}
+
+ВАЖНО — допустимые ключи (если сошлёшься на что-то вне этих списков, блок будет отброшен целиком):
+- Допустимые metricKey: ${input.validMetricKeys.join(', ') || '(нет)'}
+- Допустимые chartKey/dimensionKey (ТОЛЬКО категориальные поля — группировка по значению): ${input.validChartKeys.join(', ') || '(нет)'}
+- Допустимые tableKey: ${input.validTableKeys.join(', ') || '(нет)'}
+- Допустимые chartValueField / pivot valueField (числовые поля — ТОЛЬКО как значение для суммирования, НИКОГДА как chartKey/tableKey/dimensionKey/pivotRowKey/pivotColKey): ${(input.validNumericFieldKeys || []).join(', ') || '(нет)'}
+${input.extraNote || ''}
+
+Не строй блок, если по измерению меньше 2 уникальных значений (донат/бар из одного столбца бессмысленны — вместо этого используй metric). Не выдумывай значения формул (formulaLeftKey/formulaRightKey) — используй только значения из топов выше.
+
+compareDisplay — необязательное поле у type=formula, показывает результат не только числом, но и графиком/таблицей сравнения левой и правой части. Ставь его в "bar"/"line"/"donut"/"table" ТОЛЬКО если formulaLeftType и formulaRightType — оба суммы по РАЗНЫМ числовым полям, соответствующим отдельным месяцам (когда среди допустимых числовых полей видны несколько похожих полей-месяцев вроде "Август 2025"/"Сентябрь 2025" — сравнивай их между собой). Во всех остальных случаях (или если не уверен) оставляй compareDisplay "number" или не указывай его вовсе — иначе график не отобразится.
+
+Собери от 6 до 12 блоков (для layouts — суммарно по всем вкладкам), с реальным разнообразием типов, не только metric.
+
+${outputSpec}`;
+  }
+
+  private parseJsonLoose<T>(raw: string): T | null {
+    try {
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const start = json.indexOf('{');
+      const end = json.lastIndexOf('}');
+      const slice = start >= 0 && end > start ? json.slice(start, end + 1) : json;
+      return JSON.parse(slice) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private sanitizeWidgetArray(
+    widgets: Record<string, unknown>[],
+    valid: {
+      validChartKeys: Set<string>;
+      validMetricKeys: Set<string>;
+      validTableKeys: Set<string>;
+      validNumericFieldKeys: Set<string>;
+    },
+  ): Record<string, unknown>[] {
+    const allowedTypes = new Set([
+      'metric', 'donut', 'bar', 'line', 'funnel', 'leaderboard', 'table', 'heatmap', 'note', 'formula', 'pivot',
+    ]);
+    const out: Record<string, unknown>[] = [];
+    let idx = 0;
+    for (const raw of widgets) {
+      const type = String(raw.type || '');
+      if (!allowedTypes.has(type)) continue;
+      if (type === 'metric' && raw.metricKey && !valid.validMetricKeys.has(String(raw.metricKey))) continue;
+      if (['donut', 'bar', 'line', 'funnel', 'leaderboard', 'heatmap'].includes(type)) {
+        if (!raw.chartKey || !valid.validChartKeys.has(String(raw.chartKey))) continue;
+        if (
+          raw.chartValueMode === 'sum' &&
+          (!raw.chartValueField || !valid.validNumericFieldKeys.has(String(raw.chartValueField)))
+        ) continue;
+      }
+      if (type === 'table' && raw.tableKey && !valid.validTableKeys.has(String(raw.tableKey))) continue;
+      if (type === 'pivot') {
+        if (!raw.pivotRowKey || !raw.pivotColKey) continue;
+        if (!valid.validChartKeys.has(String(raw.pivotRowKey)) || !valid.validChartKeys.has(String(raw.pivotColKey))) continue;
+        if (raw.pivotRowKey === raw.pivotColKey) continue;
+        if (Array.isArray(raw.pivotMeasures)) {
+          const measures = raw.pivotMeasures as Array<Record<string, unknown>>;
+          const badMeasure = measures.some(
+            (m) => m.mode === 'sum' && (!m.valueField || !valid.validNumericFieldKeys.has(String(m.valueField))),
+          );
+          if (badMeasure) continue;
+        }
+      }
+      out.push({
+        ...raw,
+        id: String(raw.id || `ai-${Date.now()}-${idx++}`),
+        title: String(raw.title || '').slice(0, 120) || 'Блок',
+        size: ['sm', 'md', 'lg'].includes(String(raw.size)) ? raw.size : 'md',
+      });
+    }
+    return out.slice(0, 16);
+  }
+
+  private sanitizeBlockArray(
+    blocks: Record<string, unknown>[],
+    valid: { validDimensionKeys: Set<string>; validMetricKeys: Set<string>; validNumericFieldKeys: Set<string> },
+  ): Record<string, unknown>[] {
+    const allowedTypes = new Set([
+      'metric', 'formula', 'line', 'donut', 'bar', 'funnel', 'leaderboard', 'table', 'heatmap', 'note',
+    ]);
+    const out: Record<string, unknown>[] = [];
+    let idx = 0;
+    for (const raw of blocks) {
+      const type = String(raw.type || '');
+      if (!allowedTypes.has(type)) continue;
+      if (type === 'metric' && raw.metricKey && !valid.validMetricKeys.has(String(raw.metricKey))) continue;
+      if (['donut', 'bar', 'line', 'funnel', 'leaderboard', 'heatmap', 'table'].includes(type)) {
+        if (!raw.dimensionKey || !valid.validDimensionKeys.has(String(raw.dimensionKey))) continue;
+      }
+      if (type === 'formula' && raw.dimensionKey && !valid.validDimensionKeys.has(String(raw.dimensionKey))) continue;
+      if (raw.valueMode === 'sum' && (!raw.valueField || !valid.validNumericFieldKeys.has(String(raw.valueField)))) continue;
+      out.push({
+        ...raw,
+        id: String(raw.id || `ai-${Date.now()}-${idx++}`),
+        title: String(raw.title || '').slice(0, 120) || 'Блок',
+        span: Number.isFinite(Number(raw.span)) ? Number(raw.span) : 6,
+        height: Number.isFinite(Number(raw.height)) ? Number(raw.height) : 260,
+      });
+    }
+    return out.slice(0, 10);
   }
 }

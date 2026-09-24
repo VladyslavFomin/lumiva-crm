@@ -20,4 +20,34 @@ export class AiEmployeesSchedulerService {
       this.log.warn(`tickProactiveAssistants: ${(e as Error).message}`);
     }
   }
+
+  /** Контроль скорости: клиент ждёт ответа / просрочены задачи ИИ (см. AiEmployeesService.checkSla). */
+  @Cron('*/5 * * * *')
+  async handleSla(): Promise<void> {
+    try {
+      await this.aiEmployees.tickSla();
+    } catch (e) {
+      this.log.warn(`tickSla: ${(e as Error).message}`);
+    }
+  }
+
+  /** Утренний план команды (время — по настройке сотрудника, UTC). */
+  @Cron('*/10 * * * *')
+  async handleDailyPlans(): Promise<void> {
+    try {
+      await this.aiEmployees.tickDailyPlans();
+    } catch (e) {
+      this.log.warn(`tickDailyPlans: ${(e as Error).message}`);
+    }
+  }
+
+  /** Одно сообщение «Итоги дня» владельцам (см. AiEmployeesService.tickDailyDigest). */
+  @Cron('*/10 * * * *')
+  async handleDailyDigest(): Promise<void> {
+    try {
+      await this.aiEmployees.tickDailyDigest();
+    } catch (e) {
+      this.log.warn(`tickDailyDigest: ${(e as Error).message}`);
+    }
+  }
 }

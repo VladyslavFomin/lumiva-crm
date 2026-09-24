@@ -13,6 +13,7 @@ import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { Project } from '../projects/project.entity';
 import { OnboardingSampleRecord, OnboardingSampleEntityType } from './onboarding-sample-record.entity';
+import { ProjectTablesService } from '../project-tables/project-tables.service';
 
 export interface OnboardingStateDto {
   onboardingCompletedAt: string | null;
@@ -35,6 +36,7 @@ export class OnboardingService {
     @InjectRepository(StaffUser) private readonly staffRepo: Repository<StaffUser>,
     @InjectRepository(Project) private readonly projectRepo: Repository<Project>,
     @InjectRepository(OnboardingSampleRecord) private readonly sampleRepo: Repository<OnboardingSampleRecord>,
+    private readonly projectTablesService: ProjectTablesService,
   ) {}
 
   async getState(tenantId: string): Promise<OnboardingStateDto> {
@@ -87,6 +89,12 @@ export class OnboardingService {
       // Idempotent — a second click (double-submit, page refresh mid-request) is a no-op.
       return this.getState(tenantId);
     }
+
+    // Проекты без tableId невидимы в разделе "Проекты" (GET /projects всегда скоупится на
+    // таблицу — по умолчанию на "основную") — раньше сэмпл-проекты создавались без tableId и
+    // оставались "проектами-призраками": числятся в аналитике компании (считается напрямую по
+    // leadId, без скоупа по таблице), но не видны нигде в UI, даже в корзине.
+    const mainTable = await this.projectTablesService.ensureDefaultTable(tenantId);
 
     // ~15 вставок в одном вызове, раньше без единой транзакции — сбой на середине (например,
     // между продуктами и проектом) оставлял тенанта с частично засеянными демо-данными и БЕЗ
@@ -183,6 +191,7 @@ export class OnboardingService {
           status: 'В работе',
           companyId: company.id,
           contactId: contacts[0]?.id || null,
+          tableId: mainTable.id,
           amount: '1650',
           currency: 'EUR',
           tasks: [
@@ -224,6 +233,7 @@ export class OnboardingService {
             leadId: wonLead.id,
             companyId: company.id,
             contactId: contacts[0]?.id || null,
+            tableId: mainTable.id,
             amount: '450',
             currency: 'EUR',
             tasks: [

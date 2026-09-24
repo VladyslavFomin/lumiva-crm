@@ -176,8 +176,7 @@
 .ai-toggle.on::after{left:18px}
 
 /* autonomy selector */
-.ai-autonomy{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-@media (max-width:560px){.ai-autonomy{grid-template-columns:1fr 1fr}}
+.ai-autonomy{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
 .ai-autonomy-opt{border:1px solid var(--line-2);border-radius:10px;padding:12px;cursor:pointer;transition:border-color .12s,background .12s;text-align:left;background:#fff;font-family:inherit}
 .ai-autonomy-opt:hover{border-color:var(--ink)}
 .ai-autonomy-opt.on{border-color:var(--ink);background:var(--bg-muted);box-shadow:0 0 0 1px var(--ink) inset}
@@ -251,7 +250,7 @@
 /* ============================================
    CREATE FLOW
    ============================================ */
-.ai-create{max-width:960px;margin:0 auto}
+.ai-create{width:100%;max-width:none;margin:0}
 .ai-steps{display:flex;align-items:center;gap:0;margin-bottom:26px}
 .ai-step{display:flex;align-items:center;gap:9px;flex:1}
 .ai-step .sn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-family:var(--ff-mono);font-size:11px;font-weight:600;color:var(--fg-3);flex-shrink:0;background:#fff;transition:all .15s}
@@ -328,3 +327,16 @@
 .ai-empty .ei{width:52px;height:52px;border-radius:14px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--fg-3)}
 .ai-empty .et{font-family:var(--ff-display);font-size:15px;font-weight:600;color:var(--ink);margin-bottom:5px;letter-spacing:-0.01em}
 .ai-empty .ed{font-size:12.5px;line-height:1.5;max-width:340px;margin:0 auto}
+
+/* permission rows: fill the full page width in columns instead of one stretched row per permission */
+.ai-perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr))}
+.ai-perm-grid .ai-perm{border-right:1px solid var(--line-3)}
+.ai-perm .pn{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ai-perm-badge{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:0.05em;text-transform:uppercase;padding:2px 6px;border-radius:5px;border:1px solid;font-weight:600}
+.ai-perm-badge.external{color:#9a1f31;background:#fbecef;border-color:#f0c8cf}
+.ai-perm-badge.writes{color:#7a4a09;background:#fbf2dc;border-color:#f0d9a8}
+
+/* trigger rows */
+.ai-trig{border-bottom:1px solid var(--line-3)}
+.ai-trig:last-child{border-bottom:0}
+.ai-trig-body{padding:0 18px 16px 62px}

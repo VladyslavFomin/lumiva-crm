@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, forwardRef, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
@@ -33,7 +34,14 @@ import {
   CRM_PRODUCTS_AI_TOOL_DEFINITIONS,
   CRM_BOOKINGS_AI_TOOL_DEFINITIONS,
   CRM_HOTELS_AI_TOOL_DEFINITIONS,
+  CRM_DASHBOARD_AI_TOOL_DEFINITIONS,
 } from './crm-ai-tool-definitions';
+import { User } from '../users/user.entity';
+import { Tenant } from '../tenants/tenant.entity';
+import { TenantLogsService } from '../tenants/tenant-logs.service';
+import { safeExcerpt } from '../common/ai-security-guard.util';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
+import { WorkspaceSyncService, type SyncSource, type SyncSourceKind } from '../workspace-sync/workspace-sync.service';
 import { CompaniesService } from '../companies/companies.service';
 import { ContactsService } from '../contacts/contacts.service';
 import { SalesService } from '../sales/sales.service';
@@ -77,6 +85,7 @@ import { HotelReservationsService } from '../hotels/hotel-reservations.service';
 import type { HotelReservationInput } from '../hotels/hotel-reservations.service';
 import { RbacService } from '../rbac/rbac.service';
 import type { PermissionKey } from '../rbac/permission.types';
+import { DataVisibilityService } from '../data-visibility/data-visibility.service';
 import { ProjectStatusesService } from '../projects/project-statuses.service';
 import { ProjectTableMembersService } from '../project-tables/project-table-members.service';
 import { ProjectTablesService } from '../project-tables/project-tables.service';
@@ -180,7 +189,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника данных (google_ads_<cid>, ga4_<id>, yandex_metrika, meta_ads и т.д.). Если не задан — агрегат по всем источникам.',
+              'Опционально: ключ источника данных. Либо конкретный аккаунт (google_ads_<cid>, ga4_<id> и т.д.) — данные только по нему; либо родовое имя провайдера (google_ads, yandex_direct, meta_ads, vk_ads) БЕЗ суффикса — тогда суммируются ВСЕ аккаунты этого провайдера у тенанта (у Google Ads/MCC их может быть несколько, каждый под своим CID). Для вопроса «сколько потрачено в Google Ads» (без уточнения конкретного аккаунта) — передавай именно "google_ads", не выдумывай один CID из списка. Если не задан вовсе — агрегат по всем источникам сразу.',
           },
           market: {
             type: 'string',
@@ -211,7 +220,8 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           to: { type: 'string', description: 'YYYY-MM-DD' },
           dataSource: {
             type: 'string',
-            description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+            description:
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
           },
         },
       },
@@ -223,8 +233,9 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
       name: 'crm_marketing_daily_series',
       description:
         'Дневной ряд метрик маркетинга для построения тренда: за каждый день возвращает sessions, clicks, impressions, cost, leads. ' +
-        'Используй, когда пользователь спрашивает о динамике / тренде по времени или хочет сравнить периоды. ' +
-        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, ga4_<id> и т.д.). ' +
+        'Используй, когда пользователь спрашивает о динамике / тренде по времени или хочет сравнить периоды день-к-дню. ' +
+        'Для разбивки РАСХОДОВ ПО МЕСЯЦАМ (и тем более по месяцам В РАЗРЕЗЕ нескольких аккаунтов/каналов, например "сколько по каждой стране/аккаунту по месяцам") — НЕ суммируй дневные точки сам, это частый источник ошибок (неверные суммы, додуманные нули); вместо этого используй crm_marketing_monthly_breakdown — он отдаёт уже готовую посчитанную в БД таблицу. ' +
+        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, ga4_<id>) или по всему провайдеру сразу (google_ads, yandex_direct и т.д. без суффикса — см. описание параметра). ' +
         'Опционально market — см. описание в crm_marketing_overview; так же требует проверки через crm_marketing_markets при неуверенности.',
       parameters: {
         type: 'object',
@@ -233,11 +244,51 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           to: { type: 'string', description: 'YYYY-MM-DD' },
           dataSource: {
             type: 'string',
-            description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+            description:
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
           },
           market: {
             type: 'string',
             description: 'Опционально: ISO2 код рынка/страны или название на RU/EN/TR.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_marketing_monthly_breakdown',
+      description:
+        'Готовая сводная таблица расходов по месяцам (rows × months), посчитанная целиком в БД — используй ЛЮБОЙ раз, когда пользователь просит "разбей по месяцам", "сколько по каждому аккаунту/стране по месяцам" и т.п., вместо того чтобы вручную суммировать crm_marketing_daily_series по нескольким аккаунтам/странам (это частый источник ошибок в суммах). ' +
+        'groupBy определяет, что такое rows: "dataSource" (по умолчанию) — по одной строке на аккаунт/канал; "market" — по одной строке на страну/рынок (та же эвристика по campaign/GA4 country, что в crm_marketing_markets), с отдельной строкой "UNCLASSIFIED" для кампаний без определённого рынка. Если нужна разбивка ПО СТРАНАМ — используй groupBy:"market" ОДНИМ вызовом, а не по одной стране за раз через параметр market (так упрёшься в лимит вызовов инструментов за ответ и часть строк останется недосчитанной — реальный случай прошлой ошибки). ' +
+        'Возвращает months (отсортированный список "YYYY-MM", только те, где реально есть данные) и rows, с полем monthly ({ "YYYY-MM": cost }, месяцы без данных просто отсутствуют в объекте — не значит 0, если их не было в months) и totalCost. Не пересчитывай значения из monthly вручную — если нужен total, используй totalCost или grandTotal из ответа. ' +
+        'Если нужна конвертация в другую валюту — ВСЕГДА передавай displayCurrency, а не оценивай курс сам: реальный случай ошибки — модель придумала курс TRY→EUR "на глаз" вместо вызова инструмента.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD' },
+          groupBy: {
+            type: 'string',
+            enum: ['dataSource', 'market'],
+            description:
+              '"dataSource" (по умолчанию) — rows по аккаунтам/каналам; "market" — rows по странам/рынкам одним вызовом (не дёргай по одной стране через параметр market).',
+          },
+          dataSource: {
+            type: 'string',
+            description:
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads) — сужает выборку независимо от groupBy (например groupBy:"market" + dataSource:"google_ads" = разбивка по странам только для Google Ads). Если не задан — все источники тенанта.',
+          },
+          market: {
+            type: 'string',
+            description:
+              'Опционально: ISO2 код рынка/страны или название — фильтр на ОДНУ страну при groupBy:"dataSource". Бессмысленно вместе с groupBy:"market" (там уже все страны свои строки) — не передавай оба сразу.',
+          },
+          displayCurrency: {
+            type: 'string',
+            description:
+              'Опционально: код валюты (EUR, USD, TRY, … из набора ECB/Frankfurter) — monthly и totalCost в каждой row пересчитываются в неё по реальному курсу; исходная валюта строки остаётся в originalCurrency.',
           },
         },
       },
@@ -397,12 +448,20 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
               properties: {
                 key: { type: 'string' },
                 label: { type: 'string' },
-                type: { type: 'string' },
+                type: {
+                  type: 'string',
+                  enum: [
+                    'text', 'number', 'date', 'datetime', 'boolean',
+                    'status', 'select', 'multiselect', 'file',
+                  ],
+                  description:
+                    'Только это множество значений — у рабочей области НЕТ типа "textarea" (это тип из другой системы — кастомных полей проектов, не путай): длинный текст тоже type "text".',
+                },
                 required: { type: 'boolean' },
               },
             },
             description:
-              'Колонки таблицы (рекомендуется всегда при ручном сценарии). type: text, number, date, datetime, boolean, status, select, multiselect.',
+              'Колонки таблицы (рекомендуется всегда при ручном сценарии).',
           },
         },
         required: ['name'],
@@ -423,8 +482,12 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           label: { type: 'string', description: 'Подпись в UI' },
           type: {
             type: 'string',
+            enum: [
+              'text', 'number', 'date', 'datetime', 'boolean',
+              'status', 'select', 'multiselect', 'file',
+            ],
             description:
-              'text, number, date, datetime, boolean, status, select, multiselect',
+              'Только это множество значений — у рабочей области НЕТ типа "textarea" (это тип из другой системы — кастомных полей проектов, не путай): длинный текст тоже type "text".',
           },
           required: { type: 'boolean' },
         },
@@ -511,7 +574,8 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_workspace_import_marketing_channels',
       description:
-        'Выгрузить в рабочую область строки по рекламе/маркетингу из CRM (агрегаты по каналам: source, medium, campaign, сессии, клики, лиды, выручка, расход и т.д.). Один вызов: создаёт таблицу с колонками и заполняет данными из marketing_traffic; таблица привязывается к области тенанта. Используй, когда пользователь просит перенести рекламу/каналы/метрику в рабочую область. ' +
+        'Выгрузить в рабочую область строки по рекламе/маркетингу из CRM (агрегаты по каналам: source, medium, campaign, сессии, клики, лиды, выручка, расход и т.д.) — БЕЗ разбивки по времени, одна строка на кампанию за весь период. Используй для запросов вида "перенеси рекламу/каналы в рабочую область" без упоминания месяцев/динамики. ' +
+        'Если пользователь хочет таблицу С РАЗБИВКОЙ ПО МЕСЯЦАМ (по аккаунтам/странам/каналам) — этот инструмент НЕ подходит: он схлопывает дату при агрегации, в таблице физически не будет поля месяца, и построить помесячный вид после импорта станет невозможно ни через один UI рабочей области. Для этого используй crm_workspace_import_marketing_monthly_breakdown. ' +
         'Если пользователь просит таблицу ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ОБЯЗАТЕЛЬНО передай market (иначе таблица будет содержать данные по ВСЕМ странам, но с названием одной — это вводит в заблуждение); при неуверенности сперва проверь crm_marketing_markets.',
       parameters: {
         type: 'object',
@@ -522,7 +586,8 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           to: { type: 'string', description: 'YYYY-MM-DD конец периода' },
           dataSource: {
             type: 'string',
-            description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+            description:
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
           },
           market: {
             type: 'string',
@@ -535,6 +600,163 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           },
         },
         required: ['tableName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_import_marketing_monthly_breakdown',
+      description:
+        'Выгрузить в рабочую область ГОТОВУЮ таблицу расходов по месяцам: одна строка на аккаунт/канал (или на страну/рынок при groupBy:"market"), одна числовая колонка на каждый месяц периода (плюс "Итого"). Используй ИМЕННО этот инструмент, когда пользователь просит перенести рекламу в рабочую область С разбивкой по месяцам/времени ("по месяцам", "помесячно", "по каждой стране по месяцам" и т.п.) — вместо crm_workspace_import_marketing_channels, который данные по месяцам не хранит вообще. ' +
+        'Для разбивки ПО СТРАНАМ по месяцам передай groupBy:"market" — так создастся ОДНА таблица со всеми странами сразу; не пытайся вызывать этот инструмент отдельно на каждую страну через параметр market (упрёшься в лимит вызовов за один ответ, и часть строк в итоге останется нулевой — так уже было). ' +
+        'Опционально displayCurrency — суммы в таблице сразу будут в этой валюте (реальный курс ECB/Frankfurter), не нужно ничего пересчитывать вручную.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tableName: { type: 'string', description: 'Название новой таблицы' },
+          description: { type: 'string', description: 'Описание таблицы (опционально)' },
+          from: { type: 'string', description: 'YYYY-MM-DD начало периода' },
+          to: { type: 'string', description: 'YYYY-MM-DD конец периода' },
+          groupBy: {
+            type: 'string',
+            enum: ['dataSource', 'market'],
+            description:
+              '"dataSource" (по умолчанию) — строка на аккаунт/канал; "market" — строка на страну/рынок, одним вызовом на ВСЕ страны сразу.',
+          },
+          dataSource: {
+            type: 'string',
+            description:
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads) — сужает выборку независимо от groupBy. Если не задан — все источники тенанта.',
+          },
+          market: {
+            type: 'string',
+            description:
+              'Опционально: ISO2 код рынка/страны — фильтр на ОДНУ страну при groupBy:"dataSource". НЕ передавай вместе с groupBy:"market" (там уже все страны свои строки).',
+          },
+          displayCurrency: {
+            type: 'string',
+            description: 'Опционально: код валюты (EUR, USD, TRY, …) — все суммы пересчитываются в неё.',
+          },
+          autoRefresh: {
+            type: 'boolean',
+            description:
+              'По умолчанию true: таблица сама пересобирается каждую ночь из свежих данных рекламных кабинетов (ручные правки в ней не сохраняются). Передай false, только если пользователь просит разовый снимок.',
+          },
+        },
+        required: ['tableName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_set_auto_refresh',
+      description:
+        'Включить/выключить автообновление для таблицы рабочей области, выгруженной из маркетинга (расходы по месяцам: crm_workspace_import_marketing_monthly_breakdown). ' +
+        'Таблица будет каждую ночь пересобираться из свежих данных рекламных кабинетов (новые месяцы добавляются колонками, виджеты дашборда на неё продолжают работать); ручные правки в такой таблице не сохраняются. ' +
+        'Для таблицы, созданной этим инструментом выгрузки, параметры уже сохранены — достаточно objectId и enabled:true. Для старой таблицы (созданной до появления автообновления) обязательно передай параметры выгрузки (groupBy, from/to, dataSource, market, displayCurrency) — ровно те, с какими её строили; сначала crm_workspace_describe_table, чтобы понять, что в ней (колонки account, m_YYYY_MM, total_cost, currency), и уточни у пользователя параметры, если непонятно. ' +
+        'Инструмент сразу делает пробное обновление и возвращает результат — если оно не удалось, автообновление остаётся выключенным.',
+      parameters: {
+        type: 'object',
+        properties: {
+          objectId: { type: 'string' },
+          enabled: { type: 'boolean' },
+          groupBy: { type: 'string', enum: ['dataSource', 'market'] },
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD; не передавай, чтобы период всегда доходил до сегодняшнего дня' },
+          dataSource: { type: 'string' },
+          market: { type: 'string' },
+          displayCurrency: { type: 'string' },
+        },
+        required: ['objectId', 'enabled'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_create_marketing_table',
+      description:
+        'Создать НОВУЮ таблицу рабочей области со строками из рекламных кабинетов и обновлять её автоматически каждую ночь. Несколько провайдеров сводятся в одну таблицу (колонка «Провайдер»). Провайдеры (providers): google_ads, meta_ads, yandex_direct, vk_ads, ga4, yandex_metrika — один или несколько; данные берутся из уже синхронизированного marketing_traffic (подключённые кабинеты синхронизируются сами каждую ночь). ' +
+        'Используй, когда пользователь хочет таблицу по рекламе/каналам/кампаниям, которая не устаревает; для помесячных расходов «страна × месяц» — crm_workspace_import_marketing_monthly_breakdown. Ручные правки в строках этого источника при обновлении не сохраняются.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tableName: { type: 'string' },
+          description: { type: 'string' },
+          providers: { type: 'array', items: { type: 'string', enum: ['google_ads', 'meta_ads', 'yandex_direct', 'vk_ads', 'ga4', 'yandex_metrika'] }, description: 'Один или несколько провайдеров — их строки сведутся в одну таблицу.' },
+          grain: { type: 'string', enum: ['daily', 'campaign', 'channel'], description: 'daily — дата × кампания (по умолчанию), campaign — итог по кампании за период, channel — по каналу.' },
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD; не передавай, чтобы период всегда доходил до сегодняшнего дня (новые данные подхватываются сами)' },
+          market: { type: 'string', description: 'Страна/рынок (ISO2 или название) — эвристический фильтр' },
+          displayCurrency: { type: 'string', description: 'Код валюты (EUR, TRY…): все суммы пересчитываются по курсу — нужно, когда сводятся кабинеты в разных валютах.' },
+          maxRows: { type: 'integer', description: 'Лимит строк на источник (по умолчанию 20000)' },
+          label: { type: 'string', description: 'Подпись источника в колонке «Источник данных»' },
+          autoRefresh: { type: 'boolean', description: 'По умолчанию true — обновлять автоматически каждую ночь.' },
+        },
+        required: ['tableName', 'providers'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_add_sync_source',
+      description:
+        'Добавить в СУЩЕСТВУЮЩУЮ таблицу рабочей области ещё один автообновляемый источник (сведение нескольких интеграций в одну таблицу). kind: marketing_rows (строки рекламных кабинетов, по умолчанию) или marketing_monthly (расходы по месяцам — занимает всю таблицу и не сочетается с другими источниками; для него укажи groupBy). Провайдеры (providers): google_ads, meta_ads, yandex_direct, vk_ads, ga4, yandex_metrika — один или несколько; данные берутся из уже синхронизированного marketing_traffic (подключённые кабинеты синхронизируются сами каждую ночь). ' +
+        'Строки каждого источника помечены — обновление одного источника не трогает строки других и ручные строки. При втором источнике в таблице появляется колонка «Источник данных». Инструмент сразу делает первую загрузку; если она не удалась, автообновление остаётся выключенным. Импорт Woo/Meta/GA4 с маппингом колонок сохраняется на странице импорта таблицы, не через чат.',
+      parameters: {
+        type: 'object',
+        properties: {
+          objectId: { type: 'string' },
+          kind: { type: 'string', enum: ['marketing_rows', 'marketing_monthly'] },
+          groupBy: { type: 'string', enum: ['dataSource', 'market'], description: 'Только для marketing_monthly.' },
+          dataSource: { type: 'string', description: 'Только для marketing_monthly: провайдер/аккаунт.' },
+          providers: { type: 'array', items: { type: 'string', enum: ['google_ads', 'meta_ads', 'yandex_direct', 'vk_ads', 'ga4', 'yandex_metrika'] }, description: 'Один или несколько провайдеров — их строки сведутся в одну таблицу.' },
+          grain: { type: 'string', enum: ['daily', 'campaign', 'channel'], description: 'daily — дата × кампания (по умолчанию), campaign — итог по кампании за период, channel — по каналу.' },
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD; не передавай, чтобы период всегда доходил до сегодняшнего дня (новые данные подхватываются сами)' },
+          market: { type: 'string', description: 'Страна/рынок (ISO2 или название) — эвристический фильтр' },
+          displayCurrency: { type: 'string', description: 'Код валюты (EUR, TRY…): все суммы пересчитываются по курсу — нужно, когда сводятся кабинеты в разных валютах.' },
+          maxRows: { type: 'integer', description: 'Лимит строк на источник (по умолчанию 20000)' },
+          label: { type: 'string', description: 'Подпись источника в колонке «Источник данных»' },
+          autoRefresh: { type: 'boolean', description: 'По умолчанию true — обновлять автоматически каждую ночь.' },
+        },
+        required: ['objectId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_remove_sync_source',
+      description:
+        'Убрать источник синхронизации из таблицы (sourceId — из crm_workspace_list_sync_sources). По умолчанию уже загруженные строки остаются; deleteRows:true удаляет и строки этого источника (необратимо — только после явного согласия пользователя).',
+      parameters: {
+        type: 'object',
+        properties: { objectId: { type: 'string' }, sourceId: { type: 'string' }, deleteRows: { type: 'boolean' } },
+        required: ['objectId', 'sourceId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_list_sync_sources',
+      description: 'Источники синхронизации таблицы рабочей области: тип, параметры, автообновление, когда обновлялся и с каким результатом.',
+      parameters: { type: 'object', properties: { objectId: { type: 'string' } }, required: ['objectId'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_refresh_now',
+      description: 'Обновить таблицу рабочей области прямо сейчас: все её источники или один (sourceId).',
+      parameters: {
+        type: 'object',
+        properties: { objectId: { type: 'string' }, sourceId: { type: 'string' } },
+        required: ['objectId'],
       },
     },
   },
@@ -689,6 +911,27 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
+      name: 'crm_propose_ai_employee_action',
+      description:
+        'ПРЕДЛОЖИТЬ пользователю поручить работу AI-сотруднику (в т.ч. назначить его ответственным за лид/проект/компанию/контакт/задачу и вести с клиентом переписку). Ничего не выполняет: в чате под ответом появятся кнопки «Одобрить»/«Отклонить». После «Одобрить» AI-сотрудник сам берёт запись в работу. Используй ВМЕСТО вопроса «сделать?» / «напишите да». agentId бери из crm_list_ai_employees, id записи — из поиска (crm_search_leads и т.п.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          agentId: { type: 'string', description: 'UUID AI-сотрудника' },
+          name: { type: 'string', description: 'Имя AI-сотрудника, если agentId неизвестен' },
+          entityType: { type: 'string', enum: ['lead', 'project', 'company', 'contact', 'company_task'], description: 'Тип записи (если предложение относится к конкретной записи)' },
+          entityId: { type: 'string', description: 'UUID записи' },
+          title: { type: 'string', description: 'Короткий заголовок предложения (до 80 символов)' },
+          task: { type: 'string', description: 'Что именно AI-сотрудник должен сделать — подробно, с данными' },
+          assign: { type: 'boolean', description: 'Сделать AI-сотрудника ответственным за запись (по умолчанию true, если указана запись)' },
+        },
+        required: ['title', 'task'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'crm_ask_ai_employee',
       description:
         'Задать вопрос конкретному AI-сотруднику (специалисту по роли) и получить ответ на основе CRM-данных — делегирование от универсального чата. Можно передать agentId или role/name.',
@@ -746,6 +989,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
   ...CRM_PRODUCTS_AI_TOOL_DEFINITIONS,
   ...CRM_BOOKINGS_AI_TOOL_DEFINITIONS,
   ...CRM_HOTELS_AI_TOOL_DEFINITIONS,
+  ...CRM_DASHBOARD_AI_TOOL_DEFINITIONS,
 ];
 
 type ToolCtx = {
@@ -772,11 +1016,58 @@ type ToolCtx = {
   telegramChatId?: string;
 };
 
+/**
+ * Зеркало frontend/src/dashboard/dashboardLayout.ts (DASHBOARD_CORE_WIDGET_IDS/DASHBOARD_EXTRA_WIDGET_IDS
+ * + defaultLayout()) и presetCatalog.ts (PROJECTS_STYLE_PRESETS) — держать в синхроне при изменении
+ * набора виджетов дашборда там. Нужно, чтобы crm_dashboard_configure мог валидировать id/slug и
+ * восстановить дефолтную раскладку, если у пользователя ещё нет сохранённого на сервере layout.
+ */
+const DASHBOARD_CORE_WIDGET_IDS = [
+  'kpi', 'profile-completion', 'quick-actions', 'calendar', 'activity-feed', 'learn-inspire',
+  'leads-timeline', 'projects', 'channels-funnel', 'recent-leads', 'recent-tasks', 'staff',
+  'funnel_today', 'lead_sources_week', 'recent_deals', 'birthdays',
+] as const;
+const DASHBOARD_EXTRA_WIDGET_IDS = [
+  'projects-analytics', 'leads-analytics', 'sales-analytics',
+  'products-analytics', 'bookings-analytics', 'hotels-analytics',
+] as const;
+const DASHBOARD_DEFAULT_HIDDEN_EXTRAS = ['funnel_today', 'lead_sources_week', 'recent_deals', 'birthdays'];
+const DASHBOARD_PRESET_SOURCES = ['leads', 'projects', 'sales', 'workspace'] as const;
+const DASHBOARD_PRESET_SLUGS = [
+  'metric-total', 'metric-amount', 'metric-owners', 'metric-won',
+  'chart-status', 'chart-categories', 'table-projects',
+] as const;
+
+type DashboardWidgetSpec = {
+  kind?: string;
+  id?: string;
+  source?: string;
+  sourceRef?: string;
+  slug?: string;
+  title?: string;
+  size?: string;
+  filters?: { dateFrom?: string; dateTo?: string };
+};
+
+/** Тот же формат, что frontend/src/dashboard/dashboardLayout.ts::serializeLayout() отдаёт в JSON. */
+type DashboardLayoutJson = {
+  order: string[];
+  hidden: string[];
+  sizes: Record<string, string>;
+  heights: Record<string, number>;
+  presetInstances: Record<string, any>;
+  titleOverrides: Record<string, string>;
+};
+
 @Injectable()
 export class AiToolsService {
   private readonly log = new Logger(AiToolsService.name);
 
   constructor(
+    // Лениво достаём AiEmployeesService (тот сам инжектит AiToolsService — прямая DI-зависимость
+    // была бы циклом). Нужен, чтобы «спросить ИИ-сотрудника» видел тот же снапшот, что и его
+    // собственные запуски, а не урезанную копию с другими правилами прав.
+    private readonly moduleRef: ModuleRef,
     @InjectRepository(Lead)
     private readonly leadsRepo: Repository<Lead>,
     @InjectRepository(Company)
@@ -808,6 +1099,12 @@ export class AiToolsService {
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
+    private readonly currencyRates: CurrencyRatesService,
+    private readonly sync: WorkspaceSyncService,
     @InjectRepository(AiAgent)
     private readonly aiAgentsRepo: Repository<AiAgent>,
     @InjectRepository(AiAgentAction)
@@ -834,6 +1131,8 @@ export class AiToolsService {
     private readonly projectStatuses: ProjectStatusesService,
     private readonly projectTableMembers: ProjectTableMembersService,
     private readonly projectTables: ProjectTablesService,
+    private readonly tenantLogs: TenantLogsService,
+    private readonly dataVisibility: DataVisibilityService,
   ) {}
 
   /**
@@ -983,6 +1282,44 @@ export class AiToolsService {
     });
   }
 
+  /**
+   * Тот же «Видимость данных» (foreign_records/amounts_visibility/contact_masking), что
+   * Sales/Contacts/Companies-контроллеры применяют в REST — до этого инструменты ИИ его вообще
+   * не спрашивали и отдавали суммы/контакты чужих записей текстом в чат любому сотруднику с
+   * базовым правом read на модуль, независимо от настроенных владельцем ограничений (тот же
+   * класс пробела, что чинился для RBAC/Departments/Deduplication в предыдущих раундах — только
+   * здесь дыра была не в guard'е, а в том, что этот слой в принципе не знал о существовании
+   * DataVisibilityService). ctx.userId должен быть реальным users.id (интерактивный чат от
+   * живого сотрудника) — у автономных прогонов AI-сотрудников своя, отдельно проверенная модель
+   * доступа (assignableEntityTypes и т.п.), туда этот метод не зовётся.
+   */
+  private async resolveAiDataVisibility(ctx: ToolCtx): Promise<{
+    privileged: boolean;
+    staffId: string | null;
+    foreignRecords: string;
+    amountsVisibility: string;
+    contactMasking: string;
+  }> {
+    const payload = {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      role: ctx.userRole || 'viewer',
+      email: ctx.userEmail,
+      staffUserId: ctx.staffUserId ?? undefined,
+    } as unknown as Parameters<DataVisibilityService['getRequestContext']>[1];
+    const dvCtx = await this.dataVisibility.getRequestContext(ctx.tenantId, payload);
+    if (dvCtx.privileged) {
+      return { privileged: true, staffId: dvCtx.staffId, foreignRecords: 'full', amountsVisibility: 'all', contactMasking: 'show' };
+    }
+    const role = (ctx.userRole || 'viewer') as Parameters<DataVisibilityService['getRuleValue']>[1];
+    const [foreignRecords, amountsVisibility, contactMasking] = await Promise.all([
+      this.dataVisibility.getRuleValue(ctx.tenantId, role, 'foreign_records'),
+      this.dataVisibility.getRuleValue(ctx.tenantId, role, 'amounts_visibility'),
+      this.dataVisibility.getRuleValue(ctx.tenantId, role, 'contact_masking'),
+    ]);
+    return { privileged: false, staffId: dvCtx.staffId, foreignRecords, amountsVisibility, contactMasking };
+  }
+
   private activeLeadCondition(alias: string) {
     return `NOT (
       COALESCE(${alias}.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
@@ -1038,6 +1375,28 @@ export class AiToolsService {
       return JSON.stringify({ error: 'invalid_json_arguments' });
     }
     // Изоляция тенантов: tenant только из JWT (ctx). Модель не может сменить песочницу через аргументы.
+    // Если поле всё же пришло (модель сама его вставила — своей волей или из-за инъекции в тексте,
+    // на который она опиралась) — это не нормальный шум, это попытка выйти за пределы своего тенанта.
+    // Событие всегда шлём в pl1 (см. tenantLogs), даже если само значение потом отбрасывается и ни
+    // на что не влияет: важно, что попытка вообще была.
+    if (args.tenantId != null || args.tenant_id != null) {
+      const attempted = String(args.tenantId ?? args.tenant_id ?? '');
+      this.tenantLogs
+        .record({
+          tenantId: ctx.tenantId,
+          type: 'ai_security_denied',
+          statusCode: 403,
+          method: 'AI_TOOL',
+          path: `ai-tools/${name}`,
+          message: `AI tool call for "${name}" tried to pass an explicit tenantId argument (ignored; sandboxed to the caller's own tenant)`,
+          meta: {
+            userId: ctx.userId || null,
+            staffUserId: ctx.staffUserId || null,
+            attemptedTenantId: safeExcerpt(attempted, 100),
+          },
+        })
+        .catch(() => undefined);
+    }
     delete args.tenantId;
     delete args.tenant_id;
     // Короткая форма checkPermission для кейсов switch ниже, которые раньше не проверяли права
@@ -1079,6 +1438,10 @@ export class AiToolsService {
           const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketingDailySeries(ctx.tenantId, args));
         }
+        case 'crm_marketing_monthly_breakdown': {
+          const g = await gate('marketing'); if (g) return g;
+          return JSON.stringify(await this.toolMarketingMonthlyBreakdown(ctx.tenantId, args));
+        }
         case 'crm_marketing_integrations': {
           const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketingIntegrations(ctx.tenantId));
@@ -1104,6 +1467,10 @@ export class AiToolsService {
         case 'crm_create_project':
           return JSON.stringify(
             await this.toolCreateProject(ctx.tenantId, ctx.userId, ctx.userEmail, args, ctx),
+          );
+        case 'crm_dashboard_configure':
+          return JSON.stringify(
+            await this.toolConfigureDashboard(ctx.tenantId, ctx.userId, args),
           );
         case 'crm_workspace_list_tables': {
           const g = await gate('custom_objects'); if (g) return g;
@@ -1143,6 +1510,46 @@ export class AiToolsService {
           const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(
             await this.toolWorkspaceImportMarketingChannels(ctx.tenantId, args),
+          );
+        }
+        case 'crm_workspace_import_marketing_monthly_breakdown': {
+          const g = await gate('custom_objects'); if (g) return g;
+          return JSON.stringify(
+            await this.toolWorkspaceImportMarketingMonthlyBreakdown(ctx.tenantId, args),
+          );
+        }
+        case 'crm_workspace_set_auto_refresh': {
+          const g = await gate('custom_objects'); if (g) return g;
+          return JSON.stringify(await this.toolWorkspaceSetAutoRefresh(ctx.tenantId, args));
+        }
+        case 'crm_workspace_create_marketing_table': {
+          const g = await gate('custom_objects'); if (g) return g;
+          return JSON.stringify(await this.toolWorkspaceCreateMarketingTable(ctx.tenantId, args));
+        }
+        case 'crm_workspace_add_sync_source': {
+          const g = await gate('custom_objects'); if (g) return g;
+          return JSON.stringify(await this.toolWorkspaceAddSyncSource(ctx.tenantId, args));
+        }
+        case 'crm_workspace_remove_sync_source': {
+          const g = await gate('custom_objects'); if (g) return g;
+          return JSON.stringify(
+            await this.sync.removeSource(ctx.tenantId, String(args.objectId || '').trim(), String(args.sourceId || '').trim(), {
+              deleteRows: args.deleteRows === true,
+            }),
+          );
+        }
+        case 'crm_workspace_list_sync_sources': {
+          const g = await gate('custom_objects'); if (g) return g;
+          const sources = await this.sync.listSources(ctx.tenantId, String(args.objectId || '').trim());
+          return JSON.stringify(sources ? { ok: true, sources } : { ok: false, error: 'table_not_found' });
+        }
+        case 'crm_workspace_refresh_now': {
+          const g = await gate('custom_objects'); if (g) return g;
+          const oid = String(args.objectId || '').trim();
+          return JSON.stringify(
+            args.sourceId
+              ? await this.sync.refreshSource(ctx.tenantId, oid, String(args.sourceId).trim())
+              : await this.sync.refreshTable(ctx.tenantId, oid),
           );
         }
         case 'crm_sales_import_apply': {
@@ -1193,11 +1600,11 @@ export class AiToolsService {
           );
         case 'crm_list_sales': {
           const g = await gate('sales'); if (g) return g;
-          return JSON.stringify(await this.toolListSales(ctx.tenantId, args));
+          return JSON.stringify(await this.toolListSales(ctx, args));
         }
         case 'crm_get_sale': {
           const g = await gate('sales'); if (g) return g;
-          return JSON.stringify(await this.toolGetSale(ctx.tenantId, args));
+          return JSON.stringify(await this.toolGetSale(ctx, args));
         }
         case 'crm_update_sale':
           return JSON.stringify(await this.toolUpdateSale(ctx, args));
@@ -1205,7 +1612,7 @@ export class AiToolsService {
           return JSON.stringify(await this.toolCreateCompany(ctx, args));
         case 'crm_get_company': {
           const g = await gate('companies'); if (g) return g;
-          return JSON.stringify(await this.toolGetCompany(ctx.tenantId, args));
+          return JSON.stringify(await this.toolGetCompany(ctx, args));
         }
         case 'crm_update_company':
           return JSON.stringify(await this.toolUpdateCompany(ctx, args));
@@ -1213,11 +1620,11 @@ export class AiToolsService {
           return JSON.stringify(await this.toolDeleteCompany(ctx, args));
         case 'crm_list_contacts': {
           const g = await gate('contacts'); if (g) return g;
-          return JSON.stringify(await this.toolListContacts(ctx.tenantId, args));
+          return JSON.stringify(await this.toolListContacts(ctx, args));
         }
         case 'crm_get_contact': {
           const g = await gate('contacts'); if (g) return g;
-          return JSON.stringify(await this.toolGetContact(ctx.tenantId, args));
+          return JSON.stringify(await this.toolGetContact(ctx, args));
         }
         case 'crm_create_contact':
           return JSON.stringify(await this.toolCreateContact(ctx, args));
@@ -1275,6 +1682,8 @@ export class AiToolsService {
           return JSON.stringify(await this.toolListAiEmployees(ctx.tenantId));
         case 'crm_assign_ai_employee_task':
           return JSON.stringify(await this.toolAssignAiEmployeeTask(ctx, args));
+        case 'crm_propose_ai_employee_action':
+          return JSON.stringify(await this.toolProposeAiEmployeeAction(ctx, args));
         case 'crm_ask_ai_employee':
           return JSON.stringify(await this.toolAskAiEmployee(ctx, args));
         case 'crm_send_bulk_email': {
@@ -1546,6 +1955,21 @@ export class AiToolsService {
         }
 
         default:
+          // Модель вызвала функцию, которой нет в её же схеме tools — реального клиентского
+          // сценария для этого почти нет (обычно так проявляется инъекция из чужого текста,
+          // которую модель приняла за настоящий вызов инструмента). Не выполняем ничего сверх
+          // ответа об ошибке, но фиксируем для pl1.
+          this.tenantLogs
+            .record({
+              tenantId: ctx.tenantId,
+              type: 'ai_security_denied',
+              statusCode: 403,
+              method: 'AI_TOOL',
+              path: `ai-tools/${name}`,
+              message: `AI tool call requested an unknown/disallowed function name: "${name}"`,
+              meta: { userId: ctx.userId || null, staffUserId: ctx.staffUserId || null },
+            })
+            .catch(() => undefined);
           return JSON.stringify({ error: 'unknown_tool', name });
       }
     } catch (e: any) {
@@ -2516,13 +2940,29 @@ export class AiToolsService {
       .where('s.tenantId = :tenantId', { tenantId });
     if (args.from) qb.andWhere('s.purchaseDate >= :from', { from: args.from });
     if (args.to) qb.andWhere('s.purchaseDate <= :to', { to: args.to });
-    const raw = await qb
-      .select('COUNT(s.id)', 'cnt')
+    // Продажи бывают в разных валютах — складывать amount числами нельзя. Группируем по валюте и
+    // приводим итог к основной валюте тенанта по курсу; разбивку по валютам отдаём тоже.
+    const rows = await qb
+      .select('s.currency', 'currency')
+      .addSelect('COUNT(s.id)', 'cnt')
       .addSelect('COALESCE(SUM(s.amount),0)', 'sum')
-      .getRawOne();
+      .groupBy('s.currency')
+      .getRawMany<{ currency: string | null; cnt: string; sum: string }>();
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'primaryCurrency'] });
+    const currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+    const byCurrencyMap: Record<string, number> = {};
+    let count = 0;
+    for (const r of rows) {
+      const cur = (r.currency || 'EUR').toUpperCase();
+      byCurrencyMap[cur] = (byCurrencyMap[cur] || 0) + Number(r.sum || 0);
+      count += Number(r.cnt || 0);
+    }
+    const totalAmount = await this.currencyRates.convertMapToSingle(byCurrencyMap, currency);
     return {
-      count: Number(raw?.cnt || 0),
-      totalAmount: Number(raw?.sum || 0),
+      count,
+      totalAmount,
+      currency,
+      byCurrency: Object.entries(byCurrencyMap).map(([cur, amount]) => ({ currency: cur, amount })),
     };
   }
 
@@ -2564,6 +3004,48 @@ export class AiToolsService {
           ? `Расход по кампаниям без определённого рынка: ${unclassified.cost.toFixed(2)} из ${totalCost.toFixed(2)} суммарно — эти кампании НЕ входят ни в один market ниже.`
           : undefined,
     };
+  }
+
+  private resolveGroupByArg(args: Record<string, unknown>): 'dataSource' | 'market' {
+    return String(args.groupBy || '').trim().toLowerCase() === 'market' ? 'market' : 'dataSource';
+  }
+
+  private resolveDisplayCurrencyArg(args: Record<string, unknown>): string | null {
+    const raw = args.displayCurrency
+      ? String(args.displayCurrency).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)
+      : '';
+    return /^[A-Z]{3}$/.test(raw) ? raw : null;
+  }
+
+  /**
+   * Единая точка получения курсов ECB/Frankfurter для маркетинговых инструментов — чтобы ИИ
+   * никогда не считал конвертацию валют сам (прошлый реальный баг: модель придумала курс
+   * TRY→EUR "на глаз" вместо вызова инструмента, дала неверную сумму).
+   */
+  private async loadMarketingFx(displayOpt: string | null): Promise<{
+    fx: {
+      multiplyToDisplay: Record<string, number>;
+      display: string;
+      asOf: string;
+      source: string;
+    } | null;
+    fxError: string | null;
+  }> {
+    if (!displayOpt) return { fx: null, fxError: null };
+    try {
+      const loaded = await this.marketing.getMarketingFxRates(displayOpt);
+      return {
+        fx: {
+          multiplyToDisplay: loaded.multiplyToDisplay,
+          display: loaded.display,
+          asOf: loaded.asOf,
+          source: loaded.source,
+        },
+        fxError: null,
+      };
+    } catch (e: unknown) {
+      return { fx: null, fxError: e instanceof Error ? e.message : String(e) };
+    }
   }
 
   private async toolMarketing(
@@ -2610,6 +3092,7 @@ export class AiToolsService {
       asOf: string;
       source: string;
     } | null = null;
+    let fxError: string | null = null;
     if (displayOpt) {
       try {
         const loaded = await this.marketing.getMarketingFxRates(displayOpt);
@@ -2619,8 +3102,9 @@ export class AiToolsService {
           asOf: loaded.asOf,
           source: loaded.source,
         };
-      } catch {
+      } catch (e: unknown) {
         fx = null;
+        fxError = e instanceof Error ? e.message : String(e);
       }
     }
 
@@ -2697,6 +3181,11 @@ export class AiToolsService {
       out.fxSource = fx.source;
       out.financialTotalsNote =
         'totalRevenue и totalCost — грубые суммы из БД; при смеси валют смотри providerBreakdown, где суммы в displayCurrency.';
+    } else if (displayOpt && fxError) {
+      out.fxConversionFailed = true;
+      out.fxConversionError = fxError;
+      out.fxConversionNote =
+        `Не удалось получить курс для конвертации в ${displayOpt} — суммы ниже в ИСХОДНОЙ валюте каждой строки (см. currency/originalCurrency у каждой записи), это не 0 и не ошибка данных. Сообщи пользователю, что конвертация недоступна прямо сейчас, и покажи суммы как есть, в их родной валюте.`;
     }
 
     return out;
@@ -2758,6 +3247,91 @@ export class AiToolsService {
       totalDays: rows.length,
       totals: { sessions: totalSessions, cost: totalCost, leads: totalLeads },
       series: rows,
+    };
+  }
+
+  private async toolMarketingMonthlyBreakdown(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const from = args.from ? String(args.from) : undefined;
+    const to = args.to ? String(args.to) : undefined;
+    const dataSourceFilter = args.dataSource ? String(args.dataSource).trim() : undefined;
+    const { code: marketCode, unknownRaw: unknownMarket } = this.resolveMarketArg(args);
+
+    if (unknownMarket) {
+      const { markets } = await this.marketing.getMarketingMarketsBreakdown(
+        tenantId,
+        from,
+        to,
+        dataSourceFilter,
+      );
+      return {
+        ok: false,
+        error: 'unknown_market',
+        requestedMarket: unknownMarket,
+        hint: 'Этот рынок не распознан справочником. Не показывай нефильтрованную разбивку под этим названием — уточни у пользователя или используй один из availableMarkets.',
+        availableMarkets: markets.map((m) => ({ code: m.code, label: m.label, cost: m.cost })),
+      };
+    }
+
+    const groupBy = this.resolveGroupByArg(args);
+    const { months, rows } = await this.marketing.getTrafficMonthlyBreakdown(
+      tenantId,
+      from,
+      to,
+      dataSourceFilter,
+      marketCode,
+      groupBy,
+    );
+
+    const displayOpt = this.resolveDisplayCurrencyArg(args);
+    const { fx, fxError } = await this.loadMarketingFx(displayOpt);
+
+    const convertedRows = rows.map((r) => {
+      if (!fx) return r;
+      const code = (r.currency || 'EUR').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'EUR';
+      const m = fx.multiplyToDisplay[code];
+      if (m == null || !Number.isFinite(m)) return r;
+      const monthly: Record<string, number> = {};
+      for (const [mo, v] of Object.entries(r.monthly)) monthly[mo] = v * m;
+      return {
+        ...r,
+        monthly,
+        totalCost: r.totalCost * m,
+        originalCurrency: r.currency,
+        currency: fx.display,
+      };
+    });
+
+    const grandTotal = convertedRows.reduce((s, r) => s + r.totalCost, 0);
+    const currencies = [...new Set(convertedRows.map((r) => r.currency).filter(Boolean))];
+
+    return {
+      from: from ?? null,
+      to: to ?? null,
+      groupedBy: groupBy,
+      ...(dataSourceFilter ? { filteredByDataSource: dataSourceFilter } : {}),
+      ...(groupBy === 'dataSource' && marketCode ? { filteredByMarket: marketCode } : {}),
+      months,
+      rows: convertedRows,
+      grandTotal,
+      ...(fx ? { displayCurrency: fx.display, fxAsOf: fx.asOf, fxSource: fx.source } : {}),
+      ...(displayOpt && !fx && fxError
+        ? {
+            fxConversionFailed: true,
+            fxConversionError: fxError,
+            fxConversionNote: `Не удалось получить курс для конвертации в ${displayOpt} — суммы ниже в исходной валюте каждой строки (currency), это не ошибка данных. НЕ оценивай курс сам — сообщи пользователю, что конвертация сейчас недоступна, и покажи суммы как есть.`,
+          }
+        : {}),
+      currencyNote:
+        currencies.length > 1
+          ? `В строках смешаны валюты (${currencies.join(', ')}) — currency указана в каждой row отдельно, не складывай totalCost между строками разных валют напрямую.`
+          : undefined,
+      usageNote:
+        groupBy === 'market'
+          ? 'Это готовая сводная таблица (rows × months) ПО РЫНКАМ, уже посчитанная и классифицирована в БД одним проходом (эвристика по названию кампании/GA4 country — та же, что в crm_marketing_markets). dataSource в каждой row — это код рынка (ISO2 или "UNCLASSIFIED" для кампаний без определённого рынка, не выбрасывай эту строку молча — её бюджет реален). НЕ вызывай этот же инструмент повторно по одному рынку за раз — все страны уже в одном ответе; так и не пересчитывай/не оценивай суммы сам.'
+          : 'Это готовая сводная таблица (rows × months), уже посчитанная в БД (включая конвертацию валют, если запрошена через displayCurrency). Не пересчитывай и не досчитывай суммы сам, не оценивай курсы конвертации на глаз, не выдумывай значения для месяцев без данных (их просто нет в объекте monthly у этой строки — трактуй как 0, но не подменяй реальные ненулевые значения нулями).',
     };
   }
 
@@ -3024,6 +3598,205 @@ export class AiToolsService {
       { userId, email: userEmail },
     );
     return { ok: true, projectId: proj.id, name: proj.name };
+  }
+
+  /** Тот же формат, что frontend/src/dashboard/dashboardLayout.ts::defaultLayout() сериализует
+   * (serializeLayout) — используется, когда у пользователя ещё нет сохранённого на сервере
+   * layout (никогда не открывал /dashboard, либо ещё не долетел первый push с фронта). */
+  private dashboardDefaultLayout(): DashboardLayoutJson {
+    return {
+      order: [...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS],
+      hidden: [...DASHBOARD_EXTRA_WIDGET_IDS, ...DASHBOARD_DEFAULT_HIDDEN_EXTRAS],
+      sizes: {},
+      heights: {},
+      presetInstances: {},
+      titleOverrides: {},
+    };
+  }
+
+  private newDashboardPresetInstanceId(): string {
+    return `pid_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  }
+
+  private async toolConfigureDashboard(
+    tenantId: string,
+    userId: string,
+    args: Record<string, unknown>,
+  ) {
+    const action = String(args.action || '');
+    if (!['replace', 'add', 'remove'].includes(action)) {
+      return { ok: false, error: 'invalid_action', hint: 'action должен быть replace, add или remove.' };
+    }
+
+    const user = await this.usersRepo.findOne({ where: { id: userId, tenantId } });
+    if (!user) return { ok: false, error: 'user_not_found' };
+    const prefs = (user.preferences || {}) as Record<string, any>;
+    const current: DashboardLayoutJson =
+      (prefs.dashboardLayout as DashboardLayoutJson | undefined) || this.dashboardDefaultLayout();
+
+    // Резолвим один widget-спек в { orderId, presetEntry? } или ошибку с понятной причиной для модели.
+    const resolveWidget = (
+      w: DashboardWidgetSpec,
+    ): { orderId: string; presetId?: string; presetValue?: Record<string, unknown>; source?: string; sourceRef?: string } | { error: string; hint: string } => {
+      const kind = String(w.kind || '');
+      if (kind === 'core') {
+        const id = String(w.id || '');
+        if (!(DASHBOARD_CORE_WIDGET_IDS as readonly string[]).includes(id)) {
+          return { error: 'unknown_core_widget', hint: `id "${id}" не входит в список core-виджетов из описания инструмента.` };
+        }
+        return { orderId: id };
+      }
+      if (kind === 'extra') {
+        const id = String(w.id || '');
+        if (!(DASHBOARD_EXTRA_WIDGET_IDS as readonly string[]).includes(id)) {
+          return { error: 'unknown_extra_widget', hint: `id "${id}" не входит в список extra-блоков из описания инструмента.` };
+        }
+        return { orderId: id };
+      }
+      if (kind === 'preset') {
+        const source = String(w.source || '');
+        const slug = String(w.slug || '');
+        if (!(DASHBOARD_PRESET_SOURCES as readonly string[]).includes(source)) {
+          return { error: 'unknown_preset_source', hint: `source "${source}" — допустимы только leads, projects, sales, workspace (Бронирования/Отели/Товары — только kind:"extra").` };
+        }
+        if (!(DASHBOARD_PRESET_SLUGS as readonly string[]).includes(slug)) {
+          return { error: 'unknown_preset_slug', hint: `slug "${slug}" не входит в список пресетов из описания инструмента.` };
+        }
+        const sourceRef = w.sourceRef ? String(w.sourceRef).trim() : '';
+        if (source === 'workspace' && !sourceRef) {
+          return { error: 'source_ref_required', hint: 'Для source:"workspace" обязателен sourceRef (objectId из crm_workspace_list_tables) — сначала вызови crm_workspace_list_tables, чтобы найти нужную таблицу.' };
+        }
+        const pid = this.newDashboardPresetInstanceId();
+        const value: Record<string, unknown> = { source, slug, ...(sourceRef ? { sourceRef } : {}) };
+        const dateFrom = w.filters?.dateFrom ? String(w.filters.dateFrom) : '';
+        const dateTo = w.filters?.dateTo ? String(w.filters.dateTo) : '';
+        if (dateFrom || dateTo) {
+          value.filters = { ...(dateFrom ? { dateFrom } : {}), ...(dateTo ? { dateTo } : {}) };
+        }
+        return { orderId: pid, presetId: pid, presetValue: value, sourceRef: sourceRef || undefined, source };
+      }
+      return { error: 'invalid_widget_kind', hint: 'kind должен быть core, extra или preset.' };
+    };
+
+    const rawWidgets = Array.isArray(args.widgets) ? (args.widgets as DashboardWidgetSpec[]) : [];
+
+    if (action === 'remove') {
+      const removeIds = new Set((Array.isArray(args.remove) ? args.remove : []).map((x) => String(x)));
+      if (!removeIds.size) return { ok: false, error: 'remove_required', hint: 'Для action:"remove" передай непустой remove.' };
+      const order = current.order.filter((id) => !removeIds.has(id));
+      const hidden = new Set(current.hidden);
+      for (const id of removeIds) {
+        if ((DASHBOARD_CORE_WIDGET_IDS as readonly string[]).includes(id) || (DASHBOARD_EXTRA_WIDGET_IDS as readonly string[]).includes(id)) {
+          hidden.add(id);
+        }
+      }
+      const presetInstances = { ...current.presetInstances };
+      for (const id of removeIds) delete presetInstances[id];
+      const titleOverrides = { ...current.titleOverrides };
+      for (const id of removeIds) delete titleOverrides[id];
+      const next = { ...current, order, hidden: [...hidden], presetInstances, titleOverrides };
+      const ts = new Date().toISOString();
+      user.preferences = { ...prefs, dashboardLayout: next, dashboardLayoutUpdatedAt: ts };
+      await this.usersRepo.save(user);
+      return { ok: true, action, removed: [...removeIds], structure: this.describeDashboardLayout(next) };
+    }
+
+    if (!rawWidgets.length) {
+      return { ok: false, error: 'widgets_required', hint: 'Для action:"replace"/"add" передай непустой widgets.' };
+    }
+
+    const resolved: { orderId: string; presetId?: string; presetValue?: Record<string, unknown>; source?: string; sourceRef?: string }[] = [];
+    const newTitleOverrides: Record<string, string> = {};
+    for (const w of rawWidgets) {
+      const r = resolveWidget(w);
+      if ('error' in r) return { ok: false, error: r.error, hint: r.hint };
+      // sourceRef приходит от модели — проверяем, что таблица реально существует и принадлежит
+      // этому тенанту, до того как сохранить её id в presetInstances (иначе виджет на дашборде
+      // всегда будет пустым/битым, а хуже — теоретически можно сослаться на чужой tenant).
+      if (r.source === 'workspace' && r.sourceRef) {
+        try {
+          await this.customObjects.getObject(tenantId, r.sourceRef);
+        } catch {
+          return {
+            ok: false,
+            error: 'workspace_table_not_found',
+            hint: `Таблица рабочей области с objectId "${r.sourceRef}" не найдена у этого тенанта — вызови crm_workspace_list_tables и возьми правильный objectId, не выдумывай его.`,
+          };
+        }
+      }
+      resolved.push(r);
+      const size = w.size ? String(w.size) : '';
+      if (size && ['sm', 'md', 'lg'].includes(size)) {
+        current.sizes[r.orderId] = size; // применится и для replace (sizes ниже пересобирается с нуля из current для новых id), и для add
+      }
+      const title = w.title ? String(w.title).trim() : '';
+      if (title) newTitleOverrides[r.orderId] = title;
+    }
+
+    const newPresetInstances: Record<string, unknown> = {};
+    for (const r of resolved) {
+      if (r.presetId && r.presetValue) newPresetInstances[r.presetId] = r.presetValue;
+    }
+
+    let next: typeof current;
+    if (action === 'replace') {
+      const requestedIds = resolved.map((r) => r.orderId);
+      const requestedSet = new Set(requestedIds);
+      const standardIds = [...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS];
+      const hidden = standardIds.filter((id) => !requestedSet.has(id));
+      const sizes: Record<string, string> = {};
+      for (const id of requestedIds) if (current.sizes[id]) sizes[id] = current.sizes[id];
+      next = {
+        order: requestedIds,
+        hidden,
+        sizes,
+        heights: {},
+        presetInstances: newPresetInstances,
+        titleOverrides: newTitleOverrides,
+      };
+    } else {
+      const order = [...current.order];
+      const hidden = new Set(current.hidden);
+      for (const r of resolved) {
+        if (!order.includes(r.orderId)) order.push(r.orderId);
+        hidden.delete(r.orderId);
+      }
+      next = {
+        ...current,
+        order,
+        hidden: [...hidden],
+        presetInstances: { ...current.presetInstances, ...newPresetInstances },
+        titleOverrides: { ...current.titleOverrides, ...newTitleOverrides },
+      };
+    }
+
+    const ts = new Date().toISOString();
+    user.preferences = { ...prefs, dashboardLayout: next, dashboardLayoutUpdatedAt: ts };
+    await this.usersRepo.save(user);
+    return {
+      ok: true,
+      action,
+      createdPresetIds: Object.keys(newPresetInstances),
+      structure: this.describeDashboardLayout(next),
+    };
+  }
+
+  /** Человеко-читаемое резюме итоговой структуры — модель пересказывает это пользователю и
+   * использует id/title отсюда для последующих action:"remove" в этом же диалоге. */
+  private describeDashboardLayout(layout: {
+    order: string[];
+    presetInstances: Record<string, any>;
+    titleOverrides?: Record<string, string>;
+  }): { id: string; kind: 'core' | 'extra' | 'preset'; source?: string; slug?: string; sourceRef?: string; filters?: unknown; title?: string }[] {
+    return layout.order.map((id) => {
+      const title = layout.titleOverrides?.[id];
+      if (id.startsWith('pid_') && layout.presetInstances[id]) {
+        const p = layout.presetInstances[id];
+        return { id, kind: 'preset' as const, source: p.source, slug: p.slug, sourceRef: p.sourceRef, filters: p.filters, title };
+      }
+      const kind = (DASHBOARD_EXTRA_WIDGET_IDS as readonly string[]).includes(id) ? ('extra' as const) : ('core' as const);
+      return { id, kind, title };
+    }).filter((w) => w.kind !== 'preset' || layout.presetInstances[w.id]);
   }
 
   private mergeWorkspaceEnabledViews(
@@ -3322,6 +4095,16 @@ export class AiToolsService {
     }
   }
 
+  /**
+   * Деньги в таблицы рабочей области пишем округлёнными до копеек — иначе FX-конвертация
+   * (умножение на курс с плавающей точкой) даёт "834.411091215223" вместо "834.41", что
+   * нечитаемо в таблице и не лечится настройками колонки (у number-поля рабочей области нет
+   * параметра "знаков после запятой" в принципе).
+   */
+  private round2(n: number): number {
+    return Math.round((Number(n) || 0) * 100) / 100;
+  }
+
   private async toolWorkspaceImportMarketingChannels(
     tenantId: string,
     args: Record<string, unknown>,
@@ -3403,7 +4186,12 @@ export class AiToolsService {
         (marketCode
           ? `Каналы маркетинга / рекламы, отфильтровано по рынку ${marketCode} (эвристика: GA4 country / тег кампании / название страны в тексте; выгрузка из CRM, marketing_traffic)`
           : 'Каналы маркетинга / рекламы (выгрузка из CRM, marketing_traffic)'),
-      meta: { enabledViews: ['table', 'analytics'] },
+      // 'analytics' НЕ включаем: генерик-виджеты этого вида (статусы/категории/ответственные,
+      // как в аналитике проектов) не понимают произвольную схему таблицы и на таких данных дают
+      // бессмысленные числа (реальный случай: "Ответственные: 1", просуммированные вперемешку
+      // разные числовые колонки). Пользователь может включить вид сам через
+      // crm_workspace_enable_views и настроить виджеты вручную под конкретные поля.
+      meta: { enabledViews: ['table'] },
       fields: columnDefs.map((c) => ({
         key: c.key,
         label: c.label,
@@ -3433,9 +4221,9 @@ export class AiToolsService {
             sessions: it.sessions,
             clicks: it.clicks,
             leads: it.leads,
-            revenue: it.revenue,
+            revenue: this.round2(it.revenue),
             impressions: it.impressions,
-            cost: it.cost,
+            cost: this.round2(it.cost),
             currency: it.currency ?? '',
           },
         });
@@ -3445,8 +4233,6 @@ export class AiToolsService {
         if (importErrors.length >= 8) break;
       }
     }
-
-    const analyticsUrlPath = `/workspace/${created.id}/analytics`;
 
     return {
       ok: true,
@@ -3473,8 +4259,185 @@ export class AiToolsService {
               'Фильтр по рынку эвристический (GA4 country / тег в названии кампании / название страны в тексте) — сообщи об этом пользователю, если он спросит про точность.',
           }
         : {}),
-      ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, analyticsUrlPath),
+      ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, null),
     };
+  }
+
+  /**
+   * Импорт УЖЕ посчитанной в БД помесячной сводки (getTrafficMonthlyBreakdown) в таблицу рабочей
+   * области — по одной строке на источник/аккаунт, с одной числовой колонкой на каждый месяц.
+   * В отличие от crm_workspace_import_marketing_channels (сырые строки по кампаниям, без даты —
+   * там физически нет месяца как поля, поэтому построить помесячный вид в UI после импорта
+   * невозможно), эта таблица уже в нужной пользователю форме — колонки не нужно досчитывать.
+   */
+  private async toolWorkspaceImportMarketingMonthlyBreakdown(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const tableName = String(args.tableName || '').trim();
+    if (!tableName) return { ok: false, error: 'tableName_required' };
+    const description = args.description ? String(args.description).trim() : undefined;
+
+    const built = await this.sync.buildMonthlyBreakdownData(tenantId, args);
+    if (!built.ok) return built.payload;
+    const { from, to, dataSourceFilter, marketCode, groupBy, months, convertedRows, fx, fxError, displayOpt } = built;
+
+    const columnDefs = this.sync.monthlyBreakdownColumns(months, groupBy);
+
+    // Автообновление включено по умолчанию: такая таблица — витрина marketing_traffic, и без
+    // регулярной пересборки она устаревала бы сразу после создания.
+    const autoRefresh = args.autoRefresh === undefined ? true : args.autoRefresh !== false;
+    const sourceId = randomUUID().replace(/-/g, '').slice(0, 12);
+    const syncSource: SyncSource = {
+      id: sourceId,
+      kind: 'marketing_monthly',
+      params: {
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+        ...(dataSourceFilter ? { dataSource: dataSourceFilter } : {}),
+        ...(marketCode ? { market: marketCode } : {}),
+        groupBy,
+        ...(displayOpt ? { displayCurrency: displayOpt } : {}),
+      },
+      autoRefresh,
+      schedule: { type: 'nightly' },
+      lastRefreshAt: new Date().toISOString(),
+      lastRefreshStatus: 'ok',
+    };
+
+    const dtoBase: CreateCustomObjectDto = {
+      name: tableName,
+      description:
+        description ||
+        (groupBy === 'market'
+          ? 'Расходы по месяцам в разрезе рынка/страны (выгрузка из CRM, marketing_traffic)'
+          : `Расходы по месяцам в разрезе источника/аккаунта (выгрузка из CRM, marketing_traffic${marketCode ? `, рынок ${marketCode}` : ''})`),
+      // 'analytics' НЕ включаем — см. комментарий в toolWorkspaceImportMarketingChannels: генерик-
+      // виджеты этого вида не понимают схему "строка × колонка-на-месяц" и дают бессмысленные
+      // числа (реальный случай: "Ответственные: 1", сумма по всем числовым колонкам разом).
+      meta: { enabledViews: ['table'], syncSources: [syncSource] },
+      fields: columnDefs.map((c) => ({
+        key: c.key,
+        label: c.label,
+        type: c.type,
+        required: false,
+        order: c.order,
+      })),
+    };
+
+    const { dto, workspaceAreaId } = await this.workspaceAreaForNewTable(tenantId, dtoBase);
+    const created = await this.customObjects.createObject(tenantId, dto);
+
+    const res = await this.customObjects.replaceSyncedRecords(
+      tenantId,
+      created.id,
+      sourceId,
+      convertedRows.map((r) => ({ values: this.sync.monthlyBreakdownRecordValues(r, months) })),
+      { deleteAll: true },
+    );
+
+    return {
+      ok: true,
+      objectId: created.id,
+      name: created.name,
+      slug: created.slug,
+      recordsImported: res.created,
+      recordsAvailable: convertedRows.length,
+      months,
+      period: { from: from ?? null, to: to ?? null },
+      autoRefresh,
+      ...(autoRefresh
+        ? { autoRefreshNote: 'Таблица будет пересобираться автоматически каждую ночь после синхронизации рекламных кабинетов (строки этого источника обновляются целиком, ручные правки в них не сохраняются).' }
+        : {}),
+      ...(fx ? { displayCurrency: fx.display, fxAsOf: fx.asOf, fxSource: fx.source } : {}),
+      ...(displayOpt && !fx && fxError
+        ? { fxConversionFailed: true, fxConversionError: fxError }
+        : {}),
+      ...(marketCode
+        ? {
+            filteredByMarket: marketCode,
+            marketFilterNote:
+              'Фильтр по рынку эвристический (GA4 country / тег в названии кампании / название страны в тексте) — сообщи об этом пользователю, если он спросит про точность.',
+          }
+        : {}),
+      ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, null),
+    };
+  }
+
+  /** Новая таблица рабочей области с источником marketing_rows (несколько провайдеров, автообновление). */
+  private async toolWorkspaceCreateMarketingTable(tenantId: string, args: Record<string, unknown>) {
+    const tableName = String(args.tableName || '').trim();
+    if (!tableName) return { ok: false, error: 'tableName_required' };
+    const input = this.syncSourceInputFromArgs(args);
+    if ('error' in input) return { ok: false, ...input };
+    const dtoBase: CreateCustomObjectDto = {
+      name: tableName,
+      description: args.description ? String(args.description).trim() : 'Данные рекламных кабинетов (выгрузка из CRM, marketing_traffic, обновляются автоматически)',
+      meta: { enabledViews: ['table'] },
+      fields: [],
+    };
+    const { dto, workspaceAreaId } = await this.workspaceAreaForNewTable(tenantId, dtoBase);
+    const created = await this.customObjects.createObject(tenantId, dto);
+    const res = await this.sync.addSource(tenantId, created.id, input);
+    if (!res.ok) {
+      // Пустую таблицу не оставляем: ошибка источника — таблицы нет.
+      try { await this.customObjects.deleteObject(tenantId, created.id); } catch { /* ignore */ }
+      return res;
+    }
+    return { ...res, objectId: created.id, name: created.name, ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, null) };
+  }
+
+  /** Аргументы инструмента → вход WorkspaceSyncService.addSource (marketing_rows | marketing_monthly). */
+  private syncSourceInputFromArgs(args: Record<string, unknown>):
+    | { kind: SyncSourceKind; params: Record<string, any>; label?: string; autoRefresh?: boolean }
+    | { error: string; hint: string } {
+    const kind = String(args.kind || 'marketing_rows') as SyncSourceKind;
+    if (kind !== 'marketing_rows' && kind !== 'marketing_monthly') {
+      return { error: 'invalid_kind', hint: 'Через чат можно добавить только marketing_rows (строки из рекламных кабинетов) или marketing_monthly (расходы по месяцам). Импорт Woo/Meta/GA4 с маппингом колонок сохраняется на странице импорта таблицы.' };
+    }
+    const params: Record<string, any> = {};
+    for (const k of ['from', 'to', 'market', 'displayCurrency', 'grain', 'groupBy', 'dataSource']) {
+      if (args[k] != null && String(args[k]).trim()) params[k] = String(args[k]).trim();
+    }
+    if (Array.isArray(args.providers)) params.providers = args.providers.map((x) => String(x).trim()).filter(Boolean);
+    if (args.maxRows != null) params.maxRows = Number(args.maxRows);
+    return {
+      kind,
+      params,
+      label: args.label ? String(args.label).trim() : undefined,
+      autoRefresh: args.autoRefresh === undefined ? true : args.autoRefresh !== false,
+    };
+  }
+
+  /** Совместимость со старым инструментом: включить/выключить автообновление всех источников таблицы. */
+  private async toolWorkspaceSetAutoRefresh(tenantId: string, args: Record<string, unknown>) {
+    const objectId = String(args.objectId || '').trim();
+    if (!objectId) return { ok: false, error: 'objectId_required' };
+    const enabled = args.enabled !== false;
+    const sources = await this.sync.listSources(tenantId, objectId);
+    if (!sources) return { ok: false, error: 'table_not_found' };
+    if (!sources.length) {
+      if (!enabled) return { ok: true, autoRefresh: false };
+      const params: Record<string, any> = {};
+      for (const k of ['groupBy', 'from', 'to', 'dataSource', 'market', 'displayCurrency']) {
+        if (args[k] != null && String(args[k]).trim()) params[k] = String(args[k]).trim();
+      }
+      if (!Object.keys(params).length) {
+        return { ok: false, error: 'params_required', hint: 'Для существующей таблицы укажи параметры выгрузки: groupBy (dataSource|market), from/to, dataSource, market, displayCurrency — ровно те, с какими её строили; либо используй crm_workspace_add_sync_source.' };
+      }
+      return this.sync.addSource(tenantId, objectId, { kind: 'marketing_monthly', params });
+    }
+    for (const src of sources) await this.sync.updateSource(tenantId, objectId, src.id, { autoRefresh: enabled });
+    if (!enabled) return { ok: true, autoRefresh: false };
+    return { ...(await this.sync.refreshTable(tenantId, objectId)), autoRefresh: true };
+  }
+
+  private async toolWorkspaceAddSyncSource(tenantId: string, args: Record<string, unknown>) {
+    const objectId = String(args.objectId || '').trim();
+    if (!objectId) return { ok: false, error: 'objectId_required' };
+    const input = this.syncSourceInputFromArgs(args);
+    if ('error' in input) return { ok: false, ...input };
+    return this.sync.addSource(tenantId, objectId, input);
   }
 
   private async toolSalesImportApply(
@@ -3972,7 +4935,8 @@ export class AiToolsService {
     return { ok: true, projectId: id, deleted: true };
   }
 
-  private async toolListSales(tenantId: string, args: Record<string, unknown>) {
+  private async toolListSales(ctx: ToolCtx, args: Record<string, unknown>) {
+    const tenantId = ctx.tenantId;
     const query: ListSalesQueryDto = {
       page: Math.min(100, Math.max(1, Number(args.page) || 1)),
       pageSize: Math.min(50, Math.max(1, Number(args.pageSize) || 25)),
@@ -3982,31 +4946,65 @@ export class AiToolsService {
       channelId: args.channelId ? String(args.channelId) : undefined,
       search: args.search ? String(args.search) : undefined,
     };
-    const res = await this.sales.list(tenantId, query);
+    // Тот же «Видимость данных», что SalesController.list применяет к REST — own-only фильтр на
+    // уровне SQL (не постфильтр, чтобы total/page оставались верными) плюс маскирование amount
+    // для чужих записей, когда так настроено. См. resolveAiDataVisibility.
+    const visibility = await this.resolveAiDataVisibility(ctx);
+    const ownScopeFilter =
+      !visibility.privileged && visibility.foreignRecords === 'hide' && visibility.staffId
+        ? this.dataVisibility.salesOwnFilterSql(visibility.staffId)
+        : undefined;
+    const maskAmount =
+      !visibility.privileged &&
+      (visibility.amountsVisibility === 'owner_manager' || visibility.amountsVisibility === 'hidden');
+    const res = await this.sales.list(tenantId, query, ownScopeFilter);
+    const items = await Promise.all(
+      res.items.map(async (s) => {
+        const isOwn = maskAmount && visibility.staffId
+          ? await this.dataVisibility.isSaleOwnedByStaff(s as any, visibility.staffId)
+          : false;
+        return {
+          id: s.id,
+          amount: maskAmount && !isOwn ? null : s.amount,
+          currency: s.currency,
+          status: s.status,
+          saleDate: s.saleDate,
+          channelId: s.channelId,
+          externalId: s.externalId,
+          agentName: s.agentName,
+          hotel: s.hotel,
+          createdAt: s.createdAt,
+        };
+      }),
+    );
     return {
       ok: true,
       total: res.total,
       page: res.page,
       pageSize: res.pageSize,
-      sales: res.items.map((s) => ({
-        id: s.id,
-        amount: s.amount,
-        currency: s.currency,
-        status: s.status,
-        saleDate: s.saleDate,
-        channelId: s.channelId,
-        externalId: s.externalId,
-        agentName: s.agentName,
-        hotel: s.hotel,
-        createdAt: s.createdAt,
-      })),
+      sales: items,
     };
   }
 
-  private async toolGetSale(tenantId: string, args: Record<string, unknown>) {
+  private async toolGetSale(ctx: ToolCtx, args: Record<string, unknown>) {
+    const tenantId = ctx.tenantId;
     const id = String(args.saleId || '').trim();
     if (!id) return { ok: false, error: 'saleId_required' };
     const detail = await this.sales.findOneDetailed(tenantId, id);
+    const visibility = await this.resolveAiDataVisibility(ctx);
+    const isOwn = visibility.staffId
+      ? await this.dataVisibility.isSaleOwnedByStaff(detail.sale as any, visibility.staffId)
+      : false;
+    if (!visibility.privileged && visibility.foreignRecords === 'hide' && !isOwn) {
+      return { ok: false, error: 'sale_not_found' };
+    }
+    if (
+      !visibility.privileged &&
+      !isOwn &&
+      (visibility.amountsVisibility === 'owner_manager' || visibility.amountsVisibility === 'hidden')
+    ) {
+      return { ok: true, ...detail, sale: { ...detail.sale, amount: null } };
+    }
     return { ok: true, ...detail };
   }
 
@@ -4041,18 +5039,31 @@ export class AiToolsService {
     return { ok: true, company: { id: c.id, name: c.name } };
   }
 
-  private async toolGetCompany(tenantId: string, args: Record<string, unknown>) {
+  private async toolGetCompany(ctx: ToolCtx, args: Record<string, unknown>) {
+    const tenantId = ctx.tenantId;
     const id = String(args.companyId || '').trim();
     if (!id) return { ok: false, error: 'companyId_required' };
     const c = await this.companies.findOne(tenantId, id);
+    // Тот же «Видимость данных», что CompaniesController.findOne применяет к REST — own-only
+    // hide + email/phone masking. Companies have no separate "detail" masking, only contact
+    // fields (matches CompaniesController's own comment).
+    const visibility = await this.resolveAiDataVisibility(ctx);
+    if (!visibility.privileged && visibility.foreignRecords === 'hide' && (c as any).assignedUserId !== visibility.staffId) {
+      return { ok: false, error: 'company_not_found' };
+    }
+    const isOwn = !!(visibility.staffId && (c as any).assignedUserId === visibility.staffId);
+    const maskContact =
+      !visibility.privileged &&
+      (visibility.contactMasking === 'always_mask' ||
+        (visibility.contactMasking === 'mask_until_assigned' && !isOwn));
     return {
       ok: true,
       company: {
         id: c.id,
         name: c.name,
         legalName: c.legalName,
-        email: c.email,
-        phone: c.phone,
+        email: maskContact ? null : c.email,
+        phone: maskContact ? null : c.phone,
         website: c.website,
         country: c.country,
         city: c.city,
@@ -4085,14 +5096,41 @@ export class AiToolsService {
     return { ok: true, companyId: id, deleted: true };
   }
 
-  private async toolListContacts(tenantId: string, args: Record<string, unknown>) {
+  /** Mirrors ContactsController.maskOne — same rules, same field list (phone/email under
+   * contact_masking; customFields as the one "detail" field worth hiding for foreign records). */
+  private maskContactForAi<T extends { assignedUserId?: string | null; phone?: unknown; email?: unknown; customFields?: unknown }>(
+    contact: T,
+    visibility: { privileged: boolean; staffId: string | null; foreignRecords: string; contactMasking: string },
+  ): T {
+    if (visibility.privileged) return contact;
+    const isOwn = !!(visibility.staffId && contact.assignedUserId === visibility.staffId);
+    const maskDetails = visibility.foreignRecords === 'masked' && !isOwn;
+    const maskContact =
+      visibility.contactMasking === 'always_mask' ||
+      (visibility.contactMasking === 'mask_until_assigned' && !isOwn);
+    if (!maskDetails && !maskContact) return contact;
+    return {
+      ...contact,
+      ...(maskDetails ? { customFields: null } : null),
+      ...(maskContact ? { phone: null, email: null } : null),
+    };
+  }
+
+  private async toolListContacts(ctx: ToolCtx, args: Record<string, unknown>) {
+    const tenantId = ctx.tenantId;
     const limit = Math.min(80, Math.max(1, Number(args.limit) || 30));
     const search = args.search ? String(args.search) : undefined;
     const status = args.status ? String(args.status) : undefined;
-    const assignedUserId = args.assignedUserId ? String(args.assignedUserId) : undefined;
+    const requestedAssignedUserId = args.assignedUserId ? String(args.assignedUserId) : undefined;
     const tags = Array.isArray(args.tags)
       ? (args.tags as unknown[]).map((t) => String(t).trim()).filter(Boolean)
       : undefined;
+    // Тот же «Видимость данных», что ContactsController.findAll применяет к REST: own-only
+    // форсируется на уровне SQL-запроса (перекрывает то, что попросила модель), плюс
+    // маскирование контактов/деталей постфактум. См. resolveAiDataVisibility.
+    const visibility = await this.resolveAiDataVisibility(ctx);
+    const forceOwnOnly = !visibility.privileged && visibility.foreignRecords === 'hide' ? visibility.staffId : null;
+    const assignedUserId = forceOwnOnly ?? requestedAssignedUserId;
     const { items, total } = await this.contacts.findAll(tenantId, {
       search,
       status,
@@ -4103,40 +5141,49 @@ export class AiToolsService {
     return {
       ok: true,
       total,
-      contacts: items.map((c) => ({
-        id: c.id,
-        fullName: c.fullName,
-        email: c.email,
-        phone: c.phone,
-        companyId: c.companyId,
-        status: c.status,
-        updatedAt: c.updatedAt,
-      })),
+      contacts: items.map((c) => {
+        const masked = this.maskContactForAi(c, visibility);
+        return {
+          id: masked.id,
+          fullName: masked.fullName,
+          email: masked.email,
+          phone: masked.phone,
+          companyId: masked.companyId,
+          status: masked.status,
+          updatedAt: masked.updatedAt,
+        };
+      }),
     };
   }
 
-  private async toolGetContact(tenantId: string, args: Record<string, unknown>) {
+  private async toolGetContact(ctx: ToolCtx, args: Record<string, unknown>) {
+    const tenantId = ctx.tenantId;
     const id = String(args.contactId || '').trim();
     if (!id) return { ok: false, error: 'contactId_required' };
     const c = await this.contacts.findOne(tenantId, id);
+    const visibility = await this.resolveAiDataVisibility(ctx);
+    if (!visibility.privileged && visibility.foreignRecords === 'hide' && c.assignedUserId !== visibility.staffId) {
+      return { ok: false, error: 'contact_not_found' };
+    }
+    const masked = this.maskContactForAi(c, visibility);
     return {
       ok: true,
       contact: {
-        id: c.id,
-        firstName: c.firstName,
-        lastName: c.lastName,
-        fullName: c.fullName,
-        email: c.email,
-        phone: c.phone,
-        companyId: c.companyId,
-        position: c.position,
-        country: c.country,
-        city: c.city,
-        status: c.status,
-        tags: c.tags,
-        customFields: c.customFields,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
+        id: masked.id,
+        firstName: masked.firstName,
+        lastName: masked.lastName,
+        fullName: masked.fullName,
+        email: masked.email,
+        phone: masked.phone,
+        companyId: masked.companyId,
+        position: masked.position,
+        country: masked.country,
+        city: masked.city,
+        status: masked.status,
+        tags: masked.tags,
+        customFields: masked.customFields,
+        createdAt: masked.createdAt,
+        updatedAt: masked.updatedAt,
       },
     };
   }
@@ -5186,86 +6233,41 @@ export class AiToolsService {
     };
   }
 
-  private async aiEmployeePermissions(tenantId: string, agent: AiAgent) {
-    const rows = await this.aiAgentPermissionsRepo.find({
-      where: { tenantId, agentId: agent.id },
-      order: { permissionKey: 'ASC' },
-    });
-    const current = rows.reduce<Record<string, boolean>>((acc, row) => {
-      acc[row.permissionKey] = row.value;
-      return acc;
-    }, {});
-    const role = getAiEmployeeRole(agent.role);
-    for (const key of role?.defaultPermissions || []) {
-      if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = true;
+  /** Не выполняет ничего: собирает карточку предложения; чат покажет кнопки «Одобрить / Отклонить». */
+  private async toolProposeAiEmployeeAction(ctx: ToolCtx, args: Record<string, unknown>) {
+    const agent = await this.findAiEmployeeForTool(ctx.tenantId, args);
+    if (!agent) return { ok: false, error: 'ai_employee_not_found' };
+    const title = String(args.title || '').trim().slice(0, 120);
+    const task = String(args.task || '').trim().slice(0, 4000);
+    if (!title || !task) return { ok: false, error: 'title_and_task_required' };
+    let entityType: string | null = null;
+    let entityId: string | null = null;
+    let entityLabel: string | null = null;
+    if (args.entityType && args.entityId) {
+      const { AiEmployeesService } = await import('../ai-employees/ai-employees.service.js');
+      const label = await this.moduleRef
+        .get(AiEmployeesService, { strict: false })
+        .entityLabel(ctx.tenantId, String(args.entityType), String(args.entityId));
+      if (!label) return { ok: false, error: 'record_not_found' };
+      entityType = String(args.entityType);
+      entityId = String(args.entityId);
+      entityLabel = label.name;
     }
-    return current;
-  }
-
-  private async aiEmployeeQuestionSnapshot(tenantId: string, permissions: Record<string, boolean>) {
-    const canRead = (key: string) => permissions[key] === true;
-    const canReadLeads = canRead('read_leads');
-    const canReadSales = canRead('read_sales') || canRead('read_deals');
-    const canReadProjects = canRead('read_projects') || canRead('read_tasks');
-    const canReadMarketing = [
-      'read_marketing',
-      'read_campaigns',
-      'read_marketing_traffic',
-      'read_marketing_costs',
-      'read_marketing_roi',
-      'read_marketing_integrations',
-      'read_attribution',
-      'read_analytics',
-    ].some(canRead);
-    const leadsQb = this.leadsRepo
-      .createQueryBuilder('l')
-      .where('l.tenantId = :tenantId', { tenantId })
-      .andWhere(this.activeLeadCondition('l'));
-    const [leadCount, recentLeads, salesSummary, projects, marketing] =
-      await Promise.all([
-        canReadLeads ? leadsQb.clone().getCount() : Promise.resolve(0),
-        canReadLeads
-          ? leadsQb.clone().orderBy('l.createdAt', 'DESC').take(20).getMany()
-          : Promise.resolve([]),
-        canReadSales
-          ? this.toolSalesSummary(tenantId, {})
-          : Promise.resolve(null),
-        canReadProjects
-          ? this.projectsRepo.find({
-              where: { tenantId, isDeleted: false, isArchived: false } as any,
-              order: { updatedAt: 'DESC' },
-              take: 20,
-            })
-          : Promise.resolve([]),
-        canReadMarketing
-          ? this.toolMarketing(tenantId, {})
-          : Promise.resolve(null),
-      ]);
     return {
-      generatedAt: new Date().toISOString(),
-      permissions,
-      leads: {
-        totalActive: leadCount,
-        recent: recentLeads.map((l) => ({
-          id: l.id,
-          name: l.name,
-          status: l.status,
-          source: l.source,
-          email: l.email,
-          phone: l.phone,
-          createdAt: l.createdAt,
-        })),
+      ok: true,
+      proposal: {
+        id: randomUUID(),
+        agentId: agent.id,
+        agentName: agent.name,
+        entityType,
+        entityId,
+        entityLabel,
+        title,
+        task,
+        assign: entityType ? args.assign !== false : false,
+        status: 'pending',
       },
-      sales: salesSummary,
-      projects: projects.map((p) => ({
-        id: p.id,
-        name: p.name,
-        status: p.status,
-        amount: p.amount,
-        currency: p.currency,
-        updatedAt: p.updatedAt,
-      })),
-      marketing,
+      hint: 'Пользователю показаны кнопки «Одобрить»/«Отклонить». Кратко объясни, что предлагаешь и почему; НЕ пиши, что это уже сделано, и не проси печатать «да».',
     };
   }
 
@@ -5275,8 +6277,11 @@ export class AiToolsService {
     const question = String(args.question || '').trim();
     if (!question) return { ok: false, error: 'question_required' };
     const role = getAiEmployeeRole(agent.role);
-    const permissions = await this.aiEmployeePermissions(ctx.tenantId, agent);
-    const snapshot = await this.aiEmployeeQuestionSnapshot(ctx.tenantId, permissions);
+    // Динамический импорт — статический замыкает цикл ai-tools ↔ ai-employees (см. AutomationsService)
+    const { AiEmployeesService } = await import('../ai-employees/ai-employees.service.js');
+    const snapshot = await this.moduleRef
+      .get(AiEmployeesService, { strict: false })
+      .snapshotForAgent(ctx.tenantId, agent);
     const { message, usage } = await this.openai.chatCompletion({
       messages: [
         {
@@ -5296,7 +6301,7 @@ export class AiToolsService {
 ${question}
 
 CRM snapshot для ответа:
-${JSON.stringify(snapshot).slice(0, 18000)}`,
+${JSON.stringify(snapshot).slice(0, 24000)}`,
         },
       ],
       toolChoice: 'none',

@@ -87,7 +87,7 @@ export interface BiDashboardSummary {
   }>;
   channels: Array<{ key: string; label: string; count: number }>;
   funnel: Array<{ key: string; label: string; value: number }>;
-  topCompanies: Array<{ id: string; name: string; leads: number; projects: number; revenue: number }>;
+  topCompanies: Array<{ id: string; name: string; leads: number; projects: number; revenue: number; currency: string }>;
   team: Array<{ id: string; name: string; leads: number; calls: number; bookings: number; total: number }>;
   alerts: Array<{ module: string; risk: 'ok' | 'warn' | 'bad'; text: string; link: string }>;
 }

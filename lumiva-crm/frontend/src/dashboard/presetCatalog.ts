@@ -1,5 +1,9 @@
-/** Пресеты для главной: те же slug, что и id виджетов на страницах аналитики (ProjectsAnalyticsPage / V2). */
-export type DashboardPresetSource = 'projects' | 'sales' | 'leads';
+/** Пресеты для главной: те же slug, что и id виджетов на страницах аналитики (ProjectsAnalyticsPage / V2).
+ * 'workspace' и 'client-account' — те же виджеты, но со страниц, которые переиспользуют
+ * ProjectsAnalyticsPage как generic-движок (WorkspaceAnalyticsPage, ClientAccountAnalyticsPage);
+ * для них при передаче на главную сохраняется ещё и sourceRef (id таблицы/клиента), иначе
+ * DashboardPresetWidget не может подгрузить те же данные заново. */
+export type DashboardPresetSource = 'projects' | 'sales' | 'leads' | 'workspace' | 'client-account';
 
 export type PresetKind = 'metric' | 'donut' | 'bar' | 'table';
 
@@ -53,6 +57,8 @@ export const PRESETS_BY_TAB: Record<DashboardPresetSource, DashboardPresetDefini
   projects: PROJECTS_STYLE_PRESETS,
   sales: PROJECTS_STYLE_PRESETS,
   leads: PROJECTS_STYLE_PRESETS,
+  workspace: PROJECTS_STYLE_PRESETS,
+  'client-account': PROJECTS_STYLE_PRESETS,
 };
 
 export function defaultHeightForPreset(kind: PresetKind, size: 'sm' | 'md' | 'lg'): number {

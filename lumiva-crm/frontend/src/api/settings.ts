@@ -26,6 +26,8 @@ export interface CompanySettings {
   name: string;
   logoUrl: string | null;
   uiLanguage: string | null;
+  /** Основная валюта тенанта — суммы в отчётах компаний конвертируются в неё по курсу. */
+  primaryCurrency: string | null;
   status: string;
   plan: string;
   apiEnabled?: boolean;
@@ -69,6 +71,7 @@ export async function updateCompanySettings(payload: {
   name?: string;
   logoUrl?: string | null;
   uiLanguage?: string | null;
+  primaryCurrency?: string | null;
   aiWrapperEmailTemplateId?: string | null;
   documentRequisites?: string | null;
   documentManagerName?: string | null;

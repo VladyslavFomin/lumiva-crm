@@ -20,7 +20,10 @@ export type CustomObjectFieldType =
   | 'status'
   | 'select'
   | 'multiselect'
-  | 'file';
+  | 'file'
+  /** Умная колонка: значение пишет назначенный ИИ-сотрудник (meta.ai = {agentId, prompt}) —
+   * автоматически при сохранении строки и по кнопке "Обновить"; вручную не редактируется. */
+  | 'ai';
 
 @Entity('custom_object_fields')
 @Index(['tenantId', 'objectId', 'key'], { unique: true })

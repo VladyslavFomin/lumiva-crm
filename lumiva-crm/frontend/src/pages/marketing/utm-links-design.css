@@ -1,0 +1,105 @@
+/* ============================================
+   UTM · хранилище ссылок (дополняет utms-design.css)
+   Ported from Claude Design (marketing-utm-links.html / styles/utm-links.css).
+   Mobile layout is additional to the mockup: on phones the wide table becomes cards,
+   the "new link" drawer and the QR dialog fit the screen.
+   ============================================ */
+
+.px-scope .ul-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line-2); border-radius: 12px; background: #fff; overflow: hidden; margin-bottom: 16px; }
+.px-scope .ul-kpi { padding: 15px 18px 14px; border-right: 1px solid var(--line-2); min-width: 0; }
+.px-scope .ul-kpi:last-child { border-right: 0; }
+.px-scope .ul-kpi .l { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); font-weight: 500; }
+.px-scope .ul-kpi .v { font-family: var(--ff-display); font-size: 25px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; color: var(--ink); margin-top: 10px; }
+.px-scope .ul-kpi .v .u { font-size: 13px; color: var(--fg-3); margin-left: 2px; }
+.px-scope .ul-kpi .v.na { color: var(--fg-4); }
+
+.px-scope .ul-note { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid color-mix(in srgb, #c08319 35%, var(--line-2)); border-radius: 10px; background: color-mix(in srgb, #c08319 6%, #fff); font-size: 12.5px; color: #7a5411; margin-bottom: 16px; }
+.px-scope .ul-note .sp { flex: 1; min-width: 0; }
+.px-scope .ul-note.info { border-color: var(--line-2); background: var(--bg-muted); color: var(--fg-2); }
+
+.px-scope .ul-search { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; padding: 0 10px; height: 32px; color: var(--fg-3); min-width: 0; }
+.px-scope .ul-search input { border: 0; outline: 0; font: inherit; font-size: 12.5px; padding: 0; width: 210px; min-width: 0; background: none; color: var(--ink); }
+.px-scope .ul-search:focus-within { outline: 2px solid var(--ink); outline-offset: 1px; }
+.px-scope .ul-select { height: 32px; font: inherit; font-size: 12.5px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; color: var(--ink); }
+.px-scope .ul-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.px-scope .ul-scroll { overflow-x: auto; }
+.px-scope .ul-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 980px; }
+.px-scope .ul-table thead th { padding: 9px 14px; text-align: left; font-family: var(--ff-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); background: var(--bg-muted); border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+.px-scope .ul-table th.r, .px-scope .ul-table td.r { text-align: right; }
+.px-scope .ul-table tbody td { padding: 12px 14px; border-bottom: 1px solid var(--line-3); vertical-align: top; }
+.px-scope .ul-table tbody tr:last-child td { border-bottom: 0; }
+.px-scope .ul-table tbody tr:hover { background: var(--bg-muted); }
+.px-scope .ul-table td.r { font-family: var(--ff-mono); letter-spacing: -0.02em; vertical-align: middle; }
+.px-scope .ul-nm { font-weight: 600; letter-spacing: -0.01em; color: var(--ink); overflow-wrap: anywhere; }
+.px-scope .ul-url { font-family: var(--ff-mono); font-size: 10.5px; color: var(--fg-3); margin-top: 4px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-scope .ul-sub { font-family: var(--ff-mono); font-size: 10.5px; color: var(--fg-3); margin-top: 4px; overflow-wrap: anywhere; }
+.px-scope .ul-mono { font-family: var(--ff-mono); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
+.px-scope .ul-bars { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.px-scope .ul-bars .tr { width: 54px; height: 5px; border-radius: 999px; background: var(--bg-soft); overflow: hidden; }
+.px-scope .ul-bars .tr i { display: block; height: 100%; border-radius: 999px; background: var(--fg-2); }
+.px-scope .ul-acts { display: flex; gap: 6px; justify-content: flex-end; }
+.px-scope a.ut-ico { text-decoration: none; }
+.px-scope .ul-na { color: var(--fg-4); }
+.px-scope .ul-chip { display: inline-flex; padding: 3px 10px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 11.5px; color: var(--fg-2); background: #fff; }
+
+/* карточки (телефон) */
+.px-scope .ul-cards { display: none; }
+.px-scope .ul-card { padding: 14px; border-bottom: 1px solid var(--line-3); }
+.px-scope .ul-card:last-child { border-bottom: 0; }
+.px-scope .ul-card .ul-url { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.px-scope .ul-card-tags { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 10px; }
+.px-scope .ul-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.px-scope .ul-card-grid .k { font-family: var(--ff-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+.px-scope .ul-card-grid .v { font-family: var(--ff-mono); font-size: 14px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
+.px-scope .ul-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; font-family: var(--ff-mono); font-size: 10.5px; color: var(--fg-3); }
+.px-scope .ul-card-foot .ul-acts .ut-ico { width: 34px; height: 34px; }
+
+/* drawer новой ссылки + диалог QR (рендерятся в body) */
+.ul-root { position: fixed; inset: 0; z-index: 8600; }
+.px-scope .ul-back { position: fixed; inset: 0; background: rgba(20,20,20,0.4); backdrop-filter: blur(3px); z-index: 8600; display: flex; justify-content: flex-end; animation: ulFade .16s ease; }
+@keyframes ulFade { from { opacity: 0 } to { opacity: 1 } }
+.px-scope .ul-drawer { width: min(560px, 100%); height: 100%; overflow-y: auto; background: #fff; box-shadow: -20px 0 60px rgba(0,0,0,0.18); animation: ulSlide .2s ease; display: flex; flex-direction: column; }
+@keyframes ulSlide { from { transform: translateX(24px) } to { transform: translateX(0) } }
+.px-scope .ul-drawer-head { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid var(--line-2); padding: 16px 18px; display: flex; align-items: center; gap: 12px; }
+.px-scope .ul-drawer-head h2 { font-family: var(--ff-display); font-size: 17px; font-weight: 600; letter-spacing: -0.02em; flex: 1; }
+.px-scope .ul-drawer-body { flex: 1; }
+.px-scope .ul-drawer-foot { position: sticky; bottom: 0; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line-2); background: var(--bg-muted); }
+.px-scope .ul-modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(2px); z-index: 8700; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.px-scope .ul-modal { width: 100%; max-width: 360px; border-radius: 16px; border: 1px solid #e7e7e7; background: #fff; box-shadow: 0 24px 64px rgba(0,0,0,.14); overflow: hidden; }
+.px-scope .ul-modal-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #f0f0f0; }
+.px-scope .ul-modal-h h3 { font-family: var(--ff-display); font-size: 15px; font-weight: 600; }
+.px-scope .ul-modal-b { padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.px-scope .ul-qr { width: 240px; height: 240px; max-width: 100%; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px; background: #fff; }
+.px-scope .ul-modal-b .nm { font-weight: 600; text-align: center; overflow-wrap: anywhere; }
+.px-scope .ul-modal-b .hint { font-size: 12px; color: var(--fg-3); text-align: center; line-height: 1.45; }
+.px-scope .ul-modal-f { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-top: 1px solid #f0f0f0; background: #fafafa; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 760px) {
+  .px-scope .ul-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .px-scope .ul-kpi:nth-child(2n) { border-right: 0; }
+  .px-scope .ul-kpi:nth-child(-n + 2) { border-bottom: 1px solid var(--line-2); }
+}
+@media (max-width: 640px) {
+  .px-scope .ul-scroll { display: none; }
+  .px-scope .ul-cards { display: block; }
+  .px-scope .ul-kpi { padding: 13px 14px 12px; }
+  .px-scope .ul-kpi .v { font-size: 21px; }
+  .px-scope .ul-tools { width: 100%; }
+  .px-scope .ul-search { flex: 1 1 100%; }
+  .px-scope .ul-search input { width: 100%; font-size: 16px; }
+  .px-scope .ul-select { flex: 1 1 100%; height: 38px; font-size: 16px; }
+  .px-scope .ul-note { flex-wrap: wrap; }
+  .px-scope .ul-note .btn { width: 100%; justify-content: center; }
+  .px-scope .ul-drawer { width: 100%; }
+  .px-scope .ul-drawer-head { padding: 14px 16px; }
+  .px-scope .ul-drawer-foot { padding: 12px 14px; }
+  .px-scope .ul-drawer-foot .btn { flex: 1 1 100%; justify-content: center; min-height: 40px; }
+  .px-scope .ul-drawer .ut-fields { padding: 14px 14px 4px; }
+  .px-scope .ul-drawer .ut-chips { padding: 12px 14px 4px; }
+  .px-scope .ul-drawer .ut-out { margin: 14px; }
+}
+@media (max-width: 340px) {
+  .px-scope .ul-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -1,34 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import {
-  fetchCustomObjectFields,
-  fetchCustomObjectRecords,
-  fetchCustomObjects,
-  type CustomObject,
-  type CustomObjectField,
-} from '../../api/customObjects';
+import { fetchCustomObjects, type CustomObject, type CustomObjectField } from '../../api/customObjects';
 import { ProjectsAnalyticsPage } from '../projects/ProjectsAnalyticsPage';
 import type { Project } from '../projects/projectTypes';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
-import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
-
-const keyIncludes = (field: CustomObjectField, query: string) =>
-  field.key.toLowerCase().includes(query) || field.label.toLowerCase().includes(query);
-
-const pickField = (
-  fields: CustomObjectField[],
-  predicate: (field: CustomObjectField) => boolean,
-) => fields.find(predicate);
-
-const parseMulti = (raw: any): string[] => {
-  if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter(Boolean);
-  return String(raw || '')
-    .split(/[,;/]+/)
-    .map((v) => v.trim())
-    .filter(Boolean);
-};
+import { loadWorkspaceAnalyticsItems } from '../../dashboard/workspaceAnalyticsItems';
+import { WorkspaceAiAnalyticsPanel } from '../../components/workspace/WorkspaceAiAnalyticsPanel';
+import './WorkspaceArea.css';
 
 export const WorkspaceAnalyticsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -37,100 +17,30 @@ export const WorkspaceAnalyticsPage: React.FC = () => {
   const [fields, setFields] = useState<CustomObjectField[]>([]);
   const [items, setItems] = useState<Project[]>([]);
   const [objectName, setObjectName] = useState('');
+  // Пока поля таблицы ещё не загружены, ProjectsAnalyticsPage получил бы analyticsFields=[] и
+  // на секунду решил бы, что это НЕ workspace-режим — посчитал бы generic-дефолты «как у
+  // Проектов» (Всего проектов/Ответственные/Статусы) и тут же записал их в localStorage раньше,
+  // чем узнал реальную схему таблицы; при следующей загрузке уже читал бы эту неверную заглушку
+  // вместо пересчёта под реальные поля. Не монтируем ProjectsAnalyticsPage, пока поля не пришли.
+  const [fieldsLoaded, setFieldsLoaded] = useState(false);
 
   useEffect(() => {
     if (!objectId) return;
     let alive = true;
-    Promise.all([fetchCustomObjectFields(objectId), fetchCustomObjects().catch(() => [] as CustomObject[])])
-      .then(async ([loadedFields, loadedObjects]) => {
+    Promise.all([loadWorkspaceAnalyticsItems(objectId), fetchCustomObjects().catch(() => [] as CustomObject[])])
+      .then(([{ items: mapped, fields: loadedFields }, loadedObjects]) => {
         if (!alive) return;
         const object = loadedObjects.find((item) => item.id === objectId);
-        const enrich =
-          getWorkspaceTableKind(object?.meta as Record<string, unknown> | null) === 'board';
-        const loadedRecords = await fetchCustomObjectRecords(objectId, undefined, {
-          enrichColumnBindings: enrich,
-        });
         setFields(loadedFields);
         if (object?.name) setObjectName(object.name);
-
-        const titleField =
-          pickField(loadedFields, (field) => keyIncludes(field, 'name')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'title')) ||
-          loadedFields[0];
-        const statusField =
-          pickField(loadedFields, (field) => field.type === 'status') ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'status'));
-        const categoryField =
-          pickField(loadedFields, (field) => keyIncludes(field, 'category')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'type'));
-        const ownerField =
-          pickField(loadedFields, (field) => keyIncludes(field, 'owner')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'assignee')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'responsible')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'person'));
-        const amountField =
-          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'amount')) ||
-          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'price')) ||
-          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'sum')) ||
-          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'value')) ||
-          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'tutar')) ||
-          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'miktar')) ||
-          pickField(loadedFields, (field) => field.type === 'number');
-        const tagsField =
-          pickField(loadedFields, (field) => field.type === 'multiselect' && keyIncludes(field, 'tag')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'tag')) ||
-          pickField(loadedFields, (field) => field.type === 'multiselect');
-        const currencyField =
-          pickField(loadedFields, (field) => keyIncludes(field, 'currency')) ||
-          pickField(loadedFields, (field) => keyIncludes(field, 'валют'));
-
-        const mapped: Project[] = loadedRecords.items.map((record) => {
-          const values = record.values || {};
-          const name = String(
-            (titleField && values[titleField.key]) || values.name || values.title || `Record ${record.id.slice(0, 6)}`,
-          ).trim();
-          const status = String(
-            (statusField && values[statusField.key]) || values.status || 'new',
-          );
-          const category = String((categoryField && values[categoryField.key]) || values.category || '').trim();
-          const owner = String((ownerField && values[ownerField.key]) || values.owner || '').trim();
-          const amountRaw = (amountField && values[amountField.key]) ?? values.amount ?? values.price ?? 0;
-          const amount =
-            typeof amountRaw === 'number'
-              ? amountRaw
-              : Number(String(amountRaw).replace(',', '.')) || 0;
-          const tagsRaw = (tagsField && values[tagsField.key]) ?? values.tags ?? '';
-          const tags = parseMulti(tagsRaw);
-          const currency = String((currencyField && values[currencyField.key]) || values.currency || 'EUR');
-
-          return {
-            id: record.id,
-            name,
-            description: String(values.description || ''),
-            amount,
-            currency,
-            status: status as any,
-            category: category || null,
-            tags,
-            owner: owner || null,
-            leadId: null,
-            leadName: null,
-            leadEmail: null,
-            ownerUserIds: [],
-            customFields: values,
-            tasks: [],
-            comments: [],
-            createdAt: record.createdAt,
-            updatedAt: record.updatedAt,
-          };
-        });
-
         setItems(mapped);
+        setFieldsLoaded(true);
       })
       .catch(() => {
         if (!alive) return;
         setFields([]);
         setItems([]);
+        setFieldsLoaded(true);
       });
 
     return () => {
@@ -149,6 +59,14 @@ export const WorkspaceAnalyticsPage: React.FC = () => {
     [displayName, t],
   );
 
+  if (!fieldsLoaded) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-sm text-neutral-400">
+        {t('crm.common.loading', { defaultValue: 'Загрузка…' })}
+      </div>
+    );
+  }
+
   return (
     <ProjectsAnalyticsPage
       externalItems={items}
@@ -160,6 +78,10 @@ export const WorkspaceAnalyticsPage: React.FC = () => {
       storageNamespace={`workspace_analytics_${objectId}`}
       header={header}
       toolbarSlot={<WorkspaceViewTabs objectId={objectId} active="analytics" />}
+      workspaceObjectId={objectId}
+      dashboardPresetSource="workspace"
+      dashboardPresetRef={objectId}
+      beforeContentSlot={<WorkspaceAiAnalyticsPanel objectId={objectId} />}
     />
   );
 };

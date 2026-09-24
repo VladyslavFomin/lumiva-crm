@@ -24,6 +24,7 @@ export interface AiChatResponse {
   imageUrl?: string | null;
   imageRevisedPrompt?: string | null;
   usingOwnKey?: boolean;
+  proposals?: AiChatProposal[];
 }
 
 export interface AiChatSessionDto {
@@ -320,4 +321,51 @@ export async function postAiGenerateProjectTasks(body: {
   prompt: string;
 }): Promise<AiProjectTasksResult> {
   return api.post<AiProjectTasksResult>('/ai/project-tasks', body);
+}
+
+// ── ANALYTICS DASHBOARD BUILDER ("Разобрать через АИ") ─────────────────────────
+export type AiDashboardModule = 'projects' | 'leads' | 'sales' | 'workspace';
+
+export interface AiBuildAnalyticsDashboardResult {
+  ok: boolean;
+  module: AiDashboardModule;
+  /** module: projects | workspace — плоский список виджетов (схема ProjectsAnalyticsPage.tsx). */
+  widgets?: Record<string, unknown>[];
+  /** module: leads | sales — блоки по вкладкам (схема *AnalyticsPageV2.tsx). */
+  layouts?: Record<string, Record<string, unknown>[]>;
+  note?: string;
+  error?: string;
+}
+
+export async function postAiBuildAnalyticsDashboard(body: {
+  module: AiDashboardModule;
+  workspaceObjectId?: string;
+  /** Выбранный на странице период (ISO-даты) — сузить выборку/статистику, из которой ИИ строит дашборд. */
+  periodFrom?: string;
+  periodTo?: string;
+}): Promise<AiBuildAnalyticsDashboardResult> {
+  return api.post<AiBuildAnalyticsDashboardResult>('/ai/analytics/build-dashboard', body);
+}
+
+/** Рекомендация ассистента с кнопками «Одобрить / Отклонить» (см. crm_propose_ai_employee_action). */
+export interface AiChatProposal {
+  id: string;
+  agentId: string;
+  agentName: string;
+  entityType: string | null;
+  entityId: string | null;
+  entityLabel: string | null;
+  title: string;
+  task: string;
+  assign: boolean;
+  status: 'pending' | 'approved' | 'rejected';
+  decidedAt?: string;
+}
+
+export async function decideAiProposal(
+  messageId: string,
+  proposalId: string,
+  decision: 'approve' | 'reject',
+): Promise<{ proposal: AiChatProposal }> {
+  return api.post(`/ai/proposals/${encodeURIComponent(messageId)}/${encodeURIComponent(proposalId)}/decision`, { decision });
 }

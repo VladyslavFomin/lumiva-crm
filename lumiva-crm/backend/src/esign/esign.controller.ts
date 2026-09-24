@@ -1,5 +1,6 @@
 // src/esign/esign.controller.ts
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RbacGuard } from '../rbac/rbac.guard';
@@ -40,6 +41,18 @@ export class EsignController {
     return this.esign.getAmountSuggestions(user.tenantId, contactId);
   }
 
+  /** Archive an already-signed PDF received from a counterparty (multipart: file + metadata). */
+  @Post('upload')
+  @RequirePermission('esign', 'write')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  upload(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: any, // без Express.Multer.File, чтобы не ломать isolatedModules
+    @Body() body: Record<string, string>,
+  ) {
+    return this.esign.uploadSignedDocument(user.tenantId, (user.userId ?? (user as any).id ?? (user as any).sub) || null, file, body);
+  }
+
   @Get(':id')
   getOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.esign.getDocument(user.tenantId, id);
@@ -71,7 +84,7 @@ export class EsignController {
 
   @Patch(':id')
   @RequirePermission('esign', 'write')
-  update(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: { bodyText?: string }) {
+  update(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: Record<string, any>) {
     return this.esign.updateDocument(user.tenantId, id, body);
   }
 

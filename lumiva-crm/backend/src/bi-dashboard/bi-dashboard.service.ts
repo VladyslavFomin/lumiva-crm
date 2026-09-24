@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Lead } from '../leads/lead.entity';
+import { excludeTrashedLeads } from '../leads/lead-relations.util';
 import { Sale } from '../sales/sale.entity';
 import { Product } from '../products/product.entity';
 import { Reservation } from '../bookings/reservation.entity';
@@ -106,7 +107,7 @@ export interface BiDashboardSummary {
   }>;
   channels: Array<{ key: string; label: string; count: number }>;
   funnel: Array<{ key: string; label: string; value: number }>;
-  topCompanies: Array<{ id: string; name: string; leads: number; projects: number; revenue: number }>;
+  topCompanies: Array<{ id: string; name: string; leads: number; projects: number; revenue: number; currency: string }>;
   team: Array<{ id: string; name: string; leads: number; calls: number; bookings: number; total: number }>;
   alerts: Array<{ module: string; risk: 'ok' | 'warn' | 'bad'; text: string; link: string }>;
 }
@@ -181,7 +182,7 @@ export class BiDashboardService {
     const telephonyEnabled = !!tenant?.telephonyAddonEnabled || isTelephonyIncludedInPlan(tenant?.plan);
 
     const [
-      allLeads,
+      allLeadsRaw,
       salesWindow,
       activeProducts,
       lowStockCount,
@@ -244,7 +245,8 @@ export class BiDashboardService {
         .catch(() => [] as Array<{ dataSource: string | null; currency: string; campaign: string | null; country: string | null; cost: string; lastDate: string | null }>),
     ]);
 
-    // leads
+    // leads — корзина (meta.deleted) не участвует в агрегатах
+    const allLeads = excludeTrashedLeads(allLeadsRaw);
     const leadsPeriod = allLeads.filter((l) => l.createdAt >= since);
     const leadsPrevPeriod = allLeads.filter((l) => l.createdAt >= prevSince && l.createdAt < since);
     const won = leadsPeriod.filter((l) => l.status === 'won').length;
@@ -287,11 +289,12 @@ export class BiDashboardService {
     const hotelReservationsPeriod = allHotelReservations.filter((r) => r.createdAt >= since);
     const hotelReservationsPrevPeriod = allHotelReservations.filter((r) => r.createdAt >= prevSince && r.createdAt < since);
     const hotelCancelled = hotelReservationsPeriod.filter((r) => r.status === 'cancelled');
-    const hotelCurrency = hotels[0]?.currency || 'USD';
+    // Валюта у каждого отеля своя — брони кладём в корзину валюты СВОЕГО отеля, а не первого из списка.
+    const hotelCurrencyById = new Map(hotels.map((h) => [h.id, (h.currency || 'USD').toUpperCase()]));
     const hotelRevenueMap = new Map<string, number>();
     for (const r of hotelReservationsPeriod) {
       if (r.status === 'cancelled') continue;
-      this.addToBucket(hotelRevenueMap, hotelCurrency, Number(r.total) || 0);
+      this.addToBucket(hotelRevenueMap, hotelCurrencyById.get(r.hotelId) || 'USD', Number(r.total) || 0);
     }
 
     // telephony
@@ -361,7 +364,15 @@ export class BiDashboardService {
     // top companies (real revenue rollup, all-time — reused from companies module)
     const topCompanies: BiDashboardSummary['topCompanies'] = (allCompanies?.topByRevenue || [])
       .slice(0, 5)
-      .map((c) => ({ id: c.companyId, name: c.companyName, leads: c.leads, projects: c.projects, revenue: Math.round(c.revenue) }));
+      .map((c) => ({
+        id: c.companyId,
+        name: c.companyName,
+        leads: c.leads,
+        projects: c.projects,
+        revenue: Math.round(c.revenue),
+        // revenue уже сконвертирован в основную валюту тенанта (CompaniesService.getCompanyAnalytics)
+        currency: allCompanies?.perCompany?.[0]?.currency || 'EUR',
+      }));
 
     // team — per-staff activity rollup across leads/calls/bookings
     const staffCounts = new Map<string, { leads: number; calls: number; bookings: number }>();

@@ -152,6 +152,48 @@ export class AiEmployeesSchemaService implements OnModuleInit {
       `CREATE INDEX IF NOT EXISTS "IDX_ai_agent_reports_tenant_agent_created" ON "ai_agent_reports" ("tenant_id", "agent_id", "created_at")`,
     );
 
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS "ai_agent_assignments" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "tenant_id" uuid NOT NULL REFERENCES "tenants"("id") ON DELETE CASCADE,
+        "agent_id" uuid NOT NULL REFERENCES "ai_agents"("id") ON DELETE CASCADE,
+        "entity_type" varchar(32) NOT NULL,
+        "entity_id" uuid NOT NULL,
+        "assigned_by" uuid,
+        "created_at" timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.dataSource.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_ai_assign_agent_entity" ON "ai_agent_assignments" ("agent_id", "entity_type", "entity_id")`,
+    );
+    await this.dataSource.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ai_assign_entity" ON "ai_agent_assignments" ("tenant_id", "entity_type", "entity_id")`,
+    );
+
+    // Встречи проекта (та же форма, что у Lead.meta.meetings) — нужны, чтобы AI Project Manager мог
+    // назначать встречи по проекту так же, как менеджер по лидам делает это для лида.
+    await this.dataSource.query(
+      `ALTER TABLE "crm_projects" ADD COLUMN IF NOT EXISTS "meetings" jsonb`,
+    );
+
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS "ai_knowledge_items" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "tenant_id" uuid NOT NULL REFERENCES "tenants"("id") ON DELETE CASCADE,
+        "title" varchar(255) NOT NULL,
+        "content" text NOT NULL,
+        "tags" text[] NOT NULL DEFAULT '{}',
+        "always_on" boolean NOT NULL DEFAULT false,
+        "enabled" boolean NOT NULL DEFAULT true,
+        "created_by" uuid,
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        "updated_at" timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.dataSource.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ai_knowledge_tenant" ON "ai_knowledge_items" ("tenant_id", "enabled")`,
+    );
+
     this.log.log('AI Employees schema is ready');
   }
 }

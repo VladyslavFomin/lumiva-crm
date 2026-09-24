@@ -9,12 +9,14 @@ import {
   fetchMarketingIntegrations,
   startGa4MarketingOAuth,
   startGoogleAdsMarketingOAuth,
+  startMetaAdsOAuth,
   syncMarketingIntegration,
   updateMarketingIntegration,
   type MarketingIntegrationRow,
   type MarketingIntegrationSetupHints,
 } from '../../api/marketing';
 import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
+import { MetaAdsConnectDialog, MetaTokenBadge } from './MetaAdsConnectDialog';
 import {
   marketingCard,
   marketingH1,
@@ -153,6 +155,8 @@ export type MarketingIntegrationsPanelProps = {
   onMarketingDataChanged?: () => void;
   /** Инкремент с родителя (например после OAuth redirect) — перезагрузить список интеграций. */
   listRefreshSignal?: number;
+  /** Инкремент с родителя после возврата из OAuth Meta — открыть выбор рекламных аккаунтов. */
+  openMetaAdsSignal?: number;
 };
 
 export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProps> = ({
@@ -160,6 +164,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   initialProvider = null,
   onMarketingDataChanged,
   listRefreshSignal = 0,
+  openMetaAdsSignal = 0,
 }) => {
   const { t } = useTranslation();
   const { showConfirm } = useAlertModal();
@@ -224,12 +229,29 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   const [setupHints, setSetupHints] = useState<MarketingIntegrationSetupHints | null>(null);
   const [oauthRowId, setOauthRowId] = useState<string | null>(null);
   const [activeAddProvider, setActiveAddProvider] = useState<ProviderKey | null>(null);
+  /** Подключение Meta Ads «одной кнопкой» (OAuth → выбор аккаунтов); ручной ввод токена — запасной путь. */
+  const [metaDialogOpen, setMetaDialogOpen] = useState(false);
+  const [metaManual, setMetaManual] = useState(false);
 
   const adsPlatformOAuth = Boolean(setupHints?.googleAds.platformGoogleOAuth);
   const adsPlatformDev = Boolean(setupHints?.googleAds.platformDeveloperToken);
   const adsOAuthWizard = Boolean(setupHints?.googleAds.oauthWizardAvailable);
   const ga4OAuthWizard = Boolean(setupHints?.googleAnalyticsGa4?.oauthWizardAvailable);
   const metaPlatformApp = Boolean(setupHints?.metaAds.platformMetaOAuth);
+
+  // «Добавить Meta Ads» при настроенном приложении Meta открывает подключение через Facebook, а не форму с токеном
+  useEffect(() => {
+    if (activeAddProvider === 'meta_ads' && metaPlatformApp && !metaManual) {
+      setActiveAddProvider(null);
+      setMetaDialogOpen(true);
+    }
+    if (activeAddProvider === null) setMetaManual(false);
+  }, [activeAddProvider, metaPlatformApp, metaManual]);
+
+  // возврат с Facebook (?metaAdsOAuth=connected) — сразу к выбору рекламных аккаунтов
+  useEffect(() => {
+    if (openMetaAdsSignal > 0 && metaPlatformApp) setMetaDialogOpen(true);
+  }, [openMetaAdsSignal, metaPlatformApp]);
 
   const providerOptions = useMemo(
     () =>
@@ -880,6 +902,9 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                     </div>
                     {/* controls */}
                     <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                      {row.provider === 'meta_ads' && typeof row.settings?.tokenExpiresAt === 'string' && (
+                        <MetaTokenBadge expiresAt={row.settings.tokenExpiresAt as string} />
+                      )}
                       {/* currency mini-select */}
                       <div className="flex flex-col gap-[3px]">
                         <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-[#888] pl-0.5">Валюта</span>
@@ -936,6 +961,18 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/></svg>
                         {isSyncing ? 'Синхр…' : 'Синхр.'}
                       </button>
+                      {/* Meta Ads: обновить доступ / выбрать ещё аккаунты */}
+                      {row.provider === 'meta_ads' && metaPlatformApp && (
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={() => setMetaDialogOpen(true)}
+                          className="w-[34px] h-[34px] border border-[#e7e7e7] rounded-lg bg-white text-[#555] flex items-center justify-center hover:border-[#222] hover:text-[#222] disabled:opacity-40"
+                          title={t('crm.marketingIntegrations.metaOauth.rowTitle')}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1 1"/><path d="M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1-1"/></svg>
+                        </button>
+                      )}
                       {/* Google Ads OAuth reconnect */}
                       {row.provider === 'google_ads' && adsOAuthWizard && (
                         <button
@@ -1938,6 +1975,24 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
           </div>
         </section>
       </div>}
+      {metaDialogOpen && (
+        <MetaAdsConnectDialog
+          returnPath={defaultMarketingOauthRedirect}
+          onClose={() => setMetaDialogOpen(false)}
+          onChanged={() => {
+            void refreshList();
+            onMarketingDataChanged?.();
+          }}
+          onManual={() => {
+            setMetaDialogOpen(false);
+            setMetaManual(true);
+            setActiveAddProvider('meta_ads');
+            setProvider('meta_ads');
+            const o = providerOptions.find((x) => x.key === 'meta_ads');
+            if (o) setName(o.label);
+          }}
+        />
+      )}
     </div>
   );
 };

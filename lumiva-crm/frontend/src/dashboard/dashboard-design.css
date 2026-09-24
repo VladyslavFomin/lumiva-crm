@@ -1,0 +1,72 @@
+/* ============================================
+   DASHBOARD — "block constructor" restyle (ported from Claude Design
+   dashboard-v2.html, project 3affa7c1-b28d-4e49-b8bb-c7af7123c758).
+   Follows the same .px-scope convention as telephony-design.css /
+   bi-dashboard-design.css — variables redeclared here too so this module
+   works standalone. Component classes are prefixed `.dh-` (dashboard home)
+   to avoid colliding with the mockup's own `.d2-*` names.
+   ============================================ */
+
+.px-scope {
+  --ink: #222;
+  --fg-2: #555;
+  --fg-3: #888;
+  --fg-4: #b5b5b5;
+  --line-2: #e7e7e7;
+  --line-3: #f0f0f0;
+  --bg-muted: #fafafa;
+  --bg-soft: #f5f5f5;
+  --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── toolbar (edit-mode toggle + hint + reset) ── */
+.px-scope .dh-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.px-scope .dh-toolbar-sp{flex:1}
+.px-scope .dh-btn{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border:1px solid var(--line-2);background:#fff;border-radius:8px;font-family:inherit;font-size:12px;font-weight:500;color:var(--ink);cursor:pointer;transition:border-color .12s,background .12s,color .12s}
+.px-scope .dh-btn:hover{border-color:var(--ink)}
+.px-scope .dh-btn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.px-scope .dh-btn.ghost{border-color:transparent;color:var(--fg-3)}
+.px-scope .dh-btn.ghost:hover{border-color:var(--line-2);color:var(--ink)}
+.px-scope .dh-hint{font-family:var(--ff-mono);font-size:10.5px;letter-spacing:0.06em;color:var(--fg-3)}
+
+/* ── card grip handle ── */
+.px-scope .dh-grip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:0 0 auto;border:0;background:none;border-radius:6px;color:var(--fg-4);cursor:grab;opacity:0;transition:opacity .12s,color .12s,background .12s}
+.px-scope .dh-card:hover .dh-grip,.px-scope .dh-card.dh-edit .dh-grip{opacity:1}
+.px-scope .dh-grip:hover{background:var(--bg-soft);color:var(--ink)}
+.px-scope .dh-grip:active{cursor:grabbing}
+
+/* ── resize handles (E / S / SE only) + live size badge ── */
+.px-scope .dh-rz{position:absolute;z-index:50;opacity:0;transition:opacity .12s}
+.px-scope .dh-card:hover .dh-rz,.px-scope .dh-card.dh-edit .dh-rz,.px-scope .dh-card.dh-resizing .dh-rz{opacity:1}
+.px-scope .dh-rz.e{top:16px;bottom:16px;right:-6px;width:12px;cursor:ew-resize}
+.px-scope .dh-rz.s{left:16px;right:16px;bottom:-6px;height:12px;cursor:ns-resize}
+.px-scope .dh-rz.se{right:-4px;bottom:-4px;width:20px;height:20px;cursor:nwse-resize}
+.px-scope .dh-rz.e::after,.px-scope .dh-rz.s::after{content:'';position:absolute;border-radius:999px;background:var(--line-2);transition:background .12s}
+.px-scope .dh-rz.e::after{top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:26px}
+.px-scope .dh-rz.s::after{top:50%;left:50%;transform:translate(-50%,-50%);width:26px;height:3px}
+.px-scope .dh-rz.e:hover::after,.px-scope .dh-rz.s:hover::after{background:var(--ink)}
+.px-scope .dh-rz.se::after{content:'';position:absolute;right:5px;bottom:5px;width:9px;height:9px;border-right:2px solid var(--line-2);border-bottom:2px solid var(--line-2);border-bottom-right-radius:3px;transition:border-color .12s}
+.px-scope .dh-rz.se:hover::after{border-color:var(--ink)}
+.px-scope .dh-size{position:absolute;right:10px;bottom:10px;z-index:55;font-family:var(--ff-mono);font-size:9.5px;letter-spacing:0.08em;color:#fff;background:var(--ink);border-radius:5px;padding:4px 7px;pointer-events:none}
+
+@media (max-width:1100px){
+  .px-scope .dh-rz.e{display:none}
+}
+
+/* ── add-block drawer ── */
+.px-scope .dh-scrim{position:fixed;inset:0;z-index:10078;background:rgba(17,17,17,0.24);backdrop-filter:blur(2px)}
+.px-scope .dh-panel{position:fixed;top:0;right:0;bottom:0;z-index:10079;width:min(560px,100vw);background:#fff;border-left:1px solid var(--line-2);display:flex;flex-direction:column;box-shadow:-24px 0 60px rgba(0,0,0,0.12)}
+.px-scope .dh-panel-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--line-3)}
+.px-scope .dh-panel-h .k{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--fg-4)}
+.px-scope .dh-panel-h .t{font-family:var(--ff-display);font-size:17px;font-weight:600;letter-spacing:-0.015em;color:var(--ink);margin-top:5px}
+.px-scope .dh-tabs{display:flex;gap:6px;padding:14px 20px;border-bottom:1px solid var(--line-3);flex-wrap:wrap}
+.px-scope .dh-tab{height:30px;padding:0 13px;border:1px solid var(--line-2);border-radius:999px;background:#fff;font-family:inherit;font-size:11.5px;font-weight:500;color:var(--ink);cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+.px-scope .dh-tab:hover{border-color:var(--ink)}
+.px-scope .dh-tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.px-scope .dh-panel-b{flex:1;overflow:auto;padding:16px 20px 26px}
+.px-scope .dh-sec-t{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg-4);margin:22px 0 10px}
+
+@media (max-width:640px){
+  .px-scope .dh-panel{width:100vw}
+}

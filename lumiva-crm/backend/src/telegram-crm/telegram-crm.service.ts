@@ -37,6 +37,8 @@ import {
   type FlowNode,
   type FlowsMap,
 } from './telegram-flow.types';
+import { TenantLogsService } from '../tenants/tenant-logs.service';
+import { ANTI_INJECTION_PREAMBLE, scanForInjectionAttempt, safeExcerpt } from '../common/ai-security-guard.util';
 // Types only — no circular import at JS module load time
 type AiAssistantService = import('../ai/ai-assistant.service').AiAssistantService;
 type AiOpenAiService = import('../ai/ai-openai.service').AiOpenAiService;
@@ -208,6 +210,7 @@ export class TelegramCrmService {
     private readonly reservationsService: ReservationsService,
     private readonly telegramTools: TelegramAiToolsService,
     private readonly moduleRef: ModuleRef,
+    private readonly tenantLogs: TenantLogsService,
   ) {}
 
   // Lazy accessors — avoids circular JS module import at load time
@@ -979,11 +982,12 @@ export class TelegramCrmService {
    * unread count, newest activity first. */
   async findContacts(
     tenantId: string,
-    options?: { search?: string; botId?: string },
+    options?: { search?: string; botId?: string; leadId?: string },
   ): Promise<Array<TelegramContact & { lastMessage: TelegramMessage | null; unreadCount: number }>> {
     const qb = this.contactRepo.createQueryBuilder('contact')
       .where('contact.tenantId = :tenantId', { tenantId });
     if (options?.botId) qb.andWhere('contact.botId = :botId', { botId: options.botId });
+    if (options?.leadId) qb.andWhere('contact.leadId = :leadId', { leadId: options.leadId });
     if (options?.search) {
       qb.andWhere(
         '(contact.telegramUsername ILIKE :s OR contact.telegramFirstName ILIKE :s OR contact.telegramLastName ILIKE :s OR contact.telegramPhone ILIKE :s)',
@@ -1816,8 +1820,32 @@ export class TelegramCrmService {
     const persona = (ai.systemPrompt || bot.welcomeMessage || 'Отвечай клиентам дружелюбно и по делу.').trim();
     const aiContext = await this.buildExternalAiContext(bot, contact, state);
     const system =
-      `${persona}\n\nТекущая дата: ${new Date().toISOString().slice(0, 10)}. Отвечай на языке пользователя, кратко.\n\n${aiContext.text}` +
+      `${ANTI_INJECTION_PREAMBLE}\n\n${persona}\n\nТекущая дата: ${new Date().toISOString().slice(0, 10)}. Отвечай на языке пользователя, кратко.\n\n${aiContext.text}` +
       (kbText ? `\n\nБаза знаний:\n${kbText}` : '');
+
+    // Detection layer (not a block — real enforcement is the tenant/contact scoping in
+    // TelegramAiToolsService and the tool allowlist itself): flag for pl1 whenever the client's
+    // own message looks like a prompt-injection/jailbreak attempt, so the platform operator can
+    // see it even if the model itself handles it correctly.
+    const injectionScan = scanForInjectionAttempt(incomingText);
+    if (injectionScan.suspected) {
+      this.tenantLogs
+        .record({
+          tenantId: bot.tenantId,
+          type: 'ai_security_flagged',
+          statusCode: 200,
+          method: 'AI_TOOL',
+          path: 'telegram-ai/chat',
+          message: `Possible prompt-injection attempt in Telegram AI chat (matched: ${injectionScan.matches.join(', ')})`,
+          meta: {
+            botId: bot.id,
+            telegramUserId: contact.telegramUserId,
+            leadId: contact.leadId || null,
+            excerpt: safeExcerpt(incomingText),
+          },
+        })
+        .catch(() => undefined);
+    }
 
     const meta = (contact.meta || {}) as any;
     const history: ChatMessage[] = Array.isArray(meta.aiChat) ? meta.aiChat.slice(-EXTERNAL_HISTORY_MAX) : [];

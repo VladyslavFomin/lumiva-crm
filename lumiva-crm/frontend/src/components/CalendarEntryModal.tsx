@@ -17,7 +17,7 @@ interface Props {
   preselectedLeadName?: string;
   leads?: LeadOpt[];
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (info: { emailSent: boolean; emailSkipped: boolean }) => void;
 }
 
 function pad2(n: number) {
@@ -116,14 +116,16 @@ export const CalendarEntryModal: React.FC<Props> = ({
           : t('crm.dashboard.calendar.untitledMeeting'));
 
       const attendeeEmails = collectEmails();
+      const clientEmails = new Set<string>();
       const id =
         typeof crypto !== 'undefined' && crypto.randomUUID
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
       let syncedGoogleEventId: string | undefined;
+      const meetingLeadIds = [...new Set(draft.leadIds)];
       if (draft.kind === 'meeting') {
-        const leadIds = [...new Set(draft.leadIds)];
+        const leadIds = meetingLeadIds;
         if (leadIds.length > 0) {
           const attendeeNames = draft.staffIds
             .map((sid) => staff.find((u) => u.id === sid))
@@ -146,6 +148,9 @@ export const CalendarEntryModal: React.FC<Props> = ({
           };
           for (const lid of leadIds) {
             const lead = await fetchLeadById(lid);
+            if (lead.email && lead.email.trim()) {
+              clientEmails.add(lead.email.trim().toLowerCase());
+            }
             const raw = (lead.meta as { meetings?: unknown } | undefined)?.meetings;
             const cur = Array.isArray(raw) ? [...raw] : [];
             const updated = await updateLead(lid, {
@@ -213,43 +218,76 @@ export const CalendarEntryModal: React.FC<Props> = ({
       });
       const b64 = icsToBase64(ics);
 
-      try {
-        const accounts = await fetchEmailAccounts();
-        const account = accounts[0];
-        if (account && attendeeEmails.length) {
-          const subject =
-            meeting.kind === 'note'
-              ? `[CRM] ${t('crm.dashboard.calendar.entryNote')}: ${meeting.title}`
-              : `[CRM] ${meeting.title}`;
-          const timeLine =
-            meeting.kind === 'note'
-              ? t('crm.dashboard.calendar.allDayNote')
-              : `${t('crm.dashboard.calendar.time')}: ${start.toLocaleString(locale)} – ${end.toLocaleString(locale)}`;
-          const linkBlock =
-            meeting.kind === 'meeting' && meeting.meetingUrl
-              ? `<p><a href="${meeting.meetingUrl}">${t('crm.dashboard.calendar.joinLink')}</a></p>`
-              : '';
-          const htmlBody = `
-            <p><strong>${meeting.title}</strong></p>
-            <p>${meeting.body.replace(/\n/g, '<br/>')}</p>
-            <p>${timeLine}</p>
-            ${linkBlock}
-            <p><a href="${window.location.origin}">${t('crm.dashboard.calendar.openCrm')}</a></p>
-          `;
-          await sendEmail({
-            accountId: account.id,
-            to: attendeeEmails,
-            subject,
-            htmlBody,
-            textBody: `${meeting.title}\n\n${meeting.body}\n\n${timeLine}\n${meeting.meetingUrl || ''}\n${window.location.origin}`,
-            attachments: [{ filename: 'invite.ics', contentType: 'text/calendar', contentBase64: b64 }],
-          });
+      const to = [...clientEmails];
+      const cc = to.length ? attendeeEmails : [];
+      // No client on the meeting: fall back to notifying the picked staff/department attendees directly.
+      if (!to.length && attendeeEmails.length) to.push(...attendeeEmails);
+
+      let emailSent = false;
+      let emailSkipped = to.length === 0;
+      if (to.length) {
+        try {
+          const accounts = await fetchEmailAccounts();
+          const account = accounts[0];
+          if (account) {
+            const subject =
+              meeting.kind === 'note'
+                ? `[CRM] ${t('crm.dashboard.calendar.entryNote')}: ${meeting.title}`
+                : `[CRM] ${meeting.title}`;
+            const timeLine =
+              meeting.kind === 'note'
+                ? t('crm.dashboard.calendar.allDayNote')
+                : `${t('crm.dashboard.calendar.time')}: ${start.toLocaleString(locale)} – ${end.toLocaleString(locale)}`;
+            const linkBlock =
+              meeting.kind === 'meeting' && meeting.meetingUrl
+                ? `<p><a href="${meeting.meetingUrl}">${t('crm.dashboard.calendar.joinLink')}</a></p>`
+                : '';
+            const htmlBody = `
+              <p><strong>${meeting.title}</strong></p>
+              <p>${meeting.body.replace(/\n/g, '<br/>')}</p>
+              <p>${timeLine}</p>
+              ${linkBlock}
+              <p><a href="${window.location.origin}">${t('crm.dashboard.calendar.openCrm')}</a></p>
+            `;
+            await sendEmail({
+              accountId: account.id,
+              to,
+              cc,
+              subject,
+              htmlBody,
+              textBody: `${meeting.title}\n\n${meeting.body}\n\n${timeLine}\n${meeting.meetingUrl || ''}\n${window.location.origin}`,
+              attachments: [{ filename: 'invite.ics', contentType: 'text/calendar', contentBase64: b64 }],
+            });
+            emailSent = true;
+          } else {
+            emailSkipped = true;
+          }
+        } catch (emailErr) {
+          // Meeting itself is already saved — don't fail the whole action, but surface the failure.
+          console.error('[CalendarEntryModal] failed to send meeting invite email', emailErr);
         }
-      } catch {
-        // email is best-effort
       }
 
-      onSaved?.();
+      if (emailSent && draft.kind === 'meeting' && meetingLeadIds.length > 0) {
+        for (const lid of meetingLeadIds) {
+          try {
+            const freshLead = await fetchLeadById(lid);
+            const raw = (freshLead.meta as { meetings?: unknown } | undefined)?.meetings;
+            const list = Array.isArray(raw) ? [...raw] : [];
+            const idx = list.findIndex(
+              (m) => m !== null && typeof m === 'object' && String((m as Record<string, unknown>).id ?? '') === id,
+            );
+            if (idx >= 0) {
+              list[idx] = { ...(list[idx] as Record<string, unknown>), notifySentAt: new Date().toISOString() };
+              await updateLead(lid, { meta: { ...(freshLead.meta ?? {}), meetings: list } });
+            }
+          } catch (patchErr) {
+            console.error('[CalendarEntryModal] failed to mark meeting as notified', patchErr);
+          }
+        }
+      }
+
+      onSaved?.({ emailSent, emailSkipped });
       onClose();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

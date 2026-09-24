@@ -1,5 +1,8 @@
 // src/pages/projects/ProjectsListPage.tsx
 
+import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
+import { AiAssigneeChips } from '../../components/ai/AiAssigneeChips';
+import { useAiAssignees } from '../../components/ai/useAiAssignees';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import './ProjectsListPage.css';
@@ -339,6 +342,7 @@ export const ProjectsListPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const locale = resolveLocale(i18n.language);
   const [projects, setProjects] = useState<Project[]>([]);
+  const aiAssignees = useAiAssignees('project', projects.map((p) => p.id));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -690,7 +694,7 @@ export const ProjectsListPage: React.FC = () => {
     if (!status) return false;
     const normalized = status.toString().trim().toLowerCase();
     return (
-      normalized.includes('выполн') ||
+      (normalized.includes('выполн') && !normalized.startsWith('к ')) ||
       normalized.includes('готов') ||
       normalized.includes('done') ||
       normalized.includes('complete') ||
@@ -1010,6 +1014,31 @@ export const ProjectsListPage: React.FC = () => {
   useEffect(() => {
     if (!columnsOpen) setAddColumnStep('closed');
   }, [columnsOpen]);
+
+  // На планшете кнопка «Колонки» стоит не у правого края, а поповер привязан к её правому краю —
+  // его левая часть уходила под боковое меню. Сдвигаем поповер вправо, чтобы он целиком влезал
+  // в рабочую область (левая граница — левый край тулбара, правая — край окна).
+  useEffect(() => {
+    if (!columnsOpen) return;
+    const fit = () => {
+      const root = columnsMenuRef.current;
+      const pop = root?.querySelector<HTMLElement>('.lv-popover');
+      if (!root || !pop) return;
+      pop.style.right = '0px';
+      const minLeft = root.closest('.lv-toolbar')?.getBoundingClientRect().left ?? 8;
+      const rect = pop.getBoundingClientRect();
+      let shift = 0;
+      if (rect.left < minLeft) shift = minLeft - rect.left;
+      if (rect.right + shift > window.innerWidth - 8) shift = Math.max(0, window.innerWidth - 8 - rect.right);
+      pop.style.right = `${-shift}px`;
+    };
+    const raf = requestAnimationFrame(fit);
+    window.addEventListener('resize', fit);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', fit);
+    };
+  }, [columnsOpen, addColumnStep]);
 
   useEffect(() => {
     if (!ownerEditorId) return;
@@ -2510,6 +2539,7 @@ export const ProjectsListPage: React.FC = () => {
                   </div>
                 );
               })}
+              <AiAssigneeChips items={aiAssignees[project.id]} />
               <button
                 ref={ownerEditorOpen ? ownerAnchorRef : undefined}
                 type="button"
@@ -2556,6 +2586,9 @@ export const ProjectsListPage: React.FC = () => {
                   {!filteredStaff.length && (
                     <div style={{ padding: '8px 10px', fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.projects.list.owner.empty')}</div>
                   )}
+                </div>
+                <div style={{ padding: '0 10px 8px' }}>
+                  <AiAssigneeGroup entityType="project" entityId={project.id} compact />
                 </div>
                 <div className="lv-owner-pop-foot">
                   <button type="button" className="lv-tb-btn" onClick={() => setOwnerEditorId(null)}>{t('crm.common.cancel')}</button>

@@ -7,6 +7,8 @@ import { HotelReservation } from './hotel-reservation.entity';
 import { HotelAgency } from './hotel-agency.entity';
 import { HotelSeasonPacingTarget } from './hotel-season-pacing-target.entity';
 import { HotelAnalyticsQueryDto } from './dto/hotel-analytics-query.dto';
+import { Tenant } from '../tenants/tenant.entity';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
 
 const ACTIVE_STATUSES = ['confirmed', 'pending', 'checked_in', 'checked_out'];
 const PAID_STATUSES = ['full', 'partial'];
@@ -67,6 +69,9 @@ export class HotelAnalyticsService {
     private readonly agenciesRepo: Repository<HotelAgency>,
     @InjectRepository(HotelSeasonPacingTarget)
     private readonly pacingTargetsRepo: Repository<HotelSeasonPacingTarget>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
+    private readonly currencyRates: CurrencyRatesService,
   ) {}
 
   private resolveScope(q: HotelAnalyticsQueryDto): Scope {
@@ -94,7 +99,24 @@ export class HotelAnalyticsService {
     const hotelWhere: any = scope.hotelIds ? { tenantId, id: In(scope.hotelIds) } : { tenantId };
     const hotels = await this.hotelsRepo.find({ where: hotelWhere });
 
-    return { reservations, roomTypes, hotels };
+    // У каждого отеля своя валюта. Раньше все суммы (выручка, план, макс. потенциал) складывались
+    // числами и подписывались валютой первого отеля. Если валюты разные — приводим суммы в памяти
+    // (в БД ничего не пишем) к основной валюте тенанта по курсу, и все расчёты ниже считаются в ней.
+    let currency = (hotels[0]?.currency || 'USD').toUpperCase();
+    const distinct = new Set(hotels.map((h) => (h.currency || 'USD').toUpperCase()));
+    if (distinct.size > 1) {
+      const tenant = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'primaryCurrency'] });
+      currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+      const rates = await this.currencyRates.getRates();
+      const hotelCurrency = new Map(hotels.map((h) => [h.id, (h.currency || 'USD').toUpperCase()]));
+      const conv = (value: string | number | null | undefined, from?: string | null) =>
+        String(round2(this.currencyRates.convertWithRates(toNum(value), (from || currency).toUpperCase(), currency, rates)));
+      for (const r of reservations) r.total = conv(r.total, hotelCurrency.get(r.hotelId));
+      for (const rt of roomTypes) rt.basePrice = conv(rt.basePrice, rt.currency || hotelCurrency.get(rt.hotelId));
+      for (const h of hotels) h.seasonRevenueTarget = conv(h.seasonRevenueTarget, h.currency);
+    }
+
+    return { reservations, roomTypes, hotels, currency };
   }
 
   private active(reservations: HotelReservation[]) {
@@ -103,12 +125,11 @@ export class HotelAnalyticsService {
 
   async getSummary(tenantId: string, q: HotelAnalyticsQueryDto) {
     const scope = this.resolveScope(q);
-    const { reservations, roomTypes, hotels } = await this.loadScope(tenantId, scope);
+    const { reservations, roomTypes, hotels, currency } = await this.loadScope(tenantId, scope);
     const active = this.active(reservations);
     const roomsTotal = roomTypes.reduce((s, rt) => s + (rt.quantity || 0), 0);
     const numDays = Math.max(1, daysBetween(scope.fromDate, scope.toDate) + 1);
     const totalCapacity = roomsTotal * numDays;
-    const currency = hotels[0]?.currency || 'USD';
 
     const targetsByBucket = await this.resolvePacingTargets(tenantId, scope.hotelIds);
     const pacing = this.computePacing(active, totalCapacity, targetsByBucket);

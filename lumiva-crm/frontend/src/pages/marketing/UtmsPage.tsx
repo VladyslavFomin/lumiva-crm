@@ -1,8 +1,10 @@
+// Редизайн по мокапу Claude Design (marketing-utms.html / components/utms-page.jsx) —
+// структура портирована 1:1, данные реальные: шаблоны UTM хранятся на бэкенде (marketing/utm-templates).
+// Мобильная вёрстка — сверх мокапа.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
-import { CrmShellModal } from '../../components/ui/CrmShellModal';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createUtmTemplate,
@@ -11,619 +13,486 @@ import {
   updateUtmTemplate,
   type MarketingUtmTemplate,
 } from '../../api/marketing';
+import { cl, Ic } from '../contacts/CrmListShared';
+import '../contacts/crm-lists-design.css';
+import './utms-design.css';
+import { CHANNELS, clean, dirty, type ChannelKey } from './utmTags';
 
-const ACCENT = '#222222';
-const borderSubtle = `${ACCENT}18`;
+type FieldKey = 'source' | 'medium' | 'campaign' | 'content' | 'term';
 
-type ChannelPreset = 'google_search' | 'meta_ads' | 'yandex_direct' | 'email' | 'other';
-
-interface UtmFormState {
+interface FormState {
   baseUrl: string;
   source: string;
   medium: string;
   campaign: string;
   content: string;
   term: string;
-  channel: ChannelPreset;
-  nameForTemplate: string;
+  channel: ChannelKey;
+  name: string;
 }
 
-const defaultForm: UtmFormState = {
-  baseUrl: 'https://lumiva.agency',
-  source: 'google',
-  medium: 'cpc',
-  campaign: '',
-  content: '',
-  term: '',
-  channel: 'google_search',
-  nameForTemplate: '',
+const U = {
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="1.5" />
+      <path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3" />
+    </>
+  ),
+  check: <path d="M5 12l4 4 10-10" />,
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M4 20h4l10-10-4-4L4 16z" />
+      <path d="M14 6l4 4" />
+    </>
+  ),
+  plus: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </>
+  ),
+  warn: (
+    <>
+      <path d="M12 4l9 16H3z" />
+      <path d="M12 10v4" />
+      <path d="M12 17v.01" />
+    </>
+  ),
 };
 
-const inputClass =
-  'w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-neutral-400';
+const FIELDS: Array<{ k: FieldKey; p: string; ph: string; wide: boolean }> = [
+  { k: 'source', p: 'utm_source', ph: 'google', wide: false },
+  { k: 'medium', p: 'utm_medium', ph: 'cpc', wide: false },
+  { k: 'campaign', p: 'utm_campaign', ph: 'autumn_intensive', wide: true },
+  { k: 'content', p: 'utm_content', ph: 'banner_320x50', wide: false },
+  { k: 'term', p: 'utm_term', ph: 'psiholog_online', wide: false },
+];
+
+const emptyForm: FormState = { baseUrl: '', source: 'google', medium: 'cpc', campaign: '', content: '', term: '', channel: 'google_search', name: '' };
 
 export const UtmsPage: React.FC = () => {
   const { t } = useTranslation();
   const { showConfirm } = useAlertModal();
-  const [form, setForm] = useState<UtmFormState>(defaultForm);
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [templates, setTemplates] = useState<MarketingUtmTemplate[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{
-    title: string;
-    message: string;
-    variant?: 'info' | 'error';
-  } | null>(null);
-  /** Если задан — кнопка «Сохранить» обновляет этот шаблон, а не создаёт новый */
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-  const [copyDone, setCopyDone] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  /** Если задан — «Сохранить» обновляет этот шаблон, а не создаёт новый. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const loadTemplates = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
     setError(null);
     try {
-      const data = await fetchUtmTemplates();
-      setTemplates(data);
-    } catch (e: any) {
+      setTemplates(await fetchUtmTemplates());
+    } catch (e) {
       console.error(e);
-      setError(e?.message || t('crm.marketingUtms.errors.loadTemplates'));
+      setError(e instanceof Error && e.message ? e.message : t('crm.marketingUtms.errors.loadTemplates'));
     } finally {
       setLoading(false);
     }
   }, [t]);
-
   useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
+    void load();
+  }, [load]);
 
-  const handleChange = (field: keyof UtmFormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const preset = (c: (typeof CHANNELS)[number]) => {
+    setEditingId(null);
+    setForm((f) => ({ ...f, channel: c.k, source: c.source, medium: c.medium }));
   };
 
-  const applyChannelPreset = (channel: ChannelPreset) => {
-    setEditingTemplateId(null);
-    const patch: Partial<UtmFormState> = { channel };
-
-    if (channel === 'google_search') {
-      patch.source = 'google';
-      patch.medium = 'cpc';
-    } else if (channel === 'meta_ads') {
-      patch.source = 'facebook';
-      patch.medium = 'paid_social';
-    } else if (channel === 'yandex_direct') {
-      patch.source = 'yandex';
-      patch.medium = 'cpc';
-    } else if (channel === 'email') {
-      patch.source = 'email';
-      patch.medium = 'email';
-    } else {
-      patch.source = '';
-      patch.medium = '';
-    }
-
-    setForm((prev) => ({ ...prev, ...patch }));
-  };
-
-  const { generatedUrl, urlError } = useMemo(() => {
-    if (!form.baseUrl?.trim()) return { generatedUrl: '', urlError: null as string | null };
-
+  const { url, parts, urlError } = useMemo(() => {
+    const base = form.baseUrl.trim();
+    if (!base) return { url: '', parts: [] as Array<[string, string]>, urlError: null as string | null };
+    let u: URL;
     try {
-      const url = new URL(
-        form.baseUrl.trim(),
-        form.baseUrl.trim().startsWith('http') ? undefined : 'https://dummy.host',
-      );
-      const params = url.searchParams;
-
-      if (form.source) params.set('utm_source', form.source);
-      if (form.medium) params.set('utm_medium', form.medium);
-      if (form.campaign) params.set('utm_campaign', form.campaign);
-      if (form.content) params.set('utm_content', form.content);
-      if (form.term) params.set('utm_term', form.term);
-
-      const full = url.toString();
-      return { generatedUrl: full.replace('https://dummy.host', ''), urlError: null };
+      u = new URL(base, base.startsWith('http') ? undefined : 'https://dummy.host');
     } catch {
-      return {
-        generatedUrl: '',
-        urlError: t('crm.marketingUtms.errors.invalidBaseUrl'),
-      };
+      return { url: '', parts: [], urlError: t('crm.marketingUtms.errors.invalidBaseUrl') };
     }
+    const ps = FIELDS.filter((f) => form[f.k]).map((f) => [f.p, form[f.k]] as [string, string]);
+    ps.forEach(([k, v]) => u.searchParams.set(k, v));
+    return { url: u.toString().replace('https://dummy.host', ''), parts: ps, urlError: null };
   }, [form, t]);
 
-  const templatePayload = useMemo(
-    () => ({
-      name: form.nameForTemplate.trim(),
-      baseUrl: form.baseUrl.trim() || undefined,
-      channelType: form.channel,
-      utmSource: form.source || undefined,
-      utmMedium: form.medium || undefined,
-      utmCampaign: form.campaign || undefined,
-      utmContent: form.content || undefined,
-      utmTerm: form.term || undefined,
-    }),
-    [form],
-  );
+  const baseShown = url.split('?')[0];
+  const flash = (msg: string) => {
+    setError(null);
+    setStatus(msg);
+  };
+  const fail = (e: unknown, fallback: string) => {
+    console.error(e);
+    setStatus(null);
+    setError(e instanceof Error && e.message ? e.message : fallback);
+  };
 
-  const onSaveTemplate = async () => {
-    if (!form.nameForTemplate.trim()) {
-      setNotice({
-        title: t('crm.common.modalNotice'),
-        message: t('crm.marketingUtms.errors.nameRequired'),
-        variant: 'info',
-      });
+  const copy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError(t('crm.marketingUtms.errors.copyFailed'));
+    }
+  };
+
+  const payloadOf = (name: string) => ({
+    name,
+    baseUrl: form.baseUrl.trim() || undefined,
+    channelType: form.channel,
+    utmSource: form.source || undefined,
+    utmMedium: form.medium || undefined,
+    utmCampaign: form.campaign || undefined,
+    utmContent: form.content || undefined,
+    utmTerm: form.term || undefined,
+  });
+
+  const save = async (asCopy: boolean) => {
+    const name = form.name.trim();
+    if (!name) {
+      setError(t('crm.marketingUtms.errors.nameRequired'));
       return;
     }
-
     setSaving(true);
     try {
-      if (editingTemplateId) {
-        const updated = await updateUtmTemplate(editingTemplateId, templatePayload);
-        setTemplates((prev) =>
-          prev.map((x) => (x.id === updated.id ? updated : x)),
-        );
-        setNotice({
-          title: t('crm.common.modalNotice'),
-          message: t('crm.marketingUtms.success.updated'),
-          variant: 'info',
-        });
+      if (editingId && !asCopy) {
+        const updated = await updateUtmTemplate(editingId, payloadOf(name));
+        setTemplates((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+        flash(t('crm.marketingUtms.success.updated'));
       } else {
-        const created = await createUtmTemplate(templatePayload);
+        const copyName = asCopy ? t('crm.marketingUtms.copyNameSuffix', { name }) : name;
+        const created = await createUtmTemplate(payloadOf(copyName));
         setTemplates((prev) => [created, ...prev]);
-        setEditingTemplateId(created.id);
-        setNotice({
-          title: t('crm.common.modalNotice'),
-          message: t('crm.marketingUtms.success.created'),
-          variant: 'info',
-        });
+        setEditingId(created.id);
+        if (asCopy) set('name', copyName);
+        flash(asCopy ? t('crm.marketingUtms.success.duplicated') : t('crm.marketingUtms.success.created'));
       }
-    } catch (e: any) {
-      console.error(e);
-      setNotice({
-        title: t('crm.common.modalError'),
-        message: e?.message || t('crm.marketingUtms.errors.saveTemplate'),
-        variant: 'error',
-      });
+    } catch (e) {
+      fail(e, t('crm.marketingUtms.errors.saveTemplate'));
     } finally {
       setSaving(false);
     }
   };
 
-  const onSaveAsCopy = async () => {
-    if (!form.nameForTemplate.trim()) {
-      setNotice({
-        title: t('crm.common.modalNotice'),
-        message: t('crm.marketingUtms.errors.nameRequired'),
-        variant: 'info',
-      });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const copyName = t('crm.marketingUtms.copyNameSuffix', {
-        name: form.nameForTemplate.trim(),
-      });
-      const created = await createUtmTemplate({
-        ...templatePayload,
-        name: copyName,
-      });
-      setTemplates((prev) => [created, ...prev]);
-      setEditingTemplateId(created.id);
-      setForm((prev) => ({ ...prev, nameForTemplate: copyName }));
-      setNotice({
-        title: t('crm.common.modalNotice'),
-        message: t('crm.marketingUtms.success.duplicated'),
-        variant: 'info',
-      });
-    } catch (e: any) {
-      console.error(e);
-      setNotice({
-        title: t('crm.common.modalError'),
-        message: e?.message || t('crm.marketingUtms.errors.saveTemplate'),
-        variant: 'error',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const onApplyTemplate = (tpl: MarketingUtmTemplate) => {
-    setEditingTemplateId(tpl.id);
-    setForm((prev) => ({
-      ...prev,
-      baseUrl: tpl.baseUrl || prev.baseUrl,
-      channel: ((tpl.channelType as ChannelPreset) || prev.channel) as ChannelPreset,
+  const apply = (tpl: MarketingUtmTemplate) => {
+    setEditingId(tpl.id);
+    setForm((f) => ({
+      baseUrl: tpl.baseUrl || '',
+      channel: ((tpl.channelType as ChannelKey) || f.channel) as ChannelKey,
       source: tpl.utmSource || '',
       medium: tpl.utmMedium || '',
       campaign: tpl.utmCampaign || '',
       content: tpl.utmContent || '',
       term: tpl.utmTerm || '',
-      nameForTemplate: tpl.name,
+      name: tpl.name,
     }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const startNewLink = () => {
-    setEditingTemplateId(null);
-    setForm({ ...defaultForm });
+  const reset = () => {
+    setEditingId(null);
+    setForm({ ...emptyForm });
   };
 
-  const onDeleteTemplate = async (tpl: MarketingUtmTemplate) => {
+  const remove = async (tpl: MarketingUtmTemplate) => {
     const ok = await showConfirm(t('crm.marketingUtms.confirmDelete', { name: tpl.name }), {
-      title: 'Удаление',
-      confirmLabel: 'Удалить',
-      cancelLabel: 'Отмена',
+      title: t('crm.confirmModal.deleteTitle'),
+      confirmLabel: t('crm.confirmModal.deleteLabel'),
+      cancelLabel: t('crm.confirmModal.cancel'),
       danger: true,
     });
     if (!ok) return;
     try {
       await deleteUtmTemplate(tpl.id);
       setTemplates((prev) => prev.filter((x) => x.id !== tpl.id));
-      if (editingTemplateId === tpl.id) {
-        setEditingTemplateId(null);
-        setForm((f) => ({ ...f, nameForTemplate: '' }));
+      if (editingId === tpl.id) {
+        setEditingId(null);
+        set('name', '');
       }
-    } catch (e: any) {
-      console.error(e);
-      setNotice({
-        title: t('crm.common.modalError'),
-        message: e?.message || t('crm.marketingUtms.errors.deleteTemplate'),
-        variant: 'error',
-      });
+    } catch (e) {
+      fail(e, t('crm.marketingUtms.errors.deleteTemplate'));
     }
   };
 
-  const copyGeneratedUrl = async () => {
-    if (!generatedUrl) return;
-    try {
-      await navigator.clipboard.writeText(generatedUrl);
-      setCopyDone(true);
-      window.setTimeout(() => setCopyDone(false), 2000);
-    } catch {
-      setNotice({
-        title: t('crm.common.modalNotice'),
-        message: t('crm.marketingUtms.errors.copyFailed'),
-        variant: 'info',
-      });
-    }
-  };
-
-  const channelPill = (active: boolean) =>
-    `rounded-full border px-3 py-1.5 text-[11px] transition ${
-      active
-        ? 'font-medium text-white shadow-sm'
-        : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
-    }`;
+  const none = t('crm.marketingUtms.ui.crm.none');
+  const leadRows: Array<[string, string]> = [
+    [t('crm.marketingUtms.ui.crm.rows.source'), form.source],
+    [t('crm.marketingUtms.ui.crm.rows.medium'), form.medium],
+    [t('crm.marketingUtms.ui.crm.rows.campaign'), form.campaign],
+    [t('crm.marketingUtms.ui.crm.rows.content'), form.content],
+    [t('crm.marketingUtms.ui.crm.rows.term'), form.term],
+    [t('crm.marketingUtms.ui.crm.rows.landing'), baseShown],
+  ];
 
   return (
     <MainLayout>
       <PageHelpButton topic="marketingUtms" />
-      <div className="space-y-4 pb-8 md:space-y-6">
-        <section
-          className="rounded-2xl border bg-white px-5 py-5 shadow-sm md:px-7 md:py-6"
-          style={{ borderColor: borderSubtle }}
-        >
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <div
-                className="mb-1 text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500"
-              >
+      <div className="px-scope utm-scope">
+        <div className="ut-wrap">
+          <div className="ut-head">
+            <div>
+              <div className="kicker">
+                <span className="dot" />
                 {t('crm.marketingUtms.kicker')}
               </div>
-              <h1 className="text-lg font-semibold tracking-tight text-neutral-900 md:text-xl">
-                {t('crm.marketingUtms.title')}
-              </h1>
-              <p className="mt-2 max-w-2xl text-xs leading-relaxed text-neutral-600">
-                {t('crm.marketingUtms.subtitle')}
-              </p>
+              <h1>{t('crm.marketingUtms.title')}</h1>
+              <div className="sub">{t('crm.marketingUtms.subtitle')}</div>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void loadTemplates()}
-                disabled={loading}
-                className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] text-neutral-700 transition hover:border-neutral-300 disabled:opacity-50"
-              >
-                {loading ? t('crm.marketingUtms.loading') : t('crm.marketingUtms.actions.refresh')}
-              </button>
-              <button
-                type="button"
-                onClick={startNewLink}
-                className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] text-neutral-700 transition hover:border-neutral-300"
-              >
+            <div className="ut-head-actions">
+              <button type="button" className="btn btn-sm" onClick={reset}>
+                <Ic d={U.plus} size={14} />
                 {t('crm.marketingUtms.actions.newLink')}
               </button>
             </div>
           </div>
-        </section>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:gap-5">
-          <div
-            className="space-y-4 rounded-2xl border bg-white px-4 py-4 shadow-sm md:px-5 md:py-5"
-            style={{ borderColor: borderSubtle }}
-          >
-            {editingTemplateId && (
-              <div
-                className="rounded-xl border px-3 py-2 text-[11px] text-neutral-700"
-                style={{ borderColor: borderSubtle, background: `${ACCENT}06` }}
-              >
-                {t('crm.marketingUtms.editingHint')}
+          {error && (
+            <div className="ut-note err" role="alert">
+              <span className="sp">{error}</span>
+              <button type="button" className="x" onClick={() => setError(null)} aria-label="×">
+                ×
+              </button>
+            </div>
+          )}
+          {status && !error && (
+            <div className="ut-note ok" role="status">
+              <span className="sp">{status}</span>
+              <button type="button" className="x" onClick={() => setStatus(null)} aria-label="×">
+                ×
+              </button>
+            </div>
+          )}
+
+          <div className="ut-flow">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div className={cl('ut-step', i < 2 && 'on')} key={i}>
+                <div className="n">{t('crm.marketingUtms.ui.flow.step', { n: i + 1 })}</div>
+                <div className="t">{t(`crm.marketingUtms.ui.flow.items.${i}.t`)}</div>
+                <div className="d">{t(`crm.marketingUtms.ui.flow.items.${i}.d`)}</div>
               </div>
-            )}
+            ))}
+          </div>
 
+          <div className="ut-cols">
             <div>
-              <div className="mb-2 text-[11px] font-medium text-neutral-600">
-                {t('crm.marketingUtms.fields.channel')}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['google_search', t('crm.marketingUtms.channels.google_search')],
-                    ['meta_ads', t('crm.marketingUtms.channels.meta_ads')],
-                    ['yandex_direct', t('crm.marketingUtms.channels.yandex_direct')],
-                    ['email', t('crm.marketingUtms.channels.email')],
-                    ['other', t('crm.marketingUtms.channels.other')],
-                  ] as [ChannelPreset, string][]
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => applyChannelPreset(key)}
-                    className={channelPill(form.channel === key)}
-                    style={
-                      form.channel === key
-                        ? { backgroundColor: ACCENT, borderColor: ACCENT }
-                        : undefined
-                    }
-                  >
-                    {label}
+              <div className="ut-card">
+                <div className="ut-card-head">
+                  <h3>{editingId ? t('crm.marketingUtms.ui.builder.titleEdit') : t('crm.marketingUtms.ui.builder.titleNew')}</h3>
+                  <span className="meta">{editingId ? t('crm.marketingUtms.ui.builder.metaEdit') : t('crm.marketingUtms.ui.builder.metaNew')}</span>
+                </div>
+
+                <div className="ut-chips">
+                  {CHANNELS.map((c) => (
+                    <button key={c.k} type="button" className={cl('ut-chip', form.channel === c.k && 'on')} onClick={() => preset(c)}>
+                      {t(`crm.marketingUtms.channels.${c.k}`)}
+                      {c.source && (
+                        <span className="mono">
+                          {c.source} / {c.medium}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="ut-fields">
+                  <div className="ut-f wide">
+                    <div className="l">
+                      <b>{t('crm.marketingUtms.ui.page.label')}</b>
+                      <span>{t('crm.marketingUtms.ui.page.hint')}</span>
+                    </div>
+                    <input
+                      className="ut-input"
+                      value={form.baseUrl}
+                      onChange={(e) => set('baseUrl', e.target.value)}
+                      placeholder="https://example.com/pricing"
+                      inputMode="url"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      aria-label={t('crm.marketingUtms.ui.page.label')}
+                    />
+                  </div>
+                  {FIELDS.map((f) => (
+                    <div className={cl('ut-f', f.wide && 'wide')} key={f.k}>
+                      <div className="l">
+                        <b>{f.p}</b>
+                        <span>
+                          {t(`crm.marketingUtms.ui.fields.${f.k}.n`)} {t(`crm.marketingUtms.ui.fields.${f.k}.hint`)}
+                        </span>
+                      </div>
+                      <input
+                        className={cl('ut-input', dirty(form[f.k]) && 'bad')}
+                        value={form[f.k]}
+                        onChange={(e) => set(f.k, e.target.value)}
+                        placeholder={f.ph}
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        aria-label={f.p}
+                      />
+                      {dirty(form[f.k]) && (
+                        <div className="ut-warn">
+                          <Ic d={U.warn} size={13} />
+                          {t('crm.marketingUtms.ui.warn.text')}
+                          <button type="button" onClick={() => set(f.k, clean(form[f.k]))}>
+                            {t('crm.marketingUtms.ui.warn.fix')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="ut-out">
+                  <div className="ut-out-head">
+                    <span className="l">{t('crm.marketingUtms.ui.out.label')}</span>
+                    <button type="button" className="btn btn-sm" onClick={() => void copy()} disabled={!url}>
+                      <Ic d={copied ? U.check : U.copy} size={13} />
+                      {copied ? t('crm.marketingUtms.actions.copied') : t('crm.marketingUtms.ui.out.copy')}
+                    </button>
+                  </div>
+                  <div className="ut-url">
+                    {urlError ? (
+                      <span className="err">{urlError}</span>
+                    ) : !url ? (
+                      <span className="hint">{t('crm.marketingUtms.ui.out.empty')}</span>
+                    ) : (
+                      <>
+                        <span className="base">{baseShown}</span>
+                        {parts.map(([k, v], i) => (
+                          <React.Fragment key={k}>
+                            <span className="k">
+                              {i === 0 ? '?' : '&'}
+                              {k}=
+                            </span>
+                            <span className="v">{v}</span>
+                          </React.Fragment>
+                        ))}
+                        {!parts.length && <span className="k">{t('crm.marketingUtms.ui.out.noParams')}</span>}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="ut-save">
+                  <div className="ut-f">
+                    <div className="l">
+                      <b>{t('crm.marketingUtms.ui.save.name')}</b>
+                      <span>{t('crm.marketingUtms.ui.save.nameHint')}</span>
+                    </div>
+                    <input
+                      className="ut-input body"
+                      value={form.name}
+                      onChange={(e) => set('name', e.target.value)}
+                      placeholder={t('crm.marketingUtms.ui.save.namePh')}
+                      aria-label={t('crm.marketingUtms.ui.save.name')}
+                    />
+                  </div>
+                  {editingId && (
+                    <button type="button" className="btn btn-sm" onClick={() => void save(true)} disabled={saving || !form.name.trim()}>
+                      {t('crm.marketingUtms.ui.save.copy')}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => void save(false)} disabled={saving || !form.name.trim()}>
+                    {saving ? t('crm.marketingUtms.ui.save.saving') : editingId ? t('crm.marketingUtms.ui.save.update') : t('crm.marketingUtms.ui.save.create')}
                   </button>
+                </div>
+              </div>
+
+              <div className="ut-bottom">
+                {[0, 1, 2].map((i) => (
+                  <div className="ut-role" key={i}>
+                    <div className="r">{t(`crm.marketingUtms.ui.roles.${i}.r`)}</div>
+                    <div className="t">{t(`crm.marketingUtms.ui.roles.${i}.t`)}</div>
+                    <div className="d">{t(`crm.marketingUtms.ui.roles.${i}.d`)}</div>
+                  </div>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-[11px] text-neutral-600">
-                  {t('crm.marketingUtms.fields.baseUrl')}
-                </label>
-                <input
-                  className={inputClass}
-                  value={form.baseUrl}
-                  onChange={(e) => handleChange('baseUrl', e.target.value)}
-                  placeholder={t('crm.marketingUtms.placeholders.baseUrl')}
-                />
+            <div>
+              <div className="ut-card">
+                <div className="ut-card-head">
+                  <h3>{t('crm.marketingUtms.ui.crm.title')}</h3>
+                  <span className="meta">{t('crm.marketingUtms.ui.crm.meta')}</span>
+                </div>
+                <div className="ut-lead">
+                  {leadRows.map(([k, v]) => (
+                    <div className="ut-lead-row" key={k}>
+                      <div className="k">{k}</div>
+                      <div className={cl('v', !v && 'empty')}>{v || none}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="ut-foot">{t('crm.marketingUtms.ui.crm.foot')}</div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-[11px] text-neutral-600">
-                    {t('crm.marketingUtms.fields.utm_source')}
-                  </label>
-                  <input
-                    className={inputClass}
-                    value={form.source}
-                    onChange={(e) => handleChange('source', e.target.value)}
-                  />
+              <div className="ut-card">
+                <div className="ut-card-head">
+                  <h3>{t('crm.marketingUtms.ui.templates.title')}</h3>
+                  <span className="meta">{templates.length}</span>
                 </div>
-                <div>
-                  <label className="mb-1 block text-[11px] text-neutral-600">
-                    {t('crm.marketingUtms.fields.utm_medium')}
-                  </label>
-                  <input
-                    className={inputClass}
-                    value={form.medium}
-                    onChange={(e) => handleChange('medium', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[11px] text-neutral-600">
-                  {t('crm.marketingUtms.fields.utm_campaign')}
-                </label>
-                <input
-                  className={inputClass}
-                  value={form.campaign}
-                  onChange={(e) => handleChange('campaign', e.target.value)}
-                  placeholder={t('crm.marketingUtms.placeholders.utm_campaign')}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-[11px] text-neutral-600">
-                    {t('crm.marketingUtms.fields.utm_content')}
-                  </label>
-                  <input
-                    className={inputClass}
-                    value={form.content}
-                    onChange={(e) => handleChange('content', e.target.value)}
-                    placeholder={t('crm.marketingUtms.placeholders.utm_content')}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] text-neutral-600">
-                    {t('crm.marketingUtms.fields.utm_term')}
-                  </label>
-                  <input
-                    className={inputClass}
-                    value={form.term}
-                    onChange={(e) => handleChange('term', e.target.value)}
-                    placeholder={t('crm.marketingUtms.placeholders.utm_term')}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                  <label className="text-[11px] text-neutral-600">
-                    {t('crm.marketingUtms.fields.generatedUrl')}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void copyGeneratedUrl()}
-                    disabled={!generatedUrl}
-                    className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-medium text-neutral-700 transition hover:border-neutral-300 disabled:opacity-40"
-                  >
-                    {copyDone
-                      ? t('crm.marketingUtms.actions.copied')
-                      : t('crm.marketingUtms.actions.copyUrl')}
-                  </button>
-                </div>
-                <textarea
-                  className={`${inputClass} h-24 resize-none font-mono text-[11px]`}
-                  readOnly
-                  value={urlError || generatedUrl}
-                />
-              </div>
-            </div>
-
-            <div
-              className="mt-1 flex flex-col gap-3 border-t border-neutral-100 pt-4 md:flex-row md:items-end md:justify-between"
-            >
-              <div className="min-w-0 flex-1">
-                <label className="mb-1 block text-[11px] text-neutral-600">
-                  {t('crm.marketingUtms.fields.templateName')}
-                </label>
-                <input
-                  className={inputClass}
-                  value={form.nameForTemplate}
-                  onChange={(e) => handleChange('nameForTemplate', e.target.value)}
-                  placeholder={t('crm.marketingUtms.placeholders.templateName')}
-                />
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
-                {editingTemplateId ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void onSaveAsCopy()}
-                      disabled={saving}
-                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2 text-[11px] font-semibold text-neutral-800 transition hover:bg-neutral-50 disabled:opacity-60 sm:w-auto"
-                    >
-                      {t('crm.marketingUtms.actions.saveAsCopy')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onSaveTemplate()}
-                      disabled={saving}
-                      className="w-full rounded-xl px-4 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                      style={{ backgroundColor: ACCENT }}
-                    >
-                      {saving
-                        ? t('crm.marketingUtms.actions.saving')
-                        : t('crm.marketingUtms.actions.updateTemplate')}
-                    </button>
-                  </>
+                {loading ? (
+                  <div className="ut-empty">{t('crm.marketingUtms.loading')}</div>
+                ) : templates.length === 0 ? (
+                  <div className="ut-empty">{t('crm.marketingUtms.ui.templates.empty')}</div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void onSaveTemplate()}
-                    disabled={saving}
-                    className="w-full rounded-xl px-4 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                    style={{ backgroundColor: ACCENT }}
-                  >
-                    {saving
-                      ? t('crm.marketingUtms.actions.saving')
-                      : t('crm.marketingUtms.actions.saveTemplate')}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="rounded-2xl border bg-white px-4 py-4 text-xs shadow-sm md:px-5 md:py-5"
-            style={{ borderColor: borderSubtle }}
-          >
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold text-neutral-900">
-                  {t('crm.marketingUtms.templates.title')}
-                </h2>
-                <p className="mt-0.5 text-[11px] text-neutral-500">
-                  {t('crm.marketingUtms.templates.subtitle')}
-                </p>
-              </div>
-              <span className="shrink-0 text-[11px] text-neutral-500">
-                {t('crm.marketingUtms.templates.total', {
-                  count: templates.length,
-                })}
-              </span>
-            </div>
-
-            {error && <div className="mb-2 text-[11px] text-rose-600">{error}</div>}
-
-            {loading && (
-              <div className="text-[11px] text-neutral-500">{t('crm.marketingUtms.loading')}</div>
-            )}
-
-            {!loading && !templates.length && (
-              <div className="text-[11px] text-neutral-500">{t('crm.marketingUtms.templates.empty')}</div>
-            )}
-
-            <div className="max-h-[min(420px,55vh)] space-y-2 overflow-y-auto pr-0.5">
-              {templates.map((tpl) => {
-                const isActive = editingTemplateId === tpl.id;
-                return (
-                  <div
-                    key={tpl.id}
-                    className={`flex flex-col gap-2 rounded-xl border px-3 py-2.5 ${
-                      isActive ? 'ring-1 ring-neutral-900/15' : ''
-                    }`}
-                    style={{
-                      borderColor: isActive ? ACCENT : `${ACCENT}12`,
-                      background: isActive ? `${ACCENT}05` : 'white',
-                    }}
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[11px] font-semibold text-neutral-900">{tpl.name}</span>
-                        <span className="mt-0.5 block text-[10px] text-neutral-500">
-                          {tpl.channelType || t('crm.marketingUtms.common.empty')} ·{' '}
-                          {tpl.utmSource || t('crm.marketingUtms.common.empty')}/
-                          {tpl.utmMedium || t('crm.marketingUtms.common.empty')}
-                        </span>
+                  templates.map((tpl) => (
+                    <div className={cl('ut-tpl', editingId === tpl.id && 'on')} key={tpl.id}>
+                      <div className="nm">
+                        <b>{tpl.name}</b>
+                        <div className="p">
+                          {tpl.utmSource || '—'} / {tpl.utmMedium || '—'}
+                          {tpl.utmCampaign ? ` · ${tpl.utmCampaign}` : ''}
+                        </div>
                         {tpl.baseUrl && (
-                          <div className="mt-1 truncate font-mono text-[10px] text-neutral-500">
+                          <div className="p" style={{ color: 'var(--fg-4)' }}>
                             {tpl.baseUrl}
                           </div>
                         )}
                       </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onApplyTemplate(tpl)}
-                          className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-medium text-neutral-800 transition hover:border-neutral-400"
-                        >
-                          {t('crm.marketingUtms.actions.applyTemplate')}
+                      <div className="ut-tpl-acts">
+                        <button type="button" className="ut-ico" title={t('crm.marketingUtms.ui.templates.load')} aria-label={t('crm.marketingUtms.ui.templates.load')} onClick={() => apply(tpl)}>
+                          <Ic d={U.edit} size={14} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => void onDeleteTemplate(tpl)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {t('crm.marketingUtms.actions.deleteTemplate')}
+                        <button type="button" className="ut-ico danger" title={t('crm.marketingUtms.ui.templates.remove')} aria-label={t('crm.marketingUtms.ui.templates.remove')} onClick={() => void remove(tpl)}>
+                          <Ic d={U.trash} size={14} />
                         </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  ))
+                )}
+              </div>
+
+              <div className="ut-card">
+                <div className="ut-card-head">
+                  <h3>{t('crm.marketingUtms.ui.rules.title')}</h3>
+                  <span className="meta">{t('crm.marketingUtms.ui.rules.meta')}</span>
+                </div>
+                <ul className="ut-rules">
+                  {[0, 1, 2, 3].map((i) => (
+                    <li key={i}>
+                      <i>{String(i + 1).padStart(2, '0')}</i>
+                      <span>
+                        <Trans i18nKey={`crm.marketingUtms.ui.rules.items.${i}`} components={{ code: <code /> }} />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
       </div>
-
-      <CrmShellModal
-        open={!!notice}
-        title={notice?.title || ''}
-        message={notice?.message || ''}
-        variant={notice?.variant === 'error' ? 'error' : 'info'}
-        onClose={() => setNotice(null)}
-      />
-
     </MainLayout>
   );
 };

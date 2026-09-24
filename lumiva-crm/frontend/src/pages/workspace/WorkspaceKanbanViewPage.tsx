@@ -105,10 +105,6 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
   const [activeRecord, setActiveRecord] = useState<CustomObjectRecord | null>(null);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [savingRecordId, setSavingRecordId] = useState<string | null>(null);
-  const [commentDraft, setCommentDraft] = useState('');
-  const [commentsByRecord, setCommentsByRecord] = useState<
-    Record<string, Array<{ id: string; text: string; createdAt: string; author: string }>>
-  >({});
   const [activityByRecord, setActivityByRecord] = useState<
     Record<string, Array<{ id: string; text: string; createdAt: string }>>
   >({});
@@ -184,9 +180,7 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
   useEffect(() => {
     if (!objectId) return;
     try {
-      const commentsRaw = localStorage.getItem(`workspace_comments_${objectId}`);
       const activityRaw = localStorage.getItem(`workspace_activity_${objectId}`);
-      if (commentsRaw) setCommentsByRecord(JSON.parse(commentsRaw));
       if (activityRaw) setActivityByRecord(JSON.parse(activityRaw));
     } catch {
       // ignore
@@ -196,12 +190,11 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
   useEffect(() => {
     if (!objectId) return;
     try {
-      localStorage.setItem(`workspace_comments_${objectId}`, JSON.stringify(commentsByRecord));
       localStorage.setItem(`workspace_activity_${objectId}`, JSON.stringify(activityByRecord));
     } catch {
       // ignore
     }
-  }, [objectId, commentsByRecord, activityByRecord]);
+  }, [objectId, activityByRecord]);
 
   useEffect(() => {
     if (!activeRecord) return;
@@ -236,6 +229,8 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
     () => fields.find((f) => /source|channel|utm/i.test(f.key)),
     [fields],
   );
+  /** Умная колонка (первая активная) — значок прямо на карточке, не только внутри записи. */
+  const aiField = useMemo(() => fields.find((f) => f.type === 'ai' && f.isActive), [fields]);
 
   const staffByDepartment = useMemo(() => {
     const map = new Map<string, StaffUser[]>();
@@ -484,6 +479,8 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
   };
   const getSourceLabel = (record: CustomObjectRecord) =>
     sourceField ? String(record.values?.[sourceField.key] || '').trim() : '';
+  const getAiValue = (record: CustomObjectRecord) =>
+    aiField ? String(record.values?.[aiField.key] || '').trim() : '';
 
   const columns = useMemo(
     () =>
@@ -751,6 +748,12 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
                           {String(item.values?.description || '')}
                         </div>
                       )}
+                      {getAiValue(item) && (
+                        <div className="kb-ai-badge" style={{ marginTop: 6 }} title={getAiValue(item)}>
+                          <span aria-hidden>✦</span>
+                          {getAiValue(item)}
+                        </div>
+                      )}
                       {(getOwnerInitials(item) || getSourceLabel(item)) && (
                         <div className="kb-foot">
                           {getOwnerInitials(item) && <span className="kb-ava">{getOwnerInitials(item)}</span>}
@@ -829,12 +832,9 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
           titleField={titleField}
           statusField={statusField ?? undefined}
           staffByDepartment={staffByDepartment}
-          commentsByRecord={commentsByRecord}
-          setCommentsByRecord={setCommentsByRecord}
+          staff={staff}
           activityByRecord={activityByRecord}
           pushActivity={pushActivity}
-          commentDraft={commentDraft}
-          setCommentDraft={setCommentDraft}
           saveRecord={saveRecord}
           savingRecordId={savingRecordId}
           overlayZIndex={50}

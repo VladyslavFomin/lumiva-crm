@@ -30,6 +30,7 @@ export class CreateCustomObjectFieldDto {
     'select',
     'multiselect',
     'file',
+    'ai',
   ] satisfies CustomObjectFieldType[])
   type: CustomObjectFieldType;
 

@@ -1,0 +1,7 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS "primaryCurrency" VARCHAR(8) DEFAULT 'EUR';
+
+CREATE TABLE IF NOT EXISTS currency_rates (
+  base VARCHAR(8) PRIMARY KEY,
+  rates JSONB NOT NULL,
+  "fetchedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+);

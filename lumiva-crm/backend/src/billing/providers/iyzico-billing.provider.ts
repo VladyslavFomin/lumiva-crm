@@ -6,6 +6,7 @@ import { IyzicoApiService } from '../../integrations/iyzico/iyzico-api.service';
 import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
 import { TenantPlanActivationService, type BillingPeriod, type PlanCode } from './tenant-plan-activation.service';
 import { IyzicoBillingCheckout } from './iyzico-billing-checkout.entity';
+import { BillingAlertsService } from '../billing-alerts.service';
 import type { Tenant } from '../../tenants/tenant.entity';
 
 /**
@@ -21,6 +22,7 @@ export class IyzicoBillingProvider {
     private readonly iyzico: IyzicoApiService,
     private readonly settings: PlatformSettingsService,
     private readonly planActivation: TenantPlanActivationService,
+    private readonly billingAlerts: BillingAlertsService,
     @InjectRepository(IyzicoBillingCheckout)
     private readonly checkoutsRepo: Repository<IyzicoBillingCheckout>,
   ) {}
@@ -104,7 +106,10 @@ export class IyzicoBillingProvider {
       conversationId: randomUUID(),
     });
     const paid = result.status === 'success' && result.paymentStatus === 'SUCCESS';
-    if (!paid) return { status: 'failed' };
+    if (!paid) {
+      await this.billingAlerts.notifyPaymentFailed(row.tenantId);
+      return { status: 'failed' };
+    }
 
     await this.planActivation.activatePaidCheckout({
       tenantId: row.tenantId,

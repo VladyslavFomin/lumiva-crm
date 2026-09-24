@@ -7,6 +7,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { mkdir, writeFile } from 'fs/promises';
@@ -52,6 +53,7 @@ import {
 } from './workspace-column-binding';
 import { WorkspaceAreaMembersService } from '../workspace-areas/workspace-area-members.service';
 import { WorkspaceAreaActivityLogService } from '../workspace-areas/workspace-area-activity-log.service';
+import { currentAiActor } from '../ai-employees/ai-employee-context';
 
 export interface ImportPreviewResponse {
   importId: string;
@@ -90,7 +92,120 @@ export class CustomObjectsService {
     private readonly automationsService: AutomationsService,
     private readonly workspaceAreaMembers: WorkspaceAreaMembersService,
     private readonly activityLog: WorkspaceAreaActivityLogService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * Lazy — AiEmployeesModule уже подключает сущности custom-objects напрямую (не весь этот
+   * модуль), обратная прямая зависимость CustomObjectsModule → AiEmployeesModule создала бы цикл.
+   * Тот же приём, что RbacService.auditLog()/telegram-crm.service.ts ai()/oai().
+   */
+  private aiEmployees(): import('../ai-employees/ai-employees.service').AiEmployeesService | null {
+    try {
+      return this.moduleRef.get(
+        require('../ai-employees/ai-employees.service').AiEmployeesService,
+        { strict: false },
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Кнопка "Обновить" на ячейке умной колонки — тот же расчёт, что и авто-пересчёт при сохранении, по требованию. */
+  async refreshAiColumn(tenantId: string, objectId: string, recordId: string, fieldKey: string) {
+    const field = await this.fieldRepo.findOne({ where: { tenantId, objectId, key: fieldKey, isActive: true } });
+    if (!field || field.type !== 'ai') {
+      throw new BadRequestException('Not a smart (AI) column');
+    }
+    const cfg = (field.meta as Record<string, unknown> | null)?.ai as { agentId?: string } | undefined;
+    const agentId = String(cfg?.agentId || '').trim();
+    if (!agentId) throw new BadRequestException('Smart column has no assigned AI employee');
+    const svc = this.aiEmployees();
+    if (!svc) throw new BadRequestException('AI employees service unavailable');
+    return svc.computeSmartColumn(tenantId, agentId, objectId, recordId, {
+      key: field.key,
+      label: field.label,
+      meta: field.meta,
+    });
+  }
+
+  /**
+   * "Пересчитать все строки" для одной умной колонки — как run_backfill у Monday. Синхронно (нет
+   * очереди задач в этом проекте), но с ограниченной параллельностью (5 одновременно) и жёстким
+   * потолком в 300 строк за один вызов — таблицы этого тенанта на практике << 100 строк, но не
+   * стоит давать заблокировать HTTP-запрос на произвольно большую таблицу.
+   */
+  async refreshAiColumnAll(tenantId: string, objectId: string, fieldKey: string) {
+    const field = await this.fieldRepo.findOne({ where: { tenantId, objectId, key: fieldKey, isActive: true } });
+    if (!field || field.type !== 'ai') {
+      throw new BadRequestException('Not a smart (AI) column');
+    }
+    const cfg = (field.meta as Record<string, unknown> | null)?.ai as { agentId?: string } | undefined;
+    const agentId = String(cfg?.agentId || '').trim();
+    if (!agentId) throw new BadRequestException('Smart column has no assigned AI employee');
+    const svc = this.aiEmployees();
+    if (!svc) throw new BadRequestException('AI employees service unavailable');
+
+    const records = await this.recordRepo.find({ where: { tenantId, objectId }, order: { createdAt: 'ASC' }, take: 300 });
+    let succeeded = 0;
+    let failed = 0;
+    const CONCURRENCY = 5;
+    for (let i = 0; i < records.length; i += CONCURRENCY) {
+      const batch = records.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        batch.map((r) =>
+          svc
+            .computeSmartColumn(tenantId, agentId, objectId, r.id, { key: field.key, label: field.label, meta: field.meta })
+            .catch(() => ({ ok: false as const })),
+        ),
+      );
+      for (const r of results) {
+        if (r.ok) succeeded += 1;
+        else failed += 1;
+      }
+    }
+    return { ok: true, total: records.length, succeeded, failed };
+  }
+
+  /** Аналитика по всей таблице по требованию — см. AiEmployeesService.analyzeWorkspaceTable(). */
+  async analyzeTable(tenantId: string, objectId: string, agentId: string, question: string) {
+    if (!agentId.trim()) throw new BadRequestException('agentId is required');
+    const svc = this.aiEmployees();
+    if (!svc) throw new BadRequestException('AI employees service unavailable');
+    return svc.analyzeWorkspaceTable(tenantId, agentId, objectId, question);
+  }
+
+  /**
+   * «Умные колонки» (type: 'ai') — считаются заново после КАЖДОГО сохранения строки человеком.
+   * currentAiActor() исключает рекурсию: и запись самой умной колонки (см. computeSmartColumn →
+   * runAsAiActor), и запись через workspace_update_record обычного ИИ-сотрудника (round 15,
+   * тоже внутри runAsAiActor) сами не должны запускать пересчёт заново. Fire-and-forget — не
+   * должно тормозить/ронять сохранение записи человеком.
+   */
+  private maybeComputeAiColumns(
+    tenantId: string,
+    objectId: string,
+    record: CustomObjectRecord,
+    fields: CustomObjectField[],
+  ): void {
+    if (currentAiActor()) return;
+    const aiFields = fields.filter((f) => f.isActive && f.type === 'ai');
+    if (!aiFields.length) return;
+    const svc = this.aiEmployees();
+    if (!svc) return;
+    for (const field of aiFields) {
+      const cfg = (field.meta as Record<string, unknown> | null)?.ai as { agentId?: string } | undefined;
+      const agentId = String(cfg?.agentId || '').trim();
+      if (!agentId) continue;
+      svc
+        .computeSmartColumn(tenantId, agentId, objectId, record.id, {
+          key: field.key,
+          label: field.label,
+          meta: field.meta,
+        })
+        .catch((e) => this.logger.warn(`Smart column compute failed (${field.key}): ${(e as Error).message}`));
+    }
+  }
 
   /** JWT identity is `users.id` (login), not `staff_users.id` — resolve the real staff
    * record the same way the area-access guard and ReservationsService.findActingStaffUserId
@@ -655,6 +770,12 @@ export class CustomObjectsService {
     const raw = { ...(rawValues || {}) };
     for (const field of fields) {
       const meta = field.meta as Record<string, unknown> | null | undefined;
+      // Колонка с активным columnBinding (pick_from_data/lookup_by_key/rollup/from_pushed_source)
+      // вычисляется отдельным механизмом enrichRecordsColumnBindings — mapsToImportedKey сюда
+      // не должен подмешиваться (реальный баг: поле "Sold" с lookup_by_key + случайно оставленным
+      // mapsToImportedKey="country" на каждом сохранении копировало строку "ALBANIA" из values.country
+      // в values.sold как "сырое" значение и падало на coerce number).
+      if (parseWorkspaceColumnBindingV1(field.meta)) continue;
       const mapped =
         meta && typeof meta === 'object' ? meta['mapsToImportedKey'] : undefined;
       if (typeof mapped !== 'string' || !mapped.trim()) continue;
@@ -732,6 +853,15 @@ export class CustomObjectsService {
       qb.andWhere('o.workspaceAreaId = :wid', { wid: workspaceAreaId });
     }
     return qb.orderBy('o.updatedAt', 'DESC').getMany();
+  }
+
+  /** Таблицы с источниками синхронизации (meta.syncSources или старый meta.marketingSource) — для планировщика. */
+  async findTablesWithSyncSources(): Promise<CustomObject[]> {
+    return this.objectRepo
+      .createQueryBuilder('o')
+      .where("(jsonb_exists(o.meta, 'syncSources') OR (o.meta -> 'marketingSource' ->> 'autoRefresh') = 'true')")
+      .andWhere('o.isActive = true')
+      .getMany();
   }
 
   async getObject(tenantId: string, objectId: string) {
@@ -1105,16 +1235,45 @@ export class CustomObjectsService {
       });
     }
     const total = await qb.getCount();
-    if (options?.sortBy) {
-      let sortKey = options.sortBy;
+
+    // Сортировка по колонке с lookup_by_key/rollup-биндингом — её значение никогда не лежит в
+    // raw values (только оверлей при enrich, см. enrichRecordsColumnBindings), поэтому обычный
+    // SQL ORDER BY record.values->>'key' сортирует по пустому/устаревшему полю — реальный баг:
+    // "сортировка по Sold ничего не делает". Для этого редкого случая — enrich ВСЕХ строк и
+    // сортировка/пагинация в памяти; обычная сортировка ниже (SQL) остаётся быстрым путём.
+    let sortBindingMode: 'lookup_by_key' | 'rollup' | null = null;
+    let sortField: CustomObjectField | null = null;
+    if (options?.sortBy && CustomObjectsService.SAFE_VALUES_KEY.test(options.sortBy)) {
+      sortField = await this.fieldRepo.findOne({
+        where: { tenantId, objectId, key: options.sortBy },
+      });
+      const binding = sortField ? parseWorkspaceColumnBindingV1(sortField.meta) : null;
       if (
-        sortKey !== 'createdAt' &&
-        sortKey !== 'updatedAt' &&
-        CustomObjectsService.SAFE_VALUES_KEY.test(sortKey)
+        options.enrichColumnBindings &&
+        (binding?.mode === 'lookup_by_key' || binding?.mode === 'rollup')
       ) {
-        const sortField = await this.fieldRepo.findOne({
-          where: { tenantId, objectId, key: sortKey },
-        });
+        sortBindingMode = binding.mode;
+      }
+    }
+
+    if (sortBindingMode) {
+      const allItems = await qb.getMany();
+      const enriched = await this.enrichRecordsColumnBindings(tenantId, objectId, allItems);
+      const dir = options?.sortOrder === 'ASC' ? 1 : -1;
+      const sortStorageKey = options!.sortBy!;
+      enriched.sort((a, b) => {
+        const av = (a.values as Record<string, unknown> | null)?.[sortStorageKey];
+        const bv = (b.values as Record<string, unknown> | null)?.[sortStorageKey];
+        return this.compareForSort(av, bv, dir);
+      });
+      const offset = options?.offset || 0;
+      const limit = options?.limit || 50;
+      return { items: enriched.slice(offset, offset + limit), total };
+    }
+
+    if (options?.sortBy && CustomObjectsService.SAFE_VALUES_KEY.test(options.sortBy)) {
+      let sortKey = options.sortBy;
+      if (sortKey !== 'createdAt' && sortKey !== 'updatedAt') {
         const meta = sortField?.meta as Record<string, unknown> | undefined;
         const mapped = meta?.mapsToImportedKey;
         if (typeof mapped === 'string' && CustomObjectsService.SAFE_VALUES_KEY.test(mapped.trim())) {
@@ -1166,10 +1325,36 @@ export class CustomObjectsService {
     return false;
   }
 
-  /** Агрегаты по таблице данных, сгруппированные по полю (для columnBinding mode rollup). */
+  /** Компаратор для in-memory сортировки по enriched-значению (lookup_by_key/rollup — см.
+   * listRecords). Числовое сравнение, если оба значения выглядят числом (rollup всегда отдаёт
+   * JS number), иначе — локале-сравнение строк; пустые/отсутствующие всегда уходят в конец
+   * независимо от направления сортировки (dir применяется только к "реальному" сравнению),
+   * чтобы не "прыгали" местами при переключении asc/desc. */
+  private compareForSort(a: unknown, b: unknown, dir: 1 | -1): number {
+    const aEmpty = this.isCellValueEmpty(a);
+    const bEmpty = this.isCellValueEmpty(b);
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    let cmp: number;
+    if (typeof a === 'number' && typeof b === 'number') {
+      cmp = a - b;
+    } else {
+      const an = typeof a === 'string' ? parseFloat(a) : NaN;
+      const bn = typeof b === 'string' ? parseFloat(b) : NaN;
+      cmp = Number.isFinite(an) && Number.isFinite(bn) ? an - bn : String(a).localeCompare(String(b));
+    }
+    return cmp * dir;
+  }
+
+  /**
+   * Агрегаты по таблицам данных, сгруппированные по полю (для columnBinding mode rollup) —
+   * сразу по НЕСКОЛЬКИМ таблицам данных (общий GROUP BY по всем сразу, без UNION:
+   * custom_object_records — одна физическая таблица, objectId — просто фильтр в WHERE).
+   */
   private async computeRollupByGroupKey(
     tenantId: string,
-    dataObjectId: string,
+    dataObjectIds: string[],
     groupByFieldKey: string,
     valueFieldKey: string,
     aggregate: 'sum' | 'count' | 'avg' | 'min' | 'max',
@@ -1180,11 +1365,16 @@ export class CustomObjectsService {
     ) {
       return new Map();
     }
-    try {
-      await this.getObject(tenantId, dataObjectId);
-    } catch {
-      return new Map();
-    }
+    const validIds = (
+      await Promise.all(
+        dataObjectIds.map((id) =>
+          this.getObject(tenantId, id)
+            .then(() => id)
+            .catch(() => null),
+        ),
+      )
+    ).filter((id): id is string => Boolean(id));
+    if (!validIds.length) return new Map();
     const g = groupByFieldKey;
     const v = valueFieldKey;
     const numExpr = `
@@ -1220,13 +1410,13 @@ export class CustomObjectsService {
       SELECT COALESCE(record.values->>'${g}', '') AS "groupKey",
              ${aggExpr} AS "agg"
       FROM "custom_object_records" record
-      WHERE record."tenantId" = $1 AND record."objectId" = $2::uuid
+      WHERE record."tenantId" = $1 AND record."objectId" = ANY($2::uuid[])
       GROUP BY COALESCE(record.values->>'${g}', '')
     `;
 
     const rows: Array<{ groupKey: string; agg: unknown }> = await this.recordRepo.query(sql, [
       tenantId,
-      dataObjectId,
+      validIds,
     ]);
     const map = new Map<string, number>();
     for (const row of rows) {
@@ -1415,8 +1605,11 @@ export class CustomObjectsService {
     }
 
     for (const { fieldKey, binding } of rollups) {
-      const { dataObjectId, groupByFieldKey, boardMatchFieldKey, valueFieldKey, aggregate } = binding;
-      const dataFields = await ensureDataFieldMap(dataObjectId);
+      const { dataObjectIds, groupByFieldKey, boardMatchFieldKey, valueFieldKey, aggregate } = binding;
+      // Схема (какие storage-ключи реально использовать) берём из ПЕРВОЙ выбранной таблицы —
+      // выбранные таблицы должны иметь одинаковые field.key для group/value (задокументировано
+      // в workspace-column-binding.ts), это гарантирует и фронтовый UI (пересечение ключей).
+      const dataFields = await ensureDataFieldMap(dataObjectIds[0]);
       if (!dataFields) continue;
 
       const groupStorageData = this.getValuesStorageKeyForFieldMap(dataFields, groupByFieldKey);
@@ -1434,7 +1627,7 @@ export class CustomObjectsService {
       }
       const aggMap = await this.computeRollupByGroupKey(
         tenantId,
-        dataObjectId,
+        dataObjectIds,
         groupStorageData,
         valueStorageData,
         aggregate,
@@ -1501,6 +1694,7 @@ export class CustomObjectsService {
       }),
     );
     await this.triggerRecordEvent(tenantId, objectId, created, 'created');
+    this.maybeComputeAiColumns(tenantId, objectId, created, fields);
     return created;
   }
 
@@ -1795,6 +1989,7 @@ export class CustomObjectsService {
       'updated',
       previousStatus,
     );
+    this.maybeComputeAiColumns(tenantId, objectId, saved, fields);
     return saved;
   }
 
@@ -1851,6 +2046,55 @@ export class CustomObjectsService {
   }
 
   /** Удалить все строки объекта (очистка таблицы). Вложенные файлы в storage не чистятся пакетно. */
+  /**
+   * Атомарно заменяет строки, которые принадлежат источнику синхронизации (record.meta.syncSourceId),
+   * новым набором — либо ВСЕ строки таблицы (`deleteAll`, для эксклюзивных источников вроде
+   * «расходы по месяцам»). Значения нормализуются один раз на строку, события записи (автоматизации)
+   * не запускаются — иначе выгрузка тысяч строк за раз завалила бы их. Строки без метки
+   * (созданные руками или другими источниками) не затрагиваются.
+   */
+  async replaceSyncedRecords(
+    tenantId: string,
+    objectId: string,
+    sourceId: string,
+    rows: Array<{ values: Record<string, any>; externalId?: string | null }>,
+    opts?: { deleteAll?: boolean },
+  ): Promise<{ deleted: number; created: number; skipped: number }> {
+    await this.getObject(tenantId, objectId);
+    const fields = await this.listFields(tenantId, objectId);
+    const entities: CustomObjectRecord[] = [];
+    let skipped = 0;
+    for (const row of rows) {
+      try {
+        const values = this.normalizeRecordValues(fields, row.values, 'create', undefined, tenantId);
+        entities.push(
+          this.recordRepo.create({
+            tenantId,
+            objectId,
+            externalId: row.externalId ?? null,
+            values,
+            meta: { syncSourceId: sourceId },
+            createdByUserId: null,
+          }),
+        );
+      } catch {
+        skipped += 1;
+      }
+    }
+    return this.recordRepo.manager.transaction(async (m) => {
+      const repo = m.getRepository(CustomObjectRecord);
+      const qb = repo
+        .createQueryBuilder()
+        .delete()
+        .from(CustomObjectRecord)
+        .where('"tenantId" = :tenantId AND "objectId" = :objectId', { tenantId, objectId });
+      if (!opts?.deleteAll) qb.andWhere("meta ->> 'syncSourceId' = :sourceId", { sourceId });
+      const del = await qb.execute();
+      if (entities.length) await repo.save(entities, { chunk: 400 });
+      return { deleted: del.affected ?? 0, created: entities.length, skipped };
+    });
+  }
+
   async deleteAllRecordsForObject(tenantId: string, objectId: string) {
     await this.getObject(tenantId, objectId);
     const res = await this.recordRepo.delete({ tenantId, objectId });
@@ -2360,6 +2604,72 @@ export class CustomObjectsService {
       totalRows: session.totalRows,
       suggestedMapping: session.suggestedMapping || {},
       headerRowNumber: parsed.headerRowNumber,
+      uniqueValuesByColumn,
+    };
+  }
+
+  /**
+   * Сырые columns/rows существующей import-сессии — используется AI-реструктуризацией
+   * ({@link CustomObjectImportAiService}), которая сама решает, как разложить строки файла
+   * произвольной формы (напр. merged-колонка "Nationality" на 4 строки Sold/Occ%/C-In/C-Out)
+   * в плоскую таблицу, прежде чем создавать новую сессию через {@link createReshapedImportSession}.
+   */
+  async getImportSessionRows(
+    tenantId: string,
+    importId: string,
+  ): Promise<{
+    id: string;
+    objectId: string | null;
+    columns: string[];
+    rows: Array<Record<string, any>>;
+    originalFileName: string | null;
+  }> {
+    const session = await this.importRepo.findOne({ where: { id: importId, tenantId } });
+    if (!session) throw new NotFoundException('Import session not found');
+    return {
+      id: session.id,
+      objectId: session.objectId,
+      columns: session.columns,
+      rows: session.rows || [],
+      originalFileName: session.originalFileName,
+    };
+  }
+
+  /**
+   * Персистит результат AI-реструктуризации как НОВУЮ import-сессию (исходная остаётся
+   * нетронутой) — дальше она проходит тот же путь preview → map → apply, что и обычный импорт.
+   */
+  async createReshapedImportSession(
+    tenantId: string,
+    objectId: string | null,
+    source: { originalImportId: string; originalFileName: string | null },
+    columns: string[],
+    rows: Array<Record<string, any>>,
+    plan: unknown,
+  ): Promise<ImportPreviewResponse> {
+    const fields = objectId ? await this.listFields(tenantId, objectId) : [];
+    const suggestedMapping = this.buildSuggestedMapping(columns, fields);
+    const uniqueValuesByColumn = this.uniqueValuesByColumn(columns, rows);
+    const session = await this.importRepo.save(
+      this.importRepo.create({
+        tenantId,
+        objectId,
+        originalFileName: source.originalFileName,
+        columns,
+        rows,
+        sample: rows.slice(0, 20),
+        totalRows: rows.length,
+        suggestedMapping,
+        status: 'preview',
+        meta: { aiReshapeOf: source.originalImportId, aiReshapePlan: plan },
+      }),
+    );
+    return {
+      importId: session.id,
+      columns: session.columns,
+      sample: session.sample,
+      totalRows: session.totalRows,
+      suggestedMapping: session.suggestedMapping || {},
       uniqueValuesByColumn,
     };
   }

@@ -78,7 +78,7 @@ function AlertModalDialog({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' || e.key === 'Enter') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -90,16 +90,11 @@ function AlertModalDialog({
       ? t('crm.alertModal.errorTitle')
       : t('crm.alertModal.defaultTitle'));
 
-  const ring =
-    state.variant === 'error'
-      ? 'border-rose-500/50 ring-1 ring-rose-500/20'
-      : state.variant === 'success'
-        ? 'border-emerald-500/40 ring-1 ring-emerald-500/15'
-        : 'border-slate-600/80 ring-1 ring-slate-500/15';
+  const isError = state.variant === 'error';
 
   return (
     <div
-      className="fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="global-alert-modal-title"
@@ -107,47 +102,57 @@ function AlertModalDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className={`w-full max-w-md rounded-2xl border bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden ${ring}`}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-800/90 px-5 py-4">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {(state.variant === 'success' || state.variant === 'error') && (
+      <div className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
+          <div className="flex items-center gap-2 min-w-0">
+            {state.variant === 'success' || isError ? (
               <LottieIcon
                 name={state.variant === 'success' ? 'success-check' : 'error-alert'}
-                size={32}
+                size={30}
                 loop={false}
                 className="shrink-0"
               />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="shrink-0 w-[26px] h-[26px] rounded-full bg-[#f0f0f0] text-[#555] flex items-center justify-center text-[13px] font-semibold italic font-serif"
+              >
+                i
+              </span>
             )}
-            <h2
-              id="global-alert-modal-title"
-              className="text-base font-semibold text-slate-50 leading-snug pr-2"
-            >
+            <h2 id="global-alert-modal-title" className="text-[15px] font-semibold text-[#222] leading-snug truncate">
               {resolvedTitle}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
             aria-label={t('crm.alertModal.ok')}
           >
             ×
           </button>
         </div>
+        {/* Body */}
         <div className="px-5 py-4">
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-            <p className="text-[13px] text-slate-900 leading-relaxed whitespace-pre-wrap break-words">
-              {state.message}
-            </p>
-          </div>
+          <p
+            className={
+              isError
+                ? 'rounded-[10px] border border-[#e8b4bb] bg-[#fbecef] px-3 py-2.5 text-[13px] text-[#9a1f31] leading-relaxed whitespace-pre-wrap break-words'
+                : 'text-[13px] text-[#444] leading-relaxed whitespace-pre-wrap break-words'
+            }
+          >
+            {state.message}
+          </p>
         </div>
-        <div className="border-t border-slate-800/90 px-5 py-3 flex justify-end bg-slate-950/40">
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#f0f0f0] bg-[#fafafa]">
           <button
             type="button"
+            autoFocus
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl px-5 py-2 text-[12px] font-semibold bg-lumiva-accent text-slate-950 hover:bg-lumiva-accent-soft transition-colors"
+            className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] transition-colors"
           >
             {t('crm.alertModal.ok')}
           </button>

@@ -267,6 +267,8 @@ export interface HotelsOverviewKpis {
   adr: number;
   bookings30d: number;
   revenue30d: number;
+  /** Валюта adr/revenue30d — основная валюта тенанта (брони пересчитаны из валют своих отелей). */
+  currency: string;
 }
 
 export function fetchHotelsOverviewKpis() {

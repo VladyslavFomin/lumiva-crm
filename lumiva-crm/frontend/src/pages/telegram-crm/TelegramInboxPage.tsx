@@ -44,6 +44,20 @@ const messagePreview = (m: TelegramMessage | null, t: (k: string) => string): st
   return m.text || '';
 };
 
+const outgoingAuthor = (m: TelegramMessage | null, t: (k: string) => string): string => {
+  const source = m?.meta?.source;
+  if (source === 'ai') return t('crm.telegram.inbox.ai');
+  if (source === 'flow' || source === 'system') return t('crm.telegram.inbox.bot');
+  return t('crm.telegram.inbox.you');
+};
+
+const outgoingBadge = (m: TelegramMessage, t: (k: string) => string): string | null => {
+  const source = m.meta?.source;
+  if (source === 'ai') return t('crm.telegram.inbox.ai');
+  if (source === 'flow' || source === 'system') return t('crm.telegram.inbox.bot');
+  return null;
+};
+
 const TelegramInboxPage: React.FC = () => {
   const { t } = useTranslation();
   const { showAlert } = useAlertModal();
@@ -261,7 +275,7 @@ const TelegramInboxPage: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-neutral-900">{name}</div>
                       <div className="mt-1 truncate text-[11px] text-neutral-500">
-                        {c.lastMessage?.direction === 'outgoing' ? `${t('crm.telegram.inbox.you')}: ` : ''}
+                        {c.lastMessage?.direction === 'outgoing' ? `${outgoingAuthor(c.lastMessage, t)}: ` : ''}
                         {messagePreview(c.lastMessage, t)}
                       </div>
                     </div>
@@ -331,6 +345,7 @@ const TelegramInboxPage: React.FC = () => {
                   messages.map((m) => {
                     const isOutgoing = m.direction === 'outgoing';
                     const preview = messagePreview(m, t);
+                    const badge = isOutgoing ? outgoingBadge(m, t) : null;
                     return (
                       <div key={m.id} className={'flex ' + (isOutgoing ? 'justify-end' : 'justify-start')}>
                         <div
@@ -340,6 +355,11 @@ const TelegramInboxPage: React.FC = () => {
                           }
                           style={isOutgoing ? { backgroundColor: ACCENT } : undefined}
                         >
+                          {badge ? (
+                            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] opacity-70">
+                              {badge}
+                            </div>
+                          ) : null}
                           <div className="break-words whitespace-pre-wrap">{preview}</div>
                         </div>
                       </div>

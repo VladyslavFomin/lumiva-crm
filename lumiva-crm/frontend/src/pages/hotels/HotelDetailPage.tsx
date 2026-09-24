@@ -62,6 +62,16 @@ import {
 } from '../../api/hotels';
 import './hotels-design.css';
 
+/** Сумма в валюте отеля (символ/позиция по локали браузера); при неизвестном коде — число + код. */
+function formatHotelMoney(v: number, currency: string | undefined) {
+  const code = (currency || 'EUR').toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: code, maximumFractionDigits: 0 }).format(v);
+  } catch {
+    return `${v.toLocaleString()} ${code}`;
+  }
+}
+
 type Tab = 'rooms' | 'calendar' | 'markets' | 'info' | 'gallery' | 'settings';
 
 function pctDiff(base: number, val: number) {
@@ -1504,7 +1514,7 @@ export const HotelDetailPage: React.FC = () => {
 
         <div className="htl-info-grid">
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.occupancyToday')}</div><div className="v">{hotel.occupancyToday}%</div></div>
-          <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.adr')}</div><div className="v">${hotel.adr}</div></div>
+          <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.adr')}</div><div className="v">{formatHotelMoney(hotel.adr, hotel.currency)}</div></div>
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.roomTypesCount')}</div><div className="v">{hotel.roomTypesCount}</div></div>
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.marketsCount')}</div><div className="v">{hotel.marketsCount}</div></div>
         </div>

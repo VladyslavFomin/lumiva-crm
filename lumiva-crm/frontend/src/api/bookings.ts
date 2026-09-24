@@ -203,6 +203,7 @@ export interface CustomerStats {
   cancellations: number;
   noShows: number;
   ltv: number;
+  currency: string;
   lastVisit: string | null;
   tags: string[];
 }
@@ -413,11 +414,13 @@ export interface BookingAnalyticsSummary {
   totalRevenue: number;
   avgCheck: number;
   occupancyRate: number;
+  /** Валюта, в которую приведены суммы (основная валюта компании) */
+  currency: string;
 }
 export interface DailyTrendPoint { day: string; count: number }
 export interface HeatmapPoint { dow: number; hour: number; count: number }
-export interface TopServiceRow { serviceId: string; name: string; count: number; revenue: number }
-export interface StaffUtilizationRow { staffUserId: string; name: string; count: number; revenue: number }
+export interface TopServiceRow { serviceId: string; name: string; count: number; revenue: number; currency: string }
+export interface StaffUtilizationRow { staffUserId: string; name: string; count: number; revenue: number; currency: string }
 export interface SourceBreakdownRow { source: string; count: number }
 export interface AtRiskCustomerRow {
   contactId: string;
@@ -425,6 +428,7 @@ export interface AtRiskCustomerRow {
   lastVisit: string;
   visits: number;
   ltv: number;
+  currency: string;
 }
 
 export const fetchBookingAnalyticsSummary = (from?: string, to?: string) =>
@@ -451,6 +455,7 @@ export interface LocationStatsRow {
   resourceCount: number;
   todayReservations: number;
   todayRevenue: number;
+  currency: string;
   occupancy: number;
 }
 export const fetchLocationStats = () => api.get<LocationStatsRow[]>('/bookings/analytics/locations');

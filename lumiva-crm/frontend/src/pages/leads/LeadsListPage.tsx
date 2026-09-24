@@ -1,5 +1,8 @@
 // src/pages/leads/LeadsListPage.tsx
 
+import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
+import { AiAssigneeChips } from '../../components/ai/AiAssigneeChips';
+import { useAiAssignees } from '../../components/ai/useAiAssignees';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { AiSmartSearchBar } from '../../components/ai/AiSmartSearchBar';
 import { AiDuplicatesModal } from '../../components/ai/AiDuplicatesModal';
@@ -61,6 +64,7 @@ export const LeadsListPage: React.FC = () => {
   const locale = resolveLocale(i18n.language);
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const aiAssignees = useAiAssignees('lead', leads.map((l) => l.id));
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -1260,6 +1264,7 @@ export const LeadsListPage: React.FC = () => {
                   </div>
                 );
               })}
+              <AiAssigneeChips items={aiAssignees[lead.id]} />
               <button
                 ref={editorOpen ? assigneeAnchorRef : undefined}
                 type="button"
@@ -1355,6 +1360,7 @@ export const LeadsListPage: React.FC = () => {
                   {!assigneeDepartmentGroups.length && (
                     <div className="lv-owner-dept-empty">{t('crm.projects.list.owner.empty')}</div>
                   )}
+                  <AiAssigneeGroup entityType="lead" entityId={lead.id} compact />
                 </div>
                 <div className="lv-owner-pop-foot">
                   <button type="button" className="lv-tb-btn" onClick={() => setAssigneeEditorLeadId(null)}>

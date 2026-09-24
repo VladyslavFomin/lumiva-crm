@@ -13,10 +13,12 @@ import { Project } from '../projects/project.entity';
 import { OnboardingSampleRecord } from './onboarding-sample-record.entity';
 import { OnboardingService } from './onboarding.service';
 import { OnboardingController } from './onboarding.controller';
+import { ProjectTablesModule } from '../project-tables/project-tables.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Tenant, Company, Contact, Lead, Product, Sale, SalesChannel, StaffUser, Project, OnboardingSampleRecord]),
+    ProjectTablesModule,
   ],
   providers: [OnboardingService],
   controllers: [OnboardingController],

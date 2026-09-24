@@ -471,7 +471,7 @@ export const BiDashboardPage: React.FC = () => {
                         <td>{c.name}</td>
                         <td style={{ color: 'var(--fg-3)' }}>{c.leads}</td>
                         <td>{c.projects}</td>
-                        <td className="need low">{c.revenue.toLocaleString(dateLocale)}</td>
+                        <td className="need low">{c.revenue.toLocaleString(dateLocale)} {c.currency}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -22,7 +22,9 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.interface';
 
 import { MarketingService } from './marketing.service';
-import { CreateUtmTemplateDto, UpdateUtmTemplateDto } from './dto/utm-template.dto';
+import { MetaAdsOauthService } from './meta-ads-oauth.service';
+import { MetaAdsConnectDto, MetaAdsOAuthStartDto } from './dto/meta-ads-oauth.dto';
+import { CreateUtmLinkDto, CreateUtmTemplateDto, UpdateUtmTemplateDto } from './dto/utm-template.dto';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { CreateSegmentBodyDto } from './dto/create-segment-body.dto';
@@ -33,7 +35,10 @@ import { Ga4OAuthStartDto } from './dto/ga4-oauth-start.dto';
 
 @Controller('marketing')
 export class MarketingController {
-  constructor(private readonly marketing: MarketingService) {}
+  constructor(
+    private readonly marketing: MarketingService,
+    private readonly metaAdsOauth: MetaAdsOauthService,
+  ) {}
 
   private requireTenant(user: CurrentUserPayload): string {
     if (!user?.tenantId) {
@@ -155,6 +160,32 @@ export class MarketingController {
     @Body() dto: UpdateUtmTemplateDto,
   ) {
     return this.marketing.updateUtmTemplate(this.requireTenant(user), id, dto);
+  }
+
+  // --- Ссылки с метками (хранилище + статистика) ---
+
+  @Get('utm-links')
+  @UseGuards(JwtAuthGuard)
+  listUtmLinks(@CurrentUser() user: CurrentUserPayload) {
+    return this.marketing.listUtmLinks(this.requireTenant(user));
+  }
+
+  @Post('utm-links')
+  @UseGuards(JwtAuthGuard)
+  createUtmLink(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: CreateUtmLinkDto,
+  ) {
+    return this.marketing.createUtmLink(this.requireTenant(user), user, dto);
+  }
+
+  @Delete('utm-links/:id')
+  @UseGuards(JwtAuthGuard)
+  deleteUtmLink(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.marketing.deleteUtmLink(this.requireTenant(user), id);
   }
 
   @Delete(['utm-templates/:id', 'utms/templates/:id'])
@@ -310,6 +341,66 @@ export class MarketingController {
     } catch {
       return fail();
     }
+  }
+
+  // --- Meta Ads: подключение «одной кнопкой» (OAuth → выбор рекламных аккаунтов) ---
+
+  @Post('integrations/meta-ads/oauth/start')
+  @UseGuards(JwtAuthGuard)
+  async metaAdsOauthStart(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: MetaAdsOAuthStartDto,
+  ) {
+    const url = await this.metaAdsOauth.buildAuthUrl(
+      this.requireTenant(user),
+      body?.redirectPath,
+    );
+    return { url };
+  }
+
+  /**
+   * Публичный callback Meta (без JWT): целостность сессии — через подписанный state.
+   * Redirect URI надо добавить в приложении Meta («Valid OAuth Redirect URIs»):
+   * `{PUBLIC_API_URL}/v1/marketing/integrations/meta-ads/oauth/callback`
+   */
+  @Get('integrations/meta-ads/oauth/callback')
+  async metaAdsOauthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Res() res: Response,
+  ) {
+    const frontend = (
+      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+    ).replace(/\/$/, '');
+    if (oauthError || !code?.trim() || !state?.trim()) {
+      return res.redirect(
+        `${frontend}/integrations-hub?tab=marketing&metaAdsOAuth=error`,
+      );
+    }
+    const path = await this.metaAdsOauth.handleCallback(code.trim(), state.trim());
+    return res.redirect(`${frontend}${path.startsWith('/') ? path : `/${path}`}`);
+  }
+
+  @Get('integrations/meta-ads/oauth/status')
+  @UseGuards(JwtAuthGuard)
+  metaAdsOauthStatus(@CurrentUser() user: CurrentUserPayload) {
+    return this.metaAdsOauth.status(this.requireTenant(user));
+  }
+
+  @Get('integrations/meta-ads/accounts')
+  @UseGuards(JwtAuthGuard)
+  metaAdsAccounts(@CurrentUser() user: CurrentUserPayload) {
+    return this.metaAdsOauth.listAccounts(this.requireTenant(user));
+  }
+
+  @Post('integrations/meta-ads/connect')
+  @UseGuards(JwtAuthGuard)
+  metaAdsConnect(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: MetaAdsConnectDto,
+  ) {
+    return this.metaAdsOauth.connectAccounts(this.requireTenant(user), body.accounts);
   }
 
   @Post('integrations/ga4/oauth/start')
@@ -534,6 +625,12 @@ export class MarketingController {
     } catch {
       return fail();
     }
+  }
+
+  @Get('seo/sites')
+  @UseGuards(JwtAuthGuard)
+  seoSites(@CurrentUser() user: CurrentUserPayload) {
+    return this.marketing.getSeoSites(this.requireTenant(user));
   }
 
   @Get('seo/metrics')

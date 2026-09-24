@@ -18,8 +18,8 @@ interface ContactSelectProps {
 export const ContactSelect: React.FC<ContactSelectProps> = ({
   value,
   onChange,
+  placeholder,
   companyId,
-  placeholder = 'Выберите контакт...',
   className = '',
   allowCreate = true,
   onContactCreated,
@@ -75,7 +75,7 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
           contact.fullName ||
           `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
           contact.email ||
-          'Без имени';
+          t('crm.contactSelect.unnamed');
         setSearch(fullName);
       }
     } else {
@@ -123,7 +123,7 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
       contact.fullName ||
       `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
       contact.email ||
-      'Без имени';
+      t('crm.contactSelect.unnamed');
     setSearch(fullName);
     setIsOpen(false);
     onChange(contact.id, contact);
@@ -209,7 +209,7 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('crm.contactSelect.placeholder')}
           className={inputClassName}
         />
         {selectedContact && (
@@ -226,9 +226,9 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
       {isOpen && (
         <div className={dropdownClassName}>
           {loading ? (
-            <div className="px-3 py-2 text-xs text-slate-500">Загрузка...</div>
+            <div className="px-3 py-2 text-xs text-slate-500">{t('crm.contactSelect.loading')}</div>
           ) : filteredContacts.length === 0 && !showCreateOption ? (
-            <div className="px-3 py-2 text-xs text-slate-500">Контакты не найдены</div>
+            <div className="px-3 py-2 text-xs text-slate-500">{t('crm.contactSelect.notFound')}</div>
           ) : (
             <>
               {filteredContacts.map((contact) => {
@@ -236,7 +236,7 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
                   contact.fullName ||
                   `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
                   contact.email ||
-                  'Без имени';
+                  t('crm.contactSelect.unnamed');
                 return (
                   <button
                     key={contact.id}
@@ -268,11 +268,11 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
                   }
                 >
                   {creating ? (
-                    <span className="text-slate-500">Создание...</span>
+                    <span className="text-slate-500">{t('crm.contactSelect.creating')}</span>
                   ) : (
                     <>
                       <span className={theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}>
-                        + Создать контакт:{' '}
+                        {t('crm.contactSelect.create')}{' '}
                       </span>
                       <span className={theme === 'dark' ? 'font-medium text-slate-100' : 'font-medium text-slate-900'}>
                         {search.trim()}

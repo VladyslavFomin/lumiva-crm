@@ -14,6 +14,7 @@ import {
   duplicateEsignDocument,
   openEsignDocumentFile,
   downloadEsignDocumentFile,
+  deleteEsignDocument,
   fetchEsignTemplates,
   createEsignTemplate,
   updateEsignTemplate,
@@ -36,6 +37,7 @@ import { fetchBookingServices, fetchBookingStaff } from '../../api/bookings';
 import type { BookingServiceItem, BookingStaffProfile } from '../../api/bookings';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { Ic, ESN_ICON } from './EsignIcons';
+import { EsignUploadDialog } from './EsignUploadDialog';
 import './esign-design.css';
 
 const cx = (...a: Array<string | false | undefined>) => a.filter(Boolean).join(' ');
@@ -233,7 +235,19 @@ const EditDocumentPanel: React.FC<{
         </div>
         <div className="md-overlay-body md-overlay-body-split">
           {loading ? (
-            <div className="hint">{t('crm.esign.docsTab.loading')}</div>
+            <>
+              <div className="md-overlay-main" aria-busy="true">
+                <div className="md-skel" style={{ height: 380 }} />
+                <div className="md-skel" style={{ height: 11, width: '72%', marginTop: 12 }} />
+                <div className="md-skel-note">{t('crm.esign.docsTab.loading')}</div>
+              </div>
+              <div className="md-keys" aria-hidden="true">
+                <div className="md-skel" style={{ height: 44, marginBottom: 14 }} />
+                {[70, 52, 60, 46].map((w, i) => (
+                  <div key={i} className="md-skel" style={{ height: 32, width: `${w + 30}%`, marginBottom: 8 }} />
+                ))}
+              </div>
+            </>
           ) : (
             <>
               <div className="md-overlay-main">
@@ -505,13 +519,16 @@ const DocsTab: React.FC<{
   const [kind, setKind] = useState<string>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  /** undefined → closed, null → upload a new file, id → edit archived document's metadata */
+  const [uploadFor, setUploadFor] = useState<string | null | undefined>(undefined);
+  const { showConfirm } = useAlertModal();
 
   const kinds = useMemo(() => ['all', ...Array.from(new Set(documents.map((d) => d.kind)))], [documents]);
 
   const rows = documents.filter((d) => {
     if (kind !== 'all' && d.kind !== kind) return false;
     if (q) {
-      const hay = `${d.contactName || ''} ${d.contactCompany || ''} ${d.docNo || ''} ${d.fileName || ''}`.toLowerCase();
+      const hay = `${d.contactName || ''} ${d.contactCompany || ''} ${d.docNo || ''} ${d.fileName || ''} ${d.title || ''} ${d.notes || ''}`.toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;
     }
     return true;
@@ -551,6 +568,20 @@ const DocsTab: React.FC<{
     }
   };
 
+  const removeUploaded = async (d: EsignDocumentRow) => {
+    const ok = await showConfirm(t('crm.esign.upload.deleteBody'), {
+      title: t('crm.esign.confirm.deleteTemplateTitle'),
+      confirmLabel: t('crm.esign.confirm.deleteConfirmLabel'),
+      cancelLabel: t('crm.esign.confirm.cancelLabel'),
+      danger: true,
+    });
+    if (!ok) return;
+    await act(d.id, async () => {
+      await deleteEsignDocument(d.id);
+      onChanged();
+    });
+  };
+
   return (
     <>
       <div className="esn-kpis">
@@ -576,6 +607,10 @@ const DocsTab: React.FC<{
               </button>
             ))}
           </div>
+          <button type="button" className="btn btn-sm" onClick={() => setUploadFor(null)}>
+            <Ic d={ESN_ICON.upload} size={13} />
+            {t('crm.esign.upload.btn')}
+          </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={onIssue}>
             <Ic d={ESN_ICON.plus} size={13} />
             {t('crm.esign.page.newDocBtn')}
@@ -607,6 +642,7 @@ const DocsTab: React.FC<{
               {rows.map((d) => {
                 const disabled = busyId === d.id;
                 const canSend = d.status !== 'signed' && d.status !== 'declined';
+                const uploaded = d.source === 'uploaded';
                 return (
                   <tr key={d.id}>
                     <td>
@@ -617,15 +653,21 @@ const DocsTab: React.FC<{
                     </td>
                     <td>
                       <div className="md-cl">
-                        <div className="md-av">{initials(d.contactName)}</div>
+                        <div className="md-av">{initials(uploaded ? d.companyName : d.contactName)}</div>
                         <div style={{ minWidth: 0 }}>
-                          <div className="nm">{d.contactName || t('crm.esign.docsTab.noClient')}</div>
-                          <div className="cm">{d.contactCompany || '—'}</div>
+                          <div className="nm">{uploaded ? d.companyName || t('crm.esign.docsTab.noClient') : d.contactName || t('crm.esign.docsTab.noClient')}</div>
+                          <div className="cm">{uploaded ? d.contactName || d.title || '—' : d.contactCompany || '—'}</div>
                         </div>
                       </div>
                     </td>
                     <td>
                       <span className="md-st">{d.kind}</span>
+                      {uploaded && (
+                        <span className="md-st md-up" title={d.notes || undefined} style={{ marginLeft: 6 }}>
+                          <Ic d={ESN_ICON.upload} size={10} />
+                          {t('crm.esign.upload.badge')}
+                        </span>
+                      )}
                     </td>
                     <td className="sum">{d.amount ? `${money(parseFloat(d.amount))} ${d.currency || ''}` : <span style={{ color: 'var(--fg-4)', fontWeight: 400 }}>—</span>}</td>
                     <td>
@@ -645,8 +687,14 @@ const DocsTab: React.FC<{
                     </td>
                     <td>
                       <div className="md-acts">
-                        {d.status === 'draft' && (
-                          <button className="md-ib" title={t('crm.esign.docsTab.actionEdit')} disabled={disabled} type="button" onClick={() => setEditId(d.id)}>
+                        {(d.status === 'draft' || uploaded) && (
+                          <button
+                            className="md-ib"
+                            title={uploaded ? t('crm.esign.upload.actionEdit') : t('crm.esign.docsTab.actionEdit')}
+                            disabled={disabled}
+                            type="button"
+                            onClick={() => (uploaded ? setUploadFor(d.id) : setEditId(d.id))}
+                          >
                             <Ic d={ESN_ICON.pencil} size={13} />
                           </button>
                         )}
@@ -668,6 +716,11 @@ const DocsTab: React.FC<{
                         >
                           <Ic d={ESN_ICON.download} size={13} />
                         </button>
+                        {uploaded ? (
+                          <button className="md-ib" title={t('crm.esign.upload.actionDelete')} disabled={disabled} type="button" onClick={() => removeUploaded(d)}>
+                            <Ic d={ESN_ICON.trash} size={13} />
+                          </button>
+                        ) : (
                         <button
                           className="md-ib"
                           title={!canSend ? t('crm.esign.docsTab.actionSendDisabled') : d.status === 'draft' ? t('crm.esign.docsTab.actionSend') : t('crm.esign.docsTab.actionResend')}
@@ -682,6 +735,7 @@ const DocsTab: React.FC<{
                         >
                           <Ic d={ESN_ICON.sign} size={13} />
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -700,6 +754,9 @@ const DocsTab: React.FC<{
 
       {editId && (
         <EditDocumentPanel t={t} documentId={editId} keyGroups={keyGroups} groupLabel={groupLabel} onClose={() => setEditId(null)} onSaved={onChanged} showAlert={showAlert} />
+      )}
+      {uploadFor !== undefined && (
+        <EsignUploadDialog t={t} documentId={uploadFor} kindOptions={KIND_OPTIONS} onClose={() => setUploadFor(undefined)} onSaved={onChanged} showAlert={showAlert} />
       )}
     </>
   );

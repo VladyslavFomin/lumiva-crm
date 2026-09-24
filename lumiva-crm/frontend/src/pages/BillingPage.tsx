@@ -13,7 +13,7 @@ import {
 
 const YOOKASSA_PENDING_CHECKOUT_KEY = 'lumiva_pending_billing_checkout';
 import { fetchCompanySettings } from '../api/settings';
-import { getAccessToken, markBillingUnlocked } from '../auth/session';
+import { getAccessToken, isBillingLocked, markBillingUnlocked } from '../auth/session';
 import { setAppLanguage } from '../i18n';
 
 type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
@@ -85,6 +85,8 @@ export const BillingPage: React.FC<{
   const resolvedPlan = normalizePlanCode(currentPlan !== undefined ? currentPlan : ownPlan);
   const resolvedTrialEndsAt = trialEndsAt !== undefined ? trialEndsAt : ownTrialEndsAt;
   const isTrialActive = !!resolvedTrialEndsAt && new Date(resolvedTrialEndsAt).getTime() > Date.now();
+  const isTrialExpired = !!resolvedTrialEndsAt && !isTrialActive;
+  const locked = isBillingLocked();
   const sessionId = params.get('session_id');
   const cancelled = params.get('cancelled');
   const providerParam = params.get('provider');
@@ -101,10 +103,16 @@ export const BillingPage: React.FC<{
   const text =
     lang === 'en'
       ? {
-          title: renew ? 'Renew your plan and keep access to CRM' : 'Activate a plan and unlock full CRM',
-          subtitle: renew
-            ? 'Your access period has ended. Select period and renew without re-registration.'
-            : 'Your account is currently in limited mode. Select a plan and pay via Stripe.',
+          title: isTrialExpired
+            ? 'Your free trial has ended'
+            : renew
+              ? 'Renew your plan and keep access to CRM'
+              : 'Activate a plan and unlock full CRM',
+          subtitle: isTrialExpired
+            ? 'Your 14-day Enterprise trial has ended. Choose a plan (you can keep Enterprise) to continue — CRM access is limited until you activate one.'
+            : renew
+              ? 'Your access period has ended. Select period and renew without re-registration.'
+              : 'Your account is currently in limited mode. Select a plan and pay via Stripe.',
           month: 'Monthly',
           year: 'Yearly (discount)',
           planLabel: 'Plan',
@@ -132,10 +140,16 @@ export const BillingPage: React.FC<{
         }
       : lang === 'tr'
         ? {
-            title: renew ? 'Planinizi uzatın ve CRM erişimini koruyun' : 'Planı etkinleştirin ve CRM tam erişimi açın',
-            subtitle: renew
-              ? 'Erişim süreniz sona erdi. Dönemi seçin ve yeniden kayıt olmadan uzatın.'
-              : 'Hesabınız şu anda sınırlı modda. Plan seçip Stripe ile ödeme yapın.',
+            title: isTrialExpired
+              ? 'Deneme süreniz sona erdi'
+              : renew
+                ? 'Planinizi uzatın ve CRM erişimini koruyun'
+                : 'Planı etkinleştirin ve CRM tam erişimi açın',
+            subtitle: isTrialExpired
+              ? '14 günlük Enterprise deneme süreniz sona erdi. Devam etmek için bir plan seçin (Enterprise\'ı koruyabilirsiniz) — plan etkinleştirilene kadar CRM erişimi sınırlıdır.'
+              : renew
+                ? 'Erişim süreniz sona erdi. Dönemi seçin ve yeniden kayıt olmadan uzatın.'
+                : 'Hesabınız şu anda sınırlı modda. Plan seçip Stripe ile ödeme yapın.',
             month: 'Aylık',
             year: 'Yıllık (indirimli)',
             planLabel: 'Plan',
@@ -162,10 +176,16 @@ export const BillingPage: React.FC<{
             portalError: 'Ödeme yöntemleri sayfası açılamadı. Lütfen birazdan tekrar deneyin.',
           }
         : {
-            title: renew ? 'Продлите тариф и продолжайте работу в CRM' : 'Активируйте тариф и получите полный доступ к CRM',
-            subtitle: renew
-              ? 'Срок доступа завершился. Выберите период и продлите подписку без повторной регистрации.'
-              : 'Сейчас аккаунт в ограниченном режиме. Выберите план и оплатите через Stripe.',
+            title: isTrialExpired
+              ? 'Пробный период закончился'
+              : renew
+                ? 'Продлите тариф и продолжайте работу в CRM'
+                : 'Активируйте тариф и получите полный доступ к CRM',
+            subtitle: isTrialExpired
+              ? 'Ваш 14-дневный пробный период Enterprise завершён. Выберите тариф (можно оставить Enterprise), чтобы продолжить работу — доступ к CRM ограничен до активации тарифа.'
+              : renew
+                ? 'Срок доступа завершился. Выберите период и продлите подписку без повторной регистрации.'
+                : 'Сейчас аккаунт в ограниченном режиме. Выберите план и оплатите через Stripe.',
             month: 'На месяц',
             year: 'На год (со скидкой)',
             planLabel: 'Тариф',
@@ -570,7 +590,7 @@ export const BillingPage: React.FC<{
                   </li>
                 ))}
               </ul>
-              {isCurrent && !isTrialActive ? (
+              {isCurrent && !isTrialActive && !locked ? (
                 <div
                   className={`mt-8 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-center font-semibold text-emerald-700 ${
                     embedded ? 'px-4 py-2.5 text-sm' : 'px-4 py-3 text-sm'

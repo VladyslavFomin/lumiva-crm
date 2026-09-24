@@ -112,7 +112,7 @@ const GROUPS: GroupDef[] = [
       { key: 'telephony' },
     ],
   },
-  { id: 'tools', mods: [{ key: 'tools_automation' }, { key: 'custom_objects' }] },
+  { id: 'tools', mods: [{ key: 'tools_automation' }, { key: 'custom_objects' }, { key: 'ai_employees' }] },
   { id: 'admin', mods: [{ key: 'staff' }, { key: 'settings' }] },
 ];
 

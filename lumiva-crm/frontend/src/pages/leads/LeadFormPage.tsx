@@ -1,4 +1,8 @@
 // src/pages/leads/LeadFormPage.tsx
+import { CommentMetaLine } from '../../components/ai/aiComments';
+import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
+import { AiRecordChat } from '../../components/ai/AiRecordChat';
+import { LeadTelegramThread } from '../../components/ai/LeadTelegramThread';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AiLeadScoreCard } from '../../components/ai/AiLeadScoreCard';
@@ -28,7 +32,7 @@ import { usePermission } from '../../hooks/usePermission';
 import { splitTextWithMentions, isTextMentioning } from '../projects/mentions';
 import { ccpApi, type CcpClient, type CcpSite } from '../../api/ccp';
 import { fetchCompanies, createCompany, type Company } from '../../api/companies';
-import { createContact } from '../../api/contacts';
+import { createContact, fetchContact } from '../../api/contacts';
 import { CompanySelect } from '../../components/CompanySelect';
 import { ContactSelect } from '../../components/ContactSelect';
 import {
@@ -106,7 +110,7 @@ function createEmptyLead(): Lead {
   } as Lead;
 }
 
-function CollapsibleCard({
+export function CollapsibleCard({
   title,
   right,
   defaultOpen = true,
@@ -366,7 +370,7 @@ export const LeadFormPage: React.FC = () => {
       category: t('crm.projects.detail.fields.category'),
       ownerName: t('crm.projects.detail.fields.owner'),
       ownerUserId: t('crm.projects.detail.fields.owner'),
-      leadId: t('crm.projects.detail.fields.leadName'),
+      leadId: t('crm.projects.detail.fields.lead'),
       companyId: t('crm.projects.detail.fields.company'),
       contactId: t('crm.projects.detail.fields.contact'),
       briefFileName: t('crm.projects.detail.files.title'),
@@ -1192,6 +1196,29 @@ export const LeadFormPage: React.FC = () => {
     navigate('/leads');
   };
 
+  // Смена/создание компании раньше безусловно сбрасывала выбранный контакт — из-за этого связка
+  // «контакт + компания» терялась при сохранении. Контакт сбрасываем, только если он уже состоит
+  // в ДРУГОЙ компании; контакт без компании остаётся (бэкенд привяжет его к компании лида).
+  const handleCompanyPicked = async (companyId: string | null, company?: Company | null) => {
+    const cid = companyId ?? null;
+    const currentContactId = lead.contactId;
+    let keepContact = true;
+    if (currentContactId && cid) {
+      try {
+        const c = await fetchContact(currentContactId);
+        keepContact = !c.companyId || c.companyId === cid;
+      } catch {
+        keepContact = true;
+      }
+    }
+    setLead((prev) => ({
+      ...prev,
+      companyId: cid,
+      companyName: company?.name || null,
+      contactId: keepContact ? prev.contactId : null,
+    }));
+  };
+
   const handleCreateContactFromLead = async () => {
     try {
       const fullName = (lead.name || '').trim();
@@ -1640,7 +1667,7 @@ export const LeadFormPage: React.FC = () => {
                 </div>
                 <CompanySelect
                   value={lead.companyId ?? null}
-                  onChange={(companyId, company) => { const cid = companyId ?? null; setLead(prev => ({ ...prev, companyId: cid, contactId: cid === prev.companyId ? prev.contactId : null, companyName: company?.name || null })); }}
+                  onChange={handleCompanyPicked}
                   placeholder={t('crm.leads.form.fields.companyPlaceholder')}
                   className="w-full" allowCreate={true}
                   onCompanyCreated={company => { setCompanies([company, ...companies]); setLead(prev => ({ ...prev, companyId: company.id, companyName: company.name })); }}
@@ -2029,6 +2056,8 @@ export const LeadFormPage: React.FC = () => {
                 )}
               </CollapsibleCard>
 
+              <LeadTelegramThread leadId={lead.id} isNew={isNew} locale={locale} />
+
               {/* Внешние CRM */}
               <ExternalLinksPanel entityType="lead" entityId={lead.id} />
 
@@ -2226,6 +2255,8 @@ export const LeadFormPage: React.FC = () => {
                     );
                   })}
                 </div>
+                <AiAssigneeGroup entityType="lead" entityId={isNew ? null : lead.id} compact />
+                <AiRecordChat entityType="lead" entityId={isNew ? null : lead.id} />
               </CollapsibleCard>
 
               {/* Встречи */}
@@ -2295,7 +2326,7 @@ export const LeadFormPage: React.FC = () => {
                             return (
                               <>
                                 <div style={{ fontSize: 10, color: FG3, marginBottom: 3 }}>
-                                  {comment.createdAt} · {comment.author}
+                                  <CommentMetaLine createdAt={comment.createdAt} author={comment.author} locale={locale} />
                                 </div>
                                 <div style={{ fontSize: 12, whiteSpace: "pre-wrap", color: INK }}>
                                   {renderMentions(comment.text)}
@@ -2401,7 +2432,7 @@ export const LeadFormPage: React.FC = () => {
                         rows={3}
                         className="w-full resize-y min-h-[64px] rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-400 text-neutral-900"
                       />
-                      {mentionQuery !== null && (() => {
+                      {mentionQuery !== null && mentionQuery.length >= 2 && (() => {
                         const q = mentionQuery.toLowerCase();
                         const matches = staff.filter((u) => u.fullName?.toLowerCase().includes(q)).slice(0, 6);
                         if (!matches.length) return null;
@@ -2701,7 +2732,13 @@ export const LeadFormPage: React.FC = () => {
           preselectedLeadId={isNew ? undefined : id}
           preselectedLeadName={lead.name || undefined}
           onClose={() => setCalendarModal(null)}
-          onSaved={() => { showSuccess(calendarModal === 'meeting' ? t('crm.leads.form.messages.meetingCreated') : t('crm.leads.form.messages.noteCreated')); }}
+          onSaved={(info) => {
+            if (calendarModal === 'meeting' && !info.emailSent) {
+              showError(t('crm.leads.form.messages.meetingCreatedEmailFailed'));
+            } else {
+              showSuccess(calendarModal === 'meeting' ? t('crm.leads.form.messages.meetingCreated') : t('crm.leads.form.messages.noteCreated'));
+            }
+          }}
         />
       )}
     </MainLayout>

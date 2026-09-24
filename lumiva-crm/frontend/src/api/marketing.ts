@@ -749,3 +749,83 @@ export async function regenerateMarketingApiToken(password: string): Promise<str
   );
   return res.token;
 }
+
+/** Созданная ссылка с метками + статистика (хранилище «Ссылки с метками»). */
+export interface MarketingUtmLink {
+  id: string;
+  name: string;
+  baseUrl: string;
+  channelType: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  utmTerm: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  /** Сессии из подключённой аналитики; null — аналитика не подключена. */
+  clicks: number | null;
+  leads: number;
+}
+
+export async function fetchUtmLinks(): Promise<{ items: MarketingUtmLink[]; hasTraffic: boolean }> {
+  return api.get('/marketing/utm-links');
+}
+
+export async function createUtmLink(payload: {
+  name: string;
+  baseUrl: string;
+  channelType?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+}): Promise<MarketingUtmLink> {
+  return api.post<MarketingUtmLink>('/marketing/utm-links', payload);
+}
+
+export async function deleteUtmLink(id: string): Promise<void> {
+  await api.delete(`/marketing/utm-links/${id}`);
+}
+
+/* ── Meta Ads: подключение «одной кнопкой» (OAuth → выбор рекламных аккаунтов) ── */
+export interface MetaAdsOAuthStatus {
+  /** На платформе настроено приложение Meta (App ID / Secret). */
+  configured: boolean;
+  connected: boolean;
+  connectedAt: string | null;
+  expiresAt: string | null;
+  expired: boolean;
+}
+
+export interface MetaAdsAccount {
+  id: string;
+  name: string;
+  currency: string | null;
+  /** account_status Meta: 1 — активен. */
+  status: number | null;
+  business: string | null;
+  /** Интеграция CRM, если аккаунт уже подключён. */
+  connectedIntegrationId: string | null;
+}
+
+export async function startMetaAdsOAuth(redirectPath?: string): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/marketing/integrations/meta-ads/oauth/start', { redirectPath });
+}
+
+export async function fetchMetaAdsOAuthStatus(): Promise<MetaAdsOAuthStatus> {
+  return api.get<MetaAdsOAuthStatus>('/marketing/integrations/meta-ads/oauth/status');
+}
+
+export async function fetchMetaAdsAccounts(): Promise<{ accounts: MetaAdsAccount[] }> {
+  return api.get('/marketing/integrations/meta-ads/accounts');
+}
+
+export async function connectMetaAdsAccounts(
+  accounts: Array<{ id: string; name?: string; currency?: string | null }>,
+): Promise<{ results: Array<{ id: string; integrationId: string; rows: number; error?: string }> }> {
+  return api.post('/marketing/integrations/meta-ads/connect', {
+    accounts: accounts.map((a) => ({ id: a.id, name: a.name, currency: a.currency || undefined })),
+  });
+}

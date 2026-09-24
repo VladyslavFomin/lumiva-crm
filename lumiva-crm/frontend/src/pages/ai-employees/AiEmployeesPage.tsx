@@ -1,3 +1,4 @@
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +19,7 @@ import {
   type AiAvatarStyle,
 } from './AiAvatar';
 import './ai-employees.css';
+import './ai-emp2.css';
 import {
   ClientDialogueEditor,
   ControlEditor,
@@ -35,10 +37,15 @@ import {
   executeAiAction,
   fetchPendingAiActions,
   checkAiSlaNow,
+  fetchAiAgentAssignments,
   fetchAiAgentConfig,
   fetchAiEmployee,
   fetchAiEmployees,
+  fetchAiInsights,
   fetchAiLogs,
+  fetchAiLessons,
+  deleteAiLesson,
+  type AiLesson,
   fetchAiPlanLimits,
   fetchAiReports,
   fetchAiRoles,
@@ -55,6 +62,7 @@ import {
   updateAiEmployeePermissions,
   type AiAgent,
   type AiAgentAction,
+  type AiAgentAssignmentItem,
   type AiAgentAutonomyMode,
   type AiAgentConfig,
   type AiAgentDetailResponse,
@@ -64,6 +72,7 @@ import {
   type AiEmailInboxAccess,
   type AiEmployeeRole,
   type AiEmployeeRoleKey,
+  type AiInsights,
   type AiPlanSnapshot,
   type AiTableAccess,
   type AiTriggerConfig,
@@ -152,6 +161,57 @@ const REAL_EXECUTABLE_ACTIONS = new Set([
   'workspace_add_field',
   'workspace_enable_views',
 ]);
+
+/* ---------------------------------------------------------------- access v2: off/appr/auto matrix
+ * Заменяет разрозненные «Права» + «Правила согласования» одним 3-позиционным переключателем на
+ * действие — чистое отображение поверх той же пары API (permissions bool + approvalRules bool),
+ * бэкенд не менялся. send_bulk_email — единственное действие с backend-жёстким forceAppr
+ * (ai-employee-role-catalog.ts, createAiAction) — никогда не auto, что бы ни настроили.
+ * draft_email/draft_whatsapp/create_report/manage_workspace_data не входят в approvalKeys — для
+ * них нет самого механизма согласования (черновик/отчёт не имеет "реальной" отправки), поэтому
+ * доступные состояния — только off/auto. */
+type AccessState = 'off' | 'appr' | 'auto';
+const FORCE_APPR_ACTIONS = new Set(['send_bulk_email']);
+
+type AccessModuleDef = { key: string; labelKey: string; acts: string[] };
+const ACCESS_MODULES: AccessModuleDef[] = [
+  { key: 'leads', labelKey: 'crm.aiEmployees.v2.groups.leads', acts: ['update_lead_status', 'assign_lead'] },
+  { key: 'tasks', labelKey: 'crm.aiEmployees.v2.groups.tasks', acts: ['create_task', 'update_task', 'create_note'] },
+  { key: 'mail', labelKey: 'crm.aiEmployees.v2.groups.mail', acts: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram'] },
+  { key: 'work', labelKey: 'crm.aiEmployees.v2.groups.work', acts: ['create_meeting', 'create_project'] },
+  { key: 'data', labelKey: 'crm.aiEmployees.v2.groups.data', acts: ['create_report', 'create_workspace_table', 'manage_workspace_data'] },
+];
+const ACCESS_ALL_ACTS = ACCESS_MODULES.flatMap((m) => m.acts);
+
+/** off/appr/auto по реальным permissions+approvalRules — учитывает то же самое, что решает бэкенд
+ * при исполнении (suggest роняет всё, assisted форсит appr, forceAppr никогда не auto). */
+function accessStateWithRules(
+  autonomyMode: AiAgentAutonomyMode,
+  permissions: Record<string, boolean>,
+  approvalRules: Record<string, boolean>,
+  key: string,
+): AccessState {
+  if (!permissions[key]) return 'off';
+  if (autonomyMode === 'suggest') return 'off';
+  if (autonomyMode === 'assisted') return 'appr';
+  if (FORCE_APPR_ACTIONS.has(key)) return 'appr';
+  if (!approvalKeys.includes(key)) return 'auto';
+  return approvalRules[key] ? 'appr' : 'auto';
+}
+/** Какие состояния можно выбрать кнопкой при данном уровне автономии (не то, что отображается). */
+function statesFor(autonomyMode: AiAgentAutonomyMode, key: string): AccessState[] {
+  if (autonomyMode === 'suggest') return ['off'];
+  if (FORCE_APPR_ACTIONS.has(key)) return ['off', 'appr'];
+  if (autonomyMode === 'assisted') return ['off', 'appr'];
+  if (!approvalKeys.includes(key)) return ['off', 'auto'];
+  return ['off', 'appr', 'auto'];
+}
+function countAccessStates(autonomyMode: AiAgentAutonomyMode, permissions: Record<string, boolean>, approvalRules: Record<string, boolean>) {
+  const c = { auto: 0, appr: 0, off: 0 };
+  for (const k of ACCESS_ALL_ACTS) c[accessStateWithRules(autonomyMode, permissions, approvalRules, k)] += 1;
+  return c;
+}
+const AUTONOMY_PRESET_ORDER: AiAgentAutonomyMode[] = ['suggest', 'assisted', 'auto'];
 
 const AVATAR_SWATCH_BG: Record<AiAvatarAccent, string> = {
   ink: '#222',
@@ -263,6 +323,18 @@ const ICON = {
     </>
   ),
   send: <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" />,
+  cog: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4.8a7 7 0 00-2.1-1.2L14 3h-4l-.4 2.4a7 7 0 00-2.1 1.2L5.1 5.8l-2 3.4 2 1.6A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-.8a7 7 0 002.1 1.2L10 21h4l.4-2.4a7 7 0 002.1-1.2l2.4.8 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" />
+    </>
+  ),
+  refresh: (
+    <>
+      <path d="M21 12a9 9 0 11-3-6.7" />
+      <path d="M21 4v5h-5" />
+    </>
+  ),
 } as const;
 
 function I({ d, size = 16, sw = 1.7 }: { d: React.ReactNode; size?: number; sw?: number }) {
@@ -579,12 +651,58 @@ function RoleCard({
   );
 }
 
+function LessonsPanel({ agentId }: { agentId: string }) {
+  const { t } = useTranslation();
+  const [lessons, setLessons] = useState<AiLesson[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetchAiLessons(agentId)
+      .then((r) => alive && setLessons(r.lessons))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [agentId]);
+  if (!lessons.length) return null;
+  return (
+    <div className="ai-panel">
+      <div className="e2-lbl">{t('crm.aiEmployees.lessons.title')}</div>
+      <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 8 }}>{t('crm.aiEmployees.lessons.hint')}</div>
+      {lessons.map((l) => (
+        <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 0', borderTop: '1px solid var(--line, #eee)' }}>
+          <div style={{ flex: 1, fontSize: 13 }}>{l.text}</div>
+          <button
+            type="button"
+            className="e2-ib"
+            title={t('crm.aiEmployees.lessons.remove')}
+            onClick={() => deleteAiLesson(agentId, l.id).then(() => setLessons((cur) => cur.filter((x) => x.id !== l.id)))}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ApprovalList({ actions, onChanged }: { actions: AiAgentAction[]; onChanged: () => void }) {
   const { t, i18n } = useTranslation();
+  const { showPrompt } = useAlertModal();
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const run = async (action: AiAgentAction, kind: 'approve' | 'reject' | 'execute') => {
+    let reason: string | undefined;
+    if (kind === 'reject') {
+      // Причина превращается в постоянный «урок» сотрудника (попадает в его инструкции).
+      const answer = await showPrompt({
+        title: t('crm.aiEmployees.lessons.rejectTitle'),
+        label: t('crm.aiEmployees.lessons.rejectLabel'),
+        placeholder: t('crm.aiEmployees.lessons.rejectPlaceholder'),
+      });
+      if (answer === null) return;
+      reason = answer.trim() || undefined;
+    }
     setBusy((s) => ({ ...s, [action.id]: kind }));
     setErrors((s) => {
       const next = { ...s };
@@ -593,7 +711,7 @@ function ApprovalList({ actions, onChanged }: { actions: AiAgentAction[]; onChan
     });
     try {
       if (kind === 'approve') await approveAiAction(action.id);
-      if (kind === 'reject') await rejectAiAction(action.id);
+      if (kind === 'reject') await rejectAiAction(action.id, reason);
       if (kind === 'execute') await executeAiAction(action.id);
       onChanged();
     } catch (e) {
@@ -913,23 +1031,70 @@ function AutonomySelector({ value, onChange }: { value: AiAgentAutonomyMode; onC
 }
 
 /* ---------------------------------------------------------------- views */
+function AccessFingerprint({
+  autonomyMode,
+  permissions,
+  approvalRules,
+  compact,
+}: {
+  autonomyMode: AiAgentAutonomyMode;
+  permissions: Record<string, boolean>;
+  approvalRules: Record<string, boolean>;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  const c = countAccessStates(autonomyMode, permissions, approvalRules);
+  const total = c.auto + c.appr + c.off || 1;
+  return (
+    <div>
+      <div className="e2-fp">
+        <span className="s-auto" style={{ width: `${(c.auto / total) * 100}%` }} />
+        <span className="s-appr" style={{ width: `${(c.appr / total) * 100}%` }} />
+        <span className="s-off" style={{ width: `${(c.off / total) * 100}%` }} />
+      </div>
+      {!compact ? (
+        <div className="e2-fpl">
+          <span>
+            <b>{c.auto}</b> {t('crm.aiEmployees.v2.fp.auto')}
+          </span>
+          <span>
+            <b>{c.appr}</b> {t('crm.aiEmployees.v2.fp.appr')}
+          </span>
+          <span>
+            <b>{c.off}</b> {t('crm.aiEmployees.v2.fp.off')}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DashboardView() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [data, setData] = useState<AiAgentsListResponse | null>(null);
-  const [pending, setPending] = useState<AiAgentAction[]>([]);
+  const [insights, setInsights] = useState<AiInsights | null>(null);
+  const [dayLogs, setDayLogs] = useState<AiAgentLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [ownKeyModalOpen, setOwnKeyModalOpen] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'setup_required' | 'pending'>('all');
 
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const [employees, actions] = await Promise.all([fetchAiEmployees(), fetchPendingAiActions()]);
+      const [employees, ins, logsRes] = await Promise.all([
+        fetchAiEmployees(),
+        fetchAiInsights(30).catch(() => null),
+        fetchAiLogs({ limit: 60 }).catch(() => ({ items: [] as AiAgentLog[] })),
+      ]);
       setData(employees);
-      setPending(actions.items.slice(0, 5));
+      setInsights(ins);
+      // «Лента дня»: только содержательные события (что сделано / пропущено / сломалось), без служебного шума.
+      const keep = new Set(['action_created', 'action_executed', 'action_blocked', 'action_rejected', 'agent_auto_paused', 'daily_digest', 'escalated']);
+      setDayLogs((logsRes.items || []).filter((l) => keep.has(l.eventType)).slice(0, 12));
     } catch (e) {
       setError(extractError(e, t));
     } finally {
@@ -946,178 +1111,250 @@ function DashboardView() {
     if (planFull) setUpgradeOpen(true);
     else navigate('/ai-employees/choose');
   };
+  const savedHours = insights ? Math.round(insights.totals.minutesSaved / 60) : null;
+  const freeRoles = data ? data.roles.filter((r) => !data.items.some((a) => a.role === r.key)) : [];
+  const list = data
+    ? data.items.filter((a) => {
+        if (filter === 'all') return true;
+        if (filter === 'pending') return (a.stats?.pendingApprovals ?? 0) > 0;
+        return a.status === filter;
+      })
+    : [];
 
   return (
     <MainLayout>
       <PageHelpButton topic="aiEmployees" />
-      <div className="ai-emp">
-        <div className="ai-hero">
+      <div className="ai-emp e2">
+        <div className="e2-head">
           <div>
-            <div className="kicker">
-              <span className="dot" />
-              {t('crm.aiEmployees.badge.workforce')}
-            </div>
+            <div className="kick">{t('crm.aiEmployees.badge.workforce')}</div>
             <h1>{t('crm.aiEmployees.dashboard.title')}</h1>
-            <p className="sub">{t('crm.aiEmployees.dashboard.subtitle')}</p>
+            <div className="sub">{t('crm.aiEmployees.v2.subtitle')}</div>
           </div>
-          <div className="ai-hero-actions">
+          <div className="e2-head-r">
             <PlanUsage plan={data?.plan} />
-            <button className="aib" onClick={add}>
-              <I d={ICON.plus} size={15} />
-              {t('crm.aiEmployees.dashboard.addEmployee')}
+            <button className="e2b" onClick={add}>
+              <I d={ICON.plus} size={14} />
+              {t('crm.aiEmployees.v2.hire')}
             </button>
           </div>
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--fg-3)', margin: '-8px 0 20px', maxWidth: 640, lineHeight: 1.5 }}>
-          {t('crm.aiEmployees.naming.dashboardHint')}
-        </p>
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap',
-            border: '1px solid var(--line-2)',
-            borderRadius: 12,
-            padding: '12px 16px',
-            marginBottom: 20,
-            background: 'rgba(124, 58, 237, 0.04)',
-          }}
-        >
-          <div style={{ fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.5 }}>
-            <strong style={{ color: 'var(--fg-1)' }}>{t('crm.aiEmployees.ownKeyBanner.title')}</strong>{' '}
-            {t('crm.aiEmployees.ownKeyBanner.body')}
+        <div className="e2-banner">
+          <div className="t">
+            <b>{t('crm.aiEmployees.ownKeyBanner.title')}</b> {t('crm.aiEmployees.ownKeyBanner.body')}
           </div>
-          <button
-            className="aib"
-            style={{ flexShrink: 0 }}
-            onClick={() => setOwnKeyModalOpen(true)}
-          >
+          <button className="e2b gh" style={{ flexShrink: 0 }} onClick={() => setOwnKeyModalOpen(true)}>
             {t('crm.aiEmployees.ownKeyBanner.button')}
           </button>
         </div>
-        <OpenAiConnectModal
-          open={ownKeyModalOpen}
-          onClose={() => setOwnKeyModalOpen(false)}
-          onCreated={() => setOwnKeyModalOpen(false)}
-        />
+        <OpenAiConnectModal open={ownKeyModalOpen} onClose={() => setOwnKeyModalOpen(false)} onCreated={() => setOwnKeyModalOpen(false)} />
 
         {error ? (
-          <div className="ai-panel" style={{ padding: 16, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
+          <div className="e2-panel" style={{ padding: 16, margin: '16px 0', color: '#9a1f31', fontSize: 13 }}>
             {error}
           </div>
         ) : null}
-        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.dashboard.loading')}</div> : null}
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 16 }}>{t('crm.aiEmployees.dashboard.loading')}</div> : null}
 
         {data ? (
-          <>
-            {data.items.length === 0 ? (
-              <div className="ai-panel" style={{ padding: '40px 24px', textAlign: 'center', marginBottom: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <LottieIcon name="welcome" size={168} />
-                </div>
-                <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 19, color: 'var(--ink)', letterSpacing: '-0.02em', marginTop: 4 }}>
-                  {t('crm.aiEmployees.empty.title')}
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--fg-3)', maxWidth: 420, margin: '8px auto 0', lineHeight: 1.5 }}>
-                  {t('crm.aiEmployees.empty.body')}
-                </div>
-                <button className="aib" style={{ marginTop: 18 }} onClick={add}>
-                  <I d={ICON.plus} size={15} />
-                  {t('crm.aiEmployees.empty.cta')}
-                </button>
+          data.items.length === 0 ? (
+            <div className="e2-panel" style={{ padding: '40px 24px', textAlign: 'center', margin: '20px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <LottieIcon name="welcome" size={168} />
               </div>
-            ) : (
-              <>
-                <div className="ai-kpis">
-                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiActive')} value={data.kpis.activeAiEmployees} icon={ICON.users} />
-                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiTasksToday')} value={data.kpis.tasksCompletedToday} icon={ICON.bolt} />
-                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiPendingApprovals')} value={data.kpis.pendingApprovals} icon={ICON.shield} />
-                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiReports')} value={data.kpis.reportsGenerated} icon={ICON.doc} />
-                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiLeads')} value={data.kpis.leadsAnalyzed} icon={ICON.lead} />
-                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiIssues')} value={data.kpis.issuesDetected} icon={ICON.x} />
-                </div>
-
-                <div className="ai-grp">
-                  {t('crm.aiEmployees.dashboard.title')} <span className="cnt">· {data.items.length}</span>
-                </div>
-                <div className="ai-roster">
-                  {data.items.map((agent) => (
-                    <AgentCard key={agent.id} agent={agent} onOpen={() => navigate(`/ai-employees/${agent.id}`)} />
-                  ))}
-                  <div
-                    className="ai-card"
-                    {...clickableProps(add)}
-                    style={{
-                      border: '1.5px dashed var(--line-2)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textAlign: 'center',
-                      minHeight: 220,
-                      background: 'rgba(255,255,255,0.5)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        background: 'var(--bg-soft)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--fg-3)',
-                        margin: '0 auto 12px',
-                      }}
-                    >
-                      <I d={ICON.plus} size={20} />
-                    </div>
-                    <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
-                      {t('crm.aiEmployees.dashboard.hireCardTitle')}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 5, maxWidth: 220, marginLeft: 'auto', marginRight: 'auto' }}>
-                      {t('crm.aiEmployees.dashboard.hireCardSubtitle')}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="ai-grp" style={{ margin: 0, flex: 1 }}>
-                    {t('crm.aiEmployees.dashboard.pendingTitle')}
-                  </div>
-                  <button className="aib ghost sm" onClick={() => navigate('/ai-employees/approvals')}>
-                    {t('crm.aiEmployees.dashboard.openQueue')}
-                  </button>
-                </div>
-                <div className="ai-panel">
-                  <div className="ai-panel-body flush">
-                    <ApprovalList actions={pending} onChanged={load} />
-                  </div>
-                </div>
+              <div className="h" style={{ fontSize: 19, marginTop: 4 }}>
+                {t('crm.aiEmployees.empty.title')}
               </div>
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="ai-grp" style={{ margin: 0, flex: 1 }}>
-                    {t('crm.aiEmployees.dashboard.recentActivity')}
-                  </div>
-                  <button className="aib ghost sm" onClick={() => navigate('/ai-employees/logs')}>
-                    {t('crm.aiEmployees.dashboard.viewLogs')}
-                  </button>
-                </div>
-                <div className="ai-panel">
-                  <div className="ai-panel-body flush">
-                    <LogList logs={data.recentLogs} />
-                  </div>
-                </div>
+              <div style={{ fontSize: 13, color: 'var(--fg-3)', maxWidth: 420, margin: '8px auto 0', lineHeight: 1.5 }}>
+                {t('crm.aiEmployees.empty.body')}
               </div>
+              <button className="e2b" style={{ marginTop: 18 }} onClick={add}>
+                <I d={ICON.plus} size={14} />
+                {t('crm.aiEmployees.empty.cta')}
+              </button>
             </div>
-          </>
+          ) : (
+            <>
+              <div className="e2-kpis">
+                <div className="e2-kpi">
+                  <div className="kick">{t('crm.aiEmployees.v2.kpi.active')}</div>
+                  <div className="num">{data.kpis.activeAiEmployees}</div>
+                  <div className="d">{t('crm.aiEmployees.v2.kpi.activeD', { count: data.items.length })}</div>
+                </div>
+                <div className="e2-kpi">
+                  <div className="kick">{t('crm.aiEmployees.v2.kpi.today')}</div>
+                  <div className="num">{data.kpis.tasksCompletedToday}</div>
+                  <div className="d">{t('crm.aiEmployees.v2.kpi.todayD')}</div>
+                </div>
+                <div
+                  className={cn('e2-kpi', 'clk', data.kpis.pendingApprovals > 0 && 'warn')}
+                  {...clickableProps(() => navigate('/ai-employees/approvals'))}
+                >
+                  <div className="kick">{t('crm.aiEmployees.v2.kpi.pending')}</div>
+                  <div className="num">{data.kpis.pendingApprovals}</div>
+                  <div className="d">{t('crm.aiEmployees.v2.kpi.pendingD')}</div>
+                </div>
+                <div className="e2-kpi clk" {...clickableProps(() => navigate('/ai-employees/reports'))}>
+                  <div className="kick">{t('crm.aiEmployees.v2.kpi.reports')}</div>
+                  <div className="num">{data.kpis.reportsGenerated}</div>
+                  <div className="d">{t('crm.aiEmployees.v2.kpi.reportsD')}</div>
+                </div>
+                <div className="e2-kpi clk" {...clickableProps(() => navigate('/ai-employees/insights'))}>
+                  <div className="kick">{t('crm.aiEmployees.v2.kpi.saved')}</div>
+                  <div className="num">{savedHours == null ? '—' : t('crm.aiEmployees.v2.hoursValue', { count: savedHours })}</div>
+                  <div className="d">{t('crm.aiEmployees.v2.kpi.savedD')}</div>
+                </div>
+              </div>
+
+              <div className="e2-chipbar">
+                {(
+                  [
+                    ['all', t('crm.aiEmployees.v2.filters.all', { count: data.items.length })],
+                    ['active', t('crm.aiEmployees.v2.filters.active')],
+                    ['paused', t('crm.aiEmployees.v2.filters.paused')],
+                    ['setup_required', t('crm.aiEmployees.v2.filters.setup_required')],
+                    ['pending', t('crm.aiEmployees.v2.filters.pending')],
+                  ] as const
+                ).map(([k, l]) => (
+                  <button key={k} className={cn('e2-chip', filter === k && 'on')} onClick={() => setFilter(k)}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              <div className="e2-tbl">
+                <div className="e2-tr hd">
+                  <div>{t('crm.aiEmployees.v2.colHead.employee')}</div>
+                  <div className="c-st">{t('crm.aiEmployees.v2.colHead.status')}</div>
+                  <div className="c-mode">{t('crm.aiEmployees.v2.colHead.level')}</div>
+                  <div className="c-acc">{t('crm.aiEmployees.v2.colHead.access')}</div>
+                  <div className="c-load">{t('crm.aiEmployees.v2.colHead.today')}</div>
+                  <div className="c-appr">{t('crm.aiEmployees.v2.colHead.queue')}</div>
+                  <div className="c-act" />
+                </div>
+                {list.map((agent) => {
+                  const av = agentAvatarProps(agent);
+                  const pending = agent.stats?.pendingApprovals ?? 0;
+                  return (
+                    <div key={agent.id} className="e2-tr ag" {...clickableProps(() => navigate(`/ai-employees/${agent.id}`))}>
+                      <div className="e2-who">
+                        <AiAvatar name={agent.name} accent={av.accent} avStyle={av.avStyle} size="md" src={agent.avatarUrl} />
+                        <div style={{ minWidth: 0 }}>
+                          <div className="nm">{agent.name}</div>
+                          <div className="rl">{trRole(agent.role, 'shortTitle', agent.roleShortTitle || '', t, i18n)}</div>
+                          {agent.status !== 'active' && agent.stats?.autoPausedReason ? (
+                            <div className="rl" style={{ color: 'var(--err, #b4232a)', whiteSpace: 'normal' }} title={agent.stats.autoPausedReason}>
+                              ⚠ {agent.stats.autoPausedReason}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="c-st">
+                        <StatusBadge status={agent.status} />
+                      </div>
+                      <div className="c-mode">
+                        <span className={cn('e2-mode', agent.autonomyMode === 'auto' && 'auto')}>{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
+                      </div>
+                      <div className="c-acc">
+                        <AccessFingerprint autonomyMode={agent.autonomyMode} permissions={agent.permissions ?? {}} approvalRules={agent.approvalRules ?? {}} />
+                      </div>
+                      <div className="c-load e2-load">
+                        <span className="num">{agent.stats?.executedToday ?? 0}</span>
+                        {(agent.stats?.failedToday ?? 0) > 0 ? (
+                          <span style={{ color: 'var(--err, #b4232a)', fontSize: 11, marginLeft: 6 }} title={t('crm.aiEmployees.v2.failedToday')}>
+                            ✕ {agent.stats?.failedToday}
+                          </span>
+                        ) : null}
+                        {(agent.stats?.blockedToday ?? 0) > 0 ? (
+                          <span style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 6 }} title={t('crm.aiEmployees.v2.blockedToday')}>
+                            ⏸ {agent.stats?.blockedToday}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="c-appr">
+                        <span className={cn('e2-appr', pending > 0 && 'has')}>
+                          <span className="b">{pending || '—'}</span>
+                          {pending > 0 ? t('crm.aiEmployees.v2.queue') : ''}
+                        </span>
+                      </div>
+                      <div className="c-act e2-rowbtns" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="e2-ib"
+                          title={agent.status === 'active' ? t('crm.aiEmployees.profile.pause') : t('crm.aiEmployees.profile.resume')}
+                          onClick={() => (agent.status === 'active' ? pauseAiEmployee(agent.id) : resumeAiEmployee(agent.id)).then(load)}
+                        >
+                          <I d={agent.status === 'active' ? ICON.pause : ICON.play} size={13} />
+                        </button>
+                        <button className="e2-ib" title={t('crm.aiEmployees.v2.hire')} onClick={() => navigate(`/ai-employees/${agent.id}`)}>
+                          <I d={ICON.cog} size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!list.length ? <div className="e2-empty">{t('crm.aiEmployees.approvalsPage.empty')}</div> : null}
+              </div>
+
+              {dayLogs.length > 0 ? (
+                <>
+                  <div className="e2-sec">
+                    <div className="h">{t('crm.aiEmployees.v2.dayFeed')}</div>
+                    <div className="line" />
+                    <button className="e2b gh" onClick={() => navigate('/ai-employees/logs')}>
+                      {t('crm.aiEmployees.v2.dayFeedAll')}
+                    </button>
+                  </div>
+                  <div className="ai-panel">
+                    <LogList logs={dayLogs} />
+                  </div>
+                </>
+              ) : null}
+
+              {freeRoles.length > 0 ? (
+                <>
+                  <div className="e2-sec">
+                    <div className="h">{t('crm.aiEmployees.v2.freeRoles')}</div>
+                    <div className="line" />
+                    <span className="kick">{freeRoles.length}</span>
+                  </div>
+                  <div className="e2-roles">
+                    {freeRoles.map((r) => (
+                      <div key={r.key} className={cn('e2-role', r.locked && 'lock')}>
+                        <div className="rt">
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="h">{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</div>
+                            <div className="dp">
+                              {trDepartment(r.department, t)} · {r.jobTitle}
+                            </div>
+                          </div>
+                          {r.locked ? <span className="plan">{trPlanBadge(r.badge, t)}</span> : null}
+                        </div>
+                        <div className="ds">{trRole(r.key, 'description', r.description, t, i18n)}</div>
+                        <div className="fn">
+                          {trRoleFunctions(r.key, r.functions, t, i18n)
+                            .slice(0, 3)
+                            .map((f) => (
+                              <span key={f}>{f}</span>
+                            ))}
+                        </div>
+                        <div>
+                          {!r.locked ? (
+                            <button className="e2b gh sm" onClick={() => navigate(`/ai-employees/new?role=${r.key}`)}>
+                              <I d={ICON.plus} size={12} />
+                              {t('crm.aiEmployees.v2.hire')}
+                            </button>
+                          ) : (
+                            <span className="e2-hint">{trPlanBadge(r.badge, t)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </>
+          )
         ) : null}
       </div>
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} plan={data?.plan} />
@@ -1220,6 +1457,9 @@ function CreateView() {
   const [tableAccess, setTableAccess] = useState<AiTableAccess>({ mode: 'selected', tables: [] });
   const [emailInboxAccess, setEmailInboxAccess] = useState<AiEmailInboxAccess>({ accountIds: [] });
   const [timezone, setTimezone] = useState('Europe/Moscow');
+  const [quickLang, setQuickLang] = useState<'Russian' | 'English' | 'Turkish'>('Russian');
+  const [quickMode, setQuickMode] = useState<AiAgentAutonomyMode>('assisted');
+  const [quickSchedule, setQuickSchedule] = useState<'always' | 'business_hours'>('business_hours');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -1265,7 +1505,7 @@ function CreateView() {
 
   const selectedRole = roles.find((role) => role.key === roleKey);
 
-  const save = async () => {
+  const save = async (quick?: { language: string; mode: AiAgentAutonomyMode; schedule: 'always' | 'business_hours' }) => {
     if (!selectedRole) return;
     setSaving(true);
     setError('');
@@ -1275,15 +1515,29 @@ function CreateView() {
         name,
         department,
         jobTitle,
-        language,
+        language: quick ? quick.language : language,
         tone,
-        autonomyMode,
-        scheduleMode,
+        autonomyMode: quick ? quick.mode : autonomyMode,
+        scheduleMode: quick ? quick.schedule : scheduleMode,
         dailyReportTime,
         permissions,
         approvalRules,
         status: 'active',
-        settings: { ...(openaiConnectionId ? { openaiConnectionId } : {}), avatarAccent, avatarStyle, instructions, triggers, tableAccess, clientDialogue, sla, dailyPlan, emailInboxAccess, timezone },
+        settings: {
+          ...(openaiConnectionId ? { openaiConnectionId } : {}),
+          avatarAccent,
+          avatarStyle,
+          instructions,
+          triggers,
+          tableAccess,
+          // Быстрый старт: «сам» = полная автономия и сообщения клиентам без согласования;
+          // остальное — с согласованием. План на день и контроль скорости включены сразу.
+          clientDialogue: quick ? (quick.mode === 'auto' ? 'auto' : 'approval') : clientDialogue,
+          sla: quick ? { enabled: true, minutes: 30 } : sla,
+          dailyPlan: quick ? { enabled: true, time: '09:00' } : dailyPlan,
+          emailInboxAccess,
+          timezone,
+        },
       });
       navigate(`/ai-employees/${res.agent.id}`);
     } catch (e) {
@@ -1346,6 +1600,44 @@ function CreateView() {
 
           {step === 0 && selectedRole ? (
             <>
+              <div className="ai-form-card">
+                <div className="fct">{t('crm.aiEmployees.quick.title')}</div>
+                <p className="ai-hint" style={{ margin: '4px 0 12px' }}>{t('crm.aiEmployees.quick.hint')}</p>
+                <div className="ai-field">
+                  <label className="ai-label">{t('crm.aiEmployees.quick.q1')}</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {(['Russian', 'English', 'Turkish'] as const).map((lng) => (
+                      <button key={lng} type="button" className={cn('e2-chip', quickLang === lng && 'on')} onClick={() => setQuickLang(lng)}>
+                        {t(`crm.aiEmployees.quick.lang.${lng}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="ai-field">
+                  <label className="ai-label">{t('crm.aiEmployees.quick.q2')}</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {(['assisted', 'auto', 'suggest'] as const).map((m) => (
+                      <button key={m} type="button" className={cn('e2-chip', quickMode === m && 'on')} onClick={() => setQuickMode(m)}>
+                        {t(`crm.aiEmployees.quick.mode.${m}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="ai-field">
+                  <label className="ai-label">{t('crm.aiEmployees.quick.q3')}</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {(['always', 'business_hours'] as const).map((sc) => (
+                      <button key={sc} type="button" className={cn('e2-chip', quickSchedule === sc && 'on')} onClick={() => setQuickSchedule(sc)}>
+                        {t(`crm.aiEmployees.quick.schedule.${sc}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button className="aib primary" disabled={saving || !name.trim()} onClick={() => save({ language: quickLang, mode: quickMode, schedule: quickSchedule })}>
+                  {t('crm.aiEmployees.quick.go')}
+                </button>
+                <div className="ai-hint" style={{ marginTop: 8 }}>{t('crm.aiEmployees.quick.orManual')}</div>
+              </div>
               <div className="ai-form-card">
                 <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
                 <div className="ai-av-picker">
@@ -1582,7 +1874,7 @@ function CreateView() {
                 <I d={ICON.chevR} size={14} />
               </button>
             ) : (
-              <button className="aib" disabled={saving} onClick={save}>
+              <button className="aib" disabled={saving} onClick={() => save()}>
                 <I d={ICON.check} size={15} />
                 {t('crm.aiEmployees.create.activate')}
               </button>
@@ -1891,25 +2183,41 @@ export function AiEmployeeProfilePage() {
   const [autonomyMode, setAutonomyMode] = useState<AiAgentAutonomyMode>('suggest');
   const [scheduleMode, setScheduleMode] = useState<'always' | 'business_hours' | 'custom' | 'manual'>('manual');
   const [dailyReportTime, setDailyReportTime] = useState('18:00');
-  const [tab, setTab] = useState<'overview' | 'work' | 'triggers' | 'assign' | 'approvals' | 'journal' | 'reports'>('overview');
+  const [language, setLanguage] = useState('English');
+  const [tone, setTone] = useState('');
+  const [openaiConnectionId, setOpenaiConnectionId] = useState('');
+  const [allConnections, setAllConnections] = useState<IntegrationConnectionDto[]>([]);
+  const [assignments, setAssignments] = useState<AiAgentAssignmentItem[]>([]);
+  const [tab, setTab] = useState<'overview' | 'access' | 'work' | 'journal'>('overview');
+  const [journalFilter, setJournalFilter] = useState<'all' | 'appr' | 'log' | 'rep' | 'err'>('all');
+  const [accessOpen, setAccessOpen] = useState(true);
   const [cfg, setCfg] = useState<AiAgentConfig | null>(null);
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
+  const openaiConnections = useMemo(
+    () => allConnections.filter((c) => c.kind === 'third_party_link' && c.linkCatalogId === 'openai'),
+    [allConnections],
+  );
+
   const load = async () => {
     if (!id) return;
     setLoading(true);
     setError('');
     try {
-      const res = await fetchAiEmployee(id);
+      const [res, assignRes] = await Promise.all([fetchAiEmployee(id), fetchAiAgentAssignments(id).catch(() => ({ items: [] }))]);
       setDetail(res);
       setPermissions(res.permissions);
       setApprovalRules(res.approvalRules);
       setAutonomyMode(res.agent.autonomyMode);
       setScheduleMode(res.agent.scheduleMode);
       setDailyReportTime(res.agent.dailyReportTime);
+      setLanguage(res.agent.language || 'English');
+      setTone(res.agent.tone || '');
+      setOpenaiConnectionId((((res.agent.settings || {}) as Record<string, unknown>).openaiConnectionId as string) || '');
+      setAssignments(assignRes.items);
       try {
         setCfg((await fetchAiAgentConfig(id)).config);
       } catch {
@@ -1924,13 +2232,17 @@ export function AiEmployeeProfilePage() {
 
   useEffect(() => {
     void load();
+    fetchIntegrations()
+      .then(setAllConnections)
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const agent = detail?.agent;
   const stats = detail?.stats || {};
+  const accessCounts = countAccessStates(autonomyMode, permissions, approvalRules);
 
-  const run = async (kind: 'pause' | 'resume' | 'run' | 'report' | 'save-perms' | 'save-rules' | 'save-assign' | 'save-config' | 'delete') => {
+  const run = async (kind: 'pause' | 'resume' | 'run' | 'report' | 'save-access' | 'save-work' | 'delete') => {
     if (!agent) return;
     setBusy(kind);
     setError('');
@@ -1939,10 +2251,26 @@ export function AiEmployeeProfilePage() {
       if (kind === 'resume') await resumeAiEmployee(agent.id);
       if (kind === 'run') await runAiEmployeeNow(agent.id);
       if (kind === 'report') await generateAiEmployeeReport(agent.id);
-      if (kind === 'save-perms') await updateAiEmployeePermissions(agent.id, permissions);
-      if (kind === 'save-rules') await updateAiEmployeeApprovalRules(agent.id, approvalRules);
-      if (kind === 'save-assign') await updateAiEmployee(agent.id, { autonomyMode, scheduleMode, dailyReportTime });
-      if (kind === 'save-config' && cfg) await updateAiAgentConfig(agent.id, cfg);
+      if (kind === 'save-access') {
+        await Promise.all([
+          updateAiEmployee(agent.id, { autonomyMode }),
+          updateAiEmployeePermissions(agent.id, permissions),
+          updateAiEmployeeApprovalRules(agent.id, approvalRules),
+          cfg ? updateAiAgentConfig(agent.id, cfg) : Promise.resolve(undefined),
+        ]);
+      }
+      if (kind === 'save-work') {
+        await Promise.all([
+          updateAiEmployee(agent.id, {
+            language,
+            tone,
+            scheduleMode,
+            dailyReportTime,
+            settings: { openaiConnectionId: openaiConnectionId || null },
+          }),
+          cfg ? updateAiAgentConfig(agent.id, cfg) : Promise.resolve(undefined),
+        ]);
+      }
       if (kind === 'delete') {
         await deleteAiEmployee(agent.id);
         navigate('/ai-employees');
@@ -1961,45 +2289,42 @@ export function AiEmployeeProfilePage() {
   const tabs = agent
     ? [
         { key: 'overview' as const, label: t('crm.aiEmployees.profile.tabs.overview'), icon: ICON.eye, badge: 0 },
-        { key: 'work' as const, label: t('crm.aiEmployees.profile.tabs.work'), icon: ICON.wand, badge: 0 },
-        { key: 'triggers' as const, label: t('crm.aiEmployees.profile.tabs.triggers'), icon: ICON.bolt, badge: cfg?.triggers.filter((x) => x.enabled).length || 0 },
-        { key: 'assign' as const, label: t('crm.aiEmployees.profile.tabs.assign'), icon: ICON.shield, badge: 0 },
+        { key: 'access' as const, label: t('crm.aiEmployees.profile.tabs.access'), icon: ICON.shield, badge: 0 },
+        { key: 'work' as const, label: t('crm.aiEmployees.profile.tabs.work'), icon: ICON.wand, badge: cfg?.triggers.filter((x) => x.enabled).length || 0 },
         {
-          key: 'approvals' as const,
-          label: t('crm.aiEmployees.profile.tabs.approvals'),
-          icon: ICON.check,
+          key: 'journal' as const,
+          label: t('crm.aiEmployees.profile.tabs.journal'),
+          icon: ICON.book,
           badge: detail?.recentActions.filter((a) => a.status === 'pending' && a.requiresApproval).length || 0,
         },
-        { key: 'journal' as const, label: t('crm.aiEmployees.profile.tabs.journal'), icon: ICON.book, badge: 0 },
-        { key: 'reports' as const, label: t('crm.aiEmployees.profile.tabs.reports'), icon: ICON.doc, badge: 0 },
       ]
     : [];
 
   return (
     <MainLayout>
       <PageHelpButton topic="aiEmployeeProfile" />
-      <div className="ai-emp">
-        <button className="ai-back" onClick={() => navigate('/ai-employees')}>
+      <div className="ai-emp e2">
+        <button className="e2-back" onClick={() => navigate('/ai-employees')}>
           <I d={ICON.back} size={14} />
           {t('crm.aiEmployees.dashboard.title')}
         </button>
 
         {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.profile.loading')}</div> : null}
         {error ? (
-          <div className="ai-panel" style={{ padding: 14, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
+          <div className="e2-panel" style={{ padding: 14, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
             {error}
           </div>
         ) : null}
 
         {agent ? (
           <>
-            <div className="ai-detail-head">
+            <div className="e2-id">
               <AiAvatar name={agent.name} accent={avatar.accent} avStyle={avatar.avStyle} size="xl" src={agent.avatarUrl} />
-              <div className="ai-detail-id">
-                <div className="nm">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h1>
                   {agent.name}
                   <StatusBadge status={agent.status} />
-                </div>
+                </h1>
                 <div className="meta">
                   <span>{trRole(agent.role, 'title', agent.roleTitle || '', t, i18n)}</span>
                   <span className="sep">•</span>
@@ -2010,27 +2335,27 @@ export function AiEmployeeProfilePage() {
                   <span>{t('crm.aiEmployees.agentCard.lastActivity', { time: formatDate(stats.lastActivityAt, t, i18n.language) })}</span>
                 </div>
               </div>
-              <div className="ai-detail-actions">
-                <button className="aib ghost sm" onClick={() => navigate(`/ai-employees/${agent.id}/edit`)}>
+              <div className="e2-id-r">
+                <button className="e2b gh sm" onClick={() => navigate(`/ai-employees/${agent.id}/edit`)}>
                   <I d={ICON.edit} size={13} />
                   {t('crm.aiEmployees.profile.edit')}
                 </button>
                 {agent.status === 'paused' ? (
-                  <button className="aib ghost sm" disabled={busy === 'resume'} onClick={() => run('resume')}>
+                  <button className="e2b gh sm" disabled={busy === 'resume'} onClick={() => run('resume')}>
                     <I d={ICON.play} size={13} />
                     {t('crm.aiEmployees.profile.resume')}
                   </button>
                 ) : (
-                  <button className="aib ghost sm" disabled={busy === 'pause'} onClick={() => run('pause')}>
+                  <button className="e2b gh sm" disabled={busy === 'pause'} onClick={() => run('pause')}>
                     <I d={ICON.pause} size={13} />
                     {t('crm.aiEmployees.profile.pause')}
                   </button>
                 )}
-                <button className="aib sm" disabled={busy === 'run'} onClick={() => run('run')}>
+                <button className="e2b sm" disabled={busy === 'run'} onClick={() => run('run')}>
                   <I d={ICON.bolt} size={14} />
                   {t('crm.aiEmployees.profile.runNow')}
                 </button>
-                <button className="aib ghost sm" disabled={busy === 'report'} onClick={() => run('report')}>
+                <button className="e2b gh sm" disabled={busy === 'report'} onClick={() => run('report')}>
                   <I d={ICON.doc} size={13} />
                   {t('crm.aiEmployees.profile.generateReport')}
                 </button>
@@ -2041,345 +2366,565 @@ export function AiEmployeeProfilePage() {
               </div>
             </div>
 
-            <div className="ai-tabs">
+            <div className="e2-tabs">
               {tabs.map((tb) => (
-                <button key={tb.key} className={cn('ai-tab', tab === tb.key && 'active')} onClick={() => setTab(tb.key)}>
-                  <span className="ic">
-                    <I d={tb.icon} size={14} />
-                  </span>
+                <button key={tb.key} className={cn('e2-tab', tab === tb.key && 'on')} onClick={() => setTab(tb.key)}>
+                  <I d={tb.icon} size={14} />
                   {tb.label}
-                  {tb.badge ? <span className="badge">{tb.badge}</span> : null}
+                  {tb.badge ? <span className="bg">{tb.badge}</span> : null}
                 </button>
               ))}
             </div>
 
             {tab === 'overview' ? (
-              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="flex flex-col gap-4">
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">
-                        <I d={ICON.sparkles} size={14} />
-                        {t('crm.aiEmployees.profile.aboutSection')}
+              <div className="e2-grid2">
+                <div className="e2-col">
+                  <div className="e2-panel">
+                    <div className="e2-panel-hd">
+                      <div className="h">{t('crm.aiEmployees.v2.overview.pendingTitle')}</div>
+                      <div className="r">
+                        <button className="e2b gh sm" onClick={() => setTab('journal')}>
+                          {t('crm.aiEmployees.logsPage.title')}
+                        </button>
                       </div>
                     </div>
-                    <div className="ai-panel-body">
-                      <p style={{ fontSize: 13.5, color: 'var(--fg-2)', lineHeight: 1.6, margin: '0 0 16px' }}>
-                        {trRole(agent.role, 'description', agent.roleDescription || '', t, i18n)}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {trRoleFunctions(agent.role, agent.roleFunctions || [], t, i18n).map((f) => (
-                          <div
-                            key={f}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 9,
-                              padding: '10px 12px',
-                              border: '1px solid var(--line-3)',
-                              borderRadius: 9,
-                              fontSize: 12.5,
-                              color: 'var(--ink)',
-                            }}
-                          >
-                            <span style={{ color: 'var(--fg-3)' }}>
-                              <I d={ICON.check} size={14} />
-                            </span>
-                            {f}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    {detail!.recentActions.filter((a) => a.status === 'pending' && a.requiresApproval).length ? (
+                      <ApprovalList
+                        actions={detail!.recentActions
+                          .filter((a) => a.status === 'pending' && a.requiresApproval)
+                          .slice(0, 5)
+                          .map((a) => ({ ...a, agent }))}
+                        onChanged={load}
+                      />
+                    ) : (
+                      <div className="e2-empty">{t('crm.aiEmployees.v2.overview.pendingEmpty')}</div>
+                    )}
                   </div>
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">
-                        <I d={ICON.book} size={14} />
-                        {t('crm.aiEmployees.profile.recentLogs')}
-                      </div>
-                      <button className="aib ghost sm" onClick={() => setTab('journal')}>
-                        {t('crm.aiEmployees.logsPage.title')}
-                      </button>
+                  <div className="e2-panel">
+                    <div className="e2-panel-hd">
+                      <div className="h">{t('crm.aiEmployees.v2.overview.recentTitle')}</div>
                     </div>
-                    <div className="ai-panel-body flush">
-                      <LogList logs={detail!.recentLogs.slice(0, 4).map((l) => ({ ...l, agent }))} />
-                    </div>
+                    {detail!.recentLogs.length ? (
+                      <LogList logs={detail!.recentLogs.slice(0, 5).map((l) => ({ ...l, agent }))} />
+                    ) : (
+                      <div className="e2-empty">{t('crm.aiEmployees.v2.overview.recentEmpty')}</div>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-col gap-4">
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">{t('crm.aiEmployees.profile.todayStats')}</div>
+                <div className="e2-col">
+                  <div className="e2-panel">
+                    <div className="e2-panel-hd">
+                      <div className="h">{t('crm.aiEmployees.v2.overview.profileTitle')}</div>
                     </div>
-                    <div className="ai-panel-body grid grid-cols-2 gap-2">
-                      {[
-                        [t('crm.aiEmployees.profile.kpiActionsToday'), stats.actionsToday ?? 0],
-                        [t('crm.aiEmployees.dashboard.kpiPendingApprovals'), stats.pendingApprovals ?? 0],
-                        [t('crm.aiEmployees.profile.kpiReportsGen'), stats.reportsGenerated ?? 0],
-                        [t('crm.aiEmployees.dashboard.kpiIssues'), stats.errors ?? 0],
-                      ].map(([l, v]) => (
-                        <div key={String(l)} style={{ border: '1px solid var(--line-3)', borderRadius: 10, padding: '13px 14px' }}>
-                          <div style={{ fontFamily: 'var(--ff-display)', fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)' }}>{v}</div>
-                          <div
-                            style={{
-                              fontFamily: 'var(--ff-mono)',
-                              fontSize: 9,
-                              letterSpacing: '0.06em',
-                              textTransform: 'uppercase',
-                              color: 'var(--fg-3)',
-                              marginTop: 5,
-                            }}
-                          >
-                            {l}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">{t('crm.aiEmployees.profile.configSection')}</div>
-                    </div>
-                    <div className="ai-panel-body" style={{ paddingTop: 4, paddingBottom: 4 }}>
-                      <div className="ai-info-row">
-                        <span className="k">{t('crm.aiEmployees.profile.autonomySection')}</span>
+                    <div className="e2-rows">
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.role')}</span>
+                        <span className="v">{trRole(agent.role, 'title', agent.roleTitle || '', t, i18n)}</span>
+                      </div>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.deptJob')}</span>
+                        <span className="v">
+                          {agent.department ? trDepartment(agent.department, t) : t('crm.aiEmployees.profile.fallbackDepartment')}
+                          {agent.jobTitle ? ` · ${agent.jobTitle}` : ''}
+                        </span>
+                      </div>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.responsible')}</span>
+                        <span className="v">
+                          {detail?.responsible
+                            ? `${detail.responsible.name}${detail.responsible.via ? ` · ${detail.responsible.via}` : ''}`
+                            : t('crm.aiEmployees.v2.overview.responsibleNone')}
+                        </span>
+                      </div>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.level')}</span>
                         <span className="v">{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
                       </div>
-                      <div className="ai-info-row">
-                        <span className="k">{t('crm.aiEmployees.profile.scheduleSection')}</span>
-                        <span className="v">{t(`crm.aiEmployees.create.scheduleModes.${agent.scheduleMode}`)}</span>
-                      </div>
-                      <div className="ai-info-row">
-                        <span className="k">{t('crm.aiEmployees.create.fields.language')}</span>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.langTone')}</span>
                         <span className="v">
                           {agent.language} · {agent.tone}
                         </span>
                       </div>
-                      <div className="ai-info-row">
-                        <span className="k">{t('crm.aiEmployees.create.fields.dailyReportTime')}</span>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.model')}</span>
+                        <span className="v">
+                          {openaiConnectionId
+                            ? openaiConnections.find((c) => c.id === openaiConnectionId)?.name || t('crm.aiEmployees.create.aiProviderPlatform')
+                            : t('crm.aiEmployees.create.aiProviderPlatform')}
+                        </span>
+                      </div>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.tz')}</span>
+                        <span className="v">{cfg?.timezone || '—'}</span>
+                      </div>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.reportAt')}</span>
                         <span className="v">{agent.dailyReportTime}</span>
                       </div>
+                      <div className="e2-kv">
+                        <span className="k">{t('crm.aiEmployees.v2.overview.triggersOn')}</span>
+                        <span className="v">{cfg?.triggers.filter((x) => x.enabled).length ?? 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="e2-panel">
+                    <div className="e2-panel-hd">
+                      <div className="h">{t('crm.aiEmployees.v2.overview.assignedTitle')}</div>
+                    </div>
+                    {assignments.length ? (
+                      <div className="e2-rows">
+                        {assignments.slice(0, 8).map((a) => (
+                          <div className="e2-kv" key={a.id}>
+                            <span className="k">{a.name || a.entityType}</span>
+                            <span className="v">{a.entityType}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="e2-panel-bd">
+                        <div className="e2-hint">{t('crm.aiEmployees.v2.overview.assignedEmpty')}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="e2-panel">
+                    <div className="e2-panel-hd">
+                      <div className="h">{t('crm.aiEmployees.v2.overview.lastReportTitle')}</div>
+                    </div>
+                    <div className="e2-panel-bd">
+                      {detail!.latestReport ? (
+                        <>
+                          <div className="e2-note" style={{ marginBottom: 10 }}>
+                            <b>{detail!.latestReport.title}</b>
+                            <br />
+                            {formatDate(detail!.latestReport.createdAt, t, i18n.language)}
+                          </div>
+                          <button className="e2b gh sm" onClick={() => setTab('journal')}>
+                            {t('crm.aiEmployees.v2.overview.open')}
+                          </button>
+                        </>
+                      ) : (
+                        <div className="e2-hint">{t('crm.aiEmployees.v2.overview.lastReportEmpty')}</div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
+            ) : null}
+
+            {tab === 'access' ? (
+              <>
+                <div className="e2-grid2">
+                  <div className="e2-col">
+                    <div className="e2-panel">
+                      <div className="e2-panel-hd">
+                        <div className="h">{t('crm.aiEmployees.v2.access.levelTitle')}</div>
+                      </div>
+                      <div className="e2-presets">
+                        {AUTONOMY_PRESET_ORDER.map((m) => (
+                          <button key={m} type="button" className={cn('e2-preset', autonomyMode === m && 'on')} onClick={() => setAutonomyMode(m)}>
+                            <div className="h">{t(`crm.aiEmployees.autonomy.${m}.title`)}</div>
+                            <div className="ds">{t(`crm.aiEmployees.autonomy.${m}.hint`)}</div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="e2-panel-bd" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {autonomyMode === 'suggest' ? (
+                          <p className="e2-note">{t('crm.aiEmployees.v2.access.levelNote_off')}</p>
+                        ) : autonomyMode === 'assisted' ? (
+                          <p className="e2-note">{t('crm.aiEmployees.v2.access.levelNote_appr', { appr: accessCounts.appr })}</p>
+                        ) : (
+                          <p className="e2-note">
+                            {t('crm.aiEmployees.v2.access.levelNote_mixed', { auto: accessCounts.auto, appr: accessCounts.appr, off: accessCounts.off })}
+                          </p>
+                        )}
+                        {autonomyMode === 'suggest' ? <p className="e2-warn">{t('crm.aiEmployees.v2.access.observerWarn')}</p> : null}
+                        {autonomyMode === 'assisted' ? <p className="e2-warn">{t('crm.aiEmployees.v2.access.assistedWarn')}</p> : null}
+                      </div>
+                    </div>
+
+                    <div className="e2-panel">
+                      <div className="e2-panel-hd">
+                        <div className="h">{t('crm.aiEmployees.v2.access.matrixTitle')}</div>
+                        <div className="r">
+                          <button
+                            className="e2b gh sm"
+                            onClick={() => {
+                              const role = detail?.role;
+                              if (!role) return;
+                              setPermissions(Object.fromEntries(role.defaultPermissions.map((k) => [k, true])));
+                              setApprovalRules(Object.fromEntries(role.defaultApprovalRules.map((k) => [k, true])));
+                            }}
+                          >
+                            {t('crm.aiEmployees.v2.access.resetToRole')}
+                          </button>
+                          <button className="e2b gh sm" onClick={() => setAccessOpen((v) => !v)}>
+                            {accessOpen ? t('crm.aiEmployees.v2.access.collapse') : t('crm.aiEmployees.v2.access.expand')}
+                          </button>
+                        </div>
+                      </div>
+                      {accessOpen ? (
+                        <>
+                          {ACCESS_MODULES.map((mod) => (
+                            <div className="e2-mod" key={mod.key}>
+                              <div className="e2-mod-hd">
+                                <span className="t">{t(mod.labelKey)}</span>
+                                <span className="c">
+                                  {mod.acts.filter((k) => accessStateWithRules(autonomyMode, permissions, approvalRules, k) !== 'off').length}/
+                                  {mod.acts.length}
+                                </span>
+                              </div>
+                              {mod.acts.map((key) => {
+                                const cur = accessStateWithRules(autonomyMode, permissions, approvalRules, key);
+                                const allowed = statesFor(autonomyMode, key);
+                                return (
+                                  <div className="e2-act" key={key}>
+                                    <div className="ab">
+                                      <div className="an">{t(`crm.aiEmployees.permissions.${key}.title`, { defaultValue: labelize(key) })}</div>
+                                      <div className="ad">{t(`crm.aiEmployees.permissions.${key}.hint`, { defaultValue: '' })}</div>
+                                    </div>
+                                    <div className="e2-tri">
+                                      {(['off', 'appr', 'auto'] as AccessState[]).map((s) => (
+                                        <button
+                                          key={s}
+                                          type="button"
+                                          disabled={!allowed.includes(s)}
+                                          className={cn(cur === s && 'on', cur === s && s === 'appr' && 'appr')}
+                                          onClick={() => {
+                                            if (!allowed.includes(s)) return;
+                                            setPermissions((p) => ({ ...p, [key]: s !== 'off' }));
+                                            setApprovalRules((r) => ({ ...r, [key]: s === 'appr' }));
+                                          }}
+                                        >
+                                          {t(`crm.aiEmployees.v2.fp.${s}`)}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                          <div className="e2-mod">
+                            <div className="e2-mod-hd">
+                              <span className="t">{t('crm.aiEmployees.v2.access.alwaysOnTitle')}</span>
+                            </div>
+                            <div className="e2-act">
+                              <div className="ab">
+                                <div className="an">{t('crm.aiEmployees.v2.access.escalateName')}</div>
+                                <div className="ad">{t('crm.aiEmployees.v2.access.escalateDesc')}</div>
+                              </div>
+                              <span className="e2-fixed">{t('crm.aiEmployees.v2.fp.auto')}</span>
+                            </div>
+                          </div>
+                          <div className="e2-mod">
+                            <div className="e2-mod-hd">
+                              <span className="t">{t('crm.aiEmployees.v2.access.dataTitle')}</span>
+                            </div>
+                            <div className="e2-act">
+                              <div className="ab">
+                                <div className="an">{t('crm.aiEmployees.v2.access.readsName')}</div>
+                                <div className="ad">{t('crm.aiEmployees.v2.access.readsDesc')}</div>
+                              </div>
+                              <span className="e2-fixed">{t('crm.aiEmployees.v2.fp.auto')}</span>
+                            </div>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+
+                    {cfg ? (
+                      <>
+                        <div>
+                          <div className="e2-sec" style={{ margin: '4px 0 -6px' }}>
+                            <span className="h" style={{ fontSize: 15 }}>
+                              {t('crm.aiEmployees.v2.access.tablesTitle')}
+                            </span>
+                            <span className="line" />
+                          </div>
+                          <TableAccessEditor value={cfg.tableAccess} onChange={(v) => setCfg({ ...cfg, tableAccess: v })} />
+                        </div>
+                        <div>
+                          <div className="e2-sec" style={{ margin: '4px 0 -6px' }}>
+                            <span className="h" style={{ fontSize: 15 }}>
+                              {t('crm.aiEmployees.v2.access.mailboxesTitle')}
+                            </span>
+                            <span className="line" />
+                          </div>
+                          <EmailInboxAccessEditor value={cfg.emailInboxAccess} onChange={(v) => setCfg({ ...cfg, emailInboxAccess: v })} />
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+
+                  <div className="e2-col">
+                    <div className="e2-panel">
+                      <div className="e2-panel-hd">
+                        <div className="h">{t('crm.aiEmployees.v2.access.summaryTitle')}</div>
+                      </div>
+                      <div className="e2-metrics">
+                        <div className="e2-metric">
+                          <div className="kick">{t('crm.aiEmployees.v2.access.summaryAuto')}</div>
+                          <div className="num">{accessCounts.auto}</div>
+                        </div>
+                        <div className="e2-metric">
+                          <div className="kick">{t('crm.aiEmployees.v2.access.summaryAppr')}</div>
+                          <div className="num">{accessCounts.appr}</div>
+                        </div>
+                        <div className="e2-metric">
+                          <div className="kick">{t('crm.aiEmployees.v2.access.summaryOff')}</div>
+                          <div className="num">{accessCounts.off}</div>
+                        </div>
+                      </div>
+                      <div className="e2-rows">
+                        <div className="e2-kv">
+                          <span className="k">{t('crm.aiEmployees.v2.access.summaryLevel')}</span>
+                          <span className="v">{t(`crm.aiEmployees.autonomy.${autonomyMode}.title`)}</span>
+                        </div>
+                        <div className="e2-kv">
+                          <span className="k">{t('crm.aiEmployees.v2.access.summaryModules')}</span>
+                          <span className="v">
+                            {ACCESS_MODULES.filter((m) => m.acts.some((k) => accessStateWithRules(autonomyMode, permissions, approvalRules, k) !== 'off')).length}/
+                            {ACCESS_MODULES.length}
+                          </span>
+                        </div>
+                        <div className="e2-kv">
+                          <span className="k">{t('crm.aiEmployees.v2.access.summaryTables')}</span>
+                          <span className="v">
+                            {cfg?.tableAccess.mode === 'all' ? t('crm.aiEmployees.tableAccess.mode.all') : (cfg?.tableAccess.tables.length ?? 0)}
+                          </span>
+                        </div>
+                        <div className="e2-kv">
+                          <span className="k">{t('crm.aiEmployees.v2.access.summaryMailboxes')}</span>
+                          <span className="v">{cfg?.emailInboxAccess.accountIds.length ?? 0}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="e2-panel">
+                      <div className="e2-panel-hd">
+                        <div className="h">{t('crm.aiEmployees.v2.access.ownedTitle')}</div>
+                      </div>
+                      <div className="e2-panel-bd">
+                        {assignments.length ? (
+                          <p className="e2-note">{t('crm.aiEmployees.v2.access.ownedCount', { count: assignments.length })}</p>
+                        ) : (
+                          <p className="e2-hint">{t('crm.aiEmployees.v2.access.ownedNone')}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="e2-panel">
+                      <div className="e2-panel-hd">
+                        <div className="h">{t('crm.aiEmployees.v2.access.decidesTitle')}</div>
+                      </div>
+                      <div className="e2-panel-bd" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {(['decidesAuto', 'decidesAppr', 'decidesOff', 'decidesBulk'] as const).map((k) => (
+                          <p key={k} className="e2-note" dangerouslySetInnerHTML={{ __html: t(`crm.aiEmployees.v2.access.${k}`) }} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end" style={{ marginTop: 16 }}>
+                  <button className="e2b" disabled={busy === 'save-access'} onClick={() => run('save-access')}>
+                    {t('crm.aiEmployees.v2.access.save')}
+                  </button>
+                </div>
+              </>
             ) : null}
 
             {tab === 'work' ? (
-              <div className="flex flex-col gap-4">
-                {cfg ? (
-                  <div>
-                    <InstructionsEditor
-                      value={cfg.instructions}
-                      onChange={(v) => setCfg({ ...cfg, instructions: v })}
-                      expandContext={{
-                        role: agent.role,
-                        agentId: agent.id,
-                        name: agent.name,
-                        department: agent.department || undefined,
-                        jobTitle: agent.jobTitle || undefined,
-                        language: agent.language,
-                        tone: agent.tone,
-                      }}
-                    />
-                    <div className="flex justify-end">
-                      <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
-                        {t('crm.aiEmployees.config.save')}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-                <AiAgentWorkPanel agentId={agent.id} agentActive={agent.status === 'active'} />
-              </div>
-            ) : null}
-
-            {tab === 'triggers' ? (
-              cfg ? (
-                <div className="flex flex-col gap-4">
-                  <TriggersEditor triggers={cfg.triggers} onChange={(next) => setCfg({ ...cfg, triggers: next })} />
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">{t('crm.aiEmployees.create.fields.timezone')}</div>
-                    </div>
-                    <div className="ai-panel-body">
-                      <select
-                        className="ai-select"
-                        value={cfg.timezone}
-                        onChange={(e) => setCfg({ ...cfg, timezone: e.target.value })}
-                      >
-                        {TIMEZONE_OPTIONS.map((tz) => (
-                          <option key={tz} value={tz}>
-                            {tz}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="ai-hint" style={{ marginTop: 8, marginBottom: 0, fontSize: 11.5 }}>
-                        {t('crm.aiEmployees.create.fields.timezoneHint')}
-                      </p>
-                    </div>
-                  </div>
-                  <EmailInboxAccessEditor
-                    value={cfg.emailInboxAccess}
-                    onChange={(next) => setCfg({ ...cfg, emailInboxAccess: next })}
-                  />
-                  <ControlEditor
-                    sla={cfg.sla}
-                    dailyPlan={cfg.dailyPlan}
-                    onSla={(v) => setCfg({ ...cfg, sla: v })}
-                    onDailyPlan={(v) => setCfg({ ...cfg, dailyPlan: v })}
-                    onCheckSla={async () => {
-                      try {
-                        await updateAiAgentConfig(agent.id, cfg);
-                        const r = await checkAiSlaNow(agent.id);
-                        setNotice(t('crm.aiEmployees.sla.checked', { breaches: r.breaches, escalated: r.escalated }));
-                      } catch (e) {
-                        setError(extractError(e, t));
-                      }
-                    }}
-                    onRunPlan={async () => {
-                      try {
-                        await updateAiAgentConfig(agent.id, cfg);
-                        const r = await runAiDailyPlanNow(agent.id);
-                        setNotice(t('crm.aiEmployees.dailyPlan.sent', { count: r.staff }));
-                      } catch (e) {
-                        setError(extractError(e, t));
-                      }
-                    }}
-                  />
-                  {notice ? <div className="ai-hint" style={{ color: '#1f8a5e', fontSize: 12.5 }}>{notice}</div> : null}
-                  <div className="flex justify-end">
-                    <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
-                      {t('crm.aiEmployees.config.save')}
-                    </button>
-                  </div>
-                </div>
-              ) : null
-            ) : null}
-
-            {tab === 'assign' ? (
-              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="flex flex-col gap-4">
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">
-                        <I d={ICON.wand} size={14} />
-                        {t('crm.aiEmployees.profile.autonomySection')}
+              <>
+                <div className="e2-grid2">
+                  <div className="e2-col">
+                    <div className="e2-panel">
+                      <div className="e2-panel-hd">
+                        <div className="h">{t('crm.aiEmployees.v2.work.identityTitle')}</div>
+                      </div>
+                      <div className="e2-panel-bd">
+                        <div className="e2-f2">
+                          <div>
+                            <label className="e2-lbl">{t('crm.aiEmployees.create.fields.language')}</label>
+                            <select className="e2-sel" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                              {languageOptionValues().map((item) => (
+                                <option key={item.value} value={item.value}>
+                                  {t(item.labelKey)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="e2-lbl">{t('crm.aiEmployees.create.fields.tone')}</label>
+                            <input className="e2-inp" value={tone} onChange={(e) => setTone(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="e2-f2" style={{ marginTop: 12 }}>
+                          <div>
+                            <label className="e2-lbl">{t('crm.aiEmployees.create.fields.timezone')}</label>
+                            <select
+                              className="e2-sel"
+                              value={cfg?.timezone || 'Europe/Moscow'}
+                              onChange={(e) => cfg && setCfg({ ...cfg, timezone: e.target.value })}
+                            >
+                              {TIMEZONE_OPTIONS.map((tz) => (
+                                <option key={tz} value={tz}>
+                                  {tz}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="e2-lbl">{t('crm.aiEmployees.create.fields.aiProvider')}</label>
+                            <select className="e2-sel" value={openaiConnectionId} onChange={(e) => setOpenaiConnectionId(e.target.value)}>
+                              <option value="">{t('crm.aiEmployees.create.aiProviderPlatform')}</option>
+                              {openaiConnections.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="e2-f2" style={{ marginTop: 12 }}>
+                          <div>
+                            <label className="e2-lbl">{t('crm.aiEmployees.create.fields.schedule')}</label>
+                            <select className="e2-sel" value={scheduleMode} onChange={(e) => setScheduleMode(e.target.value as any)}>
+                              <option value="always">{t('crm.aiEmployees.create.scheduleModes.always')}</option>
+                              <option value="business_hours">{t('crm.aiEmployees.create.scheduleModes.business_hours')}</option>
+                              <option value="custom">{t('crm.aiEmployees.create.scheduleModes.custom')}</option>
+                              <option value="manual">{t('crm.aiEmployees.create.scheduleModes.manual')}</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="e2-lbl">{t('crm.aiEmployees.create.fields.dailyReportTime')}</label>
+                            <input className="e2-inp" type="time" value={dailyReportTime} onChange={(e) => setDailyReportTime(e.target.value)} />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="ai-panel-body">
-                      <AutonomySelector value={autonomyMode} onChange={setAutonomyMode} />
+
+                    {cfg ? (
+                      <InstructionsEditor
+                        value={cfg.instructions}
+                        onChange={(v) => setCfg({ ...cfg, instructions: v })}
+                        expandContext={{
+                          role: agent.role,
+                          agentId: agent.id,
+                          name: agent.name,
+                          department: agent.department || undefined,
+                          jobTitle: agent.jobTitle || undefined,
+                          language: agent.language,
+                          tone: agent.tone,
+                        }}
+                      />
+                    ) : null}
+
+                    <LessonsPanel agentId={agent.id} />
+
+                    <div>
+                      <div className="e2-sec" style={{ margin: '4px 0 -6px' }}>
+                        <span className="h" style={{ fontSize: 15 }}>
+                          {t('crm.aiEmployees.v2.work.taskPanelTitle')}
+                        </span>
+                        <span className="line" />
+                      </div>
+                      <AiAgentWorkPanel agentId={agent.id} agentActive={agent.status === 'active'} />
                     </div>
                   </div>
-                  <PermissionEditor permissions={permissions} setPermissions={setPermissions} />
-                  <div className="flex justify-end">
-                    <button className="aib" disabled={busy === 'save-perms'} onClick={() => run('save-perms')}>
-                      {t('crm.aiEmployees.profile.savePermissions')}
-                    </button>
-                  </div>
-                  {cfg ? (
-                    <>
-                      <TableAccessEditor value={cfg.tableAccess} onChange={(v) => setCfg({ ...cfg, tableAccess: v })} />
-                      <div className="flex justify-end">
-                        <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
-                          {t('crm.aiEmployees.config.save')}
-                        </button>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-                <div className="flex flex-col gap-4">
-                  <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} lockNote={autonomyLockNote(t, autonomyMode)} />
-                  <div className="flex justify-end">
-                    <button className="aib" disabled={busy === 'save-rules'} onClick={() => run('save-rules')}>
-                      {t('crm.aiEmployees.profile.saveApprovalRules')}
-                    </button>
-                  </div>
-                  {cfg ? (
-                    <>
+                  <div className="e2-col">
+                    {cfg ? <TriggersEditor triggers={cfg.triggers} onChange={(next) => setCfg({ ...cfg, triggers: next })} /> : null}
+                    {cfg ? (
                       <ClientDialogueEditor
                         value={cfg.clientDialogue}
                         onChange={(v) => setCfg({ ...cfg, clientDialogue: v })}
                         lockNote={autonomyLockNote(t, autonomyMode)}
                       />
-                      <div className="flex justify-end">
-                        <button className="aib" disabled={busy === 'save-config'} onClick={() => run('save-config')}>
-                          {t('crm.aiEmployees.config.save')}
-                        </button>
+                    ) : null}
+                    {cfg ? (
+                      <ControlEditor
+                        sla={cfg.sla}
+                        dailyPlan={cfg.dailyPlan}
+                        onSla={(v) => setCfg({ ...cfg, sla: v })}
+                        onDailyPlan={(v) => setCfg({ ...cfg, dailyPlan: v })}
+                        onCheckSla={async () => {
+                          try {
+                            await updateAiAgentConfig(agent.id, cfg);
+                            const r = await checkAiSlaNow(agent.id);
+                            setNotice(t('crm.aiEmployees.sla.checked', { breaches: r.breaches, escalated: r.escalated }));
+                          } catch (e) {
+                            setError(extractError(e, t));
+                          }
+                        }}
+                        onRunPlan={async () => {
+                          try {
+                            await updateAiAgentConfig(agent.id, cfg);
+                            const r = await runAiDailyPlanNow(agent.id);
+                            setNotice(t('crm.aiEmployees.dailyPlan.sent', { count: r.staff }));
+                          } catch (e) {
+                            setError(extractError(e, t));
+                          }
+                        }}
+                      />
+                    ) : null}
+                    {notice ? (
+                      <div className="e2-hint" style={{ color: '#1f8a5e' }}>
+                        {notice}
                       </div>
-                    </>
-                  ) : null}
-                  <div className="ai-panel">
-                    <div className="ai-panel-head">
-                      <div className="pt">
-                        <I d={ICON.clock} size={14} />
-                        {t('crm.aiEmployees.profile.scheduleSection')}
-                      </div>
-                    </div>
-                    <div className="ai-panel-body flex flex-col gap-3.5">
-                      <div className="ai-field" style={{ margin: 0 }}>
-                        <label className="ai-label">{t('crm.aiEmployees.create.fields.schedule')}</label>
-                        <select className="ai-select" value={scheduleMode} onChange={(e) => setScheduleMode(e.target.value as any)}>
-                          <option value="always">{t('crm.aiEmployees.create.scheduleModes.always')}</option>
-                          <option value="business_hours">{t('crm.aiEmployees.create.scheduleModes.business_hours')}</option>
-                          <option value="custom">{t('crm.aiEmployees.create.scheduleModes.custom')}</option>
-                          <option value="manual">{t('crm.aiEmployees.create.scheduleModes.manual')}</option>
-                        </select>
-                      </div>
-                      <div className="ai-field" style={{ margin: 0 }}>
-                        <label className="ai-label">{t('crm.aiEmployees.create.fields.dailyReportTime')}</label>
-                        <input className="ai-input" type="time" value={dailyReportTime} onChange={(e) => setDailyReportTime(e.target.value)} />
-                      </div>
-                      <button className="aib" style={{ justifyContent: 'center' }} disabled={busy === 'save-assign'} onClick={() => run('save-assign')}>
-                        {t('crm.aiEmployees.profile.saveAssignments')}
-                      </button>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
-              </div>
+                <div className="flex justify-end" style={{ marginTop: 16 }}>
+                  <button className="e2b" disabled={busy === 'save-work'} onClick={() => run('save-work')}>
+                    {t('crm.aiEmployees.config.save')}
+                  </button>
+                </div>
+              </>
             ) : null}
 
-            {tab === 'approvals' ? (
-              <div className="ai-panel">
-                <div className="ai-panel-head">
-                  <div className="pt">
-                    <I d={ICON.check} size={14} />
-                    {t('crm.aiEmployees.approvalsPage.title')}
+            {tab === 'journal' ? (
+              <div className="e2-panel">
+                <div className="e2-panel-hd">
+                  <div className="h">{t('crm.aiEmployees.logsPage.title')}</div>
+                  <div className="r">
+                    <button className="e2b sm" disabled={busy === 'report'} onClick={() => run('report')}>
+                      <I d={ICON.sparkles} size={13} />
+                      {t('crm.aiEmployees.profile.generateReport')}
+                    </button>
                   </div>
                 </div>
-                <div className="ai-panel-body flush">
+                <div className="e2-panel-bd" style={{ paddingBottom: 0 }}>
+                  <div className="e2-chipbar">
+                    {(
+                      [
+                        ['all', t('crm.aiEmployees.v2.journal.all')],
+                        ['appr', t('crm.aiEmployees.v2.journal.appr')],
+                        ['log', t('crm.aiEmployees.v2.journal.log')],
+                        ['rep', t('crm.aiEmployees.v2.journal.rep')],
+                        ['err', t('crm.aiEmployees.v2.journal.err')],
+                      ] as const
+                    ).map(([k, l]) => (
+                      <button key={k} className={cn('e2-chip', journalFilter === k && 'on')} onClick={() => setJournalFilter(k)}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {journalFilter === 'all' || journalFilter === 'appr' ? (
                   <ApprovalList
                     actions={detail!.recentActions.filter((a) => a.status !== 'pending' || a.requiresApproval).map((a) => ({ ...a, agent }))}
                     onChanged={load}
                   />
-                </div>
-              </div>
-            ) : null}
-
-            {tab === 'journal' ? (
-              <div className="ai-panel">
-                <div className="ai-panel-head">
-                  <div className="pt">
-                    <I d={ICON.book} size={14} />
-                    {t('crm.aiEmployees.logsPage.title')}
-                  </div>
-                </div>
-                <LogList logs={detail!.recentLogs.map((l) => ({ ...l, agent }))} />
-              </div>
-            ) : null}
-
-            {tab === 'reports' ? (
-              <div className="ai-panel">
-                <div className="ai-panel-head">
-                  <div className="pt">
-                    <I d={ICON.doc} size={14} />
-                    {t('crm.aiEmployees.profile.tabs.reports')}
-                  </div>
-                  <button className="aib sm" disabled={busy === 'report'} onClick={() => run('report')}>
-                    <I d={ICON.sparkles} size={13} />
-                    {t('crm.aiEmployees.profile.generateReport')}
-                  </button>
-                </div>
-                <ReportBrowser reports={detail!.reports.map((r) => ({ ...r, agent }))} onChanged={load} />
+                ) : null}
+                {journalFilter === 'all' || journalFilter === 'log' ? (
+                  <LogList logs={detail!.recentLogs.map((l) => ({ ...l, agent }))} />
+                ) : null}
+                {journalFilter === 'err' ? (
+                  <LogList logs={detail!.recentLogs.filter((l) => l.status === 'error').map((l) => ({ ...l, agent }))} />
+                ) : null}
+                {journalFilter === 'all' || journalFilter === 'rep' ? (
+                  <ReportBrowser reports={detail!.reports.map((r) => ({ ...r, agent }))} onChanged={load} />
+                ) : null}
               </div>
             ) : null}
           </>

@@ -31,6 +31,11 @@ import { AiAgentReport } from './ai-agent-report.entity';
 import { AiAgentAssignment } from './ai-agent-assignment.entity';
 import { AiKnowledgeItem } from './ai-knowledge-item.entity';
 import { StaffUser } from '../staff/staff-user.entity';
+import { Department } from '../departments/department.entity';
+import { RbacModule } from '../rbac/rbac.module';
+import { CustomObject } from '../custom-objects/custom-object.entity';
+import { CustomObjectRecord } from '../custom-objects/custom-object-record.entity';
+import { CustomObjectField } from '../custom-objects/custom-object-field.entity';
 import {
   AiActionsController,
   AiActivityController,
@@ -75,6 +80,10 @@ import { AiEmployeesSchedulerService } from './ai-employees.scheduler';
       AiAgentAssignment,
       AiKnowledgeItem,
       StaffUser,
+      Department,
+      CustomObject,
+      CustomObjectRecord,
+      CustomObjectField,
     ]),
     forwardRef(() => AiModule),
     MarketingModule,
@@ -83,6 +92,7 @@ import { AiEmployeesSchedulerService } from './ai-employees.scheduler';
     forwardRef(() => LeadsModule),
     forwardRef(() => IntegrationsModule),
     forwardRef(() => TenantsModule), // TenantLogsService — security-event visibility for pl1
+    RbacModule, // RbacGuard на всех ai-* контроллерах + Department-репозиторий для «ответственного»
   ],
   controllers: [
     AiRolesController,

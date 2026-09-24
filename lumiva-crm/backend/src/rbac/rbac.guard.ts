@@ -45,6 +45,15 @@ export class RbacGuard implements CanActivate {
         if (override !== null) return override;
       }
 
+      // 'ai_employees': руководители отделов (Department.managerId) проходят автоматически,
+      // даже без явной строки в матрице ролей/индивидуальных правах — см. комментарий в
+      // RbacService.isDepartmentHead. Стоит ПОСЛЕ проверки индивидуального override выше, чтобы
+      // явный запрет конкретному человеку (панель «Индивидуальные права») всё равно побеждал,
+      // даже если он формально руководитель какого-то отдела.
+      if (perm === 'ai_employees' && staffUserId && (await this.rbac.isDepartmentHead(user.tenantId, staffUserId))) {
+        return true;
+      }
+
       // Для новых модулей разрешаем доступ по умолчанию
       // 'contacts'/'companies' removed 2026-08-05: verified zero explicit deny-rows exist in
       // production for either key, so enforcing them for real can't lock anyone out today — see

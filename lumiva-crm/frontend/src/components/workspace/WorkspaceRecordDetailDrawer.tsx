@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   uploadWorkspaceFile,
@@ -19,7 +20,30 @@ import { isRenderableWorkspaceDateField } from '../../workspace/workspaceDateFie
 import { isWorkspaceEntityRefField, isWorkspaceReadOnlyField } from '../../workspace/workspaceEntityRef';
 import { WorkspaceCrmEntityMultiField } from './WorkspaceCrmEntityMultiField';
 import { getWorkspaceDataLink } from '../../workspace/workspaceRecordLink';
+import { getStoredUser } from '../../auth/session';
+import { AiAssigneeGroup } from '../ai/AiAssigneeGroup';
+import { refreshWorkspaceAiColumn } from '../../api/customObjects';
+import { aiColumnErrorMessage } from '../../pages/workspace/workspaceAiErrors';
+import { splitTextWithMentions, isTextMentioning } from '../../pages/projects/mentions';
 import '../../pages/workspace/WorkspaceArea.css';
+
+/** Комментарий записи рабочей области — та же форма, что EntityComment (Lead/Project/Sale/…),
+ * но хранится не в отдельной колонке БД, а в values.__comments записи (как __subitems) — это
+ * реальное серверное хранение (видно всем сотрудникам), просто без отдельной миграции. */
+export type WorkspaceComment = {
+  id: string;
+  author: string;
+  createdAt: string;
+  text: string;
+  mentions?: string[];
+  parentId?: string | null;
+  likedBy?: string[];
+};
+
+const getRecordComments = (record: CustomObjectRecord): WorkspaceComment[] => {
+  const raw = record.values?.__comments;
+  return Array.isArray(raw) ? (raw as WorkspaceComment[]) : [];
+};
 
 const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
   const normalized = String(hex || '').trim().replace('#', '');
@@ -51,19 +75,10 @@ export type WorkspaceRecordDetailDrawerProps = {
   titleField: CustomObjectField | undefined;
   statusField: CustomObjectField | undefined;
   staffByDepartment: Array<{ department: string; users: StaffUser[] }>;
-  commentsByRecord: Record<
-    string,
-    Array<{ id: string; text: string; createdAt: string; author: string }>
-  >;
-  setCommentsByRecord: React.Dispatch<
-    React.SetStateAction<
-      Record<string, Array<{ id: string; text: string; createdAt: string; author: string }>>
-    >
-  >;
+  /** Плоский список сотрудников тенанта — для @упоминаний в комментариях. */
+  staff: StaffUser[];
   activityByRecord: Record<string, Array<{ id: string; text: string; createdAt: string }>>;
   pushActivity: (recordId: string, text: string) => void;
-  commentDraft: string;
-  setCommentDraft: React.Dispatch<React.SetStateAction<string>>;
   saveRecord: (
     record: CustomObjectRecord,
     nextValues: Record<string, any>,
@@ -94,12 +109,9 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
   titleField,
   statusField,
   staffByDepartment,
-  commentsByRecord,
-  setCommentsByRecord,
+  staff,
   activityByRecord,
   pushActivity,
-  commentDraft,
-  setCommentDraft,
   saveRecord,
   savingRecordId,
   showAddFieldButton,
@@ -119,9 +131,35 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
     fieldKey: string;
   } | null>(null);
   const [fileUploadErrorByField, setFileUploadErrorByField] = useState<Record<string, string>>({});
+  const [aiRefreshingKey, setAiRefreshingKey] = useState<string | null>(null);
+  const [aiRefreshError, setAiRefreshError] = useState<string | null>(null);
+
+  // ── Комментарии: упоминания, лайки, ответы (как в карточке лида/проекта) ──
+  const [newComment, setNewComment] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionPos, setMentionPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const commentUser = useMemo(() => getStoredUser(), []);
+  const currentStaffForComments = useMemo(
+    () => staff.find((u) => u.id === commentUser?.id || u.email === commentUser?.email),
+    [staff, commentUser],
+  );
+  const currentCommentLabels = useMemo(
+    () =>
+      [commentUser?.name, commentUser?.email, currentStaffForComments?.fullName]
+        .filter(Boolean)
+        .map((v) => String(v).trim().toLowerCase()),
+    [commentUser, currentStaffForComments],
+  );
 
   useEffect(() => {
     setFileUploadErrorByField({});
+    setNewComment('');
+    setReplyText('');
+    setReplyingToId(null);
+    setMentionQuery(null);
   }, [activeRecord?.id]);
   const normalizeStatusToken = (value: string) => normalizeOptionToken(value);
 
@@ -194,6 +232,102 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
 
   const sourceLink = getWorkspaceDataLink(activeRecord.meta as Record<string, unknown> | null);
 
+  const extractMentions = (text: string) => {
+    const matches = text.matchAll(/@([\p{L}\p{N}._-]+)/gu);
+    const result: string[] = [];
+    for (const match of matches) if (match[1]) result.push(match[1]);
+    return result;
+  };
+  const renderMentions = (text: string) =>
+    splitTextWithMentions(text, staff).map((part, idx) =>
+      part.mention ? (
+        <span key={`m-${idx}`} style={{ color: '#0284c7', fontWeight: 500 }}>
+          {part.text}
+        </span>
+      ) : (
+        <span key={`t-${idx}`}>{part.text}</span>
+      ),
+    );
+  const isMentioned = (text: string) => isTextMentioning(text, currentCommentLabels);
+
+  const commitComments = (nextComments: WorkspaceComment[]) => {
+    const nextValues = { ...(activeRecord.values || {}), __comments: nextComments };
+    onEditRecord({ ...activeRecord, values: nextValues });
+    void saveRecord(activeRecord, nextValues, '__comments');
+  };
+
+  const addComment = () => {
+    if (!newComment.trim()) return;
+    const c: WorkspaceComment = {
+      id: crypto.randomUUID(),
+      author:
+        currentStaffForComments?.fullName ||
+        commentUser?.name ||
+        commentUser?.email ||
+        t('crm.projects.detail.fallbacks.user'),
+      createdAt: new Date().toISOString(),
+      text: newComment.trim(),
+      mentions: extractMentions(newComment.trim()),
+    };
+    commitComments([c, ...getRecordComments(activeRecord)]);
+    pushActivity(activeRecord.id, t('crm.workspace.recordDrawer.addedComment'));
+    setNewComment('');
+    setMentionQuery(null);
+  };
+
+  const addReply = (parentId: string) => {
+    if (!replyText.trim()) return;
+    const c: WorkspaceComment = {
+      id: crypto.randomUUID(),
+      author:
+        currentStaffForComments?.fullName ||
+        commentUser?.name ||
+        commentUser?.email ||
+        t('crm.projects.detail.fallbacks.user'),
+      createdAt: new Date().toISOString(),
+      text: replyText.trim(),
+      mentions: extractMentions(replyText.trim()),
+      parentId,
+    };
+    commitComments([...getRecordComments(activeRecord), c]);
+    setReplyText('');
+    setReplyingToId(null);
+  };
+
+  const toggleCommentLike = (commentId: string) => {
+    const me = currentStaffForComments?.id || commentUser?.id || commentUser?.email;
+    if (!me) return;
+    const nextComments = getRecordComments(activeRecord).map((c) => {
+      if (c.id !== commentId) return c;
+      const likedBy = c.likedBy || [];
+      return {
+        ...c,
+        likedBy: likedBy.includes(me) ? likedBy.filter((uid) => uid !== me) : [...likedBy, me],
+      };
+    });
+    commitComments(nextComments);
+  };
+
+  const refreshAiColumn = async (field: CustomObjectField) => {
+    setAiRefreshingKey(field.key);
+    setAiRefreshError(null);
+    try {
+      const res = await refreshWorkspaceAiColumn(activeRecord.objectId, activeRecord.id, field.key);
+      if (res.ok && typeof res.value === 'string') {
+        const nextValues = { ...(activeRecord.values || {}), [getWorkspaceFieldValueStorageKey(field)]: res.value };
+        onEditRecord({ ...activeRecord, values: nextValues });
+      } else {
+        setAiRefreshError(aiColumnErrorMessage(t, res.error));
+      }
+    } catch {
+      setAiRefreshError(aiColumnErrorMessage(t, null));
+    } finally {
+      setAiRefreshingKey(null);
+    }
+  };
+
+  const comments = getRecordComments(activeRecord);
+
   return (
     <div className="ws-page ws-scrim" style={{ zIndex: overlayZIndex }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`ws-drawer${shelfLayout ? '' : ''}`} style={{ width: shelfLayout ? 'min(680px,100%)' : 'min(560px,100%)' }}>
@@ -221,6 +355,10 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
           </button>
         </div>
 
+        <div style={{ padding: '0 16px', marginTop: -4 }}>
+          <AiAssigneeGroup entityType="custom_object_record" entityId={activeRecord.id} compact />
+        </div>
+
         <div
           className="ws-drawer-body"
           style={
@@ -240,7 +378,28 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
               <label>
                 {field.label}
               </label>
-              {isWorkspaceReadOnlyField(field) ? (
+              {field.type === 'ai' ? (
+                <div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 min-h-[38px] break-words whitespace-pre-line" style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <span aria-hidden style={{ flexShrink: 0, color: '#7c3aed' }}>✦</span>
+                    <span>{String(activeRecord.values?.[valueKey] ?? '') || t('crm.workspace.recordDrawer.aiColumnEmpty')}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="tb-icon-btn"
+                    style={{ marginTop: 6 }}
+                    disabled={aiRefreshingKey === field.key}
+                    onClick={() => void refreshAiColumn(field)}
+                  >
+                    {aiRefreshingKey === field.key
+                      ? t('crm.workspace.recordDrawer.aiColumnRefreshing')
+                      : t('crm.workspace.recordDrawer.aiColumnRefresh')}
+                  </button>
+                  {aiRefreshError && aiRefreshingKey === null ? (
+                    <div style={{ fontSize: 11, color: '#9a1f31', marginTop: 4 }}>{aiRefreshError}</div>
+                  ) : null}
+                </div>
+              ) : isWorkspaceReadOnlyField(field) ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 min-h-[38px] break-words whitespace-pre-line">
                   {String(activeRecord.values?.[valueKey] ?? '') || '—'}
                 </div>
@@ -530,51 +689,203 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
             <div className="ws-k" style={{ marginBottom: 8 }}>
               {t('crm.workspace.recordDrawer.comments')}
             </div>
-            <div style={{ maxHeight: 160, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              {(commentsByRecord[activeRecord.id] || []).map((comment) => (
-                <div key={comment.id} style={{ border: '1px solid var(--line-2)', borderRadius: 8, padding: '6px 10px', background: '#fff' }}>
-                  <div className="ws-note">
-                    {comment.author} · {new Date(comment.createdAt).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: 'var(--ink)', marginTop: 2 }}>{comment.text}</div>
-                </div>
-              ))}
-              {(commentsByRecord[activeRecord.id] || []).length === 0 && (
-                <p className="ws-note">{t('crm.workspace.recordDrawer.noCommentsYet')}</p>
-              )}
+            <div style={{ maxHeight: 320, overflow: 'auto', paddingRight: 4, display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+              {comments
+                .filter((c) => !c.parentId)
+                .map((c) => {
+                  const replies = comments.filter((r) => r.parentId === c.id);
+                  const me = currentStaffForComments?.id || commentUser?.id || commentUser?.email || '';
+                  const liked = !!me && (c.likedBy || []).includes(me);
+                  const renderCommentBody = (comment: WorkspaceComment) => {
+                    const mentions = comment.mentions ?? extractMentions(comment.text || '');
+                    return (
+                      <>
+                        <div className="ws-note" style={{ marginBottom: 3 }}>
+                          {new Date(comment.createdAt).toLocaleString()} · {comment.author}
+                        </div>
+                        <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
+                          {renderMentions(comment.text)}
+                        </div>
+                        {mentions.length > 0 && (
+                          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, fontSize: 10, color: 'var(--fg-3)' }}>
+                            {mentions.map((m) => (
+                              <span
+                                key={m}
+                                style={{ borderRadius: 999, padding: '1px 7px', background: '#fff', border: '1px solid var(--line-2)' }}
+                              >
+                                @{m}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  };
+                  return (
+                    <div key={c.id}>
+                      <div
+                        style={{
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                          border: `1px solid ${isMentioned(c.text) ? '#bae6fd' : 'var(--line-2)'}`,
+                          background: isMentioned(c.text) ? '#f0f9ff' : 'var(--bg-muted)',
+                        }}
+                      >
+                        {renderCommentBody(c)}
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, color: 'var(--fg-3)' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCommentLike(c.id)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'none', border: 'none', padding: 0, color: liked ? '#dc2626' : 'var(--fg-3)', cursor: 'pointer' }}
+                          >
+                            <span aria-hidden>{liked ? '♥' : '♡'}</span>
+                            {(c.likedBy || []).length > 0 && (c.likedBy || []).length}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReplyingToId((prev) => (prev === c.id ? null : c.id))}
+                            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--fg-3)', cursor: 'pointer' }}
+                          >
+                            {t('crm.projects.detail.comments.reply')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {replies.length > 0 && (
+                        <div style={{ marginTop: 6, marginLeft: 14, paddingLeft: 10, borderLeft: '2px solid var(--line-2)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {replies.map((r) => {
+                            const rLiked = !!me && (r.likedBy || []).includes(me);
+                            return (
+                              <div
+                                key={r.id}
+                                style={{
+                                  borderRadius: 10,
+                                  padding: '8px 10px',
+                                  border: `1px solid ${isMentioned(r.text) ? '#bae6fd' : 'var(--line-2)'}`,
+                                  background: isMentioned(r.text) ? '#f0f9ff' : '#fff',
+                                }}
+                              >
+                                {renderCommentBody(r)}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCommentLike(r.id)}
+                                  style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 3, background: 'none', border: 'none', padding: 0, fontSize: 10, color: rLiked ? '#dc2626' : 'var(--fg-3)', cursor: 'pointer' }}
+                                >
+                                  <span aria-hidden>{rLiked ? '♥' : '♡'}</span>
+                                  {(r.likedBy || []).length > 0 && (r.likedBy || []).length}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {replyingToId === c.id && (
+                        <div style={{ marginTop: 6, marginLeft: 14, display: 'flex', gap: 6 }}>
+                          <input
+                            autoFocus
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addReply(c.id);
+                            }}
+                            placeholder={t('crm.projects.detail.comments.replyPlaceholder')}
+                            className="ws-input"
+                            style={{ flex: 1 }}
+                          />
+                          <button type="button" onClick={() => addReply(c.id)} className="btn btn-primary btn-sm">
+                            {t('crm.projects.detail.actions.add')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              {comments.length === 0 && <p className="ws-note">{t('crm.projects.detail.comments.empty')}</p>}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={commentDraft}
-                onChange={(e) => setCommentDraft(e.target.value)}
-                placeholder={t('crm.workspace.recordDrawer.commentPlaceholder')}
-                className="ws-input"
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (!commentDraft.trim()) return;
-                  setCommentsByRecord((prev) => {
-                    const list = prev[activeRecord.id] || [];
-                    return {
-                      ...prev,
-                      [activeRecord.id]: [
-                        {
-                          id: crypto.randomUUID(),
-                          text: commentDraft.trim(),
-                          createdAt: new Date().toISOString(),
-                          author: t('crm.workspace.recordDrawer.authorYou'),
-                        },
-                        ...list,
-                      ],
-                    };
-                  });
-                  pushActivity(activeRecord.id, t('crm.workspace.recordDrawer.addedComment'));
-                  setCommentDraft('');
+            <div style={{ position: 'relative' }}>
+              <textarea
+                ref={commentInputRef}
+                value={newComment}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewComment(value);
+                  const caret = e.target.selectionStart ?? value.length;
+                  const before = value.slice(0, caret);
+                  const match = before.match(/@([\p{L}\p{N}._-]*)$/u);
+                  if (match) {
+                    const rect = e.target.getBoundingClientRect();
+                    setMentionPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                    setMentionQuery(match[1]);
+                  } else {
+                    setMentionQuery(null);
+                  }
                 }}
-                className="btn btn-primary btn-sm"
-              >
+                onBlur={() => window.setTimeout(() => setMentionQuery(null), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    addComment();
+                  }
+                }}
+                placeholder={t('crm.projects.detail.comments.newPlaceholder')}
+                rows={3}
+                className="ws-input"
+                style={{ width: '100%', resize: 'vertical', minHeight: 64 }}
+              />
+              {mentionQuery !== null &&
+                mentionQuery.length >= 2 &&
+                mentionPos &&
+                typeof document !== 'undefined' &&
+                createPortal(
+                  (() => {
+                    const q = mentionQuery.toLowerCase();
+                    const matches = staff.filter((u) => u.fullName?.toLowerCase().includes(q)).slice(0, 6);
+                    if (!matches.length) return null;
+                    return (
+                      <div
+                        data-workspace-inline-popover
+                        className="fixed z-[100000] rounded-xl bg-white shadow-2xl border border-slate-200 p-1"
+                        style={{
+                          top: mentionPos.top,
+                          left: mentionPos.left,
+                          width: Math.max(240, mentionPos.width),
+                          maxHeight: 224,
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {matches.map((u) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              const el = commentInputRef.current;
+                              const caret = el?.selectionStart ?? newComment.length;
+                              const before = newComment.slice(0, caret);
+                              const after = newComment.slice(caret);
+                              const replaced = before.replace(/@([\p{L}\p{N}._-]*)$/u, `@${u.fullName} `);
+                              const next = replaced + after;
+                              setNewComment(next);
+                              setMentionQuery(null);
+                              requestAnimationFrame(() => {
+                                el?.focus();
+                                const pos = replaced.length;
+                                el?.setSelectionRange(pos, pos);
+                              });
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50"
+                          >
+                            <span style={{ fontWeight: 500, fontSize: 12, color: 'var(--ink)' }}>{u.fullName}</span>
+                            <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>{u.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })(),
+                  document.body,
+                )}
+              <button type="button" onClick={addComment} className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>
                 {t('crm.workspace.recordDrawer.send')}
               </button>
             </div>

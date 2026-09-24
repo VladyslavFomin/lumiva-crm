@@ -9,8 +9,18 @@ import { Ic, HTL_ICON } from './HotelIcons';
 import { fetchHotels, fetchHotelsOverviewKpis, type Hotel, type HotelsOverviewKpis } from '../../api/hotels';
 import './hotels-design.css';
 
+/** Полная сумма в валюте (символ/позиция по локали); при неизвестном коде валюты — число + код. */
+function money(v: number, currency: string | undefined, locale?: string) {
+  const code = (currency || 'EUR').toUpperCase();
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: code, maximumFractionDigits: 0 }).format(v);
+  } catch {
+    return `${v.toLocaleString(locale)} ${code}`;
+  }
+}
+
 export const HotelsOverviewPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -54,9 +64,9 @@ export const HotelsOverviewPage: React.FC = () => {
         {kpis && (
           <div className="htl-kpis">
             <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.occupancyToday')}</div><div className="v">{kpis.occupancyToday}%</div></div>
-            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.adr')}</div><div className="v">${kpis.adr}</div></div>
+            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.adr')}</div><div className="v">{money(kpis.adr, kpis.currency, i18n.language)}</div></div>
             <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.bookings30d')}</div><div className="v">{kpis.bookings30d}</div></div>
-            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.revenue30d')}</div><div className="v">${kpis.revenue30d.toLocaleString()}</div></div>
+            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.revenue30d')}</div><div className="v">{money(kpis.revenue30d, kpis.currency, i18n.language)}</div></div>
           </div>
         )}
 
@@ -91,7 +101,7 @@ export const HotelsOverviewPage: React.FC = () => {
                 <div className="htl-card-stats">
                   <span><b>{h.roomsCount}</b> {t('crm.hotels.overview.card.rooms')}</span>
                   <span><b>{h.occupancyToday}%</b> {t('crm.hotels.overview.card.occupancy')}</span>
-                  <span><b>${h.adr}</b> ADR</span>
+                  <span><b>{money(h.adr, h.currency, i18n.language)}</b> ADR</span>
                 </div>
               </div>
             </div>

@@ -4,10 +4,17 @@ import { getAccessToken } from '../auth/session';
 export type EsignStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'declined' | 'expired';
 export type EsignLinkType = 'lead' | 'company' | 'project';
 
+export type EsignDocumentSource = 'generated' | 'uploaded';
+
 export interface EsignDocumentRow {
   id: string;
   kind: string;
   status: EsignStatus;
+  source: EsignDocumentSource;
+  title: string;
+  notes: string | null;
+  companyId: string | null;
+  companyName: string | null;
   contactId: string | null;
   contactName: string | null;
   contactCompany: string | null;
@@ -49,6 +56,8 @@ export interface EsignDocumentDetail {
   kind: string;
   bodyText: string;
   status: EsignStatus;
+  source: EsignDocumentSource;
+  notes: string | null;
   contactId: string | null;
   contactName: string | null;
   contactCompany: string | null;
@@ -143,6 +152,29 @@ export function issueEsignDocument(payload: {
 
 export function updateEsignDocument(id: string, payload: { bodyText?: string }): Promise<EsignDocumentDetail> {
   return api.patch(`/esign/documents/${id}`, payload);
+}
+
+/** Metadata of an archived (uploaded, already signed) document. */
+export interface EsignUploadMeta {
+  title: string;
+  kind: string;
+  companyId: string;
+  signedAt: string; // YYYY-MM-DD
+  docNo: string;
+  amount: string;
+  currency: string;
+  notes: string;
+}
+
+export function uploadSignedEsignDocument(file: File, meta: EsignUploadMeta): Promise<EsignDocumentDetail> {
+  const form = new FormData();
+  form.append('file', file);
+  (Object.keys(meta) as Array<keyof EsignUploadMeta>).forEach((k) => form.append(k, meta[k] ?? ''));
+  return api.postForm('/esign/documents/upload', form);
+}
+
+export function updateUploadedEsignDocument(id: string, meta: EsignUploadMeta): Promise<EsignDocumentDetail> {
+  return api.patch(`/esign/documents/${id}`, meta);
 }
 
 export function deleteEsignDocument(id: string): Promise<{ ok: true }> {

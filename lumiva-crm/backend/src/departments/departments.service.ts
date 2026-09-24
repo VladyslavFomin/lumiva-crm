@@ -387,12 +387,23 @@ export class DepartmentsService {
       };
     }
 
+    // лиды из корзины (meta.deleted) в статистику отдела не входят
+    const countLeads = (statuses?: string[]) => {
+      const qb = this.leadRepo
+        .createQueryBuilder('l')
+        .where('l.tenantId = :tenantId', { tenantId })
+        .andWhere('l.assignedUserId IN (:...staffIds)', { staffIds })
+        .andWhere(
+          `NOT (COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb)`,
+        );
+      if (statuses) qb.andWhere('l.status IN (:...statuses)', { statuses });
+      return qb.getCount();
+    };
+
     const [leadsInProgress, leadsWon, leadsTotal, salesRows] = await Promise.all([
-      this.leadRepo.count({
-        where: { tenantId, assignedUserId: In(staffIds), status: In(['new', 'in_progress', 'waiting']) },
-      }),
-      this.leadRepo.count({ where: { tenantId, assignedUserId: In(staffIds), status: 'won' } }),
-      this.leadRepo.count({ where: { tenantId, assignedUserId: In(staffIds) } }),
+      countLeads(['new', 'in_progress', 'waiting']),
+      countLeads(['won']),
+      countLeads(),
       this.saleRepo
         .createQueryBuilder('s')
         .innerJoin(Lead, 'l', 'l.id = s.leadId')

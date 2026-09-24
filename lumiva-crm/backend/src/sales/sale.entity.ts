@@ -12,6 +12,7 @@ import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
 import { Contact } from '../contacts/contact.entity';
+import { EntityComment } from '../common/comment.types';
 
 // если у тебя уже есть ./sale-status.enum.ts — можешь импортировать оттуда
 export type SaleStatus =
@@ -165,6 +166,9 @@ export class Sale {
 
   @Column({ type: 'jsonb', nullable: true })
   customFields: Record<string, any> | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  comments: EntityComment[] | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

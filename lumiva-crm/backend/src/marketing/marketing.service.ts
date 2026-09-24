@@ -32,6 +32,7 @@ import {
   resolveRowMarket,
 } from './marketing-market-catalog';
 import { MarketingUtmTemplate } from './marketing-utm-template.entity';
+import { MarketingUtmLink } from './marketing-utm-link.entity';
 import { MarketingIntegration } from './marketing-integration.entity';
 import { MarketingAutomation } from './marketing-automation.entity';
 import { MarketingSegment } from './marketing-segment.entity';
@@ -40,7 +41,7 @@ import { SeoGscMetric } from './seo-gsc-metric.entity';
 import { SeoGscDaily } from './seo-gsc-daily.entity';
 import { SeoPageSpeedMetric } from './seo-pagespeed-metric.entity';
 
-import { CreateUtmTemplateDto, UpdateUtmTemplateDto } from './dto/utm-template.dto';
+import { CreateUtmLinkDto, CreateUtmTemplateDto, UpdateUtmTemplateDto } from './dto/utm-template.dto';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { CreateSegmentBodyDto } from './dto/create-segment-body.dto';
@@ -295,6 +296,8 @@ export class MarketingService {
     private readonly trafficRepo: Repository<MarketingTraffic>,
     @InjectRepository(MarketingUtmTemplate)
     private readonly utmRepo: Repository<MarketingUtmTemplate>,
+    @InjectRepository(MarketingUtmLink)
+    private readonly utmLinkRepo: Repository<MarketingUtmLink>,
     @InjectRepository(MarketingAutomation)
     private readonly automationRepo: Repository<MarketingAutomation>,
     @InjectRepository(MarketingSegment)
@@ -351,6 +354,32 @@ export class MarketingService {
     }
     sql += ` OR (UPPER(COALESCE(t.country,'')) = :mCode AND ${genericCampaign}))`;
     qb.andWhere(sql, params);
+    return qb;
+  }
+
+  /**
+   * Фильтр по dataSource с учётом "семей" тегов: у Google Ads (и потенциально других MCC/мульти-
+   * аккаунтных провайдеров) на один тенант приходится НЕСКОЛЬКО строк вида google_ads_<CID> —
+   * ни одна из них не совпадает буквально со строкой "google_ads". Если вызывающий код (в т.ч.
+   * ИИ-инструменты, которые видят провайдера в crm_list_integrations как один "Google Ads", а не
+   * как список CID) передаёт родовое имя без суффикса — матчим и его как точное значение, и как
+   * префикс "<value>_...".
+   */
+  private applyDataSourceFilter(
+    qb: SelectQueryBuilder<MarketingTraffic>,
+    dataSource: string | undefined,
+  ): SelectQueryBuilder<MarketingTraffic> {
+    const ds = dataSource?.trim();
+    if (!ds) return qb;
+    const escaped = ds.replace(/[\\%_]/g, (c) => `\\${c}`);
+    qb.andWhere(
+      new Brackets((b) => {
+        b.where('t.dataSource = :dsExact', { dsExact: ds }).orWhere(
+          `t.dataSource LIKE :dsPrefix ESCAPE '\\'`,
+          { dsPrefix: `${escaped}\\_%` },
+        );
+      }),
+    );
     return qb;
   }
 
@@ -537,6 +566,124 @@ export class MarketingService {
 
   // --- Traffic (каналы / импорт) ---
 
+
+  /**
+   * Несколько провайдеров разом (google_ads, meta_ads, yandex_direct, vk_ads, ga4, yandex_metrika):
+   * каждый — точное значение dataSource или префикс "<value>_..." (семьи тегов google_ads_<CID>).
+   */
+  private applyDataSourcesFilter(
+    qb: SelectQueryBuilder<MarketingTraffic>,
+    dataSources: string[] | undefined,
+  ): SelectQueryBuilder<MarketingTraffic> {
+    const list = (dataSources || []).map((d) => d.trim()).filter(Boolean);
+    if (!list.length) return qb;
+    qb.andWhere(
+      new Brackets((b) => {
+        list.forEach((ds, i) => {
+          const escaped = ds.replace(/[\\%_]/g, (c) => `\\${c}`);
+          b.orWhere(`t.dataSource = :dsE${i}`, { [`dsE${i}`]: ds });
+          b.orWhere(`t.dataSource LIKE :dsP${i} ESCAPE '\\'`, { [`dsP${i}`]: `${escaped}\\_%` });
+        });
+      }),
+    );
+    return qb;
+  }
+
+  /**
+   * Строки marketing_traffic для выгрузки в таблицу рабочей области (workspace-sync, kind
+   * marketing_rows): дата × кампания (daily), кампания (campaign) или канал (channel). Валюта —
+   * в GROUP BY, чтобы суммы разных валют не смешивались в одной строке.
+   */
+  async getTrafficRows(
+    tenantId: string,
+    opts: {
+      from?: string;
+      to?: string;
+      dataSources?: string[];
+      market?: string;
+      grain: 'daily' | 'campaign' | 'channel';
+      limit?: number;
+    },
+  ): Promise<{
+    rows: Array<{
+      date: string | null;
+      dataSource: string;
+      source: string;
+      medium: string;
+      campaign: string;
+      country: string;
+      sessions: number;
+      clicks: number;
+      impressions: number;
+      leads: number;
+      revenue: number;
+      cost: number;
+      currency: string;
+    }>;
+    truncated: boolean;
+  }> {
+    const limit = Math.min(Math.max(opts.limit ?? 20_000, 100), 100_000);
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (opts.from) qb.andWhere('t.date >= :from', { from: opts.from });
+    if (opts.to) qb.andWhere('t.date <= :to', { to: opts.to });
+    this.applyDataSourcesFilter(qb, opts.dataSources);
+    this.applyMarketFilter(qb, opts.market);
+
+    qb.select('t.dataSource', 'dataSource')
+      .addSelect('COALESCE(t.source, \'\')', 'source')
+      .addSelect('COALESCE(t.medium, \'\')', 'medium')
+      .addSelect('t.currency', 'currency')
+      .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+      .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
+      .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .groupBy('t.dataSource')
+      .addGroupBy('t.source')
+      .addGroupBy('t.medium')
+      .addGroupBy('t.currency');
+    if (opts.grain !== 'channel') {
+      qb.addSelect('COALESCE(t.campaign, \'\')', 'campaign').addGroupBy('t.campaign');
+    }
+    if (opts.grain === 'daily') {
+      qb.addSelect('t.date', 'date')
+        .addSelect('COALESCE(t.country, \'\')', 'country')
+        .addGroupBy('t.date')
+        .addGroupBy('t.country')
+        .orderBy('t.date', 'DESC');
+    } else {
+      qb.orderBy(
+        'COALESCE(SUM(t.cost), 0) + COALESCE(SUM(t.clicks), 0) + COALESCE(SUM(t.sessions), 0)',
+        'DESC',
+      );
+    }
+    const raw = await qb.limit(limit + 1).getRawMany();
+    const num = (v: unknown) => Number(v != null && v !== '' ? v : 0) || 0;
+    const rows = raw.slice(0, limit).map((r) => ({
+      date:
+        opts.grain === 'daily' && r.date
+          ? r.date instanceof Date
+            ? r.date.toISOString().slice(0, 10)
+            : String(r.date).slice(0, 10)
+          : null,
+      dataSource: String(r.dataSource || ''),
+      source: String(r.source || ''),
+      medium: String(r.medium || ''),
+      campaign: String(r.campaign || ''),
+      country: String(r.country || ''),
+      sessions: num(r.sessions),
+      clicks: num(r.clicks),
+      impressions: num(r.impressions),
+      leads: num(r.leads),
+      revenue: Math.round(num(r.revenue) * 100) / 100,
+      cost: Math.round(num(r.cost) * 100) / 100,
+      currency: String(r.currency || 'EUR'),
+    }));
+    return { rows, truncated: raw.length > limit };
+  }
   async getTrafficChannelsStats(
     tenantId: string,
     from?: string,
@@ -552,7 +699,7 @@ export class MarketingService {
       .where('t.tenantId = :tenantId', { tenantId });
     if (from) qb.andWhere('t.date >= :from', { from });
     if (to) qb.andWhere('t.date <= :to', { to });
-    if (dataSource) qb.andWhere('t.dataSource = :ds', { ds: dataSource });
+    this.applyDataSourceFilter(qb, dataSource);
     this.applyMarketFilter(qb, market);
 
     const num = (v: string | number | null | undefined) =>
@@ -722,15 +869,20 @@ export class MarketingService {
       qb.andWhere('(t.dataSource IS NULL OR t.dataSource = :empty)', {
         empty: '',
       });
-    } else if (dataSource && dataSource.trim()) {
-      qb.andWhere('t.dataSource = :ds', { ds: dataSource.trim() });
+    } else {
+      this.applyDataSourceFilter(qb, dataSource);
     }
 
     const num = (v: string | number | null | undefined) =>
       Number(v != null && v !== '' ? v : 0) || 0;
 
     const raw = await qb
-      .select('t.date', 'date')
+      // Cast to text in SQL rather than relying on JS-side String(dateObject) — the pg driver
+      // returns DATE columns from getRawMany() as JS Date objects (raw results skip TypeORM's
+      // own entity-hydration string transformer), and String(date).slice(0, 10) on a Date's
+      // default toString() ("Tue Sep 01 2026 ...") silently produces a garbage/wrong-year
+      // string instead of "2026-09-01".
+      .select("to_char(t.date, 'YYYY-MM-DD')", 'date')
       .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
       .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
       .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
@@ -743,7 +895,7 @@ export class MarketingService {
 
     const series: MarketingTrafficDailyPoint[] = (raw as Record<string, unknown>[]).map(
       (r) => ({
-        date: String(r.date ?? '').slice(0, 10),
+        date: String(r.date ?? ''),
         sessions: num(r.sessions as string),
         clicks: num(r.clicks as string),
         leads: num(r.leads as string),
@@ -754,6 +906,159 @@ export class MarketingService {
     );
 
     return { series };
+  }
+
+  /**
+   * Расход/выручка по месяцам В РАЗРЕЗЕ каждого dataSource (аккаунта/канала) за период —
+   * готовая сводная таблица (месяцы × источники), а не сырые дневные точки. Так ИИ-ассистенту
+   * не нужно самому суммировать десятки дневных точек по 5-10 аккаунтам в уме — источник частых
+   * ошибок (неверные суммы по месяцам, "додуманные" нули), которые не ловятся на уровне данных.
+   */
+  async getTrafficMonthlyBreakdown(
+    tenantId: string,
+    from?: string,
+    to?: string,
+    dataSource?: string,
+    market?: string,
+    groupBy: 'dataSource' | 'market' = 'dataSource',
+  ): Promise<{
+    months: string[];
+    rows: Array<{
+      dataSource: string;
+      label: string;
+      currency: string;
+      monthly: Record<string, number>;
+      totalCost: number;
+    }>;
+  }> {
+    if (groupBy === 'market') {
+      return this.getTrafficMonthlyMarketBreakdown(tenantId, from, to, dataSource);
+    }
+
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (from) qb.andWhere('t.date >= :from', { from });
+    if (to) qb.andWhere('t.date <= :to', { to });
+    this.applyDataSourceFilter(qb, dataSource);
+    this.applyMarketFilter(qb, market);
+
+    const raw = await qb
+      .select('t.dataSource', 'dataSource')
+      .addSelect("to_char(date_trunc('month', t.date), 'YYYY-MM')", 'month')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .addSelect('MAX(t.currency)', 'currency')
+      .groupBy('t.dataSource')
+      .addGroupBy("date_trunc('month', t.date)")
+      .orderBy('t.dataSource', 'ASC')
+      .addOrderBy("date_trunc('month', t.date)", 'ASC')
+      .getRawMany();
+
+    const dataSourceLabels = await this.buildMarketingDataSourceLabels(tenantId);
+
+    const monthsSet = new Set<string>();
+    const byDs = new Map<string, { monthly: Record<string, number>; currency: string }>();
+    for (const r of raw as Record<string, unknown>[]) {
+      const dsRaw = r.dataSource != null ? String(r.dataSource).trim() : '';
+      const ds = dsRaw || '_none';
+      const month = String(r.month ?? '');
+      if (!month) continue;
+      monthsSet.add(month);
+      const cost = Number(r.cost) || 0;
+      const cur = normTrafficCurrency(r.currency as string);
+      if (!byDs.has(ds)) byDs.set(ds, { monthly: {}, currency: cur });
+      const entry = byDs.get(ds)!;
+      entry.monthly[month] = (entry.monthly[month] || 0) + cost;
+      if (cur) entry.currency = cur;
+    }
+
+    const months = [...monthsSet].sort();
+    const rows = [...byDs.entries()]
+      .map(([ds, v]) => ({
+        dataSource: ds,
+        label: ds === '_none' ? 'Без источника' : dataSourceLabels[ds] || ds,
+        currency: v.currency,
+        monthly: v.monthly,
+        totalCost: Object.values(v.monthly).reduce((s, x) => s + x, 0),
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost);
+
+    return { months, rows };
+  }
+
+  /**
+   * То же самое, что getTrafficMonthlyBreakdown, но строки — рынки (та же эвристика, что и
+   * getMarketingMarketsBreakdown: resolveRowMarket по campaign/country), а не dataSource.
+   * У большинства источников нет отдельного поля страны в БД, поэтому классификация идёт
+   * построчно в JS после агрегации по (campaign, country, месяц) — считать это одним SQL
+   * GROUP BY по стране нельзя, т.к. "страна" не сама колонка, а вывод из имени кампании.
+   * Раньше модель пыталась собрать эту же таблицу сама — вызывая инструмент отдельно на каждую
+   * страну (10+ вызовов) и упираясь в лимит раундов, из-за чего часть строк заполнялась нулями
+   * вместо реальных данных. Здесь всё считается одним проходом по всем строкам сразу.
+   */
+  private async getTrafficMonthlyMarketBreakdown(
+    tenantId: string,
+    from?: string,
+    to?: string,
+    dataSource?: string,
+  ): Promise<{
+    months: string[];
+    rows: Array<{
+      dataSource: string;
+      label: string;
+      currency: string;
+      monthly: Record<string, number>;
+      totalCost: number;
+    }>;
+  }> {
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (from) qb.andWhere('t.date >= :from', { from });
+    if (to) qb.andWhere('t.date <= :to', { to });
+    this.applyDataSourceFilter(qb, dataSource);
+
+    const raw = await qb
+      .select('t.campaign', 'campaign')
+      .addSelect('t.country', 'country')
+      .addSelect("to_char(date_trunc('month', t.date), 'YYYY-MM')", 'month')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .addSelect('MAX(t.currency)', 'currency')
+      .groupBy('t.campaign')
+      .addGroupBy('t.country')
+      .addGroupBy("date_trunc('month', t.date)")
+      .limit(80_000)
+      .getRawMany();
+
+    const monthsSet = new Set<string>();
+    const byMarket = new Map<string, { monthly: Record<string, number>; currency: string }>();
+    for (const r of raw as Record<string, unknown>[]) {
+      const month = String(r.month ?? '');
+      if (!month) continue;
+      monthsSet.add(month);
+      const campaign = r.campaign != null ? String(r.campaign) : null;
+      const country = r.country != null ? String(r.country) : null;
+      const code = resolveRowMarket(campaign, country) || 'UNCLASSIFIED';
+      const cost = Number(r.cost) || 0;
+      const cur = normTrafficCurrency(r.currency as string);
+      if (!byMarket.has(code)) byMarket.set(code, { monthly: {}, currency: cur });
+      const entry = byMarket.get(code)!;
+      entry.monthly[month] = (entry.monthly[month] || 0) + cost;
+      if (cur) entry.currency = cur;
+    }
+
+    const months = [...monthsSet].sort();
+    const rows = [...byMarket.entries()]
+      .map(([code, v]) => ({
+        dataSource: code,
+        label: code === 'UNCLASSIFIED' ? 'Без определённого рынка' : marketLabel(code),
+        currency: v.currency,
+        monthly: v.monthly,
+        totalCost: Object.values(v.monthly).reduce((s, x) => s + x, 0),
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost);
+
+    return { months, rows };
   }
 
   /**
@@ -782,8 +1087,8 @@ export class MarketingService {
       qb.andWhere('(t.dataSource IS NULL OR t.dataSource = :empty)', {
         empty: '',
       });
-    } else if (dataSource && dataSource.trim()) {
-      qb.andWhere('t.dataSource = :ds', { ds: dataSource.trim() });
+    } else {
+      this.applyDataSourceFilter(qb, dataSource);
     }
 
     const num = (v: string | number | null | undefined) =>
@@ -849,7 +1154,7 @@ export class MarketingService {
       .where('t.tenantId = :tenantId', { tenantId });
     if (from) qb.andWhere('t.date >= :from', { from });
     if (to) qb.andWhere('t.date <= :to', { to });
-    if (dataSource) qb.andWhere('t.dataSource = :ds', { ds: dataSource });
+    this.applyDataSourceFilter(qb, dataSource);
 
     const num = (v: string | number | null | undefined) =>
       Number(v != null && v !== '' ? v : 0) || 0;
@@ -1096,6 +1401,119 @@ export class MarketingService {
 
   // --- UTM ---
 
+  // ===== Ссылки с метками (хранилище + статистика) =====
+
+  /**
+   * Список ссылок со статистикой.
+   *  - Лиды: заявки тенанта с теми же source / medium / campaign (и content / term, если они заданы у ссылки),
+   *    созданные с даты создания ссылки; регистр не важен, лиды из корзины не считаются.
+   *  - Переходы: сессии из подключённой аналитики (GA4 / Яндекс.Метрика) с теми же метками с даты создания.
+   *    Если аналитика к CRM не подключена вовсе — `clicks: null` (в интерфейсе «—»), а не ложный ноль.
+   */
+  async listUtmLinks(tenantId: string) {
+    const links = await this.utmLinkRepo.find({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+      take: 500,
+    });
+    const em = this.utmLinkRepo.manager;
+
+    const [{ n }] = (await em.query(
+      `SELECT COUNT(*)::int AS n FROM marketing_traffic
+        WHERE "tenantId" = $1 AND ("dataSource" LIKE 'ga4%' OR "dataSource" = 'yandex_metrika')`,
+      [tenantId],
+    )) as Array<{ n: number }>;
+    const hasTraffic = n > 0;
+
+    const eq = (col: string, param: string) =>
+      `(${param}::text IS NULL OR lower(coalesce(${col}, '')) = lower(${param}::text))`;
+
+    const items = await Promise.all(
+      links.map(async (l) => {
+        const src = l.utmSource || null;
+        const med = l.utmMedium || null;
+        const camp = l.utmCampaign || null;
+        const cont = l.utmContent || null;
+        const term = l.utmTerm || null;
+        const tagged = Boolean(src || med || camp);
+
+        let leads = 0;
+        let clicks: number | null = hasTraffic ? 0 : null;
+        if (tagged) {
+          const [lr] = (await em.query(
+            `SELECT COUNT(*)::int AS n FROM leads
+              WHERE "tenantId" = $1 AND "createdAt" >= $2
+                AND NOT (COALESCE(meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+                      OR COALESCE(meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb)
+                AND ${eq('"utmSource"', '$3')} AND ${eq('"utmMedium"', '$4')}
+                AND ${eq('"utmCampaign"', '$5')} AND ${eq('"utmContent"', '$6')}
+                AND ${eq('"utmTerm"', '$7')}`,
+            [tenantId, l.createdAt, src, med, camp, cont, term],
+          )) as Array<{ n: number }>;
+          leads = lr?.n ?? 0;
+
+          if (hasTraffic) {
+            // в аналитике нет разбивки по content / term — считаем по source / medium / campaign
+            const [tr] = (await em.query(
+              `SELECT COALESCE(SUM(sessions), 0)::bigint AS n FROM marketing_traffic
+                WHERE "tenantId" = $1 AND date >= $2::date
+                  AND ("dataSource" LIKE 'ga4%' OR "dataSource" = 'yandex_metrika')
+                  AND ${eq('source', '$3')} AND ${eq('medium', '$4')} AND ${eq('campaign', '$5')}`,
+              [tenantId, l.createdAt, src, med, camp],
+            )) as Array<{ n: string }>;
+            clicks = Number(tr?.n ?? 0);
+          }
+        }
+        return { ...l, clicks, leads };
+      }),
+    );
+    return { items, hasTraffic };
+  }
+
+  async createUtmLink(
+    tenantId: string,
+    user: { userId?: string | null; email?: string | null },
+    dto: CreateUtmLinkDto,
+  ) {
+    const name = dto.name.trim();
+    const baseUrl = dto.baseUrl.trim();
+    if (!name) throw new BadRequestException('Name is required');
+    if (!baseUrl) throw new BadRequestException('Base URL is required');
+
+    // автор — имя пользователя CRM (для колонки «Создана»)
+    let createdByName: string | null = null;
+    if (user.userId) {
+      const rows = (await this.utmLinkRepo.manager.query(
+        `SELECT COALESCE(NULLIF(name, ''), email) AS n FROM users WHERE id = $1`,
+        [user.userId],
+      )) as Array<{ n: string | null }>;
+      createdByName = rows[0]?.n ?? user.email ?? null;
+    }
+
+    const row = this.utmLinkRepo.create({
+      tenantId,
+      name,
+      baseUrl,
+      channelType: dto.channelType || null,
+      utmSource: dto.utmSource?.trim() || null,
+      utmMedium: dto.utmMedium?.trim() || null,
+      utmCampaign: dto.utmCampaign?.trim() || null,
+      utmContent: dto.utmContent?.trim() || null,
+      utmTerm: dto.utmTerm?.trim() || null,
+      createdByUserId: user.userId ?? null,
+      createdByName,
+    });
+    const saved = await this.utmLinkRepo.save(row);
+    return { ...saved, clicks: null, leads: 0 };
+  }
+
+  async deleteUtmLink(tenantId: string, id: string) {
+    const row = await this.utmLinkRepo.findOne({ where: { id, tenantId } });
+    if (!row) throw new NotFoundException('UTM link not found');
+    await this.utmLinkRepo.remove(row);
+    return { success: true };
+  }
+
   listUtmTemplates(tenantId: string) {
     return this.utmRepo.find({
       where: { tenantId },
@@ -1325,10 +1743,19 @@ export class MarketingService {
     };
   }
 
-  listMarketingIntegrations(tenantId: string) {
-    return this.integrationRepo.find({
+  async listMarketingIntegrations(tenantId: string) {
+    const rows = await this.integrationRepo.find({
       where: { tenantId },
       order: { createdAt: 'DESC' },
+    });
+    // токен, полученный через OAuth, клиенту никогда не нужен (его никто не вводил) — наружу не отдаём
+    return rows.map((r) => {
+      const s = r.settings;
+      if (s && typeof s === 'object' && (s as Record<string, unknown>).oauth === true) {
+        const { accessToken: _a, access_token: _b, ...rest } = s as Record<string, unknown>;
+        return { ...r, settings: rest };
+      }
+      return r;
     });
   }
 
@@ -2089,6 +2516,39 @@ export class MarketingService {
     return out;
   }
 
+  /**
+   * Реальная валюта биллинга аккаунта (customer.currency_code) — источник истины вместо
+   * ручной настройки "Валюта сумм" в интеграции, которую легко оставить по умолчанию
+   * и получить неверно подписанные суммы (репорт был в USD, хотя счёт в TRY).
+   * Любая ошибка — не критично, синк продолжится с currencyNorm из настроек интеграции.
+   */
+  private async googleAdsFetchCustomerCurrency(
+    customerIdDigits: string,
+    headers: Record<string, string>,
+  ): Promise<string | null> {
+    try {
+      const rows = await this.googleAdsSearchAllPages(
+        customerIdDigits,
+        headers,
+        'SELECT customer.currency_code FROM customer LIMIT 1',
+      );
+      const first = rows[0] as Record<string, unknown> | undefined;
+      const customer = (first?.customer ?? (first as any)?.Customer) as
+        | Record<string, unknown>
+        | undefined;
+      const raw = customer?.currencyCode ?? customer?.currency_code;
+      const code = typeof raw === 'string' ? raw.trim().toUpperCase().slice(0, 8) : '';
+      return /^[A-Z]{3}$/.test(code) ? code : null;
+    } catch (e: unknown) {
+      this.log.warn(
+        `Google Ads: не удалось получить currency_code для customer ${customerIdDigits}, использую валюту из настроек интеграции: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+      return null;
+    }
+  }
+
   /** Рекламные (не‑менеджерские, не тестовые) клиенты под указанным MCC. */
   private async googleAdsListManagedAdvertisingAccounts(
     managerCid: string,
@@ -2690,6 +3150,10 @@ export class MarketingService {
       for (const c of clients) {
         const tag = marketingTrafficGoogleAdsDataSource(c.cid);
         try {
+          const accountCurrency = await this.googleAdsFetchCustomerCurrency(
+            c.cid,
+            mccHeaders,
+          );
           const { results, level } =
             await this.googleAdsSearchCampaignOrCustomerDailyMetrics(
               c.cid,
@@ -2701,7 +3165,7 @@ export class MarketingService {
           const batch = this.buildGoogleAdsCampaignTrafficEntities({
             tenantId: row.tenantId,
             dataSourceTag: tag,
-            currencyNorm,
+            currencyNorm: accountCurrency || currencyNorm,
             results,
             fallbackCampaignLabel:
               level === 'customer'
@@ -2775,6 +3239,11 @@ export class MarketingService {
       `Google Ads sync: integration ${row.id} customer ${cid} UTC ${from}..${to} (${lookbackDays}d inclusive)`,
     );
 
+    const accountCurrency = await this.googleAdsFetchCustomerCurrency(
+      cid,
+      hdrSingle,
+    );
+
     let results: any[];
     let summaryLevel: 'campaign' | 'customer' = 'campaign';
     try {
@@ -2795,7 +3264,7 @@ export class MarketingService {
     const trafficRows = this.buildGoogleAdsCampaignTrafficEntities({
       tenantId: row.tenantId,
       dataSourceTag: tag,
-      currencyNorm,
+      currencyNorm: accountCurrency || currencyNorm,
       results,
       fallbackCampaignLabel:
         summaryLevel === 'customer'
@@ -4306,11 +4775,31 @@ export class MarketingService {
     return {
       gscPropertyUrl: row.gscPropertyUrl,
       gscConnected: Boolean(row.gscRefreshToken),
-      pageSpeedApiKey: row.pageSpeedApiKey,
+      // ключ наружу не отдаём — только маска и признак «задан»
+      pageSpeedApiKey: this.maskSeoSecret(row.pageSpeedApiKey),
+      pageSpeedApiKeySet: Boolean(row.pageSpeedApiKey?.trim()),
+      // ключ платформы (PAGESPEED_API_KEY): клиенту свой ключ не обязателен
+      pageSpeedPlatformKey: Boolean(this.platformPageSpeedKey()),
       pageSpeedUrl: row.pageSpeedUrl,
       pageSpeedStrategy: row.pageSpeedStrategy || 'mobile',
       updatedAt: row.updatedAt?.toISOString() ?? null,
     };
+  }
+
+  /** Общий ключ PageSpeed для всех клиентов: бесплатный, лимит Google — 25 000 запросов в сутки. */
+  private platformPageSpeedKey(): string | null {
+    return process.env.PAGESPEED_API_KEY?.trim() || null;
+  }
+
+  /** Свой ключ клиента приоритетнее общего ключа платформы. */
+  private resolvePageSpeedKey(row: { pageSpeedApiKey?: string | null }): string | null {
+    return row.pageSpeedApiKey?.trim() || this.platformPageSpeedKey();
+  }
+
+  private maskSeoSecret(value: string | null | undefined): string | null {
+    const v = (value || '').trim();
+    if (!v) return null;
+    return `${v.slice(0, 6)}${'•'.repeat(Math.max(8, Math.min(18, v.length - 6)))}`;
   }
 
   async patchSeoSettings(
@@ -4325,8 +4814,13 @@ export class MarketingService {
     const row = await this.getOrCreateSeoSettings(tenantId);
     if (patch.gscPropertyUrl !== undefined)
       row.gscPropertyUrl = patch.gscPropertyUrl;
-    if (patch.pageSpeedApiKey !== undefined)
-      row.pageSpeedApiKey = patch.pageSpeedApiKey;
+    // маска («AIzaSy••••») приходит обратно вместе с остальными настройками — это не новый ключ
+    if (
+      patch.pageSpeedApiKey !== undefined &&
+      !(patch.pageSpeedApiKey ?? '').includes('•')
+    ) {
+      row.pageSpeedApiKey = patch.pageSpeedApiKey?.trim() || null;
+    }
     if (patch.pageSpeedUrl !== undefined) row.pageSpeedUrl = patch.pageSpeedUrl;
     if (patch.pageSpeedStrategy !== undefined)
       row.pageSpeedStrategy = patch.pageSpeedStrategy;
@@ -4354,7 +4848,8 @@ export class MarketingService {
       response_type: 'code',
       access_type: 'offline',
       prompt: 'consent',
-      scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+      // openid — чтобы этим же подключением можно было вызывать PageSpeed Insights без отдельного API-ключа
+      scope: 'https://www.googleapis.com/auth/webmasters.readonly openid',
       state,
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -4417,13 +4912,17 @@ export class MarketingService {
         })
       : null;
 
+    // без явного периода отдаём дневной ряд за тот же диапазон, что и сводка (иначе график пуст до первого «Применить»)
+    const rangeFrom = dateFrom || (gsc ? String(gsc.dateFrom).slice(0, 10) : '');
+    const rangeTo = dateTo || (gsc ? String(gsc.dateTo).slice(0, 10) : '');
+
     let gscDaily: SeoGscDaily[] = [];
-    if (propertyUrl && dateFrom && dateTo) {
+    if (propertyUrl && rangeFrom && rangeTo) {
       gscDaily = await this.gscDailyRepo.find({
         where: {
           tenantId,
           propertyUrl,
-          date: Between(dateFrom, dateTo) as any,
+          date: Between(rangeFrom, rangeTo) as any,
         },
         order: { date: 'ASC' },
       });
@@ -4431,11 +4930,10 @@ export class MarketingService {
 
     const psiUrl = settings.pageSpeedUrl || '';
     const psiStrategy = settings.pageSpeedStrategy || 'mobile';
-    const psi = psiUrl
-      ? await this.psiRepo.findOne({
-          where: { tenantId, pageUrl: psiUrl, strategy: psiStrategy },
-        })
-      : null;
+    const psiRows = psiUrl
+      ? await this.psiRepo.find({ where: { tenantId, pageUrl: psiUrl } })
+      : [];
+    const psi = psiRows.find((r) => r.strategy === psiStrategy) || null;
 
     const mapGsc = (m: SeoGscMetric | null) =>
       m
@@ -4460,49 +4958,343 @@ export class MarketingService {
         position: Number(d.position),
       }));
 
+    const mapPsi = (p: SeoPageSpeedMetric | null) =>
+      p
+        ? {
+            pageUrl: p.pageUrl,
+            strategy: p.strategy,
+            performance: p.performance,
+            accessibility: p.accessibility,
+            bestPractices: p.bestPractices,
+            seo: p.seo,
+            // Lighthouse отдаёт LCP/FCP/TBT/Speed Index в миллисекундах — переводим время в секунды (TBT остаётся в мс)
+            lcp: Number(p.lcp) / 1000,
+            cls: Number(p.cls),
+            fcp: Number(p.fcp) / 1000,
+            tbt: Number(p.tbt),
+            speedIndex: Number(p.speedIndex) / 1000,
+            updatedAt: p.updatedAt.toISOString(),
+          }
+        : null;
+
     const result: any = {
       gsc: mapGsc(gsc),
       gscDaily: mapDaily(gscDaily),
-      psi: psi
-        ? {
-            pageUrl: psi.pageUrl,
-            strategy: psi.strategy,
-            performance: psi.performance,
-            accessibility: psi.accessibility,
-            bestPractices: psi.bestPractices,
-            seo: psi.seo,
-            lcp: Number(psi.lcp),
-            cls: Number(psi.cls),
-            fcp: Number(psi.fcp),
-            tbt: Number(psi.tbt),
-            speedIndex: Number(psi.speedIndex),
-            updatedAt: psi.updatedAt.toISOString(),
-          }
-        : null,
+      psi: mapPsi(psi),
+      psiByStrategy: {
+        mobile: mapPsi(psiRows.find((r) => r.strategy === 'mobile') || null),
+        desktop: mapPsi(psiRows.find((r) => r.strategy === 'desktop') || null),
+      },
     };
 
     if (compare) {
       result.gscCompare = null;
       result.gscCompareDaily = [];
+      if (propertyUrl && rangeFrom && rangeTo) {
+        // предыдущий период — столько же дней, сразу перед выбранным
+        const prev = this.previousPeriod(rangeFrom, rangeTo);
+        const prevRows = await this.gscDailyRepo.find({
+          where: {
+            tenantId,
+            propertyUrl,
+            date: Between(prev.from, prev.to) as any,
+          },
+          order: { date: 'ASC' },
+        });
+        if (prevRows.length) {
+          const t = this.aggregateGscDaily(prevRows);
+          result.gscCompare = {
+            propertyUrl,
+            dateFrom: prev.from,
+            dateTo: prev.to,
+            ...t,
+          };
+          result.gscCompareDaily = mapDaily(prevRows);
+        }
+      }
     }
 
     return result;
+  }
+
+  /** Предыдущий период той же длины: [from..to] → [from-N .. from-1]. */
+  private previousPeriod(from: string, to: string): { from: string; to: string } {
+    const f = new Date(`${from}T00:00:00Z`).getTime();
+    const t = new Date(`${to}T00:00:00Z`).getTime();
+    const days = Math.max(1, Math.round((t - f) / 864e5) + 1);
+    const prevTo = new Date(f - 864e5);
+    const prevFrom = new Date(f - days * 864e5);
+    return {
+      from: prevFrom.toISOString().slice(0, 10),
+      to: prevTo.toISOString().slice(0, 10),
+    };
+  }
+
+  /** Итоги по дневным строкам; позиция — среднее, взвешенное по показам (как в GSC). */
+  private aggregateGscDaily(rows: SeoGscDaily[]) {
+    let clicks = 0;
+    let impressions = 0;
+    let posWt = 0;
+    for (const r of rows) {
+      clicks += r.clicks;
+      impressions += r.impressions;
+      posWt += Number(r.position) * r.impressions;
+    }
+    return {
+      clicks,
+      impressions,
+      ctr: impressions > 0 ? clicks / impressions : 0,
+      position: impressions > 0 ? posWt / impressions : 0,
+    };
+  }
+
+  /**
+   * Сайты для переключателя «Ресурс»: те, по которым уже есть сохранённые метрики, плюс доступные
+   * подключённому Google-аккаунту (best-effort). Сливаются по домену — sc-domain:x и https://x/ это один сайт.
+   */
+  async getSeoSites(tenantId: string) {
+    const settings = await this.getOrCreateSeoSettings(tenantId);
+    const hostOf = (v: string) =>
+      v.replace(/^sc-domain:/, '').replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+    const byHost = new Map<string, { property: string; host: string; updatedAt: Date | null; synced: boolean }>();
+
+    const rows = await this.gscMetricRepo.find({ where: { tenantId }, order: { updatedAt: 'DESC' } });
+    for (const r of rows) {
+      const host = hostOf(r.propertyUrl);
+      if (host && !byHost.has(host)) byHost.set(host, { property: r.propertyUrl, host, updatedAt: r.updatedAt, synced: true });
+    }
+    if (settings.gscPropertyUrl) {
+      const host = hostOf(settings.gscPropertyUrl);
+      if (host && !byHost.has(host)) byHost.set(host, { property: settings.gscPropertyUrl, host, updatedAt: null, synced: false });
+    }
+    if (settings.gscRefreshToken) {
+      try {
+        const access = await this.googleOAuthAccessToken(settings.gscRefreshToken);
+        for (const site of await this.listGscSites(access)) {
+          const host = hostOf(site);
+          const existing = byHost.get(host);
+          if (existing) {
+            // предпочитаем настоящий ресурс из аккаунта Google
+            existing.property = site;
+          } else if (host) {
+            byHost.set(host, { property: site, host, updatedAt: null, synced: false });
+          }
+        }
+      } catch {
+        /* аккаунт недоступен/токен отозван — показываем только уже известные сайты */
+      }
+    }
+    const currentHost = settings.gscPropertyUrl ? hostOf(settings.gscPropertyUrl) : '';
+    const sites = [...byHost.values()]
+      .sort((x, y) => Number(y.synced) - Number(x.synced) || x.host.localeCompare(y.host))
+      .map((x) => ({ ...x, current: x.host === currentHost }));
+    return { current: settings.gscPropertyUrl, sites };
+  }
+
+  /** Ресурсы Search Console, доступные аккаунту (без «неподтверждённых»). */
+  private async listGscSites(access: string): Promise<string[]> {
+    const res = await axios.get('https://www.googleapis.com/webmasters/v3/sites', {
+      headers: { Authorization: `Bearer ${access}` },
+    });
+    return ((res.data?.siteEntry || []) as Array<{ siteUrl?: string; permissionLevel?: string }>)
+      .filter((e) => e.siteUrl && e.permissionLevel !== 'siteUnverifiedUser')
+      .map((e) => e.siteUrl as string);
+  }
+
+  /**
+   * Подбирает ресурс из списка аккаунта под введённый адрес. В GSC «домен» (sc-domain:example.com)
+   * и «префикс URL» (https://example.com/) — разные ресурсы: пользователь вводит просто адрес сайта,
+   * а в аккаунте часто заведён именно доменный ресурс.
+   */
+  private matchGscSite(wanted: string, sites: string[]): string | null {
+    const host = wanted
+      .replace(/^sc-domain:/, '')
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
+      .toLowerCase();
+    if (!host) return null;
+    const bare = host.replace(/^www\./, '');
+    const candidates = [
+      wanted,
+      `sc-domain:${host}`,
+      `sc-domain:${bare}`,
+      `https://${host}/`,
+      `https://${bare}/`,
+      `https://www.${bare}/`,
+      `http://${host}/`,
+      `http://${bare}/`,
+    ];
+    for (const c of candidates) if (sites.includes(c)) return c;
+    // поддомен без своего ресурса → родительский доменный ресурс (sc-domain:example.com покрывает blog.example.com)
+    const parts = bare.split('.');
+    for (let i = 1; i < parts.length - 1; i++) {
+      const parent = `sc-domain:${parts.slice(i).join('.')}`;
+      if (sites.includes(parent)) return parent;
+    }
+    return null;
+  }
+
+  /**
+   * Запрашивает у GSC дневные данные за период и сохраняет их построчно (перезаписывая период).
+   * Возвращает итоги периода. Ошибки 401/403 пробрасываются наверх — их обрабатывает вызывающий.
+   */
+  private async syncGscRange(
+    tenantId: string,
+    propertyUrl: string,
+    access: string,
+    start: string,
+    end: string,
+  ) {
+    const siteUrl = encodeURIComponent(propertyUrl);
+    const res = await axios.post(
+      `https://www.googleapis.com/webmasters/v3/sites/${siteUrl}/searchAnalytics/query`,
+      { startDate: start, endDate: end, dimensions: ['date'], rowLimit: 25000 },
+      { headers: { Authorization: `Bearer ${access}` } },
+    );
+    const rows = (res.data?.rows || []) as any[];
+
+    await this.gscDailyRepo
+      .createQueryBuilder()
+      .delete()
+      .from(SeoGscDaily)
+      .where('tenantId = :tenantId', { tenantId })
+      .andWhere('propertyUrl = :pu', { pu: propertyUrl })
+      .andWhere('date BETWEEN :a AND :b', { a: start, b: end })
+      .execute();
+
+    const totals = { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+    let posWt = 0;
+    for (const gscRow of rows) {
+      const d = (gscRow.keys || [])[0] as string;
+      if (!d) continue;
+      const clicks = Number(gscRow.clicks || 0);
+      const impressions = Number(gscRow.impressions || 0);
+      const ctr = Number(gscRow.ctr || 0);
+      const position = Number(gscRow.position || 0);
+      totals.clicks += clicks;
+      totals.impressions += impressions;
+      posWt += position * impressions;
+      await this.gscDailyRepo.insert({
+        tenantId,
+        propertyUrl,
+        date: d,
+        clicks,
+        impressions,
+        ctr: String(ctr),
+        position: String(position),
+      });
+    }
+    totals.position = totals.impressions > 0 ? posWt / totals.impressions : 0;
+    totals.ctr = totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
+    return totals;
+  }
+
+  /**
+   * Один замер PageSpeed Insights для стратегии (mobile/desktop) → upsert в seo_pagespeed_metrics.
+   * Авторизация: API-ключ (клиента или платформы), а если ключа нет — OAuth-токен подключённого
+   * Google-аккаунта (нужно разрешение openid). Возвращает 'ok' | 'reconnect' (у токена нет нужного
+   * разрешения — аккаунт надо переподключить) | 'fail'.
+   */
+  private async syncPageSpeedStrategy(
+    tenantId: string,
+    pageUrl: string,
+    auth: { key: string } | { bearer: string },
+    strategy: 'mobile' | 'desktop',
+  ): Promise<{ status: 'ok' | 'reconnect' | 'disabled' | 'fail'; activationUrl?: string }> {
+    try {
+      const psiRes = await axios.get(
+        'https://www.googleapis.com/pagespeedonline/v5/runPagespeed',
+        {
+          params: {
+            url: pageUrl,
+            ...('key' in auth ? { key: auth.key } : {}),
+            strategy,
+            // без category Google отдаёт только performance — просим все четыре
+            category: ['performance', 'accessibility', 'best-practices', 'seo'],
+          },
+          paramsSerializer: { indexes: null },
+          headers: 'bearer' in auth ? { Authorization: `Bearer ${auth.bearer}` } : undefined,
+          timeout: 120_000,
+        },
+      );
+      const lh = psiRes.data?.lighthouseResult;
+      const cat = lh?.categories || {};
+      const audits = lh?.audits || {};
+      const num = (id: string) =>
+        Number(
+          audits[id]?.numericValue != null
+            ? audits[id].numericValue
+            : audits[id]?.score ?? 0,
+        );
+      const pct = (id: string) => Math.round((cat[id]?.score || 0) * 100);
+
+      const payload = {
+        tenantId,
+        pageUrl,
+        strategy,
+        performance: pct('performance'),
+        accessibility: pct('accessibility'),
+        bestPractices: pct('best-practices'),
+        seo: pct('seo'),
+        lcp: String(num('largest-contentful-paint') || 0),
+        cls: String(num('cumulative-layout-shift') || 0),
+        fcp: String(num('first-contentful-paint') || 0),
+        tbt: String(num('total-blocking-time') || 0),
+        speedIndex: String(num('speed-index') || 0),
+      };
+      let row = await this.psiRepo.findOne({
+        where: { tenantId, pageUrl, strategy },
+      });
+      if (!row) row = this.psiRepo.create(payload);
+      else Object.assign(row, payload);
+      await this.psiRepo.save(row);
+      return { status: 'ok' };
+    } catch (e: any) {
+      const g = e?.response?.data?.error;
+      this.log.warn(
+        `PageSpeed sync error (${strategy}): ${e?.response?.status || ''} ${g?.message || e?.message || e}`,
+      );
+      const details: any[] = g?.details || [];
+      const scopeIssue = details.some(
+        (d) => d?.reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT',
+      );
+      // PageSpeed Insights API не включён в Google Cloud проекте, к которому относится ключ / OAuth-клиент
+      const disabled = details.find(
+        (d) => d?.reason === 'SERVICE_DISABLED' || d?.metadata?.activationUrl,
+      );
+      if (disabled) {
+        return { status: 'disabled', activationUrl: disabled.metadata?.activationUrl };
+      }
+      return { status: 'bearer' in auth && scopeIssue ? 'reconnect' : 'fail' };
+    }
   }
 
   async syncSeo(
     tenantId: string,
     dateFrom?: string,
     dateTo?: string,
-    _compare?: boolean,
+    compare?: boolean,
   ): Promise<{
     ok: boolean;
     gsc: boolean;
     psi: boolean;
     gscReauthRequired: boolean;
+    /** Токен рабочий, но у аккаунта нет прав на выбранный ресурс (403) и подходящего в списке нет. */
+    gscForbidden?: boolean;
+    gscSites?: string[];
+    /** Ресурс, который реально использован (мог быть подобран автоматически). */
+    gscProperty?: string | null;
+    /** Замер скорости шёл через Google-аккаунт, но у токена нет разрешения openid — нужно переподключить аккаунт. */
+    psiNeedsReconnect?: boolean;
+    /** PageSpeed Insights API выключен в Google Cloud проекте — его должен включить владелец проекта. */
+    psiApiDisabled?: boolean;
+    psiActivationUrl?: string;
   }> {
     const settings = await this.getOrCreateSeoSettings(tenantId);
     let gscOk = false;
     let psiOk = false;
+    let gscForbidden = false;
+    let gscSites: string[] | undefined;
 
     const end = dateTo || new Date().toISOString().slice(0, 10);
     const start =
@@ -4514,59 +5306,35 @@ export class MarketingService {
         const access = await this.googleOAuthAccessToken(
           settings.gscRefreshToken,
         );
-        const siteUrl = encodeURIComponent(settings.gscPropertyUrl);
-        const url = `https://www.googleapis.com/webmasters/v3/sites/${siteUrl}/searchAnalytics/query`;
-        const res = await axios.post(
-          url,
-          {
-            startDate: start,
-            endDate: end,
-          dimensions: ['date'],
-          rowLimit: 25000,
-          },
-          { headers: { Authorization: `Bearer ${access}` } },
-        );
 
-        const totals = { clicks: 0, impressions: 0, ctr: 0, position: 0 };
-        const rows = (res.data?.rows || []) as any[];
-        let posWt = 0;
-
-        await this.gscDailyRepo
-          .createQueryBuilder()
-          .delete()
-          .from(SeoGscDaily)
-          .where('tenantId = :tenantId', { tenantId })
-          .andWhere('propertyUrl = :pu', { pu: settings.gscPropertyUrl })
-          .andWhere('date BETWEEN :a AND :b', { a: start, b: end })
-          .execute();
-
-        for (const gscRow of rows) {
-          const keys = gscRow.keys || [];
-          const d = keys[0] as string;
-          if (!d) continue;
-          const clicks = Number(gscRow.clicks || 0);
-          const impressions = Number(gscRow.impressions || 0);
-          const ctr = Number(gscRow.ctr || 0);
-          const position = Number(gscRow.position || 0);
-          totals.clicks += clicks;
-          totals.impressions += impressions;
-          posWt += position * impressions;
-
-          await this.gscDailyRepo.insert({
-      tenantId,
-            propertyUrl: settings.gscPropertyUrl,
-            date: d,
-      clicks,
-      impressions,
-      ctr: String(ctr),
-      position: String(position),
-          });
+        // 403 «forbidden» ≠ «нужна повторная авторизация»: токен рабочий, просто у аккаунта нет
+        // такого ресурса (типично: введён https://site/, а в GSC заведён sc-domain:site).
+        // Подбираем подходящий ресурс из списка аккаунта и повторяем; если такого нет — отдаём список.
+        let totals: Awaited<ReturnType<typeof this.syncGscRange>>;
+        try {
+          totals = await this.syncGscRange(
+            tenantId,
+            settings.gscPropertyUrl,
+            access,
+            start,
+            end,
+          );
+        } catch (e: any) {
+          if (e?.response?.status !== 403) throw e;
+          const sites = await this.listGscSites(access);
+          const match = this.matchGscSite(settings.gscPropertyUrl, sites);
+          if (!match || match === settings.gscPropertyUrl) {
+            gscForbidden = true;
+            gscSites = sites;
+            throw Object.assign(new Error('gsc-forbidden'), { handled: true });
+          }
+          this.log.log(
+            `GSC property ${settings.gscPropertyUrl} → ${match} (tenant ${tenantId})`,
+          );
+          settings.gscPropertyUrl = match;
+          await this.seoRepo.save(settings);
+          totals = await this.syncGscRange(tenantId, match, access, start, end);
         }
-
-        const avgPos =
-          totals.impressions > 0 ? posWt / totals.impressions : 0;
-        const aggCtr =
-          totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
 
         let metric = await this.gscMetricRepo.findOne({
           where: { tenantId, propertyUrl: settings.gscPropertyUrl },
@@ -4579,89 +5347,85 @@ export class MarketingService {
             dateTo: end,
             clicks: totals.clicks,
             impressions: totals.impressions,
-            ctr: String(aggCtr),
-            position: String(avgPos),
+            ctr: String(totals.ctr),
+            position: String(totals.position),
           });
-          } else {
+        } else {
           metric.dateFrom = start;
           metric.dateTo = end;
           metric.clicks = totals.clicks;
           metric.impressions = totals.impressions;
-          metric.ctr = String(aggCtr);
-          metric.position = String(avgPos);
+          metric.ctr = String(totals.ctr);
+          metric.position = String(totals.position);
         }
         await this.gscMetricRepo.save(metric);
         gscOk = true;
-      } catch (e: any) {
-        const status = e?.response?.status;
-        if (status === 401 || status === 403) {
-          return {
-            ok: false,
-            gsc: false,
-            psi: false,
-            gscReauthRequired: true,
-          };
+
+        // предыдущий период нужен только для сравнения — его сбой не должен ронять основной синк
+        if (compare) {
+          try {
+            const prev = this.previousPeriod(start, end);
+            await this.syncGscRange(
+              tenantId,
+              settings.gscPropertyUrl,
+              access,
+              prev.from,
+              prev.to,
+            );
+          } catch (e: any) {
+            this.log.warn(`GSC compare-period sync error: ${e?.message || e}`);
+          }
         }
-        this.log.warn(`GSC sync error: ${e?.message || e}`);
+      } catch (e: any) {
+        if (!e?.handled) {
+          const status = e?.response?.status;
+          const grant = e?.response?.data?.error;
+          // повторная авторизация нужна только когда сам токен недействителен
+          if (status === 401 || grant === 'invalid_grant' || /invalid_grant/.test(e?.message || '')) {
+            return {
+              ok: false,
+              gsc: false,
+              psi: false,
+              gscReauthRequired: true,
+            };
+          }
+          this.log.warn(
+            `GSC sync error: ${e?.response?.status || ''} ${
+              e?.response?.data?.error?.message || e?.message || e
+            }`,
+          );
+        }
       }
     }
 
-    if (settings.pageSpeedUrl?.trim() && settings.pageSpeedApiKey?.trim()) {
-      try {
-        const strategy = settings.pageSpeedStrategy || 'mobile';
-        const psiRes = await axios.get(
-          'https://www.googleapis.com/pagespeedonline/v5/runPagespeed',
-          {
-            params: {
-              url: settings.pageSpeedUrl,
-              key: settings.pageSpeedApiKey,
-              strategy,
-            },
-          },
-        );
-        const lh = psiRes.data?.lighthouseResult;
-        const cat = lh?.categories || {};
-        const audits = lh?.audits || {};
-        const num = (id: string) =>
-          Number(
-            audits[id]?.numericValue != null
-              ? audits[id].numericValue
-              : audits[id]?.score ?? 0,
-          );
-
-        let row = await this.psiRepo.findOne({
-          where: {
-      tenantId,
-            pageUrl: settings.pageSpeedUrl,
-            strategy,
-          },
-        });
-        const perf = Math.round((cat.performance?.score || 0) * 100);
-        const acc = Math.round((cat.accessibility?.score || 0) * 100);
-        const bp = Math.round((cat['best-practices']?.score || 0) * 100);
-        const seo = Math.round((cat.seo?.score || 0) * 100);
-
-        const payload = {
-          tenantId,
-          pageUrl: settings.pageSpeedUrl,
-          strategy,
-          performance: perf,
-          accessibility: acc,
-          bestPractices: bp,
-          seo,
-          lcp: String(num('largest-contentful-paint') || 0),
-          cls: String(num('cumulative-layout-shift') || 0),
-          fcp: String(num('first-contentful-paint') || 0),
-          tbt: String(num('total-blocking-time') || 0),
-          speedIndex: String(num('speed-index') || 0),
-        };
-
-        if (!row) row = this.psiRepo.create(payload);
-        else Object.assign(row, payload);
-        await this.psiRepo.save(row);
-        psiOk = true;
-      } catch (e: any) {
-        this.log.warn(`PageSpeed sync error: ${e?.message || e}`);
+    const psiKey = this.resolvePageSpeedKey(settings);
+    let psiNeedsReconnect = false;
+    let psiApiDisabled = false;
+    let psiActivationUrl: string | undefined;
+    if (settings.pageSpeedUrl?.trim()) {
+      let auth: { key: string } | { bearer: string } | null = psiKey ? { key: psiKey } : null;
+      // ключа нет — пробуем через подключённый Google-аккаунт (тот же OAuth, что для Search Console)
+      if (!auth && settings.gscRefreshToken) {
+        try {
+          auth = { bearer: await this.googleOAuthAccessToken(settings.gscRefreshToken) };
+        } catch {
+          auth = null;
+        }
+      }
+      if (auth) {
+        // оба режима сразу — на странице переключатель «Мобильный / Десктоп» работает без повторного замера
+        const [mobile, desktop] = await Promise.all([
+          this.syncPageSpeedStrategy(tenantId, settings.pageSpeedUrl, auth, 'mobile'),
+          this.syncPageSpeedStrategy(tenantId, settings.pageSpeedUrl, auth, 'desktop'),
+        ]);
+        psiOk = mobile.status === 'ok' || desktop.status === 'ok';
+        psiNeedsReconnect =
+          !psiOk && (mobile.status === 'reconnect' || desktop.status === 'reconnect');
+        const off = [mobile, desktop].find((r) => r.status === 'disabled');
+        if (!psiOk && off) {
+          psiApiDisabled = true;
+          psiActivationUrl = off.activationUrl;
+        }
       }
     }
 
@@ -4670,6 +5434,10 @@ export class MarketingService {
       gsc: gscOk,
       psi: psiOk,
       gscReauthRequired: false,
+      ...(gscForbidden ? { gscForbidden: true, gscSites } : {}),
+      ...(psiNeedsReconnect ? { psiNeedsReconnect: true } : {}),
+      ...(psiApiDisabled ? { psiApiDisabled: true, psiActivationUrl } : {}),
+      gscProperty: settings.gscPropertyUrl,
     };
   }
 }

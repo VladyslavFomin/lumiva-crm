@@ -14,11 +14,13 @@ import { TenantsController } from './tenants.controller';
 import { PlatformTenantsController } from './platform-tenants.controller';
 import { TenantLogsService } from './tenant-logs.service';
 import { TenantTrialSchedulerService } from './tenant-trial.scheduler';
+import { TenantAccessExpiryScheduler } from './tenant-access-expiry.scheduler';
 
 import { StaffUsersModule } from '../staff/staff-users.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { PlatformAdminModule } from '../platform-admin/platform-admin.module';
 import { MailModule } from '../mail/mail.module';
+import { BillingModule } from '../billing/billing.module';
 import { UserSessionsModule } from '../auth/user-sessions.module';
 import { TenantStorageService } from './tenant-storage.service';
 import { CompanyFilesService } from './company-files.service';
@@ -56,6 +58,9 @@ import { CustomObjectRecord } from '../custom-objects/custom-object-record.entit
 
     // чтобы TenantsService мог инжектить MailService
     MailModule,
+
+    // чтобы TenantAccessExpiryScheduler мог инжектить BillingAlertsService
+    BillingModule,
   ],
   providers: [
     TenantsService,
@@ -63,6 +68,7 @@ import { CustomObjectRecord } from '../custom-objects/custom-object-record.entit
     TenantStorageService,
     CompanyFilesService,
     TenantTrialSchedulerService,
+    TenantAccessExpiryScheduler,
   ],
   controllers: [
     TenantsController,          // обычные ручки для CRM

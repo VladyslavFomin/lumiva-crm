@@ -1239,6 +1239,171 @@
         "body": "Connect your own OpenAI or Anthropic (Claude) key — AI employees will run on it, and token usage is billed to your account, not the platform's quota.",
         "button": "Connect your own AI agent"
       },
+            "recordChat": {
+        "title": "Ask an AI employee",
+        "placeholder": "Ask about this record or assign something…",
+        "ask": "Ask",
+        "assign": "Assign",
+        "assignHint": "The employee will do this as a task on this record",
+        "needActive": "Employee is paused — resume them to assign tasks",
+        "paused": "paused",
+        "thinking": "Thinking…",
+        "taskSent": "Task handed to {{name}}. The result will appear in the record's comments."
+      },
+      "quick": {
+        "lang": {"Russian": "Russian", "English": "English", "Turkish": "Turkish"},
+        "title": "Quick start — 3 questions",
+        "hint": "We'll pick the rest based on the role. You can change everything later in the employee's profile.",
+        "q1": "Which language for clients?",
+        "q2": "How should they work?",
+        "q3": "When should they work?",
+        "go": "Create and start",
+        "orManual": "Or configure everything manually below.",
+        "mode": {
+          "assisted": "Prepares, I approve",
+          "auto": "Fully on their own",
+          "suggest": "Advice only"
+        },
+        "schedule": {
+          "always": "Around the clock",
+          "business_hours": "Business hours"
+        }
+      },
+      "lessons": {
+        "title": "What this employee has learned",
+        "hint": "From proposals you rejected. The employee takes this into account; remove anything you don't want.",
+        "remove": "Forget this lesson",
+        "rejectTitle": "Reject action",
+        "rejectLabel": "Why? The employee will remember and not repeat it (optional)",
+        "rejectPlaceholder": "e.g. don't message clients with this status"
+      },
+      "v2": {
+        "dayFeed": "Today's feed",
+        "dayFeedAll": "Full log",
+        "failedToday": "Failed today",
+        "blockedToday": "Skipped today (duplicates, invalid)",
+        "subtitle": "The role sets what an employee can do. The access level sets how much of that it does itself vs. brings to you for approval.",
+        "hire": "Hire",
+        "hoursValue_one": "{{count}}h",
+        "hoursValue_other": "{{count}}h",
+        "kpi": {
+          "active": "Working",
+          "activeD": "of {{count}} on staff",
+          "today": "Actions today",
+          "todayD": "in the last 24h",
+          "pending": "Awaiting approval",
+          "pendingD": "your decision",
+          "reports": "Reports this month",
+          "reportsD": "daily and weekly",
+          "saved": "Time saved",
+          "savedD": "from the action log"
+        },
+        "filters": {
+          "all": "All {{count}}",
+          "active": "Working",
+          "paused": "Paused",
+          "setup_required": "Needs setup",
+          "pending": "Awaiting decision"
+        },
+        "colHead": {
+          "employee": "Employee",
+          "status": "Status",
+          "level": "Level",
+          "access": "Action access",
+          "today": "Today",
+          "queue": "Queue"
+        },
+        "queue": "in queue",
+        "freeRoles": "Open roles",
+        "table": "tables",
+        "mailboxes": "mailboxes",
+        "fp": {
+          "auto": "itself",
+          "appr": "with approval",
+          "off": "none"
+        },
+        "access": {
+          "levelTitle": "Access level",
+          "levelNote_off": "The employee only reads data and writes findings into a report — zero actions in the CRM.",
+          "levelNote_mixed": "{{auto}} actions it does itself, {{appr}} it brings to you for approval, {{off}} are not allowed.",
+          "levelNote_appr": "It will propose {{appr}} actions, and every one lands in your Approvals queue.",
+          "matrixTitle": "CRM actions",
+          "resetToRole": "Reset to role defaults",
+          "expand": "Fine-tune",
+          "collapse": "Collapse",
+          "observerWarn": "\"Suggestions mode\" turns off every action entirely. To configure them one by one, switch to \"Assistant\" or \"Auto\".",
+          "assistedWarn": "At \"Assistant\" level every action goes to a human. The \"Itself\" column appears at \"Auto\".",
+          "alwaysOnTitle": "Always on",
+          "escalateName": "Call a human",
+          "escalateDesc": "Escalation: if the employee isn't sure, it hands the case to a colleague. Cannot be turned off.",
+          "dataTitle": "Data",
+          "readsName": "Read every CRM module",
+          "readsDesc": "Reading never changes data and gives context for decisions, so it's open to every role.",
+          "tablesTitle": "Workspace tables",
+          "mailboxesTitle": "Mailboxes",
+          "summaryTitle": "Access summary",
+          "summaryLevel": "Level",
+          "summaryAuto": "Does itself",
+          "summaryAppr": "Via approval",
+          "summaryOff": "Not allowed",
+          "summaryModules": "Modules with actions",
+          "summaryTables": "Tables",
+          "summaryMailboxes": "Mailboxes",
+          "ownedTitle": "Responsible for records",
+          "ownedNote": "This role can be assigned to: <b>{{types}}</b>. Enforced on the server, not just the UI.",
+          "ownedNone": "This role doesn't own individual records — it reads data and helps with reports and advice.",
+          "ownedCount_one": "Currently assigned: {{count}} record.",
+          "ownedCount_other": "Currently assigned: {{count}} records.",
+          "decidesTitle": "Who decides",
+          "decidesAuto": "<b>Itself</b> — the action runs right away, logged in the journal.",
+          "decidesAppr": "<b>With approval</b> — goes into the queue; nothing happens until you click Approve.",
+          "decidesOff": "<b>None</b> — the employee won't even propose this action.",
+          "decidesBulk": "A segment broadcast always goes through approval, regardless of level.",
+          "save": "Save access"
+        },
+        "groups": {
+          "leads": "Leads",
+          "tasks": "Tasks & notes",
+          "mail": "Email & messaging",
+          "work": "Meetings & projects",
+          "data": "Reports & workspace"
+        },
+        "overview": {
+          "pendingTitle": "Awaiting your decision",
+          "pendingEmpty": "Queue is empty — everything allowed, the employee did itself.",
+          "recentTitle": "Recent actions",
+          "recentEmpty": "The employee hasn't done anything yet.",
+          "profileTitle": "Profile",
+          "role": "Role",
+          "deptJob": "Department · job",
+          "level": "Access level",
+          "langTone": "Language · tone",
+          "model": "Model",
+          "tz": "Time zone",
+          "reportAt": "Report at",
+          "triggersOn": "Triggers enabled",
+          "assignedTitle": "Assigned records",
+          "assignedEmpty": "The role doesn't own records, or none are assigned to it yet.",
+          "lastReportTitle": "Latest report",
+          "lastReportEmpty": "No reports yet.",
+          "open": "Open",
+          "send": "Send",
+          "responsible": "Responsible",
+          "responsibleNone": "Not resolved — contact the account owner"
+        },
+        "work": {
+          "identityTitle": "Identity",
+          "taskPanelTitle": "One-off task"
+        },
+        "journal": {
+          "all": "All",
+          "appr": "Approvals",
+          "log": "Actions",
+          "rep": "Reports",
+          "err": "Errors",
+          "empty": "Nothing here yet."
+        }
+      },
       "errors": {
         "generic": "Something went wrong. Please try again."
       },
@@ -1513,6 +1678,7 @@
         "recentLogs": "Recent Logs",
         "tabs": {
           "overview": "Overview",
+          "access": "Access",
           "assign": "Assignments & access",
           "approvals": "Approvals",
           "journal": "Journal",
@@ -1902,6 +2068,14 @@
           "custom_object_record_created": {
             "title": "New table record",
             "hint": "A record was added to a workspace table."
+          },
+          "custom_object_record_updated": {
+            "title": "Record updated",
+            "hint": "Data changed in a workspace table row this employee is responsible for."
+          },
+          "custom_object_status_changed": {
+            "title": "Record status changed",
+            "hint": "The status changed on a row this employee is responsible for."
           }
         }
       },
@@ -3095,7 +3269,46 @@
         "crmMultiSearchCompanyPlaceholder": "Search company by name…",
         "crmMultiTypeToSearch": "Type to search — only active leads are shown (not trash or archive).",
         "crmMultiSearching": "Searching…",
-        "crmMultiNoResults": "No matches"
+        "crmMultiNoResults": "No matches",
+        "fieldTypes": {
+          "text": "Text",
+          "number": "Number",
+          "date": "Date",
+          "datetime": "Date & time",
+          "boolean": "Yes/No",
+          "status": "Status",
+          "select": "Select",
+          "multiselect": "Multi-select",
+          "file": "File",
+          "ai": "Smart column (AI)"
+        },
+        "aiColumnAgent": "Who computes the value",
+        "aiColumnAgentPick": "Pick an AI employee…",
+        "aiColumnPrompt": "Instruction for this column",
+        "aiColumnPromptPlaceholder": "E.g. \"Rate the booking cancellation risk from this row's other fields: low / medium / high, with a short reason\"",
+        "aiColumnHint": "Recomputed on every row save and via the \"Refresh\" button. The chosen AI employee needs the \"Manage workspace data\" permission and write access to this table, or the column won't update.",
+        "showColumn": "Show column",
+        "manageFieldsButton": "Manage columns",
+        "manageFieldsTitle": "Manage columns",
+        "manageFieldsHint": "Drag to reorder. For type/binding settings, use \"Edit\".",
+        "manageFieldsEmpty": "This table has no columns yet.",
+        "fieldHiddenBadge": "hidden",
+        "aiColumnNoEligible": "None of your hired AI employees have access to this table yet — grant access in their profile (Access → Workspace tables), then come back here.",
+        "aiColumnPresets": "Templates",
+        "aiPresetSummarize": "Summarize",
+        "aiPresetSummarizePrompt": "Write a concise summary (1–2 sentences) of this row for a teammate glancing at the table.",
+        "aiPresetCategorize": "Categorize",
+        "aiPresetCategorizePrompt": "Determine the most fitting category/status for this row based on its other fields. Reply with the exact category value only, no explanation.",
+        "aiPresetExtract": "Extract data",
+        "aiPresetExtractPrompt": "Find and write out the most important date, name or number mentioned in this row's text fields. If nothing fits, leave it blank.",
+        "aiPresetTranslate": "Translate",
+        "aiPresetTranslatePrompt": "Translate this row's content into English. Reply with the translation only, no explanation.",
+        "aiPresetAssign": "Assign responsible",
+        "aiPresetAssignPrompt": "Decide which team member should be responsible for this row, based on its other fields.",
+        "aiColumnPersonModeHint": "Person-assignment mode: the AI must pick a real name from the tenant's staff list — it will never write a made-up name.",
+        "aiRefreshAllButton": "Recompute all rows",
+        "aiRefreshAllRunning": "Computing…",
+        "aiRefreshAllResult": "Done: {{succeeded}} of {{total}}"
       },
       "kanban": {
         "title": "Kanban",
@@ -3156,6 +3369,34 @@
           "cancel": "Cancel",
           "submit": "Add and load"
         }
+      },
+      "recordDrawer": {
+        "aiColumnEmpty": "Not computed yet",
+        "aiColumnRefresh": "Refresh",
+        "aiColumnRefreshing": "Computing…",
+        "aiColumnError": "Could not compute",
+        "aiColumnErrorAgentInactive": "The assigned AI employee is paused or not found — pick another one or resume it in AI Employees",
+        "aiColumnErrorNoPermission": "This AI employee doesn't have permission to change workspace data",
+        "aiColumnErrorNoAccess": "This AI employee has no access to this table — grant access in its profile (Access → Workspace tables)",
+        "aiColumnErrorNoPrompt": "No prompt is configured for this column",
+        "aiColumnErrorNoStaff": "There are no active staff members to assign",
+        "aiColumnErrorNoConfidentMatch": "The AI couldn't confidently pick a staff member from the list — refine the instruction"
+      },
+      "analytics": {
+        "kicker": "Workspace analytics",
+        "title": "Analytics: {{name}}",
+        "defaultName": "Workspace table",
+        "subtitle": "Statuses, categories, owners and custom metrics — like project analytics.",
+        "aiTitle": "AI table analysis",
+        "aiQuestion": "Question (optional)",
+        "aiQuestionPlaceholder": "E.g. \"what should I pay attention to this month\"",
+        "aiRun": "Analyze",
+        "aiRunning": "Analyzing…",
+        "aiCollapse": "Collapse",
+        "aiExpand": "Show report",
+        "aiNoAgents": "No hired AI employees have access to this table",
+        "aiError": "Could not compute",
+        "aiComputedBy": "{{name}} · {{date}}"
       }
     },
     "sidebar": {
@@ -11517,7 +11758,7 @@
         "tasksTab": {
           "namePrompt": "Task name:",
           "title": "Company tasks",
-          "sub": "Tasks of the company itself, its projects and leads — in one place, labelled by source.",
+          "sub": "Tasks from all of the company's projects and leads in one place. Click a task to open the project or lead it lives in.",
           "task": "Task",
           "openBoard": "Open board",
           "empty": "empty",
@@ -12733,7 +12974,8 @@
           "tools_automation": "Automations and scenarios",
           "custom_objects": "No-code Workspace and custom tables",
           "staff": "Staff list, invites, departments",
-          "settings": "Company settings, API, integrations"
+          "settings": "Company settings, API, integrations",
+          "ai_employees": "Hiring and managing AI employees: their permissions, settings, reports and activity log"
         },
         "tabs": {
           "roles": "Roles & permissions",
@@ -12874,7 +13116,8 @@
             "of": "{{visible}} of {{total}}",
             "loading": "Calculating…"
           }
-        }
+        },
+        "ai_employees": "AI Employees"
       }
     },
     "products": {

@@ -23,6 +23,8 @@ export interface Contact {
   tags: string[];
   assignedUserId: string | null;
   assignedTo: string | null;
+  /** Несколько ответственных (карточка контакта); [0] обычно совпадает с assignedUserId. */
+  assignedUserIds: string[];
   status: string;
   customFields: Record<string, any> | null;
   createdAt: string;
@@ -48,6 +50,7 @@ export interface CreateContactDto {
   tags?: string[];
   assignedUserId?: string;
   assignedTo?: string;
+  assignedUserIds?: string[];
   status?: string;
   customFields?: Record<string, any>;
 }

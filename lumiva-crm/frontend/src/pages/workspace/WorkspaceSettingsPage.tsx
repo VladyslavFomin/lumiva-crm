@@ -136,6 +136,10 @@ export const WorkspaceSettingsPage: React.FC = () => {
   const [movingArea, setMovingArea] = useState(false);
 
   const [bindEditingKey, setBindEditingKey] = useState('');
+  /** Этот упрощённый редактор (текстовые поля) поддерживает только одну таблицу-источник —
+   * для pick_from_data/rollup с несколькими таблицами (настроены через карточку таблицы, где
+   * есть мультивыбор) редактирование здесь заблокировано, чтобы не обрезать молча до одной. */
+  const [bindMultiSourceNotice, setBindMultiSourceNotice] = useState(false);
   const [bindMode, setBindMode] = useState<WorkspaceColumnBindingV1['mode']>('from_pushed_source');
   const [bindSourceField, setBindSourceField] = useState('');
   const [bindDataObjectId, setBindDataObjectId] = useState('');
@@ -551,13 +555,20 @@ export const WorkspaceSettingsPage: React.FC = () => {
   };
 
   const startEditBinding = (f: CustomObjectField, b: WorkspaceColumnBindingV1) => {
+    if ((b.mode === 'pick_from_data' || b.mode === 'rollup') && b.dataObjectIds.length > 1) {
+      setBindMultiSourceNotice(true);
+      return;
+    }
+    setBindMultiSourceNotice(false);
     setBindEditingKey(f.key);
     setBindMode(b.mode);
     setBindSourceField(b.mode === 'from_pushed_source' ? b.sourceFieldKey : '');
     setBindDataObjectId(
-      b.mode === 'lookup_by_key' || b.mode === 'pick_from_data' || b.mode === 'rollup'
+      b.mode === 'lookup_by_key'
         ? b.dataObjectId
-        : '',
+        : b.mode === 'pick_from_data' || b.mode === 'rollup'
+          ? b.dataObjectIds[0] || ''
+          : '',
     );
     setBindBoardMatch(b.mode === 'lookup_by_key' || b.mode === 'rollup' ? b.boardMatchFieldKey : '');
     setBindDataMatch(b.mode === 'lookup_by_key' ? b.dataMatchFieldKey : '');
@@ -600,7 +611,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
       binding = {
         version: 1,
         mode: 'pick_from_data',
-        dataObjectId: bindDataObjectId,
+        dataObjectIds: [bindDataObjectId],
         dataFieldKey: bindDataField.trim(),
       };
     } else if (bindMode === 'cached_snapshot') {
@@ -615,7 +626,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
       binding = {
         version: 1,
         mode: 'rollup',
-        dataObjectId: bindDataObjectId,
+        dataObjectIds: [bindDataObjectId],
         boardMatchFieldKey: bindBoardMatch.trim(),
         groupByFieldKey: bindGroupBy.trim(),
         valueFieldKey: bindValueField.trim(),
@@ -854,6 +865,11 @@ export const WorkspaceSettingsPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="ws-sec-body" style={{ padding: boundFields.length ? 0 : 16 }}>
+                    {bindMultiSourceNotice && (
+                      <div className="ws-note" style={{ padding: '8px 12px', color: 'var(--danger, #b91c1c)' }}>
+                        {t('crm.workspace.tableSettings.bindingMultiSourceEditElsewhere')}
+                      </div>
+                    )}
                     {boundFields.length === 0 && <div className="ws-note">{t('crm.workspace.tableSettings.noBindings')}</div>}
                     {boundFields.length > 0 && (
                       <table className="ws-bind">

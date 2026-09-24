@@ -1,5 +1,8 @@
 // src/pages/projects/ProjectFormPage.tsx
 
+import { CommentMetaLine } from '../../components/ai/aiComments';
+import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
+import { AiRecordChat } from '../../components/ai/AiRecordChat';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -31,12 +34,12 @@ import {
   changeProjectStatus,
   type ProjectActivity,
 } from '../../api/projects';
-import { fetchLeadsList, type Lead } from '../../api/leads';
+import { fetchLeadsList, updateLead, type Lead } from '../../api/leads';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { getStoredUser } from '../../auth/session';
 import { usePermission } from '../../hooks/usePermission';
 import { fetchCompanies, type Company } from '../../api/companies';
-import { fetchContacts, type Contact } from '../../api/contacts';
+import { fetchContacts, fetchContact, createContact, type Contact } from '../../api/contacts';
 import './ProjectDetail.css';
 import { StatusPill, Card, Field, DotsMenu } from './ProjectDetailParts';
 import {
@@ -176,7 +179,7 @@ export const ProjectFormPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tableFromQuery = searchParams.get('table');
-  const { showConfirm } = useAlertModal();
+  const { showConfirm, showPrompt } = useAlertModal();
 
   const [project, setProject] = useState<Project>(createEmptyProject());
   const [loading, setLoading] = useState<boolean>(!isNew);
@@ -443,7 +446,7 @@ export const ProjectFormPage: React.FC = () => {
         category: t('crm.projects.detail.fields.category'),
         ownerName: t('crm.projects.detail.fields.owner'),
         ownerUserId: t('crm.projects.detail.fields.owner'),
-        leadId: t('crm.projects.detail.fields.leadName'),
+        leadId: t('crm.projects.detail.fields.lead'),
         companyId: t('crm.projects.detail.fields.company'),
         contactId: t('crm.projects.detail.fields.contact'),
         briefFileName: t('crm.projects.detail.files.title'),
@@ -638,7 +641,7 @@ export const ProjectFormPage: React.FC = () => {
     if (!status) return false;
     const normalized = status.toString().trim().toLowerCase();
     return (
-      normalized.includes('выполн') ||
+      (normalized.includes('выполн') && !normalized.startsWith('к ')) ||
       normalized.includes('готов') ||
       normalized.includes('done') ||
       normalized.includes('complete') ||
@@ -1375,21 +1378,97 @@ export const ProjectFormPage: React.FC = () => {
     setProject((prev) => ({ ...prev, category: value }));
   };
 
+  // Контакт лида: явная связь лида с контактом, иначе — совпадение по email / телефону
+  const findContactForLead = (lead: Lead): Contact | null => {
+    if (lead.contactId) return contacts.find((c) => c.id === lead.contactId) || null;
+    const email = (lead.email || '').trim().toLowerCase();
+    const digits = (lead.phone || '').replace(/\D/g, '');
+    return (
+      contacts.find(
+        (c) =>
+          (email && (c.email || '').trim().toLowerCase() === email) ||
+          (digits.length >= 7 && (c.phone || '').replace(/\D/g, '') === digits),
+      ) || null
+    );
+  };
+
   const handleLeadChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const leadId = e.target.value || null;
     const lead = allLeads.find((l) => l.id === leadId);
+    const prevLead = project.leadId ? allLeads.find((l) => l.id === project.leadId) : null;
+    const foundContact = lead ? findContactForLead(lead) : null;
 
-    setProject((prev) => ({
-      ...prev,
-      leadId,
-      leadName: lead ? lead.name : null,
-      leadEmail: lead ? lead.email : null,
-    }));
+    // контакт лида, которого ещё нет в загруженном списке (список ограничен) — подгружаем
+    if (lead?.contactId && !contacts.some((c) => c.id === lead.contactId)) {
+      fetchContact(lead.contactId)
+        .then((c) => setContacts((prev) => (prev.some((x) => x.id === c.id) ? prev : [c, ...prev])))
+        .catch(() => {});
+    }
+
+    setProject((prev) => {
+      // подставленное автоматически из ПРЕДЫДУЩЕГО лида не тянем дальше; выбранное вручную — оставляем
+      const manualContactId = prev.contactId && prev.contactId !== prevLead?.contactId ? prev.contactId : null;
+      const manualCompanyId = prev.companyId && prev.companyId !== prevLead?.companyId ? prev.companyId : null;
+      return {
+        ...prev,
+        leadId,
+        leadName: lead ? lead.name : null,
+        leadEmail: lead ? lead.email : null,
+        contactId: lead ? (lead.contactId || foundContact?.id || manualContactId) : prev.contactId,
+        companyId: lead ? (lead.companyId || foundContact?.companyId || manualCompanyId) : prev.companyId,
+      };
+    });
   };
 
   const handleContactChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const contactId = e.target.value || null;
-    setProject((prev) => ({ ...prev, contactId }));
+    const contact = contactId ? contacts.find((c) => c.id === contactId) : null;
+    // компания контакта подтягивается в проект, если у проекта своей компании ещё нет
+    setProject((prev) => ({ ...prev, contactId, companyId: prev.companyId || contact?.companyId || null }));
+  };
+
+  // «Создать контакт»: из выбранного лида (имя/почта/телефон/страна/компания), либо по введённому имени.
+  // Контакт связывается с проектом и — если у лида контакта ещё нет — с самим лидом.
+  const [creatingContact, setCreatingContact] = useState(false);
+  const handleCreateContact = async () => {
+    const lead = project.leadId ? allLeads.find((l) => l.id === project.leadId) || null : null;
+    let fullName = (lead?.name || '').trim();
+    if (!fullName) {
+      const typed = await showPrompt({
+        title: t('crm.projects.detail.fields.contactCreate'),
+        label: t('crm.projects.detail.fields.contactCreateName'),
+      });
+      if (!typed) return;
+      fullName = typed;
+    }
+    const [firstName, ...rest] = fullName.split(/\s+/).filter(Boolean);
+    const companyId = project.companyId || lead?.companyId || undefined;
+    setCreatingContact(true);
+    try {
+      const created = await createContact({
+        firstName: firstName || fullName,
+        lastName: rest.join(' ') || undefined,
+        email: lead?.email?.trim() || project.leadEmail || undefined,
+        phone: lead?.phone?.trim() || undefined,
+        country: lead?.country?.trim() || undefined,
+        companyId,
+        status: 'active',
+      });
+      setContacts((prev) => [created, ...prev]);
+      setProject((prev) => ({ ...prev, contactId: created.id, companyId: prev.companyId || created.companyId || null }));
+      if (lead && !lead.contactId) {
+        try {
+          const updated = await updateLead(lead.id, { contactId: created.id });
+          setAllLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, contactId: updated.contactId, companyId: updated.companyId } : l)));
+        } catch {
+          /* связь лида не критична — контакт уже создан и привязан к проекту */
+        }
+      }
+    } catch (e: any) {
+      setError(e?.message || t('crm.projects.detail.fields.contactCreateFailed'));
+    } finally {
+      setCreatingContact(false);
+    }
   };
 
   const setOwnerIds = (selectedIds: string[]) => {
@@ -1815,9 +1894,7 @@ export const ProjectFormPage: React.FC = () => {
               )}
               {project.leadName && (
                 <>
-                  <span>
-                    {t('crm.projects.detail.fields.leadName')} {project.leadName}
-                  </span>
+                  <span>{project.leadName}</span>
                   <span className="dot" />
                 </>
               )}
@@ -2118,6 +2195,15 @@ export const ProjectFormPage: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                {!project.contactId && (
+                  <button type="button" className="pd-suggest" onClick={handleCreateContact} disabled={creatingContact}>
+                    + {creatingContact
+                      ? t('crm.projects.detail.fields.contactCreating')
+                      : project.leadId
+                        ? t('crm.projects.detail.fields.contactCreateFromLead')
+                        : t('crm.projects.detail.fields.contactCreate')}
+                  </button>
+                )}
               </Field>
               <Field label={t('crm.projects.detail.fields.tags')} wide>
                 <div className="pd-chips">
@@ -2715,7 +2801,7 @@ export const ProjectFormPage: React.FC = () => {
                     return (
                       <>
                         <div className="text-[11px] mb-1" style={{ color: FG3 }}>
-                          {comment.createdAt} · {comment.author}
+                          <CommentMetaLine createdAt={comment.createdAt} author={comment.author} locale={locale} />
                         </div>
                         <div className="whitespace-pre-wrap text-[13px]">
                           {renderMentions(comment.text)}
@@ -2847,7 +2933,7 @@ export const ProjectFormPage: React.FC = () => {
                 rows={3}
                 className={inpCls + ' resize-y min-h-[80px]'}
               />
-              {mentionQuery !== null && (() => {
+              {mentionQuery !== null && mentionQuery.length >= 2 && (() => {
                 const q = mentionQuery.toLowerCase();
                 const matches = staff
                   .filter((u) => u.fullName?.toLowerCase().includes(q))
@@ -3232,6 +3318,54 @@ export const ProjectFormPage: React.FC = () => {
                     );
                   })}
                 </div>
+                <AiAssigneeGroup entityType="project" entityId={isNew ? null : project.id} compact />
+                <AiRecordChat entityType="project" entityId={isNew ? null : project.id} />
+              </div>
+
+              <div className="pd-rail-card">
+                <h4>{t('crm.projects.detail.meetings.title')}</h4>
+                <div className="pd-rail-body">
+                  {isNew ? (
+                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>
+                  ) : !project.meetings?.length ? (
+                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>{t('crm.projects.detail.meetings.empty')}</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+                      {[...project.meetings]
+                        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+                        .map((meeting) => {
+                          const start = new Date(meeting.startsAt);
+                          const isPast = start.getTime() < Date.now();
+                          const isCancelled = Boolean(meeting.closedAt);
+                          const badgeBg = isCancelled ? '#fee2e2' : isPast ? BG_MUTED : '#ecfdf5';
+                          const badgeFg = isCancelled ? '#dc2626' : isPast ? FG3 : '#16a34a';
+                          const badgeBorder = isCancelled ? '#fecaca' : isPast ? LINE : '#bbf7d0';
+                          const badgeLabel = isCancelled
+                            ? t('crm.leads.form.sections.meetingsCancelled')
+                            : isPast
+                              ? t('crm.leads.form.sections.meetingsPast')
+                              : t('crm.leads.form.sections.meetingsUpcoming');
+                          return (
+                            <div key={meeting.id} style={{ border: `1px solid ${LINE}`, borderRadius: 10, padding: '8px 10px', background: isCancelled ? BG_MUTED : '#fff' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
+                                <span style={{ fontSize: 12, fontWeight: 500, color: INK }}>{meeting.title || t('crm.leads.form.sections.meetingsFallbackTitle')}</span>
+                                <span style={{ fontSize: 10, background: badgeBg, color: badgeFg, border: `1px solid ${badgeBorder}`, borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                                  {badgeLabel}
+                                </span>
+                              </div>
+                              <div style={{ fontFamily: FM, fontSize: 10, color: FG3 }}>{start.toLocaleString(locale)}</div>
+                              {meeting.notes ? <div style={{ fontSize: 11, color: '#555', marginTop: 4, lineHeight: 1.4 }}>{meeting.notes}</div> : null}
+                              {meeting.meetingUrl ? (
+                                <a href={meeting.meetingUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: '#1d4ed8', textDecoration: 'none', marginTop: 6, display: 'inline-block' }}>
+                                  {t('crm.leads.calendar.actions.link')}
+                                </a>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="pd-rail-card">
@@ -3599,12 +3733,16 @@ export const ProjectFormPage: React.FC = () => {
             preselectedLeadId={project.leadId || undefined}
             preselectedLeadName={project.leadName || undefined}
             onClose={() => setCalendarModal(null)}
-            onSaved={() => {
-              showSuccess(
-                calendarModal === 'meeting'
-                  ? t('crm.leads.form.messages.meetingCreated')
-                  : t('crm.leads.form.messages.noteCreated'),
-              );
+            onSaved={(info) => {
+              if (calendarModal === 'meeting' && !info.emailSent) {
+                showErrorToast(t('crm.leads.form.messages.meetingCreatedEmailFailed'));
+              } else {
+                showSuccess(
+                  calendarModal === 'meeting'
+                    ? t('crm.leads.form.messages.meetingCreated')
+                    : t('crm.leads.form.messages.noteCreated'),
+                );
+              }
             }}
           />
         )}

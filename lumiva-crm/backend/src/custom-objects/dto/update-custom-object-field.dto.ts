@@ -33,6 +33,7 @@ export class UpdateCustomObjectFieldDto {
     'select',
     'multiselect',
     'file',
+    'ai',
   ] satisfies CustomObjectFieldType[])
   type?: CustomObjectFieldType;
 

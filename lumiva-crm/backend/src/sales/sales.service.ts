@@ -409,6 +409,7 @@ export class SalesService {
       channelId,
       search,
       leadId,
+      contactId,
     } = query;
 
     const qb = this.saleRepo.createQueryBuilder('s');
@@ -425,6 +426,13 @@ export class SalesService {
     if (leadIdTrimmed) {
       qb.andWhere('s.leadId = :filterLeadId', {
         filterLeadId: leadIdTrimmed,
+      });
+    }
+
+    const contactIdTrimmed = contactId?.trim();
+    if (contactIdTrimmed) {
+      qb.andWhere('s.contactId = :filterContactId', {
+        filterContactId: contactIdTrimmed,
       });
     }
 
@@ -1266,6 +1274,9 @@ export class SalesService {
     }
     if (dto.customFields !== undefined) {
       (sale as any).customFields = dto.customFields;
+    }
+    if (dto.comments !== undefined) {
+      (sale as any).comments = dto.comments;
     }
 
     const oldStatus = sale.status;

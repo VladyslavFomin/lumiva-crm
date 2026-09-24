@@ -9,6 +9,7 @@ export const ESN_ICON = {
   sign: <><path d="M3 17c2-4 3-6 5-6s2 4 4 4 2.5-5 4.5-5 1.5 3 3.5 3" /><path d="M4 21h16" /></>,
   email: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>,
   download: <><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 21h16" /></>,
+  upload: <><path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 21h16" /></>,
   copy: <><rect x="8" y="8" width="12" height="12" rx="1.5" /><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3" /></>,
   trash: <><path d="M4 7h16" /><path d="M9 7V4h6v3" /><path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" /></>,
   pencil: <><path d="M4 20h4l10-10-4-4L4 16z" /><path d="M14 6l4 4" /></>,

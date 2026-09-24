@@ -58,10 +58,13 @@ import { AutomationsModule } from '../automations/automations.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { MailModule } from '../mail/mail.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { CurrencyModule } from '../currency/currency.module';
+import { Tenant } from '../tenants/tenant.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      Tenant,
       Hotel,
       HotelRoomType,
       HotelMarket,
@@ -89,6 +92,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     AuditLogModule,
     MailModule,
     TenantsModule,
+    CurrencyModule,
   ],
   controllers: [
     // Order matters: HotelReservationsController's bare `GET hotels/reservations` must be

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -18,6 +19,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiAssistantService } from './ai-assistant.service';
+import { WorkspaceSyncService, type SyncSourceKind } from '../workspace-sync/workspace-sync.service';
 import { AiQuotaService } from './ai-quota.service';
 import { AiOpenAiService } from './ai-openai.service';
 import { AiChatSession } from './ai-chat-session.entity';
@@ -31,6 +33,7 @@ import { isDefaultAiChatTitle } from './ai-chat-title.util';
 export class AiController {
   constructor(
     private readonly assistant: AiAssistantService,
+    private readonly sync: WorkspaceSyncService,
     private readonly quota: AiQuotaService,
     private readonly openai: AiOpenAiService,
     private readonly platformSettings: PlatformSettingsService,
@@ -45,15 +48,87 @@ export class AiController {
   @Get('status')
   async status(@CurrentUser() user: CurrentUserPayload) {
     const cfg = await this.platformSettings.getSettings();
-    const configured = Boolean(
+    const platformConfigured = Boolean(
       (cfg?.openAiApiKey?.trim() || process.env.OPENAI_API_KEY?.trim() || '')
         .length,
     );
+    const tenantOverride = await this.assistant.resolveTenantOpenAiOverride(
+      user.tenantId,
+    );
     const quota = await this.quota.getQuotaSnapshot(user.tenantId);
     return {
-      configured,
+      configured: platformConfigured || Boolean(tenantOverride),
       quota,
     };
+  }
+
+  /* ── Источники синхронизации таблицы рабочей области (см. workspace-sync) ── */
+
+  @Get('workspace-tables/:objectId/sync-sources')
+  @RequirePermission('custom_objects', 'read')
+  async listSyncSources(@CurrentUser() user: CurrentUserPayload, @Param('objectId') objectId: string) {
+    return { sources: (await this.sync.listSources(user.tenantId, objectId)) ?? [] };
+  }
+
+  @Post('workspace-tables/:objectId/sync-sources')
+  @RequirePermission('custom_objects', 'write')
+  async addSyncSource(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId') objectId: string,
+    @Body() body: { kind: SyncSourceKind; params: Record<string, any>; label?: string; autoRefresh?: boolean; skipInitialRefresh?: boolean },
+  ) {
+    return this.sync.addSource(user.tenantId, objectId, body);
+  }
+
+  @Patch('workspace-tables/:objectId/sync-sources/:sourceId')
+  @RequirePermission('custom_objects', 'write')
+  async updateSyncSource(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId') objectId: string,
+    @Param('sourceId') sourceId: string,
+    @Body() body: { autoRefresh?: boolean; label?: string; params?: Record<string, any> },
+  ) {
+    return this.sync.updateSource(user.tenantId, objectId, sourceId, body || {});
+  }
+
+  @Delete('workspace-tables/:objectId/sync-sources/:sourceId')
+  @RequirePermission('custom_objects', 'write')
+  async removeSyncSource(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId') objectId: string,
+    @Param('sourceId') sourceId: string,
+    @Query('deleteRows') deleteRows?: string,
+  ) {
+    return this.sync.removeSource(user.tenantId, objectId, sourceId, { deleteRows: deleteRows === '1' || deleteRows === 'true' });
+  }
+
+  @Post('workspace-tables/:objectId/sync-sources/:sourceId/refresh')
+  @RequirePermission('custom_objects', 'write')
+  async refreshSyncSource(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId') objectId: string,
+    @Param('sourceId') sourceId: string,
+  ) {
+    return this.sync.refreshSource(user.tenantId, objectId, sourceId);
+  }
+
+  /** «Обновить всё» — все источники таблицы. */
+  @Post('workspace-tables/:objectId/refresh')
+  @RequirePermission('custom_objects', 'write')
+  async refreshMarketingTable(@CurrentUser() user: CurrentUserPayload, @Param('objectId') objectId: string) {
+    return this.sync.refreshTable(user.tenantId, objectId);
+  }
+
+  @Patch('workspace-tables/:objectId/auto-refresh')
+  @RequirePermission('custom_objects', 'write')
+  async setAutoRefreshAll(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId') objectId: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    const sources = (await this.sync.listSources(user.tenantId, objectId)) ?? [];
+    for (const s of sources) await this.sync.updateSource(user.tenantId, objectId, s.id, { autoRefresh: !!body?.enabled });
+    return { ok: true, autoRefresh: !!body?.enabled };
   }
 
   @Get('quota')
@@ -101,6 +176,24 @@ export class AiController {
       salesImportContext: body.salesImportContext,
       workspaceFileContext: body.workspaceFileContext,
       imageFollowUpContext: body.imageFollowUpContext,
+    });
+  }
+
+  /** Решение по карточке-рекомендации в чате: одобрить (AI-сотрудник берёт работу) или отклонить. */
+  @Post('proposals/:messageId/:proposalId/decision')
+  @RequirePermission('chat', 'write')
+  async decideProposal(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('messageId') messageId: string,
+    @Param('proposalId') proposalId: string,
+    @Body() body: { decision?: string },
+  ) {
+    return this.assistant.decideProposal({
+      tenantId: user.tenantId,
+      userId: user.userId!,
+      messageId,
+      proposalId,
+      decision: body?.decision === 'approve' ? 'approve' : 'reject',
     });
   }
 
@@ -336,6 +429,14 @@ export class AiController {
     @Body() body: { query: string },
   ) {
     return this.assistant.smartSearch(user.tenantId, user.userId!, body.query || '');
+  }
+
+  @Post('analytics/build-dashboard')
+  async buildAnalyticsDashboard(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { module?: string; workspaceObjectId?: string; periodFrom?: string; periodTo?: string },
+  ) {
+    return this.assistant.buildAnalyticsDashboard(user.tenantId, user.userId!, body || {});
   }
 
   @Delete('memory/:id')

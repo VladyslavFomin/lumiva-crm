@@ -25,6 +25,17 @@ export interface ProjectFileLink {
 }
 
 // Фронтовый тип проекта — уже «удобный» для UI
+export interface ProjectMeeting {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  meetingUrl: string;
+  notes: string;
+  attendeeUserIds: string[];
+  closedAt?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -50,6 +61,7 @@ export interface Project {
   briefFileUrl?: string | null;
   files?: ProjectFileLink[] | null;
   customFields?: Record<string, any> | null;
+  meetings?: ProjectMeeting[] | null;
   tasks: ProjectTask[];
   comments: ProjectComment[];
   createdAt: string;         // уже отформатированная дата

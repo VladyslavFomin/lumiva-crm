@@ -112,6 +112,7 @@ export const BookingLocationsPage: React.FC = () => {
   const totals = {
     todayReservations: stats.reduce((sum, s) => sum + s.todayReservations, 0),
     todayRevenue: stats.reduce((sum, s) => sum + s.todayRevenue, 0),
+    currency: stats[0]?.currency || '',
     avgOccupancy: stats.length ? Math.round((stats.reduce((sum, s) => sum + s.occupancy, 0) / stats.length) * 10) / 10 : 0,
     busiest: stats.length ? [...stats].sort((a, b) => b.occupancy - a.occupancy)[0] : null,
   };
@@ -159,7 +160,7 @@ export const BookingLocationsPage: React.FC = () => {
           <div className="bk-kpi-grid" style={{ margin: '16px 0' }}>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.todayReservations')}</div><div className="v">{totals.todayReservations}</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.avgOccupancy')}</div><div className="v">{totals.avgOccupancy}%</div></div>
-            <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.todayRevenue')}</div><div className="v">{totals.todayRevenue} ₽</div></div>
+            <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.todayRevenue')}</div><div className="v">{totals.todayRevenue.toLocaleString()} {totals.currency}</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.busiest')}</div><div className="v" style={{ fontSize: 16 }}>{totals.busiest?.name || '—'}</div><div className="d">{totals.busiest ? t('crm.bookings.locations.kpis.busiestOccupancy', { pct: totals.busiest.occupancy }) : ''}</div></div>
           </div>
         )}
@@ -200,7 +201,7 @@ export const BookingLocationsPage: React.FC = () => {
                         </div>
                       ) : '—'}
                     </td>
-                    <td style={{ fontFamily: 'var(--ff-mono)' }}>{s ? `${s.todayRevenue} ₽` : '—'}</td>
+                    <td style={{ fontFamily: 'var(--ff-mono)' }}>{s ? `${s.todayRevenue.toLocaleString()} ${s.currency}` : '—'}</td>
                     <td><span className="bk-badge confirmed">{l.status === 'active' ? t('crm.bookings.locations.table.statusActive') : l.status}</span></td>
                     <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right', color: 'var(--fg-3)' }}>
                       <button

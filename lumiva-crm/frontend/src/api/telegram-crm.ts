@@ -153,6 +153,10 @@ export interface TelegramMessage {
   messageType: string | null;
   date: string;
   isRead: boolean;
+  meta?: {
+    source?: 'manual' | 'ai' | 'flow' | 'system';
+    [key: string]: unknown;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -222,8 +226,11 @@ export async function previewTelegramBotToken(botToken: string): Promise<{ id: n
   return api.post(`/telegram-crm/bots/preview`, { botToken });
 }
 
-export async function setWebhook(botId: string, webhookUrl: string): Promise<{ success: boolean }> {
-  const res = await api.post<{ success: boolean }>(`/telegram-crm/bots/${botId}/webhook`, { webhookUrl });
+export async function setWebhook(botId: string, webhookUrl?: string): Promise<{ success: boolean }> {
+  const res = await api.post<{ success: boolean }>(
+    `/telegram-crm/bots/${botId}/webhook`,
+    webhookUrl ? { webhookUrl } : {},
+  );
   return res;
 }
 
@@ -241,7 +248,7 @@ export async function sendTelegramMessage(dto: SendTelegramMessageDto): Promise<
   return res;
 }
 
-export async function fetchTelegramContacts(query?: { search?: string; botId?: string }): Promise<TelegramContactWithPreview[]> {
+export async function fetchTelegramContacts(query?: { search?: string; botId?: string; leadId?: string }): Promise<TelegramContactWithPreview[]> {
   const res = await api.get<TelegramContactWithPreview[]>('/telegram-crm/contacts', { params: query });
   return res;
 }
@@ -341,4 +348,3 @@ export async function saveTelegramCommands(botId: string, commands: TelegramBotC
 export async function fetchTelegramLog(botId: string, kind?: string): Promise<Array<{ t: string; k: string; m: string }>> {
   return api.get(`/telegram-crm/bots/${botId}/log`, { params: kind ? { kind } : undefined });
 }
-

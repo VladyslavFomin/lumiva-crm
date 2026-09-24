@@ -27,8 +27,14 @@ import { RbacGuard } from '../rbac/rbac.guard';
 export class CustomFieldsController {
   constructor(private readonly customFieldsService: CustomFieldsService) {}
 
+  // Чтение схемы кастомных полей НЕ гейтим за 'settings' (в отличие от create/update/delete
+  // ниже): это не настройка, а часть обычного просмотра лида/проекта/etc — labels/типы полей
+  // нужны любому, кто вообще видит эту сущность. Раньше было @RequirePermission('settings',
+  // 'read'), а 'settings' по дефолтной матрице есть только у owner/developer — то есть
+  // manager/sales/viewer/finance/support не могли увидеть кастомные поля вообще (ни на сайте,
+  // ни в приложении), только словить ошибку. Сами значения полей (customFields на сущности)
+  // и так не защищены отдельно от прав на саму сущность — эта дыра касалась только их названий.
   @Get()
-  @RequirePermission('settings', 'read')
   async findAll(
     @CurrentUser() user: CurrentUserPayload,
     @Query('entityType') entityType?: string,
@@ -37,7 +43,6 @@ export class CustomFieldsController {
   }
 
   @Get('entity/:entityType')
-  @RequirePermission('settings', 'read')
   async findByEntityType(
     @CurrentUser() user: CurrentUserPayload,
     @Param('entityType') entityType: string,
@@ -46,7 +51,6 @@ export class CustomFieldsController {
   }
 
   @Get(':id')
-  @RequirePermission('settings', 'read')
   async findOne(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,

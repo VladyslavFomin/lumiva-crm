@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Lead } from '../leads/lead.entity';
+import { excludeTrashedLeads } from '../leads/lead-relations.util';
 import { Project } from '../projects/project.entity';
 import { Reservation } from '../bookings/reservation.entity';
 import { HotelReservation } from '../hotels/hotel-reservation.entity';
@@ -10,6 +11,7 @@ import { CustomField } from '../custom-fields/custom-field.entity';
 
 export type CalendarEventType =
   | 'lead_meeting'
+  | 'project_meeting'
   | 'project_task'
   | 'booking'
   | 'hotel_reservation'
@@ -39,7 +41,7 @@ export class CalendarService {
   ) {}
 
   async getEvents(tenantId: string, from: Date, to: Date): Promise<CalendarEventDto[]> {
-    const [leads, projects, reservations, hotelReservations, projectDateFields] = await Promise.all([
+    const [leadsRaw, projects, reservations, hotelReservations, projectDateFields] = await Promise.all([
       this.leadRepo.find({ where: { tenantId } }),
       this.projectRepo.find({ where: { tenantId } }),
       this.reservationRepo
@@ -64,6 +66,9 @@ export class CalendarService {
     const events: CalendarEventDto[] = [];
     const inRange = (d: Date) => d >= from && d <= to;
 
+    // встречи лидов из корзины (meta.deleted) в календарь не попадают
+    const leads = excludeTrashedLeads(leadsRaw);
+
     // Lead meetings — stored as unstructured JSON in Lead.meta.meetings[], not a typed column.
     for (const lead of leads) {
       const meetings = (lead.meta as any)?.meetings;
@@ -82,6 +87,26 @@ export class CalendarService {
           date: date.toISOString(),
           endDate: m.endsAt ? new Date(m.endsAt).toISOString() : null,
           link: '/leads/calendar',
+        });
+      }
+    }
+
+    // Project meetings — Project.meetings, same shape as Lead.meta.meetings (see ProjectMeeting).
+    for (const project of projects) {
+      const meetings = project.meetings;
+      if (!Array.isArray(meetings)) continue;
+      for (const m of meetings) {
+        if (!m || typeof m.id !== 'string' || typeof m.startsAt !== 'string' || m.closedAt) continue;
+        const date = new Date(m.startsAt);
+        if (Number.isNaN(date.getTime()) || !inRange(date)) continue;
+        events.push({
+          id: `project_meeting:${project.id}:${m.id}`,
+          type: 'project_meeting',
+          title: String(m.title || '').trim() || 'Встреча',
+          subtitle: project.name,
+          date: date.toISOString(),
+          endDate: m.endsAt ? new Date(m.endsAt).toISOString() : null,
+          link: `/projects/${project.id}`,
         });
       }
     }

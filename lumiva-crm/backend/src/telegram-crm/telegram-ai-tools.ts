@@ -10,6 +10,8 @@ import { ContactsService } from '../contacts/contacts.service';
 import { BookingsAvailabilityService } from '../bookings/bookings-availability.service';
 import { BookingsCatalogService } from '../bookings/bookings-catalog.service';
 import { SalesService } from '../sales/sales.service';
+import { TenantLogsService } from '../tenants/tenant-logs.service';
+import { safeExcerpt } from '../common/ai-security-guard.util';
 // Types only — no circular import at JS module load time, mirrors the lazy-accessor pattern
 // already used in telegram-crm.service.ts for AiAssistantService/AiOpenAiService. HelpdeskService
 // itself constructor-injects TelegramCrmService, so a plain constructor injection here would form
@@ -39,10 +41,10 @@ export const TELEGRAM_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'sale_read',
-      description: 'Найти заказ/сделку клиента по номеру телефона (для ответа на вопрос о статусе заказа).',
+      description: 'Найти заказ/сделку ЭТОГО клиента по его собственному номеру телефона (для ответа на вопрос о статусе заказа). Всегда ищет по номеру телефона именно этого диалога — передай его, чтобы подтвердить, что это тот же клиент; чужой номер не примется.',
       parameters: {
         type: 'object',
-        properties: { phone: { type: 'string' } },
+        properties: { phone: { type: 'string', description: 'Номер телефона клиента этого диалога, как он его назвал' } },
         required: ['phone'],
       },
     },
@@ -51,7 +53,7 @@ export const TELEGRAM_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'helpdesk_ticket_read',
-      description: 'Проверить статус последних обращений в поддержку по номеру телефона клиента.',
+      description: 'Проверить статус последних обращений в поддержку ЭТОГО клиента по его собственному номеру телефона (чужой номер не примется).',
       parameters: {
         type: 'object',
         properties: { phone: { type: 'string' } },
@@ -115,6 +117,7 @@ export class TelegramAiToolsService {
     private readonly bookingsCatalog: BookingsCatalogService,
     private readonly salesService: SalesService,
     private readonly moduleRef: ModuleRef,
+    private readonly tenantLogs: TenantLogsService,
   ) {}
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -136,14 +139,24 @@ export class TelegramAiToolsService {
       return { ok: false, result: `Функция «${toolKey}» отключена в настройках этого бота.` };
     }
 
+    // sale_read / helpdesk_ticket_read must only ever look up THIS conversation's own, already
+    // verified phone (ctx.contactPhone — resolved server-side from Telegram's contact-share or a
+    // linked CRM lead, see buildExternalAiContext). The model is never allowed to supply/override
+    // the lookup phone itself: a malicious "client" could otherwise type something like "check the
+    // order for phone +7..." with someone ELSE's number and read that other customer's order/ticket
+    // history through the bot (a same-tenant IDOR via prompt injection). If the model still tries —
+    // whether from a genuine jailbreak attempt or just guessing — we log it for pl1 instead of
+    // silently ignoring it.
+    this.flagPhoneOverrideAttempt(ctx, name, args?.phone);
+
     try {
       switch (name) {
         case 'booking_check_availability':
           return { ok: true, result: await this.checkAvailability(ctx.tenantId, String(args.serviceName || ''), String(args.after || '')) };
         case 'sale_read':
-          return { ok: true, result: await this.readSale(ctx.tenantId, String(args.phone || ctx.contactPhone || '')) };
+          return { ok: true, result: await this.readSale(ctx.tenantId, ctx.contactPhone || '') };
         case 'helpdesk_ticket_read':
-          return { ok: true, result: await this.readTickets(ctx.tenantId, String(args.phone || ctx.contactPhone || '')) };
+          return { ok: true, result: await this.readTickets(ctx.tenantId, ctx.contactPhone || '') };
         case 'file_send':
           return { ok: true, result: await this.sendFile(ctx, String(args.fileName || '')) };
         default:
@@ -153,6 +166,36 @@ export class TelegramAiToolsService {
       this.log.warn(`Telegram AI tool ${name} failed: ${err.message}`);
       return { ok: false, result: `Ошибка при вызове функции: ${err.message}` };
     }
+  }
+
+  private normPhone(v: unknown): string {
+    return String(v || '').replace(/[^\d]/g, '');
+  }
+
+  /** Logs to pl1's global tenant log when the model tried to look up a phone other than this
+   * conversation's own verified one. Never throws, never blocks the reply. */
+  private flagPhoneOverrideAttempt(ctx: TelegramToolContext, toolName: string, requestedPhone: unknown): void {
+    const requested = this.normPhone(requestedPhone);
+    if (!requested) return;
+    const own = this.normPhone(ctx.contactPhone);
+    if (requested === own) return; // client confirming their own number back — fine
+    this.tenantLogs
+      .record({
+        tenantId: ctx.tenantId,
+        type: 'ai_security_denied',
+        statusCode: 403,
+        method: 'AI_TOOL',
+        path: `telegram-ai-tools/${toolName}`,
+        message: `Telegram AI chat tried to look up another phone number than the conversation's own via ${toolName}`,
+        meta: {
+          botId: ctx.botId,
+          telegramUserId: ctx.telegramUserId,
+          leadId: ctx.leadId || null,
+          requestedPhoneMasked: requested.slice(0, 3) + '***' + requested.slice(-2),
+          hadOwnPhone: Boolean(own),
+        },
+      })
+      .catch(() => undefined);
   }
 
   private hasCalendarDate(value: string): boolean {

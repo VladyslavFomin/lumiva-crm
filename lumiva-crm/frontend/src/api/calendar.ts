@@ -3,6 +3,7 @@ import { api } from './client';
 
 export type CalendarEventType =
   | 'lead_meeting'
+  | 'project_meeting'
   | 'project_task'
   | 'booking'
   | 'hotel_reservation'

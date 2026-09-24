@@ -7,6 +7,7 @@ import {
   fetchCustomObjectFields,
   fetchCustomObjectRecords,
   createCustomObjectRecord,
+  refreshWorkspaceAiColumn,
   type CustomObject,
   type CustomObjectField,
   type CustomObjectRecord,
@@ -24,6 +25,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
   const [objectMeta, setObjectMeta] = useState<CustomObject['meta'] | null>(null);
   const [records, setRecords] = useState<CustomObjectRecord[]>([]);
   const [activeRecord, setActiveRecord] = useState<CustomObjectRecord | null>(null);
+  const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [anchorDate, setAnchorDate] = useState<Date>(new Date());
@@ -110,6 +112,21 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
     if (Array.isArray(value)) return value.map((item) => String(item)).join(', ') || '—';
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
+  };
+
+  const refreshAiField = async (record: CustomObjectRecord, field: CustomObjectField) => {
+    const key = `${record.id}:${field.key}`;
+    setAiBusyKey(key);
+    try {
+      const res = await refreshWorkspaceAiColumn(objectId, record.id, field.key);
+      if (res.ok && typeof res.value === 'string') {
+        const val = res.value;
+        setRecords((prev) => prev.map((r) => (r.id === record.id ? { ...r, values: { ...(r.values || {}), [field.key]: val } } : r)));
+        setActiveRecord((prev) => (prev && prev.id === record.id ? { ...prev, values: { ...(prev.values || {}), [field.key]: val } } : prev));
+      }
+    } finally {
+      setAiBusyKey(null);
+    }
   };
 
   const grouped = useMemo(() => {
@@ -402,9 +419,24 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
                 </div>
                 {fields.map((field) => (
                   <div key={`calendar-field-${field.id}`} className="rounded-lg border border-slate-200 px-3 py-2">
-                    <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{field.label}</div>
-                    <div className="text-sm text-slate-800 mt-1">
-                      {renderRecordValue(activeRecord.values?.[field.key])}
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500 flex items-center gap-1.5">
+                      {field.type === 'ai' ? <span aria-hidden className="text-violet-500">✦</span> : null}
+                      {field.label}
+                    </div>
+                    <div className="text-sm text-slate-800 mt-1 flex items-center justify-between gap-2">
+                      <span>{renderRecordValue(activeRecord.values?.[field.key])}</span>
+                      {field.type === 'ai' ? (
+                        <button
+                          type="button"
+                          disabled={aiBusyKey === `${activeRecord.id}:${field.key}`}
+                          onClick={() => void refreshAiField(activeRecord, field)}
+                          className="flex-shrink-0 rounded-md border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 hover:text-violet-600 hover:border-violet-200 disabled:opacity-50"
+                        >
+                          {aiBusyKey === `${activeRecord.id}:${field.key}`
+                            ? t('crm.workspace.recordDrawer.aiColumnRefreshing')
+                            : t('crm.workspace.recordDrawer.aiColumnRefresh')}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}

@@ -21,10 +21,17 @@ id_rsa*
 .dotnet/
 .expo/
 .gradle/
+.pm2/
 .local/
 .npm/
 .vscode-server/
 .android/
+
+# --- IDE / AI assistant local state (not source) ---
+.cursor/
+.claude/
+.claude.json
+.copilot/
 
 # --- Backup of old nested repo metadata (local only) ---
 nested-repos-git-backup*.tar.gz

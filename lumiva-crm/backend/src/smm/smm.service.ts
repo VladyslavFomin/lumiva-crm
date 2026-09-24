@@ -172,6 +172,8 @@ export class SmmService {
     } else {
       integration.accessToken = accessToken || null;
       integration.expiresAt = expiresAt;
+      // переподключение: напоминание об истечении токена начнётся заново
+      integration.meta = { ...(integration.meta || {}), expiryNotice: null };
     }
 
     await this.integrationsRepo.save(integration);
@@ -1384,6 +1386,7 @@ export class SmmService {
       .createQueryBuilder('p')
       .where('p.tenantId = :tenantId', { tenantId })
       .andWhere("p.meta ->> 'provider' = 'meta'")
+      .andWhere('p.isActive = true')
       .getMany();
 
     let synced = 0;
@@ -1502,6 +1505,7 @@ export class SmmService {
       }
     }
 
+    await this.recordSync(tenantId, 'meta', { synced, skipped, errors });
     return {
       date: targetDate,
       synced,
@@ -1615,6 +1619,7 @@ export class SmmService {
       .createQueryBuilder('p')
       .where('p.tenantId = :tenantId', { tenantId })
       .andWhere("p.meta ->> 'provider' = 'vk'")
+      .andWhere('p.isActive = true')
       .getMany();
 
     let synced = 0;
@@ -1643,6 +1648,7 @@ export class SmmService {
       }
     }
 
+    await this.recordSync(tenantId, 'vk', { synced, skipped, errors });
     return {
       date: targetDate,
       synced,
@@ -1740,6 +1746,65 @@ export class SmmService {
 
   // ===== ПРОФИЛИ =====
 
+  /** Запоминает итог последней синхронизации провайдера (для статуса интеграции на странице SMM). */
+  private async recordSync(
+    tenantId: string,
+    provider: 'meta' | 'vk',
+    result: { synced: number; skipped: number; errors: number },
+  ) {
+    try {
+      const row = await this.integrationsRepo.findOne({ where: { tenantId, provider } });
+      if (!row) return;
+      row.meta = { ...(row.meta || {}), lastSyncAt: new Date().toISOString(), lastSync: result };
+      await this.integrationsRepo.save(row);
+    } catch {
+      /* статус синка не критичен для самого синка */
+    }
+  }
+
+  /** Профиль для клиента: без токенов доступа страниц/сообществ; `source` — откуда данные (meta / vk / manual). */
+  toPublicProfile<T extends { meta?: Record<string, any> | null }>(p: T) {
+    const meta = { ...(p.meta || {}) };
+    for (const k of Object.keys(meta)) {
+      if (/token|secret/i.test(k)) delete meta[k];
+    }
+    const source = meta.provider === 'meta' || meta.provider === 'vk' ? meta.provider : 'manual';
+    return { ...p, meta, source };
+  }
+
+  /** Статус подключений для страницы SMM. */
+  async getIntegrationsStatus(tenantId: string) {
+    const rows = await this.integrationsRepo.find({ where: { tenantId } });
+    const now = Date.now();
+    const map = (provider: 'meta' | 'vk') => {
+      const row = rows.find((r) => r.provider === provider);
+      const connected = Boolean(row?.accessToken);
+      const expiresAt = row?.expiresAt ? row.expiresAt.toISOString() : null;
+      return {
+        connected,
+        connectedAt: row ? row.createdAt.toISOString() : null,
+        expiresAt,
+        expired: Boolean(row?.expiresAt && row.expiresAt.getTime() < now),
+        lastSyncAt: (row?.meta?.lastSyncAt as string | undefined) ?? null,
+        lastSync:
+          (row?.meta?.lastSync as { synced: number; skipped: number; errors: number } | undefined) ?? null,
+      };
+    };
+    return { meta: map('meta'), vk: map('vk'), telegram: { mode: 'manual' as const } };
+  }
+
+  async updateProfile(
+    tenantId: string,
+    id: string,
+    patch: { isActive?: boolean; url?: string | null },
+  ) {
+    const profile = await this.profilesRepo.findOne({ where: { id, tenantId } });
+    if (!profile) throw new Error('Profile not found');
+    if (patch.isActive !== undefined) profile.isActive = Boolean(patch.isActive);
+    if (patch.url !== undefined) profile.url = patch.url?.trim() || null;
+    return this.toPublicProfile(await this.profilesRepo.save(profile));
+  }
+
   async listProfilesWithLastStat(tenantId: string) {
     const profiles = await this.profilesRepo.find({
       where: { tenantId },
@@ -1765,7 +1830,7 @@ export class SmmService {
     }
 
     return profiles.map((p) => ({
-      ...p,
+      ...this.toPublicProfile(p),
       lastStat: byProfile.get(p.id) || null,
     }));
   }

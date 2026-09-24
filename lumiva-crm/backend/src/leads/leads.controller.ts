@@ -344,7 +344,7 @@ export class LeadsController {
     }
 
     // порядок аргументов: tenantId, leadId
-    return this.leadActivity.getHistory(tenantId, id);
+    return this.leadActivity.getHistory(id, tenantId);
   }
 
   // ====================== GET /leads/:id ======================

@@ -52,6 +52,14 @@ export class Tenant {
   uiLanguage: string | null;
 
   /**
+   * Основная валюта тенанта — лиды/проекты могут быть в разных валютах (currency задаётся
+   * per-lead/per-project), а сводные суммы (выручка/потенциал компании и т.п.) конвертируются
+   * в эту валюту по курсу (см. CurrencyRatesService), а не просто складываются вперемешку.
+   */
+  @Column({ type: 'varchar', length: 8, nullable: true, default: 'EUR' })
+  primaryCurrency: string | null;
+
+  /**
    * API включён/выключен
    */
   @Column({ type: 'boolean', default: true })
@@ -204,6 +212,15 @@ export class Tenant {
    * main plan is prepaid one-time Checkout, not a Stripe Subscription, so it never raises this. */
   @Column({ type: 'timestamptz', nullable: true })
   lastPaymentFailedAt: Date | null;
+
+  /**
+   * Когда тенанту в последний раз отправлялось уведомление "доступ приостановлен, оплата
+   * просрочена" (email + in-app) — см. `tenant-access-expiry.scheduler.ts`. Null = ещё не
+   * отправлялось с момента последнего продления. `TenantPlanActivationService` сбрасывает
+   * поле в null при каждой реальной оплате, чтобы следующее истечение снова уведомило.
+   */
+  @Column({ name: 'access_expired_notified_at', type: 'timestamptz', nullable: true })
+  accessExpiredNotifiedAt: Date | null;
 
   /**
    * Кастомный домен клиента (например crm.clientcompany.com), настраивается только из pl1

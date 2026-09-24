@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useBlockGridInteractions } from '../../components/analytics/useBlockGridInteractions';
 import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -24,7 +25,9 @@ import { fetchCustomFields, type CustomField } from '../../api/custom-fields';
 import { MainLayout } from '../../layout/MainLayout';
 import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
 import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage';
+import { postAiBuildAnalyticsDashboard } from '../../api/ai';
 import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
+import { MetricCard } from '../../components/analytics/MetricCard';
 import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
 import {
   convertMarketingAmount,
@@ -267,10 +270,10 @@ function buildCatalog(t: TFunction): CatalogItem[] {
 }
 
 const CATALOG_TEMPLATE: CatalogTemplate[] = [
-  { group: 'kpi', catalogKey: 'metric_sales', type: 'metric', span: 3, height: 160, metricKey: 'total' },
-  { group: 'kpi', catalogKey: 'metric_confirmation', type: 'metric', span: 3, height: 160, metricKey: 'conversion' },
-  { group: 'kpi', catalogKey: 'metric_revenue', type: 'metric', span: 3, height: 160, metricKey: 'revenue' },
-  { group: 'kpi', catalogKey: 'metric_avg', type: 'metric', span: 3, height: 160, metricKey: 'avgRevenue' },
+  { group: 'kpi', catalogKey: 'metric_sales', type: 'metric', span: 3, height: 190, metricKey: 'total' },
+  { group: 'kpi', catalogKey: 'metric_confirmation', type: 'metric', span: 3, height: 190, metricKey: 'conversion' },
+  { group: 'kpi', catalogKey: 'metric_revenue', type: 'metric', span: 3, height: 190, metricKey: 'revenue' },
+  { group: 'kpi', catalogKey: 'metric_avg', type: 'metric', span: 3, height: 190, metricKey: 'avgRevenue' },
   { group: 'kpi', catalogKey: 'formula_sales', type: 'formula', span: 4, height: 240, valueMode: 'count', dimensionKey: 'field:status' },
   { group: 'charts', catalogKey: 'line_dynamics', type: 'line', span: 8, height: 320 },
   { group: 'charts', catalogKey: 'donut_status', type: 'donut', span: 4, height: 320, dimensionKey: 'field:status' },
@@ -911,8 +914,8 @@ function defaultBlocks(view: ViewId, t: TFunction = i18n.t.bind(i18n)): Analytic
   }
   if (view === 'managers') {
     return [
-      { id: 'm1', type: 'metric', title: tv(t, 'defaults.managers.m1.title'), subtitle: tv(t, 'defaults.managers.m1.subtitle'), span: 3, height: 160, metricKey: 'total', color: '#222222', filters: [] },
-      { id: 'm2', type: 'metric', title: tv(t, 'defaults.managers.m2.title'), subtitle: tv(t, 'defaults.managers.m2.subtitle'), span: 3, height: 160, metricKey: 'conversion', color: '#1f8a5e', filters: [] },
+      { id: 'm1', type: 'metric', title: tv(t, 'defaults.managers.m1.title'), subtitle: tv(t, 'defaults.managers.m1.subtitle'), span: 3, height: 190, metricKey: 'total', color: '#222222', filters: [] },
+      { id: 'm2', type: 'metric', title: tv(t, 'defaults.managers.m2.title'), subtitle: tv(t, 'defaults.managers.m2.subtitle'), span: 3, height: 190, metricKey: 'conversion', color: '#1f8a5e', filters: [] },
       { id: 'm3', type: 'leaderboard', title: tv(t, 'defaults.managers.m3.title'), subtitle: tv(t, 'defaults.managers.m3.subtitle'), span: 6, height: 320, dimensionKey: 'field:manager', valueMode: 'sum', valueField: 'amount', color: '#222222', filters: [] },
       { id: 'm4', type: 'table', title: tv(t, 'defaults.managers.m4.title'), subtitle: tv(t, 'defaults.managers.m4.subtitle'), span: 6, height: 320, dimensionKey: 'field:manager', valueMode: 'sum', valueField: 'amount', color: '#1769d1', filters: [] },
       { id: 'm5', type: 'heatmap', title: tv(t, 'defaults.managers.m5.title'), subtitle: tv(t, 'defaults.managers.m5.subtitle'), span: 6, height: 320, filters: [] },
@@ -923,15 +926,15 @@ function defaultBlocks(view: ViewId, t: TFunction = i18n.t.bind(i18n)): Analytic
       { id: 'f1', type: 'funnel', title: tv(t, 'defaults.funnel.f1.title'), subtitle: tv(t, 'defaults.funnel.f1.subtitle'), span: 8, height: 400, dimensionKey: 'field:status', color: '#222222', filters: [] },
       { id: 'f2', type: 'donut', title: tv(t, 'defaults.funnel.f2.title'), subtitle: tv(t, 'defaults.funnel.f2.subtitle'), span: 4, height: 400, dimensionKey: 'field:statusGroup', color: '#1769d1', filters: [] },
       { id: 'f3', type: 'line', title: tv(t, 'defaults.funnel.f3.title'), subtitle: tv(t, 'defaults.funnel.f3.subtitle'), span: 8, height: 320, dimensionKey: 'field:status', color: '#222222', filters: [] },
-      { id: 'f4', type: 'metric', title: tv(t, 'defaults.funnel.f4.title'), subtitle: tv(t, 'defaults.funnel.f4.subtitle'), span: 4, height: 160, metricKey: 'conversion', color: '#1f8a5e', filters: [] },
-      { id: 'f5', type: 'metric', title: tv(t, 'defaults.funnel.f5.title'), subtitle: tv(t, 'defaults.funnel.f5.subtitle'), span: 4, height: 160, metricKey: 'refunded', color: '#dc2626', filters: [] },
+      { id: 'f4', type: 'metric', title: tv(t, 'defaults.funnel.f4.title'), subtitle: tv(t, 'defaults.funnel.f4.subtitle'), span: 4, height: 190, metricKey: 'conversion', color: '#1f8a5e', filters: [] },
+      { id: 'f5', type: 'metric', title: tv(t, 'defaults.funnel.f5.title'), subtitle: tv(t, 'defaults.funnel.f5.subtitle'), span: 4, height: 190, metricKey: 'refunded', color: '#dc2626', filters: [] },
     ];
   }
   return [
-    { id: 'b1', type: 'metric', title: tv(t, 'defaults.overview.b1.title'), subtitle: tv(t, 'defaults.overview.b1.subtitle'), span: 3, height: 160, metricKey: 'total', color: '#222222', filters: [] },
-    { id: 'b2', type: 'metric', title: tv(t, 'defaults.overview.b2.title'), subtitle: tv(t, 'defaults.overview.b2.subtitle'), span: 3, height: 160, metricKey: 'conversion', color: '#1f8a5e', filters: [] },
-    { id: 'b3', type: 'metric', title: tv(t, 'defaults.overview.b3.title'), subtitle: tv(t, 'defaults.overview.b3.subtitle'), span: 3, height: 160, metricKey: 'revenue', color: '#214b8a', filters: [] },
-    { id: 'b4', type: 'metric', title: tv(t, 'defaults.overview.b4.title'), subtitle: tv(t, 'defaults.overview.b4.subtitle'), span: 3, height: 160, metricKey: 'avgRevenue', color: '#cc2f47', filters: [] },
+    { id: 'b1', type: 'metric', title: tv(t, 'defaults.overview.b1.title'), subtitle: tv(t, 'defaults.overview.b1.subtitle'), span: 3, height: 190, metricKey: 'total', color: '#222222', filters: [] },
+    { id: 'b2', type: 'metric', title: tv(t, 'defaults.overview.b2.title'), subtitle: tv(t, 'defaults.overview.b2.subtitle'), span: 3, height: 190, metricKey: 'conversion', color: '#1f8a5e', filters: [] },
+    { id: 'b3', type: 'metric', title: tv(t, 'defaults.overview.b3.title'), subtitle: tv(t, 'defaults.overview.b3.subtitle'), span: 3, height: 190, metricKey: 'revenue', color: '#214b8a', filters: [] },
+    { id: 'b4', type: 'metric', title: tv(t, 'defaults.overview.b4.title'), subtitle: tv(t, 'defaults.overview.b4.subtitle'), span: 3, height: 190, metricKey: 'avgRevenue', color: '#cc2f47', filters: [] },
     { id: 'b5', type: 'line', title: tv(t, 'defaults.overview.b5.title'), subtitle: tv(t, 'defaults.overview.b5.subtitle'), span: 8, height: 320, valueMode: 'sum', valueField: 'amount', color: '#222222', filters: [] },
     { id: 'b6', type: 'donut', title: tv(t, 'defaults.overview.b6.title'), subtitle: tv(t, 'defaults.overview.b6.subtitle'), span: 4, height: 320, dimensionKey: 'field:status', color: '#1769d1', filters: [] },
     { id: 'b7', type: 'bar', title: tv(t, 'defaults.overview.b7.title'), subtitle: tv(t, 'defaults.overview.b7.subtitle'), span: 6, height: 320, dimensionKey: 'field:channel', valueMode: 'sum', valueField: 'amount', color: '#222222', filters: [] },
@@ -1015,7 +1018,7 @@ function blockToDashboardWidgetConfig(block: AnalyticsBlock) {
   if (block.type === 'donut' || block.type === 'funnel') {
     return {
       id: block.id,
-      type: 'donut',
+      type: block.type,
       title: block.title,
       size,
       height: Math.max(180, block.height),
@@ -1030,11 +1033,25 @@ function blockToDashboardWidgetConfig(block: AnalyticsBlock) {
   if (block.type === 'bar' || block.type === 'line') {
     return {
       id: block.id,
-      type: 'bar',
+      type: block.type,
       title: block.title,
       size,
       height: Math.max(180, block.height),
       chartKey: block.dimensionKey || 'field:channel',
+      chartValueMode: block.valueMode || 'count',
+      chartValueField: block.valueField,
+      formulaFilters,
+      themeKey: 'lumiva',
+    };
+  }
+  if (block.type === 'leaderboard' || block.type === 'heatmap') {
+    return {
+      id: block.id,
+      type: block.type,
+      title: block.title,
+      size,
+      height: Math.max(180, block.height),
+      chartKey: block.dimensionKey || 'field:manager',
       chartValueMode: block.valueMode || 'count',
       chartValueField: block.valueField,
       formulaFilters,
@@ -1128,24 +1145,6 @@ function FilterKeysPicker({
         {!options.length && <div className="px-1 py-2 text-sm text-[#8ea0bb]">{tv(t, 'filterPicker.noValues')}</div>}
       </div>
     </div>
-  );
-}
-
-function MiniSparkline({ data, color = '#222222' }: { data: number[]; color?: string }) {
-  const chartData = data.map((value, index) => ({ index, value }));
-  const gId = `sg-${color.replace(/[^a-z0-9]/gi, '')}`;
-  return (
-    <ResponsiveContainer width="100%" height={44}>
-      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={gId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} fill={`url(#${gId})`} dot={false} isAnimationActive={false} />
-      </AreaChart>
-    </ResponsiveContainer>
   );
 }
 
@@ -1577,8 +1576,8 @@ function BlockShell({
   onAddHome: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
-  onMoveStart: (event: React.MouseEvent) => void;
-  onResizeStart: (event: React.MouseEvent, mode: 'br' | 'r' | 'b') => void;
+  onMoveStart: (event: React.PointerEvent<HTMLElement>) => void;
+  onResizeStart: (event: React.PointerEvent<HTMLElement>, mode: 'br' | 'r' | 'b') => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -1598,7 +1597,7 @@ function BlockShell({
       }}
     >
       {editing && (
-        <button type="button" className="absolute left-0 right-0 top-0 flex h-6 cursor-grab items-center justify-center rounded-t-[18px] bg-gradient-to-b from-neutral-100 to-transparent text-neutral-400 active:cursor-grabbing" onMouseDown={onMoveStart} aria-label={tv(t, 'blockChrome.dragAria')}>
+        <button type="button" className="absolute left-0 right-0 top-0 flex h-6 cursor-grab touch-none items-center justify-center rounded-t-[18px] bg-gradient-to-b from-neutral-100 to-transparent text-neutral-400 active:cursor-grabbing" onPointerDown={onMoveStart} aria-label={tv(t, 'blockChrome.dragAria')}>
           <Icon name="drag" size={13} />
         </button>
       )}
@@ -1618,15 +1617,15 @@ function BlockShell({
       {editing && (
         <>
           {/* right edge */}
-          <div className="absolute -right-1.5 top-6 bottom-6 flex w-3 cursor-ew-resize items-center justify-center" onMouseDown={(event) => onResizeStart(event, 'r')} aria-label={tv(t, 'blockChrome.resizeWidthAria')}>
+          <div className="absolute -right-1.5 top-6 bottom-6 flex w-3 cursor-ew-resize touch-none items-center justify-center" onPointerDown={(event) => onResizeStart(event, 'r')} aria-label={tv(t, 'blockChrome.resizeWidthAria')}>
             <div className="h-10 w-1.5 rounded-full bg-neutral-300 opacity-0 transition group-hover:opacity-100" />
           </div>
           {/* bottom edge */}
-          <div className="absolute -bottom-1.5 left-6 right-6 flex h-3 cursor-ns-resize items-center justify-center" onMouseDown={(event) => onResizeStart(event, 'b')} aria-label={tv(t, 'blockChrome.resizeHeightAria')}>
+          <div className="absolute -bottom-1.5 left-6 right-6 flex h-3 cursor-ns-resize touch-none items-center justify-center" onPointerDown={(event) => onResizeStart(event, 'b')} aria-label={tv(t, 'blockChrome.resizeHeightAria')}>
             <div className="h-1.5 w-10 rounded-full bg-neutral-300 opacity-0 transition group-hover:opacity-100" />
           </div>
           {/* bottom-right corner */}
-          <button type="button" className="absolute bottom-0 right-0 flex h-7 w-7 cursor-nwse-resize items-end justify-end p-1 text-neutral-300 hover:text-[#222]" onMouseDown={(event) => onResizeStart(event, 'br')} aria-label={tv(t, 'blockChrome.resizeBothAria')}>
+          <button type="button" className="absolute bottom-0 right-0 flex h-7 w-7 cursor-nwse-resize touch-none items-end justify-end p-1 text-neutral-300 hover:text-[#222]" onPointerDown={(event) => onResizeStart(event, 'br')} aria-label={tv(t, 'blockChrome.resizeBothAria')}>
             <Icon name="resize" size={14} />
           </button>
         </>
@@ -1652,7 +1651,8 @@ function RenderBlock({
   period: PeriodId;
   reportCurrency: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const color = block.color || '#222222';
   const currency = reportCurrency;
   const chartHeight = Math.max(150, block.height - 90);
@@ -1664,6 +1664,7 @@ function RenderBlock({
   const prevItems = trendItems.filter((item) => inRange(item.createdAt, previousRange(period)));
   const trend = buildTrend(trendItems, period, block.valueMode || 'count', block.valueField);
 
+  const bucketLabels: string[] = [];
   const metricSpark = (() => {
     const key = block.metricKey || 'total';
     const range = periodRange(period);
@@ -1676,6 +1677,7 @@ function RenderBlock({
     return Array.from({ length: pts }, (_, idx) => {
       const s = new Date(from); s.setDate(from.getDate() + idx * bs);
       const e = new Date(s); e.setDate(s.getDate() + bs);
+      { const last = new Date(e.getTime() - 86_400_000); bucketLabels.push(bs > 1 ? `${formatDateShort(s, locale)} – ${formatDateShort(last, locale)}` : formatDateShort(s, locale)); }
       const bkt = trendItems.filter((i) => { const d = new Date(i.createdAt); return d >= s && d < e; });
       if (!bkt.length) return 0;
       if (key === 'total') return bkt.length;
@@ -1704,6 +1706,7 @@ function RenderBlock({
   })();
 
   const spark = block.type === 'metric' ? metricSpark : trend.map((point) => point.value);
+  const sparkLabels = block.type === 'metric' ? bucketLabels : trend.map((point) => point.name);
 
   const metricValue = () => {
     const key = block.metricKey || 'total';
@@ -1835,24 +1838,23 @@ function RenderBlock({
     const down = metric.dir === -1;
     const deltaColor = up ? 'text-emerald-600' : down ? 'text-rose-500' : 'text-neutral-400';
     return (
-      <div className="flex h-full items-end gap-3">
-        <div className="flex min-w-0 flex-1 flex-col justify-end gap-1">
-          <div className="flex flex-wrap items-baseline gap-2 leading-none">
-            <span className="text-[2.5rem] font-semibold tracking-[-0.04em] text-[#222]">{metric.primary}</span>
-            {metric.suffix && <span className="text-[1.1rem] font-medium text-neutral-400">{metric.suffix}</span>}
-          </div>
-          {metric.delta && (
-            <div className={cx('flex items-center gap-1 text-[11px] font-medium', deltaColor)}>
+      <MetricCard
+        value={String(metric.primary)}
+        suffix={metric.suffix}
+        caption={
+          metric.delta ? (
+            <div className={cx('flex items-center gap-1', deltaColor)}>
               {up && <span className="text-[10px]">▲</span>}
               {down && <span className="text-[10px]">▼</span>}
               <span className="line-clamp-2">{metric.delta}</span>
             </div>
-          )}
-        </div>
-        <div className="w-20 shrink-0">
-          <MiniSparkline data={spark.length ? spark : [0, 0, 0]} color={color} />
-        </div>
-      </div>
+          ) : undefined
+        }
+        spark={spark.length ? spark : [0, 0, 0]}
+        sparkLabels={sparkLabels}
+        color={color}
+        locale={locale}
+      />
     );
   }
 
@@ -1863,17 +1865,14 @@ function RenderBlock({
 
     if (display === 'metric') {
       return (
-        <div className="flex h-full items-end gap-3">
-          <div className="flex min-w-0 flex-1 flex-col justify-end gap-1">
-            <div className="flex flex-wrap items-baseline gap-2 leading-none">
-              <span className="text-[2.5rem] font-semibold tracking-[-0.04em] text-[#222]">{valueLabel}</span>
-            </div>
-            <div className="line-clamp-2 text-[11px] font-medium text-neutral-400">{formula.detail}</div>
-          </div>
-          <div className="w-20 shrink-0">
-            <MiniSparkline data={spark.length ? spark : [0, 0, 0]} color={color} />
-          </div>
-        </div>
+        <MetricCard
+          value={valueLabel}
+          caption={<span className="line-clamp-2">{formula.detail}</span>}
+          spark={spark.length ? spark : [0, 0, 0]}
+          sparkLabels={sparkLabels}
+          color={color}
+          locale={locale}
+        />
       );
     }
 
@@ -2271,16 +2270,9 @@ export const SalesAnalyticsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [globalFilters, setGlobalFilters] = useState<FilterRow[]>([]);
   const [shareToast, setShareToast] = useState(false);
-  const [drag, setDrag] = useState<{ id: string; fromIdx: number; toIdx: number } | null>(null);
-  const [resize, setResize] = useState<{
-    id: string;
-    mode: 'br' | 'r' | 'b';
-    startX: number;
-    startY: number;
-    startSpan: number;
-    startHeight: number;
-    colW: number;
-  } | null>(null);
+  const [aiConfirmOpen, setAiConfirmOpen] = useState(false);
+  const [aiBuilding, setAiBuilding] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
 
   const currenciesPresent = useMemo(
@@ -2461,13 +2453,35 @@ export const SalesAnalyticsPage: React.FC = () => {
     setLayouts((prev) => ({ ...prev, [activeView]: updater(prev[activeView] || []) }));
   }, [activeView]);
 
+  const { beginDrag, beginResize, dragId, previewOrder, live } = useBlockGridInteractions({
+    gridRef,
+    enabled: editing && !isMobile,
+    order: blocks.map((block) => block.id),
+    minSpan: 3,
+    minHeight: MIN_BLOCK_H,
+    maxHeight: MAX_BLOCK_H,
+    onResizeCommit: (id, m) =>
+      updateBlocks((prev) => prev.map((block) => block.id === id ? { ...block, span: m.span, height: m.height } : block)),
+    onReorderCommit: (order) =>
+      updateBlocks((prev) => {
+        const byId = new Map(prev.map((block) => [block.id, block]));
+        const next = order.map((id) => byId.get(id)).filter((block): block is AnalyticsBlock => !!block);
+        return next.length === prev.length ? next : prev;
+      }),
+  });
+  // во время жеста рисуем живой порядок / живые размеры; сохраняется всё один раз при отпускании
   const visualBlocks = useMemo(() => {
-    if (!drag || drag.fromIdx === drag.toIdx) return blocks;
-    const next = [...blocks];
-    const [moved] = next.splice(drag.fromIdx, 1);
-    next.splice(drag.toIdx, 0, moved);
-    return next.map((block) => block.id === drag.id ? { ...block, _dragging: true } : block);
-  }, [blocks, drag]);
+    let list = blocks;
+    if (previewOrder) {
+      const byId = new Map(blocks.map((block) => [block.id, block]));
+      list = previewOrder.map((id) => byId.get(id)).filter((block): block is AnalyticsBlock => !!block);
+    }
+    return list.map((block) => {
+      if (dragId === block.id) return { ...block, _dragging: true };
+      if (live?.id === block.id) return { ...block, span: live.span, height: live.height, _resizing: true };
+      return block;
+    });
+  }, [blocks, previewOrder, dragId, live]);
 
   const saveLayout = () => {
     localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layouts));
@@ -2492,6 +2506,44 @@ export const SalesAnalyticsPage: React.FC = () => {
     notifyAnalyticsWidgetsChanged('sales_analytics');
     setSelected(null);
     setConfigId(null);
+  };
+
+  const buildWithAi = async () => {
+    setAiConfirmOpen(false);
+    setAiError(null);
+    setAiBuilding(true);
+    try {
+      const range = periodRange(period);
+      const res = await postAiBuildAnalyticsDashboard({
+        module: 'sales',
+        periodFrom: range.from ? range.from.toISOString() : undefined,
+        periodTo: range.to ? range.to.toISOString() : undefined,
+      });
+      if (!res.ok || !res.layouts) {
+        setAiError(res.note || res.error || 'Не удалось построить дашборд — недостаточно данных.');
+        return;
+      }
+      const next = res.layouts as unknown as Record<ViewId, AnalyticsBlock[]>;
+      const full: Record<ViewId, AnalyticsBlock[]> = {
+        overview: next.overview || [],
+        sources: next.sources || [],
+        managers: next.managers || [],
+        funnel: next.funnel || [],
+      };
+      setLayouts(full);
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(full));
+      localStorage.setItem(LAYOUT_VERSION_KEY, LAYOUT_VERSION);
+      const widgets = Object.values(full).flat().map(blockToDashboardWidgetConfig);
+      localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(widgets));
+      localStorage.setItem(WIDGET_VERSION_KEY, LAYOUT_VERSION);
+      notifyAnalyticsWidgetsChanged('sales_analytics');
+      setSelected(null);
+      setConfigId(null);
+    } catch (e: any) {
+      setAiError(e?.message || 'Не удалось построить дашборд.');
+    } finally {
+      setAiBuilding(false);
+    }
   };
 
   const updateBlock = (nextBlock: AnalyticsBlock) => {
@@ -2526,76 +2578,6 @@ export const SalesAnalyticsPage: React.FC = () => {
     });
   };
 
-  const onMoveStart = (event: React.MouseEvent, id: string) => {
-    if (!editing) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const fromIdx = blocks.findIndex((block) => block.id === id);
-    if (fromIdx >= 0) setDrag({ id, fromIdx, toIdx: fromIdx });
-  };
-
-  const onResizeStart = (event: React.MouseEvent, id: string, mode: 'br' | 'r' | 'b') => {
-    if (!editing) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const block = blocks.find((item) => item.id === id);
-    const rect = gridRef.current?.getBoundingClientRect();
-    if (!block || !rect) return;
-    setResize({
-      id,
-      mode,
-      startX: event.clientX,
-      startY: event.clientY,
-      startSpan: block.span,
-      startHeight: block.height,
-      colW: (rect.width - 11 * 12) / 12,
-    });
-  };
-
-  useEffect(() => {
-    if (!drag) return;
-    const onUp = () => {
-      if (drag.fromIdx !== drag.toIdx) {
-        updateBlocks((prev) => {
-          const next = [...prev];
-          const [moved] = next.splice(drag.fromIdx, 1);
-          next.splice(drag.toIdx, 0, moved);
-          return next;
-        });
-      }
-      setDrag(null);
-    };
-    window.addEventListener('mouseup', onUp);
-    return () => window.removeEventListener('mouseup', onUp);
-  }, [drag, updateBlocks]);
-
-  useEffect(() => {
-    if (!resize) return;
-    const onMove = (event: MouseEvent) => {
-      const dx = event.clientX - resize.startX;
-      const dy = event.clientY - resize.startY;
-      let span = resize.startSpan;
-      let height = resize.startHeight;
-      if (resize.mode === 'br' || resize.mode === 'r') {
-        span = Math.max(3, Math.min(12, Math.round(resize.startSpan + dx / (resize.colW + 12))));
-      }
-      if (resize.mode === 'br' || resize.mode === 'b') {
-        height = Math.max(MIN_BLOCK_H, Math.min(MAX_BLOCK_H, resize.startHeight + dy));
-      }
-      updateBlocks((prev) => prev.map((block) => block.id === resize.id ? { ...block, span, height, _resizing: true } : block));
-    };
-    const onUp = () => {
-      updateBlocks((prev) => prev.map((block) => ({ ...block, _resizing: false })));
-      setResize(null);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [resize, updateBlocks]);
-
   const addGlobalFilter = (scope: string) => {
     if (globalFilters.some((filter) => filter.scope === scope)) return;
     setGlobalFilters((prev) => [...prev, { id: uid('gf'), scope, keys: [] }]);
@@ -2622,7 +2604,7 @@ export const SalesAnalyticsPage: React.FC = () => {
             {tv(t, 'nav.shareToast')}
           </div>
         )}
-        <div className="sticky top-0 z-30 -mx-3 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-mx-6 md:px-6">
+        <div className="sticky -top-4 z-30 -mx-3 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-top-6 md:-mx-6 md:px-6">
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm text-neutral-500">
               <span className="hidden sm:inline">{tv(t, 'nav.salesBreadcrumb')} <span className="mx-2 text-neutral-300">/</span> </span><span className="font-semibold text-[#222]">{tv(t, 'nav.analyticsTitle')}</span>
@@ -2704,6 +2686,10 @@ export const SalesAnalyticsPage: React.FC = () => {
               <span className="font-mono text-[11px] tracking-[0.08em] text-white/45">{tv(t, 'nav.editingHint')}</span>
               <div className="flex-1" />
               <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20" onClick={() => setShowAdd(true)}><Icon name="plus" size={13} />{tv(t, 'nav.addBlock')}</button>
+              <button type="button" disabled={aiBuilding} className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20 disabled:opacity-50" onClick={() => setAiConfirmOpen(true)}>
+                {aiBuilding ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <Icon name="download" size={13} />}
+                {aiBuilding ? 'Разбираю данные…' : 'Разобрать через АИ'}
+              </button>
               <button type="button" className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20" onClick={resetLayout}>{tv(t, 'nav.reset')}</button>
               <button type="button" className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-[#222] hover:bg-white/90" onClick={saveLayout}>{tv(t, 'nav.saveDashboard')}</button>
             </section>
@@ -2720,12 +2706,8 @@ export const SalesAnalyticsPage: React.FC = () => {
               return (
                 <div
                   key={block.id}
-                  style={{ gridColumn: isMobile ? 'span 12' : 'span ' + block.span }}
-                  onMouseEnter={() => {
-                    if (!drag) return;
-                    const toIdx = blocks.findIndex((item) => item.id === block.id);
-                    if (toIdx !== drag.toIdx && toIdx >= 0) setDrag((prev) => prev ? { ...prev, toIdx } : prev);
-                  }}
+                  data-block-id={block.id}
+                  style={{ gridColumn: isMobile ? 'span 12' : `span ${block.span}` }}
                 >
                   <BlockShell
                     block={block}
@@ -2739,8 +2721,8 @@ export const SalesAnalyticsPage: React.FC = () => {
                     onAddHome={() => addHome(block)}
                     onDuplicate={() => duplicateBlock(block.id)}
                     onDelete={() => deleteBlock(block.id)}
-                    onMoveStart={(event) => onMoveStart(event, block.id)}
-                    onResizeStart={(event, mode) => onResizeStart(event, block.id, mode)}
+                    onMoveStart={(event) => beginDrag(event, block.id)}
+                    onResizeStart={(event, mode) => beginResize(event, block.id, mode === 'r' ? 'x' : mode === 'b' ? 'y' : 'both', { span: block.span, height: block.height })}
                   >
                     <RenderBlock block={block} items={blockItems} trendItems={blockAllItems} baseItems={filteredItems} fields={fields} period={period} reportCurrency={reportCurrency} />
                   </BlockShell>
@@ -2775,6 +2757,26 @@ export const SalesAnalyticsPage: React.FC = () => {
         onClose={() => setConfigId(null)}
         onDelete={() => configId && deleteBlock(configId)}
       />
+      {aiConfirmOpen && (
+        <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#222]">Разобрать через АИ?</h3>
+            <p className="mt-2 text-sm leading-6 text-neutral-500">
+              ИИ изучит реальные данные по продажам и построит полноценный набор блоков на всех вкладках — заменит текущие.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setAiConfirmOpen(false)} className="btn-secondary">Отмена</button>
+              <button type="button" onClick={buildWithAi} className="btn-primary">Разобрать</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {aiError && (
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-rose-600 px-5 py-3 text-sm text-white shadow-lg">
+          {aiError}
+          <button type="button" className="pointer-events-auto ml-3 underline" onClick={() => setAiError(null)}>Закрыть</button>
+        </div>
+      )}
     </MainLayout>
   );
 };

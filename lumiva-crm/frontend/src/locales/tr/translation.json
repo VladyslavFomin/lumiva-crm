@@ -3429,6 +3429,171 @@
         "body": "Connect your own OpenAI or Anthropic (Claude) key — AI employees will run on it, and token usage is billed to your account, not the platform's quota.",
         "button": "Connect your own AI agent"
       },
+            "recordChat": {
+        "title": "Yapay zekâ çalışana sor",
+        "placeholder": "Bu kayıt hakkında sorun veya bir iş verin…",
+        "ask": "Sor",
+        "assign": "Görevlendir",
+        "assignHint": "Çalışan bunu bu kayıt üzerinde görev olarak yapar",
+        "needActive": "Çalışan duraklatılmış — görev vermek için devam ettirin",
+        "paused": "duraklatıldı",
+        "thinking": "Düşünüyor…",
+        "taskSent": "Görev {{name}} çalışanına verildi. Sonuç kaydın yorumlarında görünecek."
+      },
+      "quick": {
+        "lang": {"Russian": "Rusça", "English": "İngilizce", "Turkish": "Türkçe"},
+        "title": "Hızlı başlangıç — 3 soru",
+        "hint": "Gerisini role göre seçeriz. Sonra çalışan profilinden değiştirebilirsiniz.",
+        "q1": "Müşterilerle hangi dilde konuşsun?",
+        "q2": "Nasıl çalışsın?",
+        "q3": "Ne zaman çalışsın?",
+        "go": "Oluştur ve başlat",
+        "orManual": "Ya da her şeyi aşağıda elle ayarlayın.",
+        "mode": {
+          "assisted": "Hazırlar, ben onaylarım",
+          "auto": "Tamamen kendi başına",
+          "suggest": "Sadece tavsiye"
+        },
+        "schedule": {
+          "always": "7/24",
+          "business_hours": "Mesai saatlerinde"
+        }
+      },
+      "lessons": {
+        "title": "Çalışan neler öğrendi",
+        "hint": "Reddettiğiniz önerilerden. Çalışan bunu dikkate alır; istemediklerinizi silebilirsiniz.",
+        "remove": "Bu dersi unut",
+        "rejectTitle": "Eylemi reddet",
+        "rejectLabel": "Neden? Çalışan hatırlayacak ve tekrarlamayacak (isteğe bağlı)",
+        "rejectPlaceholder": "örn. bu durumdaki müşterilere yazma"
+      },
+      "v2": {
+        "dayFeed": "Günün akışı",
+        "dayFeedAll": "Tüm günlük",
+        "failedToday": "Bugünkü hatalar",
+        "blockedToday": "Bugün atlananlar (tekrar, geçersiz)",
+        "subtitle": "Rol, çalışanın ne yapabileceğini belirler. Erişim seviyesi ise bunlardan hangilerini kendisi yapacağını, hangilerini size onaya getireceğini belirler.",
+        "hire": "İşe al",
+        "hoursValue_one": "{{count}} sa",
+        "hoursValue_other": "{{count}} sa",
+        "kpi": {
+          "active": "Çalışıyor",
+          "activeD": "kadrodaki {{count}} kişiden",
+          "today": "Bugünkü eylemler",
+          "todayD": "son 24 saatte",
+          "pending": "Onay bekliyor",
+          "pendingD": "karar sizde",
+          "reports": "Bu ayki raporlar",
+          "reportsD": "günlük ve haftalık",
+          "saved": "Kazanılan zaman",
+          "savedD": "eylem günlüğüne göre"
+        },
+        "filters": {
+          "all": "Tümü {{count}}",
+          "active": "Çalışıyor",
+          "paused": "Duraklatıldı",
+          "setup_required": "Kurulum gerekli",
+          "pending": "Karar bekliyor"
+        },
+        "colHead": {
+          "employee": "Çalışan",
+          "status": "Durum",
+          "level": "Seviye",
+          "access": "Eylem erişimi",
+          "today": "Bugün",
+          "queue": "Kuyruk"
+        },
+        "queue": "kuyrukta",
+        "freeRoles": "Boş roller",
+        "table": "tablo",
+        "mailboxes": "kutu",
+        "fp": {
+          "auto": "kendisi",
+          "appr": "onayla",
+          "off": "yok"
+        },
+        "access": {
+          "levelTitle": "Erişim seviyesi",
+          "levelNote_off": "Çalışan yalnızca veriyi okur ve bulguları rapora yazar — CRM'de hiçbir eylem yok.",
+          "levelNote_mixed": "{{auto}} eylemi kendisi yapar, {{appr}} eylemi onayınıza getirir, {{off}} eylem yasaktır.",
+          "levelNote_appr": "{{appr}} eylemi önerecek ve her biri Onaylar kuyruğunuza düşecek.",
+          "matrixTitle": "CRM eylemleri",
+          "resetToRole": "Role göre sıfırla",
+          "expand": "İnce ayar",
+          "collapse": "Daralt",
+          "observerWarn": "\"Öneri modu\" tüm eylemleri tamamen kapatır. Tek tek ayarlamak için \"Yardımcı\" veya \"Otomatik\"e geçin.",
+          "assistedWarn": "\"Yardımcı\" seviyesinde her eylem bir insana gider. \"Kendisi\" sütunu \"Otomatik\"te görünür.",
+          "alwaysOnTitle": "Her zaman açık",
+          "escalateName": "İnsanı çağır",
+          "escalateDesc": "Eskalasyon: çalışan emin değilse, durumu bir meslektaşına devreder. Kapatılamaz.",
+          "dataTitle": "Veri",
+          "readsName": "Tüm CRM modüllerini okuma",
+          "readsDesc": "Okuma veriyi değiştirmez ve kararlar için bağlam sağlar, bu yüzden tüm rollere açıktır.",
+          "tablesTitle": "Çalışma alanı tabloları",
+          "mailboxesTitle": "E-posta kutuları",
+          "summaryTitle": "Erişim özeti",
+          "summaryLevel": "Seviye",
+          "summaryAuto": "Kendisi yapar",
+          "summaryAppr": "Onayla",
+          "summaryOff": "Yasak",
+          "summaryModules": "Eylemli modüller",
+          "summaryTables": "Tablolar",
+          "summaryMailboxes": "Kutular",
+          "ownedTitle": "Sorumlu olduğu kayıtlar",
+          "ownedNote": "Bu rol şunlara atanabilir: <b>{{types}}</b>. Bu sadece arayüzde değil, sunucuda da kontrol edilir.",
+          "ownedNone": "Bu rol tek tek kayıtlara sahip değildir — veriyi okur, rapor ve tavsiyeyle yardımcı olur.",
+          "ownedCount_one": "Şu anda atanan: {{count}} kayıt.",
+          "ownedCount_other": "Şu anda atanan: {{count}} kayıt.",
+          "decidesTitle": "Kim karar verir",
+          "decidesAuto": "<b>Kendisi</b> — eylem hemen çalışır, günlüğe kaydedilir.",
+          "decidesAppr": "<b>Onayla</b> — kuyruğa girer; siz Onayla'ya basana kadar hiçbir şey olmaz.",
+          "decidesOff": "<b>Yok</b> — çalışan bu eylemi hiç önermez.",
+          "decidesBulk": "Segmente toplu gönderim, seviyeden bağımsız olarak her zaman onaydan geçer.",
+          "save": "Erişimleri kaydet"
+        },
+        "groups": {
+          "leads": "Lead'ler",
+          "tasks": "Görevler ve notlar",
+          "mail": "E-posta ve mesajlaşma",
+          "work": "Toplantılar ve projeler",
+          "data": "Raporlar ve çalışma alanı"
+        },
+        "overview": {
+          "pendingTitle": "Kararınızı bekliyor",
+          "pendingEmpty": "Kuyruk boş — izin verilen her şeyi çalışan kendisi yaptı.",
+          "recentTitle": "Son eylemler",
+          "recentEmpty": "Çalışan henüz hiçbir şey yapmadı.",
+          "profileTitle": "Profil",
+          "role": "Rol",
+          "deptJob": "Departman · görev",
+          "level": "Erişim seviyesi",
+          "langTone": "Dil · ton",
+          "model": "Model",
+          "tz": "Saat dilimi",
+          "reportAt": "Rapor saati",
+          "triggersOn": "Etkin tetikleyiciler",
+          "assignedTitle": "Atanan kayıtlar",
+          "assignedEmpty": "Bu rol kayıtlara sahip değil ya da henüz hiçbiri atanmamış.",
+          "lastReportTitle": "Son rapor",
+          "lastReportEmpty": "Henüz rapor yok.",
+          "open": "Aç",
+          "send": "Gönder",
+          "responsible": "Sorumlu",
+          "responsibleNone": "Belirlenmedi — hesap sahibiyle iletişime geçin"
+        },
+        "work": {
+          "identityTitle": "Kimlik",
+          "taskPanelTitle": "Tek seferlik görev"
+        },
+        "journal": {
+          "all": "Tümü",
+          "appr": "Onaylar",
+          "log": "Eylemler",
+          "rep": "Raporlar",
+          "err": "Hatalar",
+          "empty": "Henüz kayıt yok."
+        }
+      },
       "errors": {
         "generic": "Bir sorun oluştu. Lütfen tekrar deneyin."
       },
@@ -3703,6 +3868,7 @@
         "recentLogs": "Son günlük kayıtları",
         "tabs": {
           "overview": "Genel bakış",
+          "access": "Erişimler",
           "assign": "Atamalar ve yetkiler",
           "approvals": "Onaylar",
           "journal": "Günlük",
@@ -4092,6 +4258,14 @@
           "custom_object_record_created": {
             "title": "Tabloda yeni kayıt",
             "hint": "Çalışma alanı tablosuna kayıt eklendi."
+          },
+          "custom_object_record_updated": {
+            "title": "Kayıt güncellendi",
+            "hint": "Sorumlu olunan çalışma alanı tablosu satırındaki veriler değişti."
+          },
+          "custom_object_status_changed": {
+            "title": "Kayıt durumu değişti",
+            "hint": "Sorumlu olunan satırın durumu değişti."
           }
         }
       },
@@ -5285,7 +5459,46 @@
         "pickFromDataTitle": "Value from data table",
         "presetCrmLead": "CRM lead",
         "presetCrmProject": "CRM project",
-        "mondayBoardSubtitle": "Monday tarzı pano: satırlar statüye göre gruplanır. Sütunlar ve veri kaynakları yapılandırılabilir."
+        "mondayBoardSubtitle": "Monday tarzı pano: satırlar statüye göre gruplanır. Sütunlar ve veri kaynakları yapılandırılabilir.",
+        "fieldTypes": {
+          "text": "Metin",
+          "number": "Sayı",
+          "date": "Tarih",
+          "datetime": "Tarih ve saat",
+          "boolean": "Evet/Hayır",
+          "status": "Durum",
+          "select": "Liste",
+          "multiselect": "Çoklu seçim",
+          "file": "Dosya",
+          "ai": "Akıllı sütun (YZ)"
+        },
+        "aiColumnAgent": "Değeri kim hesaplıyor",
+        "aiColumnAgentPick": "Bir YZ çalışanı seçin…",
+        "aiColumnPrompt": "Bu sütun için talimat",
+        "aiColumnPromptPlaceholder": "Örn: \"Satırın diğer alanlarına göre rezervasyon iptal riskini değerlendir: düşük / orta / yüksek, kısa bir nedenle\"",
+        "aiColumnHint": "Her satır kaydında ve \"Yenile\" düğmesiyle yeniden hesaplanır. Seçilen YZ çalışanının \"Çalışma alanı verilerini yönet\" iznine ve bu tabloya yazma erişimine sahip olması gerekir, aksi halde sütun güncellenmez.",
+        "showColumn": "Sütunu göster",
+        "manageFieldsButton": "Sütunları yönet",
+        "manageFieldsTitle": "Sütunları yönet",
+        "manageFieldsHint": "Sırayı değiştirmek için sürükleyin. Tür/bağlama ayarları için \"Düzenle\"yi kullanın.",
+        "manageFieldsEmpty": "Bu tabloda henüz sütun yok.",
+        "fieldHiddenBadge": "gizli",
+        "aiColumnNoEligible": "Henüz hiçbir işe alınmış YZ çalışanının bu tabloya erişimi yok — profilinde erişim verin (Erişimler → Çalışma alanı tabloları), ardından buraya dönün.",
+        "aiColumnPresets": "Hazır şablonlar",
+        "aiPresetSummarize": "Özetle",
+        "aiPresetSummarizePrompt": "Tabloya göz atan bir ekip arkadaşı için bu satırın kısa bir özetini (1-2 cümle) yaz.",
+        "aiPresetCategorize": "Kategorize et",
+        "aiPresetCategorizePrompt": "Diğer alanlara göre bu satır için en uygun kategori/durumu belirle. Sadece tam kategori değeriyle cevap ver, açıklama yapma.",
+        "aiPresetExtract": "Veri çıkar",
+        "aiPresetExtractPrompt": "Bu satırın metin alanlarında geçen en önemli tarihi, ismi veya sayıyı bul ve yaz. Uygun bir şey yoksa boş bırak.",
+        "aiPresetTranslate": "Çevir",
+        "aiPresetTranslatePrompt": "Bu satırın içeriğini İngilizceye çevir. Sadece çeviriyle cevap ver, açıklama yapma.",
+        "aiPresetAssign": "Sorumlu ata",
+        "aiPresetAssignPrompt": "Satırın diğer alanlarına göre, bu kayıttan hangi ekip üyesinin sorumlu olması gerektiğini belirle.",
+        "aiColumnPersonModeHint": "Sorumlu atama modu: YZ, kiracının personel listesinden gerçek bir isim seçmek zorundadır — asla uydurma bir isim yazmaz.",
+        "aiRefreshAllButton": "Tüm satırları yeniden hesapla",
+        "aiRefreshAllRunning": "Hesaplanıyor…",
+        "aiRefreshAllResult": "Tamamlandı: {{total}} üzerinden {{succeeded}}"
       },
       "kanban": {
         "title": "Kanban",
@@ -5346,6 +5559,34 @@
           "cancel": "İptal",
           "submit": "Ekle ve yükle"
         }
+      },
+      "recordDrawer": {
+        "aiColumnEmpty": "Henüz hesaplanmadı",
+        "aiColumnRefresh": "Yenile",
+        "aiColumnRefreshing": "Hesaplanıyor…",
+        "aiColumnError": "Hesaplanamadı",
+        "aiColumnErrorAgentInactive": "Atanan YZ çalışanı duraklatılmış veya bulunamadı — başka birini seçin ya da YZ Çalışanları bölümünden devam ettirin",
+        "aiColumnErrorNoPermission": "Bu YZ çalışanının çalışma alanı verilerini değiştirme izni yok",
+        "aiColumnErrorNoAccess": "Bu YZ çalışanının bu tabloya erişimi yok — profilinden erişim verin (Erişimler → Çalışma alanı tabloları)",
+        "aiColumnErrorNoPrompt": "Bu sütun için bir prompt tanımlanmamış",
+        "aiColumnErrorNoStaff": "Atanabilecek aktif bir personel yok",
+        "aiColumnErrorNoConfidentMatch": "YZ, listeden emin bir şekilde personel seçemedi — talimatı netleştirin"
+      },
+      "analytics": {
+        "kicker": "Çalışma alanı analitiği",
+        "title": "Analitik: {{name}}",
+        "defaultName": "Çalışma alanı tablosu",
+        "subtitle": "Durumlar, kategoriler, sorumlular ve özel metrikler — proje analitiği gibi.",
+        "aiTitle": "YZ tablo analizi",
+        "aiQuestion": "Soru (isteğe bağlı)",
+        "aiQuestionPlaceholder": "Örn: \"bu ay neye dikkat etmeliyim\"",
+        "aiRun": "Analiz et",
+        "aiRunning": "Analiz ediliyor…",
+        "aiCollapse": "Daralt",
+        "aiExpand": "Raporu göster",
+        "aiNoAgents": "Bu tabloya erişimi olan işe alınmış YZ çalışanı yok",
+        "aiError": "Hesaplanamadı",
+        "aiComputedBy": "{{name}} · {{date}}"
       }
     },
     "marketingTraffic": {
@@ -11499,7 +11740,7 @@
         "tasksTab": {
           "namePrompt": "Görev adı:",
           "title": "Şirket görevleri",
-          "sub": "Şirketin kendi, projelerinin ve leadlerinin görevleri — tek yerde, kaynağıyla birlikte.",
+          "sub": "Şirketin tüm proje ve leadlerinin görevleri tek yerde. Göreve tıklayınca bulunduğu proje veya lead açılır.",
           "task": "Görev",
           "openBoard": "Panoyu aç",
           "empty": "boş",
@@ -12715,7 +12956,8 @@
           "tools_automation": "Otomasyonlar ve senaryolar",
           "custom_objects": "No-code Workspace ve özel tablolar",
           "staff": "Personel listesi, davetler, departmanlar",
-          "settings": "Şirket ayarları, API, entegrasyonlar"
+          "settings": "Şirket ayarları, API, entegrasyonlar",
+          "ai_employees": "YZ çalışanların işe alımı ve yönetimi: yetkileri, ayarları, raporları ve etkinlik günlüğü"
         },
         "tabs": {
           "roles": "Roller ve izinler",
@@ -12856,7 +13098,8 @@
             "of": "{{total}} üzerinden {{visible}}",
             "loading": "Hesaplanıyor…"
           }
-        }
+        },
+        "ai_employees": "YZ Çalışanlar"
       }
     },
     "products": {

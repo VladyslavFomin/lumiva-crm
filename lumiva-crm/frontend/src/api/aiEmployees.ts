@@ -63,10 +63,19 @@ export interface AiAgent {
   createdAt: string;
   updatedAt: string;
   stats?: AiAgentStats;
+  /** Только в списке (`GET /ai-agents`) — батч-реальные permissions/approvalRules для отпечатка
+   * доступа в ростере. В детальном ответе (`GET /ai-agents/:id`) они приходят отдельными полями
+   * верхнего уровня (`AiAgentDetailResponse.permissions`/`.approvalRules`), не здесь. */
+  permissions?: Record<string, boolean>;
+  approvalRules?: Record<string, boolean>;
 }
 
 export interface AiAgentStats {
   actionsToday?: number;
+  executedToday?: number;
+  failedToday?: number;
+  blockedToday?: number;
+  autoPausedReason?: string | null;
   pendingApprovals?: number;
   reportsGenerated?: number;
   errors?: number;
@@ -167,6 +176,9 @@ export interface AiAgentDetailResponse {
   recentLogs: AiAgentLog[];
   reports: AiAgentReport[];
   latestReport: AiAgentReport | null;
+  /** Кому "закреплён" агент для контактной подсказки в профиле — чисто информационное, не гейт
+   * доступа (доступ к разделу решает RBAC 'ai_employees' на бэкенде). */
+  responsible: { staffId: string; name: string; role: string; via: string } | null;
   role: AiEmployeeRole;
 }
 
@@ -191,6 +203,30 @@ export interface CreateAiAgentBody {
 
 export async function fetchAiEmployees(): Promise<AiAgentsListResponse> {
   return api.get<AiAgentsListResponse>('/ai-agents');
+}
+
+export interface AiAssignableRosterItem {
+  id: string;
+  name: string;
+  status: AiAgentStatus;
+  role: AiEmployeeRoleKey;
+  roleShortTitle: string;
+  roleAssignableEntityTypes: AiAssignableEntityType[];
+}
+
+/** Минимальный список нанятых ИИ-сотрудников — доступен всем (не за 'ai_employees'), для виджета
+ * назначения ИИ на свою запись (AiAssigneeGroup). Полный fetchAiEmployees() теперь ограничен
+ * руководителями отделов/владельцем (см. round 14). */
+/** objectId — сузить до сотрудников, у которых реально есть доступ (право + грант) именно к
+ * этой таблице рабочей области; без него — прежний общий список для назначения на лид/проект/etc. */
+export async function fetchAiAssignableRoster(
+  objectId?: string,
+  access?: 'read' | 'write',
+): Promise<AiAssignableRosterItem[]> {
+  const params: Record<string, string> = {};
+  if (objectId) params.objectId = objectId;
+  if (access) params.access = access;
+  return api.get<AiAssignableRosterItem[]>('/ai-assignments/roster', Object.keys(params).length ? { params } : undefined);
 }
 
 export async function fetchAiEmployee(id: string): Promise<AiAgentDetailResponse> {
@@ -388,7 +424,7 @@ export async function fetchAiAgentTasks(id: string): Promise<{ items: AiAgentAct
 
 /* ------------------------------------------------------------------ AI as responsible */
 
-export type AiAssignableEntityType = 'lead' | 'project' | 'company_task' | 'company' | 'contact';
+export type AiAssignableEntityType = 'lead' | 'project' | 'company_task' | 'company' | 'contact' | 'custom_object_record';
 
 export interface AiAssignee {
   agentId: string;
@@ -546,4 +582,30 @@ export interface ExpandInstructionsInput {
 
 export async function expandAiInstructions(input: ExpandInstructionsInput): Promise<{ text: string }> {
   return api.post('/ai-agents/expand-instructions', input);
+}
+
+export interface AiLesson {
+  id: string;
+  text: string;
+  at: string;
+}
+
+export async function fetchAiLessons(id: string): Promise<{ lessons: AiLesson[] }> {
+  return api.get(`/ai-agents/${encodeURIComponent(id)}/lessons`);
+}
+
+export async function deleteAiLesson(id: string, lessonId: string): Promise<{ ok: boolean }> {
+  return api.delete(`/ai-agents/${encodeURIComponent(id)}/lessons/${encodeURIComponent(lessonId)}`);
+}
+
+export async function askAiEmployee(
+  id: string,
+  input: {
+    message: string;
+    entityType: string;
+    entityId: string;
+    history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  },
+): Promise<{ ok: boolean; answer: string }> {
+  return api.post(`/ai-agents/${encodeURIComponent(id)}/ask`, input);
 }

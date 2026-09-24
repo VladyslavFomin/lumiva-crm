@@ -23,6 +23,7 @@ import { MulterWorkspaceUploadFilter } from './multer-workspace-upload.filter';
 import { WorkspaceAreaAccessGuard } from '../workspace-areas/workspace-area-access.guard';
 import { RequireAreaRole } from '../workspace-areas/require-area-role.decorator';
 import { CustomObjectsService } from './custom-objects.service';
+import { CustomObjectImportAiService } from './custom-object-import-ai.service';
 import { WORKSPACE_ATTACHMENT_MAX_BYTES } from './workspace-attachment.constants';
 import { CreateCustomObjectDto } from './dto/create-custom-object.dto';
 import { UpdateCustomObjectDto } from './dto/update-custom-object.dto';
@@ -46,7 +47,10 @@ const AREA_OWNER_ONLY = ['owner'] as const;
 @Controller('custom-objects')
 @UseGuards(JwtAuthGuard, WorkspaceAreaAccessGuard)
 export class CustomObjectsController {
-  constructor(private readonly service: CustomObjectsService) {}
+  constructor(
+    private readonly service: CustomObjectsService,
+    private readonly importAi: CustomObjectImportAiService,
+  ) {}
 
   @Get()
   async list(
@@ -323,6 +327,37 @@ export class CustomObjectsController {
     );
   }
 
+  @Post(':objectId/records/:recordId/fields/:fieldKey/ai-refresh')
+  @RequireAreaRole(...AREA_WRITE_RECORD)
+  async refreshAiColumn(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Param('recordId', new ParseUUIDPipe()) recordId: string,
+    @Param('fieldKey') fieldKey: string,
+  ) {
+    return this.service.refreshAiColumn(user.tenantId, objectId, recordId, fieldKey);
+  }
+
+  @Post(':objectId/fields/:fieldKey/ai-refresh-all')
+  @RequireAreaRole(...AREA_WRITE_RECORD)
+  async refreshAiColumnAll(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Param('fieldKey') fieldKey: string,
+  ) {
+    return this.service.refreshAiColumnAll(user.tenantId, objectId, fieldKey);
+  }
+
+  @Post(':objectId/ai-analytics')
+  @RequireAreaRole(...AREA_READ)
+  async analyzeTable(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Body() body: { agentId?: string; question?: string },
+  ) {
+    return this.service.analyzeTable(user.tenantId, objectId, String(body?.agentId || ''), String(body?.question || ''));
+  }
+
   @Delete(':objectId/records/:recordId')
   @RequireAreaRole(...AREA_WRITE_RECORD)
   async deleteRecord(
@@ -369,6 +404,21 @@ export class CustomObjectsController {
     @UploadedFile() file: any,
   ) {
     return this.service.previewImport(user.tenantId, objectId, file);
+  }
+
+  /**
+   * ИИ-реструктуризация "сырого" файла произвольной формы (напр. merged-колонка на N строк
+   * метрик) в плоскую таблицу — создаёт НОВУЮ import-сессию поверх уже загруженного файла;
+   * дальше идёт тот же map → apply flow, что и у обычного превью.
+   */
+  @Post(':objectId/import/:importId/reshape-ai')
+  @RequireAreaRole(...AREA_EDIT)
+  async reshapeImportWithAi(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Param('importId', new ParseUUIDPipe()) importId: string,
+  ) {
+    return this.importAi.reshapeWithAi(user.tenantId, objectId, importId);
   }
 
   @Post(':objectId/import/apply')

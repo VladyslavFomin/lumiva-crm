@@ -15,6 +15,7 @@ import { Tenant } from '../tenants/tenant.entity';
 import { Contact } from '../contacts/contact.entity';
 import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
+import { EntityComment } from '../common/comment.types';
 
 @Entity('companies')
 @Index(['tenantId', 'name'])
@@ -110,6 +111,14 @@ export class Company {
   @Column({ type: 'varchar', length: 255, nullable: true })
   assignedTo: string | null;
 
+  /**
+   * Несколько ответственных (карточка компании → «Ответственные», группировка по отделам).
+   * assignedUserId/assignedTo остаются как «основной» ответственный для списка/bulk-операций —
+   * при сохранении с фронтенда синхронизируются с assignedUserIds[0].
+   */
+  @Column({ type: 'text', array: true, default: [] })
+  assignedUserIds: string[];
+
   // ==== СТАТУС ====
   @Column({ type: 'varchar', length: 32, default: 'active' })
   status: string; // active, inactive, archived
@@ -117,6 +126,10 @@ export class Company {
   // ==== КАСТОМНЫЕ ПОЛЯ ====
   @Column({ type: 'jsonb', nullable: true })
   customFields: Record<string, any> | null;
+
+  // ==== КОММЕНТАРИИ (с упоминаниями/лайками/ответами — как у Lead.comments/Project.comments) ====
+  @Column({ type: 'jsonb', nullable: true })
+  comments: EntityComment[] | null;
 
   // ==== META ====
   @Column({ type: 'jsonb', nullable: true })

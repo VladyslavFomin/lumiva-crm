@@ -12,6 +12,9 @@ import {
   Tooltip,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -20,7 +23,59 @@ import {
 import type { Project } from '../pages/projects/projectTypes';
 import type { ProjectsAnalyticsWidgetConfig } from './analyticsStorage';
 
-const CHART_COLORS = ['#38bdf8', '#e11d48', '#f97316', '#22c55e', '#2563eb', '#6366f1'];
+/** Та же палитровая система тем, что на странице аналитики (THEME_PRESETS/PALETTES в
+ * ProjectsAnalyticsPage) — раньше этот файл рисовал донат/бар своим фиксированным набором цветов
+ * (CHART_COLORS), никак не связанным с выбранной темой виджета (w.themeKey), поэтому блок на
+ * главной был другого цвета, чем на самой странице аналитики. */
+const EMBED_PALETTES: Record<string, string[]> = {
+  lumiva: ['#222222', '#1769d1', '#3b6cb6', '#214b8a', '#1f8a5e', '#c08319'],
+  ocean: ['#0ea5e9', '#22d3ee', '#38bdf8', '#2563eb', '#14b8a6', '#06b6d4'],
+  sunset: ['#f97316', '#fb7185', '#f43f5e', '#f59e0b', '#fbbf24', '#fca5a5'],
+  forest: ['#22c55e', '#16a34a', '#4ade80', '#10b981', '#34d399', '#86efac'],
+  red: ['#dc2626', '#ef4444', '#f87171', '#fca5a5', '#fecaca'],
+};
+const EMBED_THEME_PRESETS: Array<{ key: string; primary: string; palette: string[] }> = [
+  { key: 'lumiva', primary: '#222222', palette: EMBED_PALETTES.lumiva },
+  { key: 'ocean', primary: '#2563eb', palette: EMBED_PALETTES.ocean },
+  { key: 'sunset', primary: '#f97316', palette: EMBED_PALETTES.sunset },
+  { key: 'forest', primary: '#16a34a', palette: EMBED_PALETTES.forest },
+  { key: 'red', primary: '#dc2626', palette: EMBED_PALETTES.red },
+];
+/** Отдельный от тем набор — на странице аналитики используется для «Сторон сравнения» формулы
+ * (V2_PALETTE), независимо от выбранной темы виджета. */
+const V2_PALETTE_EMBED = ['#222222', '#1769d1', '#3b6cb6', '#214b8a', '#1f8a5e', '#c08319', '#cc2f47', '#5a45a8'];
+
+/** Статусы лидов/проектов хранятся как русский текст и на страницах аналитики окрашены по смыслу
+ * (STATUS_COLORS в LeadsAnalyticsPageV2) — иначе один и тот же статус на главной был другого цвета,
+ * чем на источнике (цвет брался по индексу из темы). */
+const STATUS_COLORS_EMBED: Record<string, string> = {
+  'Новый клиент': '#1769d1',
+  'В работе': '#3b6cb6',
+  'Ожидает ответа': '#c08319',
+  'Закрыт (успех)': '#1f8a5e',
+  'Закрыт (проигран)': '#cc2f47',
+};
+const sliceColorEmbed = (label: string, idx: number, palette: string[]) =>
+  STATUS_COLORS_EMBED[label] ?? palette[idx % palette.length];
+
+function resolveThemeEmbed(key?: string) {
+  return EMBED_THEME_PRESETS.find((preset) => preset.key === key) || EMBED_THEME_PRESETS[0];
+}
+
+/** Совпадает с compactNumber на странице аналитики: округляет и форматирует ru-RU (пробел как
+ * разделитель тысяч) независимо от языка интерфейса — так же, как на источнике. */
+function compactNumberEmbed(value: number) {
+  return new Intl.NumberFormat('ru-RU').format(Math.round(value));
+}
+
+/** Совпадает с donutCenterFontClass на странице аналитики — фиксированный размер шрифта рано или
+ * поздно вылезает за кольцо пончика (суммы денег могут быть сколь угодно длинными). */
+function donutCenterFontClassEmbed(text: string, thresholds: Array<[number, string]>): string {
+  for (const [maxLen, cls] of thresholds) {
+    if (text.length <= maxLen) return cls;
+  }
+  return thresholds[thresholds.length - 1][1];
+}
 
 const parseNumericLoose = (raw: any): number | null => {
   if (raw === undefined || raw === null || raw === '') return null;
@@ -133,7 +188,7 @@ function buildSeriesForWidget(
       row.count += mode === 'sum' ? getNumericValue(item) : 1;
       grouped.set(code, row);
     });
-    return Array.from(grouped.values());
+    return Array.from(grouped.values()).sort((a, b) => b.count - a.count);
   }
 
   if (!chartKey.startsWith('field:')) return [];
@@ -154,7 +209,7 @@ function buildSeriesForWidget(
       grouped.set(value, row);
     });
   });
-  return Array.from(grouped.values());
+  return Array.from(grouped.values()).sort((a, b) => b.count - a.count);
 }
 
 function isWonProject(p: Project): boolean {
@@ -452,6 +507,60 @@ function formatEmbedTableAggCell(
   return n.toLocaleString(locale);
 }
 
+/** "summonths:m_2025_08,m_2025_09" — операнд формулы = сумма НЕСКОЛЬКИХ месячных колонок разом
+ * (см. buildSumMonthsType/parseSumMonthsKeys в ProjectsAnalyticsPage — тот же формат). Без этой
+ * ветки виджет с "Сторонами сравнения" (Разница/Доля по месяцам) всегда считался как 0. */
+function parseSumMonthsKeysEmbed(type: string): string[] {
+  return type.startsWith('summonths:') ? type.slice(10).split(',').filter(Boolean) : [];
+}
+
+/** Дата месяца по ключу поля вида "m_2025_08" — тот же паттерн, что parseMonthFieldDate на
+ * странице аналитики, но без доступа к CustomObjectField[] (здесь их нет) — работает только
+ * по ключу, без запасного варианта через человекочитаемую подпись поля. */
+function parseMonthFieldDateEmbed(fieldKey: string): Date | null {
+  const keyMatch = /^m_(\d{4})_(\d{1,2})$/.exec(fieldKey) || /^(\d{4})-(\d{1,2})$/.exec(fieldKey);
+  if (!keyMatch) return null;
+  const year = Number(keyMatch[1]);
+  const month = Number(keyMatch[2]);
+  if (year >= 1990 && year <= 2100 && month >= 1 && month <= 12) return new Date(year, month - 1, 1);
+  return null;
+}
+
+function describeMonthOperandEmbed(type: string, locale: string): string {
+  const fmt = (d: Date) => d.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
+  if (type.startsWith('summonths:')) {
+    const dates = parseSumMonthsKeysEmbed(type)
+      .map((k) => parseMonthFieldDateEmbed(k))
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (!dates.length) return 'Группа';
+    return dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])}–${fmt(dates[dates.length - 1])}`;
+  }
+  if (type.startsWith('sum:')) {
+    const fieldKey = type.slice(4);
+    const date = parseMonthFieldDateEmbed(fieldKey);
+    return date ? fmt(date) : fieldKey;
+  }
+  return '';
+}
+
+function describeCompareSideEmbed(
+  side: { id: string; label?: string; monthKeys: string[] },
+  locale: string,
+): string {
+  if (side.label?.trim()) return side.label.trim();
+  const keys = side.monthKeys.length ? `summonths:${side.monthKeys.join(',')}` : '';
+  return (keys && describeMonthOperandEmbed(keys, locale)) || 'Группа';
+}
+
+function sumCompareSideEmbed(side: { monthKeys: string[] }, sourceItems: Project[]): number {
+  return sourceItems.reduce(
+    (acc, item) =>
+      acc + side.monthKeys.reduce((s, k) => s + (parseNumericLoose(getCustomFieldValue(item, k)) ?? 0), 0),
+    0,
+  );
+}
+
 function resolveOperandFormulaEmbed(
   type: string | undefined,
   key: string | undefined,
@@ -459,6 +568,13 @@ function resolveOperandFormulaEmbed(
   t: TFunction,
 ): number {
   if (!type) return 0;
+  if (type.startsWith('summonths:')) {
+    const keys = parseSumMonthsKeysEmbed(type);
+    return sourceItems.reduce(
+      (acc, item) => acc + keys.reduce((s, k) => s + (parseNumericLoose(getCustomFieldValue(item, k)) ?? 0), 0),
+      0,
+    );
+  }
   if (type.startsWith('sum:')) {
     const fieldKey = type.slice(4);
     return sourceItems.reduce(
@@ -524,6 +640,9 @@ function evaluateFormulaWidgetEmbed(
   widgetItems: Project[],
   locale: string,
   t: TFunction,
+  compact: boolean | undefined,
+  activeDonut: number | null,
+  setActiveDonut: (value: number | null) => void,
 ): React.ReactElement {
   const fn = w.formulaFn ?? 'sumif';
   const mode = w.formulaMode ?? 'count';
@@ -581,16 +700,41 @@ function evaluateFormulaWidgetEmbed(
 
   const primaryLabel =
     mode === 'sum'
-      ? new Intl.NumberFormat(locale).format(primaryValue)
+      ? new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(primaryValue)
       : fn === 'percent' || fn === 'ratio' || mode === 'percent'
         ? `${primaryValue}%`
-        : primaryValue.toLocaleString(locale);
+        : primaryValue.toLocaleString(locale, { maximumFractionDigits: 2 });
   const secondaryLabel =
     secondaryValue === null
       ? null
-      : mode === 'percent' || fn === 'percent' || fn === 'ratio'
-        ? secondaryValue.toLocaleString(locale)
+      : mode === 'percent' || fn === 'percent' || fn === 'ratio' || fn === 'diff'
+        ? secondaryValue.toLocaleString(locale, { maximumFractionDigits: 2 })
         : `${secondaryValue}%`;
+
+  // Перенос "как показать сравнение" (bar/line/donut/table) со страницы аналитики — раньше этот
+  // компонент рисовал только голое число, даже если на источнике был выбран график. Операнды тут
+  // уже валидировались при настройке виджета на странице аналитики, поэтому здесь просто доверяем
+  // w.compareDisplay, а не пере-проверяем isMonthOperand (для этого нужны были бы CustomObjectField[],
+  // которых у embed-компонента нет).
+  const compareDisplay = w.compareDisplay ?? 'number';
+  const showCompareVisual = compareDisplay !== 'number';
+  const compareLeftLabel = describeMonthOperandEmbed(leftType, locale);
+  const compareRightLabel = describeMonthOperandEmbed(rightType, locale);
+  const compareData: Array<{ name: string; value: number; color: string }> = showCompareVisual
+    ? Array.isArray(w.compareSides) && w.compareSides.length >= 2
+      ? w.compareSides.map((side, idx) => ({
+          name: describeCompareSideEmbed(side, locale),
+          value: sumCompareSideEmbed(side, widgetItems),
+          color: side.color || V2_PALETTE_EMBED[idx % V2_PALETTE_EMBED.length],
+        }))
+      : [
+          { name: compareLeftLabel, value: leftValue, color: resolveThemeEmbed(w.themeKey).primary },
+          { name: compareRightLabel, value: rightValue, color: V2_PALETTE_EMBED[1] },
+        ]
+    : [];
+  const formatCompareValue = (value: number) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
+  const donutData = compareData.map((entry) => ({ ...entry, rawValue: entry.value, value: Math.abs(entry.value) }));
 
   return (
     <div className="flex flex-col gap-2">
@@ -598,13 +742,197 @@ function evaluateFormulaWidgetEmbed(
       <div className="font-['Inter_Tight'] text-[2rem] font-semibold tracking-[-0.04em] text-[#222] leading-none">
         {primaryLabel}
       </div>
-      {secondaryLabel != null && (
-        <div className="text-[11px] text-neutral-500">
-          {secondaryLabel} · {t('crm.projects.analytics.period.all')}
+      <div className="text-[11px] text-neutral-500">
+        {secondaryLabel != null ? `${secondaryLabel} · ` : ''}
+        {showCompareVisual ? compareData.map((d) => d.name).join(' vs ') : t('crm.projects.analytics.period.all')}
+      </div>
+      {showCompareVisual && compareDisplay === 'bar' && (
+        <div style={{ height: compact ? 90 : 140 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={compareData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9a9a9a', fontSize: 11 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#b5b5b5', fontSize: 11 }} width={36} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
+                formatter={(value: number) => [formatCompareValue(Number(value)), '']}
+              />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {compareData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
+      )}
+      {showCompareVisual && compareDisplay === 'line' && (
+        <div style={{ height: compact ? 90 : 140 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={compareData} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+              <CartesianGrid vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9a9a9a', fontSize: 11 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#b5b5b5', fontSize: 11 }} width={36} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
+                formatter={(value: number) => [formatCompareValue(Number(value)), '']}
+              />
+              <Area type="monotone" dataKey="value" stroke="#222222" strokeWidth={2.5} fill="transparent" isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {showCompareVisual && compareDisplay === 'donut' && (() => {
+        const donutTotal = donutData.reduce((sum, row) => sum + row.value, 0);
+        const donutTotalText = compactNumberEmbed(donutTotal);
+        const donutTotalFontClass = donutCenterFontClassEmbed(
+          donutTotalText,
+          compact
+            ? [[5, 'text-sm'], [7, 'text-xs'], [9, 'text-[10px]'], [Infinity, 'text-[9px]']]
+            : [[5, 'text-base'], [7, 'text-sm'], [9, 'text-xs'], [Infinity, 'text-[10px]']],
+        );
+        const activeProps =
+          activeDonut === null ? {} : ({ activeIndex: activeDonut, activeShape: renderActiveDonut } as any);
+        return (
+          <div className="grid grid-cols-[minmax(80px,0.9fr)_1.1fr] items-center gap-3" style={{ height: compact ? 90 : 140 }}>
+            <div className="relative h-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={donutData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={30}
+                    outerRadius={44}
+                    paddingAngle={2}
+                    stroke="#fff"
+                    strokeWidth={2}
+                    {...activeProps}
+                    onMouseLeave={() => setActiveDonut(null)}
+                    onMouseEnter={(_, idx) => setActiveDonut(idx)}
+                  >
+                    {donutData.map((entry, idx) => (
+                      <Cell
+                        key={entry.name}
+                        fill={entry.color}
+                        opacity={activeDonut === null || activeDonut === idx ? 1 : 0.3}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    wrapperStyle={{ zIndex: 20 }}
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12 }}
+                    formatter={(_value: number, _n, p: any) => [formatCompareValue(p?.payload?.rawValue ?? 0), '']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2">
+                <span className={`${donutTotalFontClass} font-semibold leading-tight text-center`}>
+                  {donutTotalText}
+                </span>
+                <span className="text-[9px] uppercase tracking-[0.18em] text-neutral-400">всего</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {donutData.map((entry, idx) => {
+                const isActive = activeDonut === idx;
+                return (
+                  <button
+                    key={entry.name}
+                    type="button"
+                    onMouseEnter={() => setActiveDonut(idx)}
+                    onMouseLeave={() => setActiveDonut(null)}
+                    className={`grid w-full grid-cols-[10px_1fr_auto] items-center gap-2 rounded-lg px-2 py-1 text-[11px] transition ${
+                      isActive ? 'bg-neutral-100 text-[#222]' : 'text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: entry.color }} />
+                    <span className="truncate text-left">{entry.name}</span>
+                    <span className="font-mono text-[#222]">{formatCompareValue(entry.rawValue)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+      {showCompareVisual && compareDisplay === 'table' && (
+        <table className="w-full border-collapse text-[11px]">
+          <tbody>
+            {compareData.map((entry) => (
+              <tr key={entry.name} className="border-b border-neutral-100 last:border-b-0">
+                <td className="py-2 pr-3 font-medium text-neutral-600">
+                  <span className="mr-2 inline-block h-2 w-2 rounded-sm align-middle" style={{ backgroundColor: entry.color }} />
+                  {entry.name}
+                </td>
+                <td className="py-2 text-right font-mono text-[#222]">{formatCompareValue(entry.value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
+}
+
+function parseDateEmbed(value?: string | null): Date | null {
+  if (!value) return null;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? new Date(ts) : null;
+}
+
+/** Порт buildTrend со страницы аналитики (ProjectsAnalyticsPage): до 12 равных корзин по createdAt.
+ * Вариант "широкой помесячной таблицы" (buildMonthTrend) не портирован — он завязан на состояние
+ * страницы (monthFieldDates/activePeriodRange); для такого виджета тренд будет по createdAt. */
+function buildTrendEmbed(
+  sourceItems: Project[],
+  mode: 'count' | 'sum',
+  valueField: string | undefined,
+  locale: string,
+): Array<{ name: string; value: number; previous: number }> {
+  const dated = sourceItems
+    .map((item) => ({ item, date: parseDateEmbed(item.createdAt) }))
+    .filter((entry): entry is { item: Project; date: Date } => Boolean(entry.date));
+  if (!dated.length) return [{ name: '—', value: 0, previous: 0 }];
+  const minTime = Math.min(...dated.map((e) => e.date.getTime()));
+  const maxTime = Math.max(...dated.map((e) => e.date.getTime()));
+  const from = new Date(minTime);
+  const days = Math.max(1, Math.ceil((maxTime - minTime) / 86_400_000) + 1);
+  const pointCount = Math.max(2, Math.min(days, 12));
+  const bucketSize = Math.max(1, Math.ceil(days / pointCount));
+  const aggregate = (rows: Project[]) =>
+    mode === 'sum' ? rows.reduce((sum, item) => sum + pivotNumericValueEmbed(item, valueField), 0) : rows.length;
+  return Array.from({ length: pointCount }, (_, index) => {
+    const start = new Date(from);
+    start.setDate(from.getDate() + index * bucketSize);
+    const end = new Date(start);
+    end.setDate(start.getDate() + bucketSize);
+    const rows = dated.filter((e) => e.date >= start && e.date < end).map((e) => e.item);
+    return {
+      name: start.toLocaleDateString(locale, { day: 'numeric', month: 'short' }),
+      value: aggregate(rows),
+      previous: 0,
+    };
+  });
+}
+
+function buildHeatmapEmbed(sourceItems: Project[]) {
+  const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const hours = ['00', '03', '06', '09', '12', '15', '18', '21'];
+  return days.map((day, dayIndex) => ({
+    day,
+    hours: hours.map((hour) => {
+      const startHour = Number(hour);
+      const value = sourceItems.filter((item) => {
+        const date = parseDateEmbed(item.createdAt);
+        if (!date) return false;
+        const jsDay = date.getDay();
+        const normalizedDay = jsDay === 0 ? 6 : jsDay - 1;
+        return normalizedDay === dayIndex && date.getHours() >= startHour && date.getHours() < startHour + 3;
+      }).length;
+      return { hour, value };
+    }),
+  }));
 }
 
 const renderActiveDonut = (props: any) => {
@@ -629,9 +957,14 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
   locale: string;
   t: TFunction;
   compact?: boolean;
-}> = ({ widget: w, items, locale, t, compact }) => {
+  /** Источник — таблица рабочей области / клиентский аккаунт (не Projects/Sales/Leads). Нужно,
+   * чтобы для type=table без tableKey (или с tableKey, который не совпал ни с одной специальной
+   * веткой) показать ту же "умную" превью-таблицу с месячными колонками, что и на источнике,
+   * а не молча падать в ветку tableKey==='projects' с чужой структурой (имя/статус/сумма). */
+  isWorkspaceMode?: boolean;
+}> = ({ widget: w, items, locale, t, compact, isWorkspaceMode }) => {
   const [activeDonut, setActiveDonut] = useState<number | null>(null);
-  const palette = CHART_COLORS;
+  const palette = resolveThemeEmbed(w.themeKey).palette;
 
   const widgetItems = useMemo(() => {
     const filters = w.formulaFilters;
@@ -666,15 +999,24 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
       w.chartValueField,
       t,
       isWorkspaceChart,
-    );
+    ).sort((a, b) => b.count - a.count);
     const donutTotal = donutData.reduce((sum, row) => sum + row.count, 0);
+    const donutTotalText = compactNumberEmbed(donutTotal);
+    const donutTotalFontClass = donutCenterFontClassEmbed(
+      donutTotalText,
+      compact
+        ? [[5, 'text-base'], [7, 'text-sm'], [9, 'text-xs'], [Infinity, 'text-[10px]']]
+        : [[5, 'text-2xl'], [7, 'text-xl'], [9, 'text-lg'], [Infinity, 'text-base']],
+    );
     const activeProps =
       activeDonut === null ? {} : ({ activeIndex: activeDonut, activeShape: renderActiveDonut } as any);
     return (
       <div className="space-y-2">
         <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
         <div className="flex flex-col gap-3 md:flex-row md:items-start">
-          <div style={{ height: chartH }} className="md:flex-1 w-full">
+          {/* sticky: длинная легенда (много категорий) растягивает карточку выше видимой области —
+              без sticky пончик оказывался прижат к низу видимой части. */}
+          <div className="relative md:flex-1 w-full md:sticky md:top-0" style={{ height: chartH }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -693,29 +1035,42 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
                   {donutData.map((entry, idx) => (
                     <Cell
                       key={entry.code}
-                      fill={palette[idx % palette.length]}
+                      fill={sliceColorEmbed(entry.label, idx, palette)}
                       opacity={activeDonut === null || activeDonut === idx ? 1 : 0.35}
                     />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e5e5', fontSize: 12 }} />
+                <Tooltip wrapperStyle={{ zIndex: 20 }} contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2">
+              <span className={`${donutTotalFontClass} font-semibold leading-tight text-center`}>
+                {donutTotalText}
+              </span>
+              <span className="text-[9px] uppercase tracking-[0.18em] text-neutral-400">всего</span>
+            </div>
           </div>
           {w.showLabels !== false && (
-            <div className="md:w-44 space-y-1 text-[10px] max-h-[140px] overflow-y-auto">
+            <div className="md:w-44 space-y-1">
               {donutData.map((entry, idx) => {
                 const percent = donutTotal > 0 ? Math.round((entry.count / donutTotal) * 100) : 0;
+                const isActive = activeDonut === idx;
                 return (
-                  <div key={entry.code} className="flex justify-between gap-2 text-neutral-600">
-                    <span className="truncate flex items-center gap-1.5">
-                      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: palette[idx % palette.length] }} />
-                      {entry.label}
+                  <button
+                    key={entry.code}
+                    type="button"
+                    onMouseEnter={() => setActiveDonut(idx)}
+                    onMouseLeave={() => setActiveDonut(null)}
+                    className={`grid w-full grid-cols-[10px_1fr_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs transition ${
+                      isActive ? 'bg-neutral-100 text-[#222]' : 'text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: sliceColorEmbed(entry.label, idx, palette) }} />
+                    <span className="truncate text-left">{entry.label}</span>
+                    <span className="font-mono text-[#222]">
+                      {compactNumberEmbed(entry.count)} <span className="text-neutral-400">· {percent}%</span>
                     </span>
-                    <span className="font-mono tabular-nums text-[#222]">
-                      {entry.count} · {percent}%
-                    </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -743,10 +1098,10 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#888888' }} interval={0} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9, fill: '#b5b5b5' }} width={28} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e5e5', fontSize: 12 }} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }} />
               <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={compact ? 18 : 28}>
-                {barData.map((_, idx) => (
-                  <Cell key={idx} fill={palette[idx % palette.length]} />
+                {barData.map((row, idx) => (
+                  <Cell key={idx} fill={sliceColorEmbed(row.label, idx, palette)} />
                 ))}
               </Bar>
             </BarChart>
@@ -886,6 +1241,61 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
                 <td className="py-1 text-right">
                   {formatEmbedTableAggCell(c.count, tableAggMode, tableAggField, locale, t, tableCurrency)}
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (w.type === 'table' && isWorkspaceMode) {
+    // На источнике (ProjectsAnalyticsPage) этот же случай — generic-превью таблицы рабочей области
+    // без tableKey — показывает запись + до 3 последних месячных колонок, а не имя/статус/сумму.
+    // Без этой ветки виджет молча попадал в tableKey==='projects' ниже (чужая структура + чужие
+    // цифры, ноль почти везде — вот и была "разница" с источником, о которой сообщил пользователь).
+    // Полностью повторить "умный" выбор месяцев источника (зависящий от выбранного на странице
+    // периода) здесь нельзя — у главной нет своего периода, поэтому берём последние 3 месяца.
+    const allKeys = new Set<string>();
+    widgetItems.forEach((item) => Object.keys(item.customFields || {}).forEach((k) => allKeys.add(k)));
+    const monthKeysSorted = [...allKeys]
+      .map((key) => ({ key, date: parseMonthFieldDateEmbed(key) }))
+      .filter((entry): entry is { key: string; date: Date } => !!entry.date)
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map((entry) => entry.key);
+    const previewMonthKeys = monthKeysSorted.slice(-3);
+    const dimensionKey = [...allKeys].find((key) => !monthKeysSorted.includes(key));
+    const previewColumns = [
+      ...(dimensionKey ? [dimensionKey] : []),
+      ...previewMonthKeys,
+    ];
+    const rows = widgetItems.slice(0, compact ? 4 : 12);
+    return (
+      <div className="overflow-x-auto">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-2">{w.title}</div>
+        <table className="w-full text-[10px] border-separate border-spacing-y-1">
+          <thead className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-400">
+            <tr className="border-b border-neutral-200">
+              <th className="text-left font-normal px-1 py-1">{t('crm.projects.analytics.table.headers.project')}</th>
+              {previewColumns.map((key) => {
+                const date = parseMonthFieldDateEmbed(key);
+                return (
+                  <th key={key} className="text-left font-normal px-1 py-1">
+                    {date ? date.toLocaleDateString(locale, { month: 'short', year: 'numeric' }) : key}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id} className="bg-neutral-50/90">
+                <td className="px-1 py-1 text-[#222] truncate max-w-[100px]">{p.name}</td>
+                {previewColumns.map((key) => (
+                  <td key={key} className="px-1 py-1 text-neutral-600 whitespace-nowrap">
+                    {String(p.customFields?.[key] ?? '—')}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -1041,7 +1451,180 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
   }
 
   if (w.type === 'formula') {
-    return evaluateFormulaWidgetEmbed(w, widgetItems, locale, t);
+    return evaluateFormulaWidgetEmbed(w, widgetItems, locale, t, compact, activeDonut, setActiveDonut);
+  }
+
+  const widgetColor = resolveThemeEmbed(w.themeKey).primary;
+  const seriesFor = () =>
+    buildSeriesForWidget(
+      w.chartKey || 'status',
+      widgetItems,
+      w.chartValueMode || 'count',
+      w.chartValueField,
+      t,
+      isWorkspaceChart,
+    );
+  const pct = (value: number, max: number) => (max > 0 ? Math.round((value / max) * 100) : 0);
+
+  if (w.type === 'line') {
+    const trend = buildTrendEmbed(widgetItems, w.chartValueMode === 'sum' ? 'sum' : 'count', w.chartValueField, locale);
+    const areaId = `embed-area-${w.id}`;
+    return (
+      <div className="space-y-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div style={{ height: chartH + 40 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trend} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
+              <defs>
+                <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={widgetColor} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={widgetColor} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9a9a9a', fontSize: 10 }} />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#b5b5b5', fontSize: 10 }}
+                domain={[0, (max: number) => Math.max(1, Number(max) || 0)]}
+                allowDecimals={false}
+                width={36}
+              />
+              <Tooltip
+                contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
+                formatter={(value: number) => [compactNumberEmbed(Number(value)), '']}
+              />
+              <Area type="monotone" dataKey="value" stroke={widgetColor} strokeWidth={2.5} fill={`url(#${areaId})`} dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: widgetColor }} connectNulls isAnimationActive={false} />
+              <Line type="monotone" dataKey="previous" stroke="#3b6cb6" strokeWidth={1.5} strokeDasharray="6 5" dot={false} connectNulls isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  }
+
+  if (w.type === 'funnel') {
+    const statusOrder = Object.keys(STATUS_COLORS_EMBED);
+    const series = seriesFor();
+    // Воронка по статусам идёт в порядке этапов (как на странице лидов), а не по убыванию.
+    const byStage = series.length > 0 && series.every((row) => statusOrder.includes(row.label));
+    const ordered = [...series].sort((a, b) =>
+      byStage ? statusOrder.indexOf(a.label) - statusOrder.indexOf(b.label) : b.count - a.count,
+    );
+    const max = Math.max(1, ...ordered.map((row) => row.count), 1);
+    return (
+      <div className="space-y-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div className="flex flex-col justify-center">
+          {ordered.map((item, index) => (
+            <div key={item.code} className="grid grid-cols-[110px_1fr_52px] items-center gap-3 border-b border-neutral-100 py-1.5 text-xs last:border-b-0">
+              <span className="truncate font-medium text-[#222]">{item.label}</span>
+              <span className="h-6 overflow-hidden rounded-md bg-neutral-100">
+                <span
+                  className="flex h-full items-center rounded-md px-2 font-mono text-[10px] font-medium text-white"
+                  style={{ width: `${Math.max(8, pct(item.count, max))}%`, backgroundColor: sliceColorEmbed(item.label, index, palette) }}
+                >
+                  {compactNumberEmbed(item.count)}
+                </span>
+              </span>
+              <span className="text-right font-mono text-neutral-500">{index === 0 ? '100%' : `${pct(item.count, max)}%`}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (w.type === 'leaderboard') {
+    const grouped = buildSeriesForWidget(
+      w.chartKey || 'owner',
+      widgetItems,
+      w.chartValueMode || 'count',
+      w.chartValueField,
+      t,
+      isWorkspaceChart,
+    ).slice(0, compact ? 4 : 8);
+    const max = Math.max(1, ...grouped.map((row) => row.count));
+    return (
+      <div className="space-y-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div className="flex flex-col justify-center">
+          {grouped.map((row, index) => (
+            <div key={row.code} className="grid grid-cols-[26px_1fr_80px_60px] items-center gap-3 border-b border-neutral-100 py-1.5 text-xs last:border-b-0">
+              <span className="font-mono text-neutral-400">#{index + 1}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ backgroundColor: widgetColor }}>
+                  {row.label.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+                </span>
+                <span className="truncate font-medium text-[#222]">{row.label}</span>
+              </span>
+              <span className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                <span className="block h-full rounded-full" style={{ width: `${pct(row.count, max)}%`, backgroundColor: widgetColor }} />
+              </span>
+              <span className="text-right font-mono text-[#222]">{compactNumberEmbed(row.count)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (w.type === 'heatmap') {
+    const heatmap = buildHeatmapEmbed(widgetItems);
+    const max = Math.max(1, ...heatmap.flatMap((row) => row.hours.map((hour) => hour.value)));
+    return (
+      <div className="space-y-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div className="grid grid-cols-[32px_repeat(8,1fr)] gap-1">
+          <span />
+          {heatmap[0]?.hours.map((hour) => (
+            <span key={hour.hour} className="text-center font-mono text-[10px] text-neutral-400">{hour.hour}</span>
+          ))}
+          {heatmap.map((row) => (
+            <React.Fragment key={row.day}>
+              <span className="pr-1 text-right font-mono text-[10px] text-neutral-400">{row.day}</span>
+              {row.hours.map((hour) => (
+                <span
+                  key={`${row.day}-${hour.hour}`}
+                  className="aspect-square rounded"
+                  title={`${row.day} ${hour.hour}:00 — ${hour.value}`}
+                  style={{ backgroundColor: widgetColor, opacity: Math.max(0.06, Math.min(1, hour.value / max)) }}
+                />
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (w.type === 'note') {
+    const topStatus = buildSeriesForWidget(
+      isWorkspaceMode ? w.chartKey || '' : 'status',
+      widgetItems,
+      'count',
+      undefined,
+      t,
+      isWorkspaceChart,
+    )[0];
+    const topOwner = !isWorkspaceMode
+      ? buildSeriesForWidget('owner', widgetItems, 'count', undefined, t, false)[0]
+      : null;
+    const totalAmount = widgetItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const currency = widgetItems[0]?.currency || items[0]?.currency || 'EUR';
+    return (
+      <div className="space-y-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div className="text-sm leading-6 text-neutral-600">
+          В выборке <strong className="text-[#222]">{compactNumberEmbed(widgetItems.length)}</strong>{' '}
+          {isWorkspaceMode ? 'записей' : 'проектов'}.
+          {topStatus && <> Главный сегмент — <strong className="text-[#222]">{topStatus.label}</strong>.</>}
+          {topOwner && <> Ответственный с максимальной нагрузкой — <strong className="text-[#222]">{topOwner.label}</strong>.</>}
+          {!isWorkspaceMode && <> Общая сумма — <strong className="text-[#222]">{compactNumberEmbed(totalAmount)} {currency}</strong>.</>}
+        </div>
+      </div>
+    );
   }
 
   return (

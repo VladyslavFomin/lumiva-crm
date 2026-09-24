@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -44,7 +45,27 @@ export class SmmController {
       note?: string;
     },
   ) {
-    return this.smmService.createProfile(user.tenantId, body);
+    return this.smmService.toPublicProfile(
+      await this.smmService.createProfile(user.tenantId, body),
+    );
+  }
+
+  @Patch('profiles/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: { isActive?: boolean; url?: string | null },
+  ) {
+    return this.smmService.updateProfile(user.tenantId, id, body);
+  }
+
+  // -------- статус подключений --------
+
+  @Get('integrations')
+  @UseGuards(JwtAuthGuard)
+  async integrationsStatus(@CurrentUser() user: CurrentUserPayload) {
+    return this.smmService.getIntegrationsStatus(user.tenantId);
   }
 
   @Delete('profiles/:id')
@@ -165,7 +186,9 @@ export class SmmController {
       igUserId?: string;
     },
   ) {
-    return this.smmService.connectMetaProfile(user.tenantId, body);
+    return this.smmService.toPublicProfile(
+      await this.smmService.connectMetaProfile(user.tenantId, body),
+    );
   }
 
   // -------- VK OAUTH --------
@@ -202,7 +225,9 @@ export class SmmController {
     @Body()
     body: { groupId?: number; screenName?: string },
   ) {
-    return this.smmService.connectVkGroup(user.tenantId, body);
+    return this.smmService.toPublicProfile(
+      await this.smmService.connectVkGroup(user.tenantId, body),
+    );
   }
 
   @Post('vk/sync')

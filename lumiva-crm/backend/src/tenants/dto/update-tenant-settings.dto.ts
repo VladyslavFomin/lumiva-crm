@@ -35,6 +35,11 @@ export class UpdateTenantSettingsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(8)
+  primaryCurrency?: string | null;
+
+  @IsOptional()
+  @IsString()
   @IsIn(['basic', 'pro'], { message: 'plan должен быть basic или pro' })
   plan?: string;
 

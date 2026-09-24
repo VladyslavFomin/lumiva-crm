@@ -10,10 +10,15 @@ import type { Project } from '../pages/projects/projectTypes';
 import type { DashboardPresetSource } from './presetCatalog';
 import {
   convertMarketingAmount,
-  loadMarketingDisplayCurrency,
-  normalizeMarketingDisplayCurrency,
 } from '../pages/marketing/marketingDisplayCurrencyStorage';
 import { translateSalesOrderStatus } from './salesOrderStatusLabel';
+import { loadDashboardFx, type DashboardFx } from './dashboardFx';
+
+/** Проект с суммой, приведённой к валюте отчёта (у разных проектов разные валюты). */
+export function convertProjectToReportCurrency(p: Project, fx: DashboardFx): Project {
+  if (typeof p.amount !== 'number') return { ...p, currency: fx.currency };
+  return { ...p, amount: Math.round(fx.convert(p.amount, p.currency) * 100) / 100, currency: fx.currency };
+}
 
 function parseProjectsRes(res: unknown): Project[] {
   if (Array.isArray((res as any)?.items)) return (res as any).items;
@@ -47,10 +52,10 @@ function buildProjectsByLeadId(projects: Project[]) {
 async function loadAllSalesMapped(
   channelNameById: Map<string, string>,
   t: TFunction,
+  fx: DashboardFx,
 ): Promise<Project[]> {
-  const currencyPrefs = loadMarketingDisplayCurrency();
-  const displayCurrency = normalizeMarketingDisplayCurrency(currencyPrefs.displayCurrency);
-  const rates = { ...currencyPrefs.rates, [displayCurrency]: 1 };
+  const displayCurrency = fx.currency;
+  const rates = fx.rates;
   const pageSize = 200;
   let page = 1;
   const all: Project[] = [];
@@ -135,10 +140,10 @@ function mapLeadsToProjects(
   leads: Lead[],
   projectsByLeadId: Map<string, Project[]>,
   t: TFunction,
+  fx: DashboardFx,
 ): Project[] {
-  const currencyPrefs = loadMarketingDisplayCurrency();
-  const displayCurrency = normalizeMarketingDisplayCurrency(currencyPrefs.displayCurrency);
-  const rates = { ...currencyPrefs.rates, [displayCurrency]: 1 };
+  const displayCurrency = fx.currency;
+  const rates = fx.rates;
   const detectAmount = (lead: Lead) => {
     const fields = (lead.customFields || {}) as Record<string, any>;
     const amountLikeKey = Object.keys(fields).find((key) => {
@@ -266,9 +271,10 @@ export async function loadAnalyticsItemsForSource(
   t: TFunction,
 ): Promise<Project[]> {
   try {
+    const fx = await loadDashboardFx();
     if (source === 'projects') {
       const res = await fetchProjects();
-      return parseProjectsRes(res);
+      return parseProjectsRes(res).map((p) => convertProjectToReportCurrency(p, fx));
     }
     if (source === 'leads') {
       const [raw, projectsRes] = await Promise.all([
@@ -276,13 +282,13 @@ export async function loadAnalyticsItemsForSource(
         fetchProjects().catch(() => ({ total: 0, items: [] as Project[] })),
       ]);
       const leads = (raw || []).filter((l) => !isLeadOmittedFromAnalytics(l));
-      return mapLeadsToProjects(leads, buildProjectsByLeadId(parseProjectsRes(projectsRes)), t);
+      return mapLeadsToProjects(leads, buildProjectsByLeadId(parseProjectsRes(projectsRes)), t, fx);
     }
     if (source === 'sales') {
       const channels = await fetchSalesChannels().catch(() => [] as any[]);
       const map = new Map<string, string>();
       (channels || []).forEach((c: any) => map.set(c.id, c.name));
-      return await loadAllSalesMapped(map, t);
+      return await loadAllSalesMapped(map, t, fx);
     }
   } catch {
     /* ignore */

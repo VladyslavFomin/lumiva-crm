@@ -5,6 +5,12 @@ import { Repository } from 'typeorm';
 import { Lead } from './lead.entity';
 import { EmailService } from '../email/email.service';
 import { StaffUser } from '../staff/staff-user.entity';
+import { TenantsService } from '../tenants/tenants.service';
+
+// Совпадает с приоритетом рынков (Турция, затем Россия) и дефолтом booking-project.entity.ts.
+function timezoneForTenant(uiLanguage: string | null | undefined): string {
+  return uiLanguage === 'tr' ? 'Europe/Istanbul' : 'Europe/Moscow';
+}
 
 type LeadMeeting = {
   id: string;
@@ -31,6 +37,7 @@ export class LeadsMeetingsReminderService {
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
     private readonly emailService: EmailService,
+    private readonly tenantsService: TenantsService,
   ) {}
 
   @Cron('* * * * *')
@@ -39,6 +46,7 @@ export class LeadsMeetingsReminderService {
     if (!leads.length) return;
 
     const accountsByTenant = new Map<string, string>();
+    const timezoneByTenant = new Map<string, string>();
     const now = Date.now();
 
     for (const lead of leads) {
@@ -69,6 +77,7 @@ export class LeadsMeetingsReminderService {
 
         const accountId = await this.getAccountIdForTenant(lead.tenantId, accountsByTenant);
         if (!accountId) continue;
+        const timezone = await this.getTimezoneForTenant(lead.tenantId, timezoneByTenant);
 
         try {
           const cc = await this.getAttendeeEmails(lead.tenantId, meeting.attendeeUserIds || [], lead.email);
@@ -77,7 +86,7 @@ export class LeadsMeetingsReminderService {
             to: [lead.email],
             cc: cc.length ? cc : undefined,
             subject: this.buildSubject(reminderKind, meeting),
-            textBody: this.buildTextBody(lead, meeting, reminderKind),
+            textBody: this.buildTextBody(lead, meeting, reminderKind, timezone),
             leadId: lead.id,
             contactId: lead.contactId || undefined,
             companyId: lead.companyId || undefined,
@@ -106,6 +115,20 @@ export class LeadsMeetingsReminderService {
         await this.leadsRepo.save(lead);
       }
     }
+  }
+
+  private async getTimezoneForTenant(tenantId: string, cache: Map<string, string>): Promise<string> {
+    const cached = cache.get(tenantId);
+    if (cached) return cached;
+    let tz = 'Europe/Moscow';
+    try {
+      const tenant = await this.tenantsService.findOne(tenantId);
+      tz = timezoneForTenant(tenant?.uiLanguage);
+    } catch (error: any) {
+      this.logger.warn(`Failed to resolve timezone for tenant ${tenantId}: ${error?.message || 'unknown error'}`);
+    }
+    cache.set(tenantId, tz);
+    return tz;
   }
 
   private async getAccountIdForTenant(
@@ -177,9 +200,11 @@ export class LeadsMeetingsReminderService {
     return kind === '24h' ? `Напоминание (24ч): ${title}` : `Напоминание (1ч): ${title}`;
   }
 
-  private buildTextBody(lead: Lead, meeting: LeadMeeting, kind: '24h' | '1h'): string {
-    const startText = new Date(meeting.startsAt).toLocaleString('ru-RU');
-    const endText = meeting.endsAt ? new Date(meeting.endsAt).toLocaleString('ru-RU') : '';
+  private buildTextBody(lead: Lead, meeting: LeadMeeting, kind: '24h' | '1h', timezone: string): string {
+    const startText = new Date(meeting.startsAt).toLocaleString('ru-RU', { timeZone: timezone });
+    const endText = meeting.endsAt
+      ? new Date(meeting.endsAt).toLocaleString('ru-RU', { timeZone: timezone })
+      : '';
     const lines = [
       `Здравствуйте${lead.name ? `, ${lead.name}` : ''}!`,
       '',

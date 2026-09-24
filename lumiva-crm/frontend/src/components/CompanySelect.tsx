@@ -17,7 +17,7 @@ interface CompanySelectProps {
 export const CompanySelect: React.FC<CompanySelectProps> = ({
   value,
   onChange,
-  placeholder = 'Выберите компанию...',
+  placeholder,
   className = '',
   allowCreate = true,
   onCompanyCreated,
@@ -179,7 +179,7 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('crm.companySelect.placeholder')}
           className={inputClassName}
         />
         {selectedCompany && (
@@ -196,9 +196,9 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
       {isOpen && (
         <div className={dropdownClassName}>
           {loading ? (
-            <div className="px-3 py-2 text-xs text-slate-500">Загрузка...</div>
+            <div className="px-3 py-2 text-xs text-slate-500">{t('crm.companySelect.loading')}</div>
           ) : filteredCompanies.length === 0 && !showCreateOption ? (
-            <div className="px-3 py-2 text-xs text-slate-500">Компании не найдены</div>
+            <div className="px-3 py-2 text-xs text-slate-500">{t('crm.companySelect.notFound')}</div>
           ) : (
             <>
               {filteredCompanies.map((company) => (
@@ -228,11 +228,11 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
                   }
                 >
                   {creating ? (
-                    <span className="text-slate-500">Создание...</span>
+                    <span className="text-slate-500">{t('crm.companySelect.creating')}</span>
                   ) : (
                     <>
                       <span className={theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}>
-                        + Создать компанию:{' '}
+                        {t('crm.companySelect.create')}{' '}
                       </span>
                       <span className={theme === 'dark' ? 'font-medium text-slate-100' : 'font-medium text-slate-900'}>
                         {search.trim()}

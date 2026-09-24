@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { YookassaApiService } from '../../integrations/yookassa/yookassa-api.service';
 import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
 import { TenantPlanActivationService, type BillingPeriod, type PlanCode } from './tenant-plan-activation.service';
+import { BillingAlertsService } from '../billing-alerts.service';
 import type { Tenant } from '../../tenants/tenant.entity';
 
 /**
@@ -16,6 +17,7 @@ export class YookassaBillingProvider {
     private readonly yookassa: YookassaApiService,
     private readonly settings: PlatformSettingsService,
     private readonly planActivation: TenantPlanActivationService,
+    private readonly billingAlerts: BillingAlertsService,
   ) {}
 
   private async getCreds() {
@@ -59,7 +61,14 @@ export class YookassaBillingProvider {
     const plan = (meta.plan || 'standard') as PlanCode;
     const period = (meta.period || 'month') as BillingPeriod;
     const paid = result.status === 'succeeded' && result.paid;
-    if (!paid || !tenantId) return { ok: false, tenantId };
+    if (!paid || !tenantId) {
+      // 'canceled' — терминальный отказ (карта отклонена и т.п.); 'pending'/'waiting_for_capture'
+      // ещё в процессе, уведомлять рано (вебхук/поллинг дойдёт сюда снова при смене статуса).
+      if (tenantId && result.status === 'canceled') {
+        await this.billingAlerts.notifyPaymentFailed(tenantId);
+      }
+      return { ok: false, tenantId };
+    }
 
     await this.planActivation.activatePaidCheckout({
       tenantId,

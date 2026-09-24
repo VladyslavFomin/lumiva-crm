@@ -6,7 +6,10 @@ import {
   IsArray,
   MaxLength,
   IsUUID,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { EntityCommentDto } from '../../common/comment.types';
 
 export class CreateContactDto {
   @IsOptional()
@@ -97,11 +100,22 @@ export class CreateContactDto {
   assignedTo?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  assignedUserIds?: string[];
+
+  @IsOptional()
   @IsString()
   @MaxLength(32)
   status?: string;
 
   @IsOptional()
   customFields?: Record<string, any>;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EntityCommentDto)
+  comments?: EntityCommentDto[];
 }
 

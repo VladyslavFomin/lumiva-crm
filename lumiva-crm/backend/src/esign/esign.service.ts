@@ -243,15 +243,21 @@ export class EsignService {
 
   // ========= documents =========
 
-  private decorateRow(d: EsignDocument, contactById: Map<string, Contact>) {
+  private decorateRow(d: EsignDocument, contactById: Map<string, Contact>, companyById: Map<string, Company>) {
     const contact = d.contactId ? contactById.get(d.contactId) : null;
+    const linkedCompany = d.entityType === 'company' && d.entityId ? companyById.get(d.entityId) : null;
     return {
       id: d.id,
       kind: d.kind,
       status: d.status,
+      source: d.source || 'generated',
+      title: d.title,
+      notes: d.notes,
+      companyId: linkedCompany?.id || null,
+      companyName: linkedCompany?.name || null,
       contactId: d.contactId,
       contactName: contact ? this.contactDisplayName(contact) : null,
-      contactCompany: contact?.company?.name || null,
+      contactCompany: contact?.company?.name || linkedCompany?.name || null,
       docNo: d.extraFields?.CONTRACT_NO || null,
       amount: d.amount,
       currency: d.currency,
@@ -270,7 +276,10 @@ export class EsignService {
     const contactIds = [...new Set(docs.map((d) => d.contactId).filter((id): id is string => !!id))];
     const contacts = contactIds.length ? await this.contactRepo.find({ where: { id: In(contactIds) }, relations: ['company'] }) : [];
     const contactById = new Map(contacts.map((c) => [c.id, c]));
-    return docs.map((d) => this.decorateRow(d, contactById));
+    const companyIds = [...new Set(docs.filter((d) => d.entityType === 'company' && d.entityId).map((d) => d.entityId as string))];
+    const companies = companyIds.length ? await this.companyRepo.find({ where: { id: In(companyIds), tenantId } }) : [];
+    const companyById = new Map(companies.map((c) => [c.id, c]));
+    return docs.map((d) => this.decorateRow(d, contactById, companyById));
   }
 
   async getDocument(tenantId: string, id: string) {
@@ -353,9 +362,132 @@ export class EsignService {
   /** Lets a draft's already-substituted text be hand-edited before it's sent — e.g. to fix a
    * leftover {KEY} mark or tweak wording the template didn't anticipate. Draft-only: once a
    * document has been sent, its text is part of the audit trail of what the signer saw. */
-  async updateDocument(tenantId: string, id: string, input: { bodyText?: string }) {
+  // ========= uploaded (already signed) documents =========
+
+  private parseUploadMeta(input: Record<string, any>) {
+    const str = (v: any, max: number) => {
+      const t = typeof v === 'string' ? v.trim() : '';
+      return t ? t.slice(0, max) : null;
+    };
+    let signedAt: Date | null | undefined;
+    if (input.signedAt !== undefined) {
+      const raw = str(input.signedAt, 40);
+      if (!raw) signedAt = null;
+      else {
+        // date-only values are pinned to noon UTC so the calendar day survives any timezone
+        const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00Z` : raw);
+        if (Number.isNaN(d.getTime())) throw new BadRequestException('Некорректная дата подписания');
+        signedAt = d;
+      }
+    }
+    let amount: string | null | undefined;
+    if (input.amount !== undefined) {
+      const raw = str(input.amount, 32);
+      if (!raw) amount = null;
+      else {
+        const n = parseFloat(raw.replace(/\s/g, '').replace(',', '.'));
+        if (!Number.isFinite(n) || n < 0 || n >= 1e12) throw new BadRequestException('Некорректная сумма договора');
+        amount = n.toFixed(2);
+      }
+    }
+    return {
+      title: str(input.title, 255),
+      kind: str(input.kind, 64),
+      docNo: input.docNo !== undefined ? str(input.docNo, 64) : undefined,
+      notes: input.notes !== undefined ? str(input.notes, 5000) : undefined,
+      currency: input.currency !== undefined ? str(input.currency, 8)?.toUpperCase() ?? null : undefined,
+      companyId: input.companyId !== undefined ? str(input.companyId, 64) : undefined,
+      signedAt,
+      amount,
+    };
+  }
+
+  private async assertCompany(tenantId: string, companyId: string) {
+    const company = await this.companyRepo.findOne({ where: { id: companyId, tenantId } });
+    if (!company) throw new BadRequestException('Компания не найдена');
+    return company;
+  }
+
+  private countPdfPages(buffer: Buffer): number {
+    const m = buffer.toString('latin1').match(/\/Type\s*\/Page(?![a-zA-Z])/g);
+    return Math.max(1, m?.length || 1);
+  }
+
+  /** Archives an already-signed PDF received from a counterparty (e.g. by email, printed and signed). */
+  async uploadSignedDocument(tenantId: string, userId: string | null, file: any, input: Record<string, any>) {
+    if (!file?.buffer?.length) throw new BadRequestException('Прикрепите PDF-файл');
+    const buffer: Buffer = file.buffer;
+    if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') throw new BadRequestException('Файл должен быть в формате PDF');
+
+    const meta = this.parseUploadMeta(input);
+    if (!meta.signedAt) throw new BadRequestException('Укажите дату подписания');
+    if (!meta.companyId) throw new BadRequestException('Выберите компанию — вторую сторону документа');
+    const company = await this.assertCompany(tenantId, meta.companyId);
+
+    // multer decodes multipart file names as latin1
+    let originalName = String(file.originalname || 'document.pdf');
+    try {
+      originalName = Buffer.from(originalName, 'latin1').toString('utf8');
+    } catch {
+      /* keep as is */
+    }
+    const baseName = originalName.replace(/\.pdf$/i, '').trim() || 'document';
+
+    const doc = this.docRepo.create({
+      tenantId,
+      createdByUserId: userId,
+      source: 'uploaded',
+      status: 'signed',
+      kind: meta.kind || 'Договор',
+      title: meta.title || baseName,
+      bodyText: '',
+      entityType: 'company',
+      entityId: company.id,
+      signedAt: meta.signedAt,
+      amount: meta.amount ?? null,
+      currency: meta.amount ? meta.currency ?? null : null,
+      extraFields: meta.docNo ? { CONTRACT_NO: meta.docNo } : null,
+      notes: meta.notes ?? null,
+      fileName: /\.pdf$/i.test(originalName) ? originalName.slice(0, 255) : `${baseName}.pdf`.slice(0, 255),
+      fileSizeBytes: buffer.length,
+      pageCount: this.countPdfPages(buffer),
+    });
+    await this.docRepo.save(doc);
+    doc.signedPdfUrl = await this.writePdf(tenantId, doc.id, 'signed', buffer);
+    await this.docRepo.save(doc);
+    return this.getDocument(tenantId, doc.id);
+  }
+
+  private async updateUploadedMeta(doc: EsignDocument, input: Record<string, any>) {
+    const meta = this.parseUploadMeta(input);
+    if (meta.title) doc.title = meta.title;
+    if (meta.kind) doc.kind = meta.kind;
+    if (meta.signedAt === null) throw new BadRequestException('Укажите дату подписания');
+    if (meta.signedAt) doc.signedAt = meta.signedAt;
+    if (meta.companyId !== undefined) {
+      if (!meta.companyId) throw new BadRequestException('Выберите компанию — вторую сторону документа');
+      const company = await this.assertCompany(doc.tenantId, meta.companyId);
+      doc.entityType = 'company';
+      doc.entityId = company.id;
+    }
+    if (meta.amount !== undefined) doc.amount = meta.amount;
+    if (meta.currency !== undefined) doc.currency = meta.currency;
+    if (!doc.amount) doc.currency = null;
+    if (meta.docNo !== undefined) {
+      const fields = { ...(doc.extraFields || {}) };
+      if (meta.docNo) fields.CONTRACT_NO = meta.docNo;
+      else delete fields.CONTRACT_NO;
+      doc.extraFields = Object.keys(fields).length ? fields : null;
+    }
+    if (meta.notes !== undefined) doc.notes = meta.notes;
+    await this.docRepo.save(doc);
+    return this.getDocument(doc.tenantId, doc.id);
+  }
+
+  async updateDocument(tenantId: string, id: string, input: Record<string, any>) {
     const doc = await this.docRepo.findOne({ where: { id, tenantId } });
     if (!doc) throw new NotFoundException('Документ не найден');
+    if (doc.source === 'uploaded') return this.updateUploadedMeta(doc, input);
     if (doc.status !== 'draft') throw new BadRequestException('Редактировать можно только черновики');
     if (input.bodyText !== undefined) {
       if (!input.bodyText.trim()) throw new BadRequestException('Текст документа не может быть пустым');
@@ -373,10 +505,13 @@ export class EsignService {
   async deleteDocument(tenantId: string, id: string) {
     const doc = await this.docRepo.findOne({ where: { id, tenantId } });
     if (!doc) throw new NotFoundException('Документ не найден');
-    if (doc.status !== 'draft') throw new BadRequestException('Удалить можно только черновик — отправленные и подписанные документы хранятся как история');
+    // uploaded archive copies may be removed (e.g. wrong file); documents that went through the
+    // signing flow are kept as history
+    if (doc.status !== 'draft' && doc.source !== 'uploaded') throw new BadRequestException('Удалить можно только черновик — отправленные и подписанные документы хранятся как история');
 
-    if (doc.draftPdfUrl) {
-      const relPath = doc.draftPdfUrl.replace(/^\/v1\/uploads\//, '');
+    for (const url of [doc.draftPdfUrl, doc.source === 'uploaded' ? doc.signedPdfUrl : null]) {
+      if (!url) continue;
+      const relPath = url.replace(/^\/v1\/uploads\//, '');
       try {
         await fs.unlink(joinUploadsAbsolute(relPath));
       } catch {
@@ -393,6 +528,7 @@ export class EsignService {
   async duplicateDocument(tenantId: string, id: string, userId: string) {
     const source = await this.docRepo.findOne({ where: { id, tenantId } });
     if (!source) throw new NotFoundException('Документ не найден');
+    if (source.source === 'uploaded') throw new BadRequestException('Загруженный документ нельзя дублировать');
 
     if (source.templateId && source.contactId) {
       const tplExists = await this.templateRepo.count({ where: { id: source.templateId, tenantId } });

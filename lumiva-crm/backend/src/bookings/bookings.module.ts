@@ -38,11 +38,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { CurrencyModule } from '../currency/currency.module';
+import { Tenant } from '../tenants/tenant.entity';
 import { StaffUsersModule } from '../staff/staff-users.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      Tenant,
       BookingProject,
       BookingLocation,
       BookingService,
@@ -61,6 +64,7 @@ import { StaffUsersModule } from '../staff/staff-users.module';
     RbacModule,
     forwardRef(() => AutomationsModule),
     TenantsModule,
+    CurrencyModule,
     forwardRef(() => StaffUsersModule),
   ],
   controllers: [

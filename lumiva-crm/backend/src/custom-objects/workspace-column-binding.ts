@@ -31,7 +31,8 @@ export interface ColumnBindingLookupByKeyV1 extends ColumnBindingBaseV1 {
 
 export interface ColumnBindingPickFromDataV1 extends ColumnBindingBaseV1 {
   mode: 'pick_from_data';
-  dataObjectId: string;
+  /** Одна или несколько таблиц данных — опции объединяются (union, без дублей). */
+  dataObjectIds: string[];
   dataFieldKey: string;
 }
 
@@ -42,11 +43,31 @@ export interface ColumnBindingCachedSnapshotV1 extends ColumnBindingBaseV1 {
 
 export interface ColumnBindingRollupV1 extends ColumnBindingBaseV1 {
   mode: 'rollup';
-  dataObjectId: string;
+  /**
+   * Одна или несколько таблиц данных — агрегат считается по строкам ВСЕХ сразу (общий
+   * GROUP BY, без UNION: custom_object_records — одна физическая таблица, objectId просто
+   * фильтр). Group/value поля должны существовать под тем же field.key во всех таблицах.
+   */
+  dataObjectIds: string[];
   groupByFieldKey: string;
   boardMatchFieldKey: string;
   aggregate: 'sum' | 'count' | 'avg' | 'min' | 'max';
   valueFieldKey: string;
+}
+
+/**
+ * Новая форма — dataObjectIds: string[] (несколько таблиц). Старая форма — одиночный
+ * dataObjectId: string (уже сохранённые поля до многотабличной агрегации) — нормализуем в
+ * массив из одного элемента для обратной совместимости.
+ */
+function parseDataObjectIds(o: Record<string, unknown>): string[] | null {
+  if (Array.isArray(o.dataObjectIds) && o.dataObjectIds.length && o.dataObjectIds.every((v) => typeof v === 'string')) {
+    return o.dataObjectIds as string[];
+  }
+  if (typeof o.dataObjectId === 'string' && o.dataObjectId) {
+    return [o.dataObjectId];
+  }
+  return null;
 }
 
 export function parseWorkspaceColumnBindingV1(
@@ -82,18 +103,17 @@ export function parseWorkspaceColumnBindingV1(
       description: typeof o.description === 'string' ? o.description : undefined,
     };
   }
-  if (
-    mode === 'pick_from_data' &&
-    typeof o.dataObjectId === 'string' &&
-    typeof o.dataFieldKey === 'string'
-  ) {
-    return {
-      version: 1,
-      mode: 'pick_from_data',
-      dataObjectId: o.dataObjectId,
-      dataFieldKey: o.dataFieldKey,
-      description: typeof o.description === 'string' ? o.description : undefined,
-    };
+  if (mode === 'pick_from_data' && typeof o.dataFieldKey === 'string') {
+    const dataObjectIds = parseDataObjectIds(o);
+    if (dataObjectIds) {
+      return {
+        version: 1,
+        mode: 'pick_from_data',
+        dataObjectIds,
+        dataFieldKey: o.dataFieldKey,
+        description: typeof o.description === 'string' ? o.description : undefined,
+      };
+    }
   }
   if (mode === 'cached_snapshot') {
     return {
@@ -105,7 +125,6 @@ export function parseWorkspaceColumnBindingV1(
   }
   if (
     mode === 'rollup' &&
-    typeof o.dataObjectId === 'string' &&
     typeof o.groupByFieldKey === 'string' &&
     typeof o.boardMatchFieldKey === 'string' &&
     typeof o.valueFieldKey === 'string' &&
@@ -115,16 +134,19 @@ export function parseWorkspaceColumnBindingV1(
       o.aggregate === 'min' ||
       o.aggregate === 'max')
   ) {
-    return {
-      version: 1,
-      mode: 'rollup',
-      dataObjectId: o.dataObjectId,
-      groupByFieldKey: o.groupByFieldKey,
-      boardMatchFieldKey: o.boardMatchFieldKey,
-      aggregate: o.aggregate,
-      valueFieldKey: o.valueFieldKey,
-      description: typeof o.description === 'string' ? o.description : undefined,
-    };
+    const dataObjectIds = parseDataObjectIds(o);
+    if (dataObjectIds) {
+      return {
+        version: 1,
+        mode: 'rollup',
+        dataObjectIds,
+        groupByFieldKey: o.groupByFieldKey,
+        boardMatchFieldKey: o.boardMatchFieldKey,
+        aggregate: o.aggregate,
+        valueFieldKey: o.valueFieldKey,
+        description: typeof o.description === 'string' ? o.description : undefined,
+      };
+    }
   }
   return null;
 }

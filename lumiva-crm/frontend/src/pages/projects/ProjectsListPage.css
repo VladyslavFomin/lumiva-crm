@@ -1188,7 +1188,7 @@
 .lv-popover-link:hover { color: var(--ink); }
 
 /* add-column type picker */
-.lv-coltype-popover { min-width: 300px; }
+.lv-coltype-popover { min-width: 300px; max-width: calc(100vw - 32px); }
 .lv-coltype-title { display: flex; align-items: center; gap: 6px; }
 .lv-coltype-back {
   display: flex;

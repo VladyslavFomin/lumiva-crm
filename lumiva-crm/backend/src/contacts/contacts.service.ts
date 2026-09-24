@@ -129,24 +129,21 @@ export class ContactsService {
     });
     const leads = excludeTrashedLeads(leadsRaw);
 
-    // Проекты контакта (через лиды)
+    // Проекты контакта — объединение по contactId (проект привязан к контакту напрямую) и по
+    // lead_id (проект создан из лида этого контакта); проект без lead_id иначе выпадал бы
+    // отсюда полностью (та же причина, что и в companies.service.ts).
     const leadIds = leads.map((l) => l.id);
-    let projects: Project[] = [];
-    if (leadIds.length > 0) {
-      if (leadIds.length === 1) {
-        projects = await this.projectRepo.find({
-          where: { tenantId, leadId: leadIds[0] } as any,
-          order: { createdAt: 'DESC' } as any,
-        });
-      } else {
-        projects = await this.projectRepo
-          .createQueryBuilder('project')
-          .where('project.tenant_id = :tenantId', { tenantId })
-          .andWhere('project.lead_id IN (:...leadIds)', { leadIds })
-          .orderBy('project.created_at', 'DESC')
-          .getMany();
-      }
-    }
+    const projects = await this.projectRepo
+      .createQueryBuilder('project')
+      .where('project.tenant_id = :tenantId', { tenantId })
+      .andWhere(
+        leadIds.length > 0
+          ? '(project.contact_id = :contactId OR project.lead_id IN (:...leadIds))'
+          : 'project.contact_id = :contactId',
+        { contactId: id, leadIds },
+      )
+      .orderBy('project.created_at', 'DESC')
+      .getMany();
 
     return {
       contact,
@@ -183,6 +180,7 @@ export class ContactsService {
       tags: dto.tags || [],
       assignedUserId: dto.assignedUserId || null,
       assignedTo: dto.assignedTo || null,
+      assignedUserIds: Array.isArray(dto.assignedUserIds) ? dto.assignedUserIds : [],
       status: dto.status || 'active',
       customFields: dto.customFields || null,
     });
@@ -251,8 +249,11 @@ export class ContactsService {
     if (dto.assignedUserId !== undefined)
       contact.assignedUserId = dto.assignedUserId || null;
     if (dto.assignedTo !== undefined) contact.assignedTo = dto.assignedTo || null;
+    if (dto.assignedUserIds !== undefined)
+      contact.assignedUserIds = Array.isArray(dto.assignedUserIds) ? dto.assignedUserIds : [];
     if (dto.status !== undefined) contact.status = dto.status;
     if (dto.customFields !== undefined) contact.customFields = dto.customFields;
+    if (dto.comments !== undefined) contact.comments = dto.comments as any;
 
     // Пересчитываем fullName
     contact.fullName = this.computeFullName(
@@ -262,6 +263,19 @@ export class ContactsService {
     );
 
     const saved = await this.repo.save(contact);
+
+    // Обратная сторона связки: лиды этого контакта, у которых компании ещё нет, наследуют
+    // компанию контакта (иначе контакт «в компании», а его лид «без компании»).
+    if (dto.companyId) {
+      await this.leadRepo
+        .createQueryBuilder()
+        .update(Lead)
+        .set({ companyId: dto.companyId })
+        .where('tenantId = :tid', { tid: tenantId })
+        .andWhere('contactId = :cid', { cid: contact.id })
+        .andWhere('companyId IS NULL')
+        .execute();
+    }
 
     // Триггерим автоматизацию
     try {

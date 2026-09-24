@@ -153,6 +153,30 @@ export class LeadsService {
     private readonly companiesService: CompaniesService,
   ) {}
 
+  /**
+   * Двусторонняя связка лид ↔ контакт ↔ компания. Контакт принадлежит компании через
+   * contact.companyId (по нему компания показывает своих контактов, а контакт — свою компанию),
+   * поэтому лид с парой «контакт + компания» не должен оставлять контакт «без компании»:
+   *  - у лида есть компания, а у контакта нет → контакт получает эту компанию;
+   *  - у лида нет компании, а у контакта есть → лид получает компанию контакта.
+   * Контакт другой компании не перепривязывается (это осознанный выбор пользователя).
+   */
+  private async syncContactCompanyLink(tenantId: string, lead: Lead): Promise<void> {
+    if (!lead.contactId) return;
+    try {
+      const contact = await this.contactsService.findOne(tenantId, lead.contactId);
+      if (lead.companyId && !contact.companyId) {
+        await this.companiesService.findOne(tenantId, lead.companyId); // компания должна быть этого тенанта
+        await this.contactsService.update(tenantId, contact.id, { companyId: lead.companyId });
+      } else if (!lead.companyId && contact.companyId) {
+        lead.companyId = contact.companyId;
+        await this.leadsRepo.update({ id: lead.id, tenantId }, { companyId: contact.companyId });
+      }
+    } catch (e) {
+      console.error('Lead contact/company link sync failed:', e);
+    }
+  }
+
   /** meta.deleted — корзина; не участвует в агрегатах и ROI */
   private isLeadMetaDeleted(lead: Pick<Lead, 'meta'>): boolean {
     const m = lead.meta as { deleted?: boolean } | null | undefined;
@@ -274,6 +298,7 @@ export class LeadsService {
     });
 
     const saved = await this.leadsRepo.save(lead);
+    await this.syncContactCompanyLink(tenantId, saved);
 
     try {
       const m = (saved.meta as { meetings?: unknown[] } | null)?.meetings;
@@ -374,6 +399,9 @@ export class LeadsService {
 
     const wasTrash = this.isLeadMetaDeleted(lead);
     const saved = await this.leadsRepo.save(lead);
+    if (dto.contactId !== undefined || dto.companyId !== undefined) {
+      await this.syncContactCompanyLink(tenantId, saved);
+    }
     const nowTrash = this.isLeadMetaDeleted(saved);
 
     // Перевели лида в корзину — отвязать продажи (новые заказы не должны цепляться к «удалённым»)

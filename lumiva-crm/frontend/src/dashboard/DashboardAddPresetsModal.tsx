@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import {
   PRESETS_BY_TAB,
   type DashboardPresetDefinition,
-  type DashboardPresetSource,
 } from './presetCatalog';
 import type { DashboardPresetInstance } from './dashboardLayout';
 import { DashboardPresetWidget } from './DashboardPresetWidget';
@@ -13,13 +12,18 @@ import {
   ANALYTICS_STORAGE_NAMESPACE,
   ANALYTICS_WIDGETS_CHANGED_EVENT,
   loadAnalyticsWidgetsFromStorage,
+  type CatalogStorageSource,
   type ProjectsAnalyticsWidgetConfig,
 } from './analyticsStorage';
 import type { Project } from '../pages/projects/projectTypes';
 import { loadAnalyticsItemsForSource } from './analyticsPresetData';
 import { usePermission } from '../hooks/usePermission';
 
-type TabId = DashboardPresetSource;
+/** Эта модалка (каталог пресетов + "сохранённые" виджеты из localStorage) умеет только источники
+ * с единым статическим неймспейсом — см. CatalogStorageSource. 'workspace'/'client-account' сюда
+ * не входят (у них нет единого экрана "все виджеты со всех таблиц") — там используется кнопка
+ * "На главную" прямо на странице аналитики конкретной таблицы/клиента. */
+type TabId = CatalogStorageSource;
 
 type PresetRow =
   | { kind: 'catalog'; def: DashboardPresetDefinition }
@@ -132,48 +136,39 @@ export const DashboardAddPresetsModal: React.FC<{
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div
-        role="dialog"
-        className="w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col rounded-[18px] border border-neutral-200 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.35)] text-[#222]"
-      >
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-neutral-100">
+    <div className="px-scope">
+      <div className="dh-scrim" onClick={onClose} />
+      <aside role="dialog" aria-label={t('crm.dashboard.presets.modalTitle')} className="dh-panel text-[#222]">
+        <div className="dh-panel-h">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">
-              {t('crm.dashboard.hero.kicker')}
-            </div>
-            <h2 className="text-sm font-semibold text-[#222]">{t('crm.dashboard.presets.modalTitle')}</h2>
+            <div className="k">{t('crm.dashboard.hero.kicker')}</div>
+            <div className="t">{t('crm.dashboard.presets.modalTitle')}</div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-medium text-[#222] hover:bg-neutral-50"
+            className="rounded-xl border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-medium text-[#222] hover:bg-neutral-50 shrink-0"
           >
             {t('crm.common.close')}
           </button>
         </div>
 
-        <div className="px-5 pt-4 flex flex-wrap gap-2 border-b border-neutral-50 pb-4">
+        <div className="dh-tabs">
           {tabs.map((x) => (
             <button
               key={x.id}
               type="button"
               onClick={() => setTab(x.id)}
-              className={
-                'rounded-2xl px-4 py-2 text-[11px] font-semibold transition border ' +
-                (tab === x.id
-                  ? 'border-lumiva-accent bg-lumiva-accent text-white shadow-[0_8px_20px_rgba(34,34,34,0.12)]'
-                  : 'border-neutral-200 bg-white text-[#222] hover:bg-neutral-50')
-              }
+              className={`dh-tab${tab === x.id ? ' on' : ''}`}
             >
               {x.label}
             </button>
           ))}
         </div>
 
-        <div key={tab} className="flex-1 overflow-y-auto px-5 py-4">
+        <div key={tab} className="dh-panel-b">
           <p className="text-[11px] text-neutral-600 mb-4">{t('crm.dashboard.presets.pickHint')}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {rows.map((row) => {
               const key =
                 row.kind === 'saved' ? `saved-${row.config.id}` : `cat-${tab}-${row.def.slug}`;
@@ -238,8 +233,8 @@ export const DashboardAddPresetsModal: React.FC<{
           </div>
 
           {hiddenStandardIds.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-neutral-100">
-              <div className="text-[11px] font-semibold text-[#222] mb-3">
+            <div className="mt-2 pt-4 border-t border-neutral-100">
+              <div className="dh-sec-t">
                 {t('crm.dashboard.presets.standardBlocks')}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -257,7 +252,7 @@ export const DashboardAddPresetsModal: React.FC<{
             </div>
           )}
         </div>
-      </div>
+      </aside>
     </div>,
     document.body,
   );

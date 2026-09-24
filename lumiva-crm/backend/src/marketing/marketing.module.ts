@@ -10,6 +10,17 @@ import { VkAdsApiService } from './vk-ads/vk-ads-api.service';
 
 import { MarketingTraffic } from './marketing-traffic.entity';
 import { MarketingUtmTemplate } from './marketing-utm-template.entity';
+import { MarketingUtmLink } from './marketing-utm-link.entity';
+import { MarketingOauthToken } from './marketing-oauth-token.entity';
+import { MetaAdsOauthService } from './meta-ads-oauth.service';
+import { IntegrationTokenExpiryScheduler } from './integration-token-expiry.scheduler';
+import { MailModule } from '../mail/mail.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { SmmIntegration } from '../smm/smm-integration.entity';
+import { SmmProfile } from '../smm/smm-profile.entity';
+import { StaffUser } from '../staff/staff-user.entity';
+import { Tenant } from '../tenants/tenant.entity';
+import { User } from '../users/user.entity';
 import { MarketingIntegration } from './marketing-integration.entity';
 import { MarketingAutomation } from './marketing-automation.entity';
 import { MarketingSegment } from './marketing-segment.entity';
@@ -31,6 +42,13 @@ import { LeadsModule } from '../leads/leads.module';
     TypeOrmModule.forFeature([
       MarketingTraffic,
         MarketingUtmTemplate,
+        MarketingUtmLink,
+        MarketingOauthToken,
+        SmmIntegration,
+        SmmProfile,
+        StaffUser,
+        Tenant,
+        User,
         MarketingIntegration,
         MarketingAutomation,
         MarketingSegment,
@@ -44,10 +62,12 @@ import { LeadsModule } from '../leads/leads.module';
     ApiTokensModule, // <- чтобы не ломать существующий /api-tokens/*
     TenantsModule,   // -> TenantLogsService для ApiTokenGuard
     PlatformSettingsModule,
+    MailModule,
+    NotificationsModule,
     forwardRef(() => LeadsModule),
   ],
   controllers: [MarketingController],
-  providers: [MarketingService, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
+  providers: [MarketingService, MetaAdsOauthService, IntegrationTokenExpiryScheduler, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
   exports: [MarketingService],
 })
 export class MarketingModule {}

@@ -226,8 +226,9 @@ export class TelegramCrmController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('search') search?: string,
     @Query('botId') botId?: string,
+    @Query('leadId') leadId?: string,
   ) {
-    return this.telegramCrmService.findContacts(user.tenantId, { search, botId });
+    return this.telegramCrmService.findContacts(user.tenantId, { search, botId, leadId });
   }
 
   @Post('contacts/:id/read')

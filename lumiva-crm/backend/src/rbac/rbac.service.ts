@@ -5,6 +5,7 @@ import { ModuleRef } from '@nestjs/core';
 import { Repository } from 'typeorm';
 import { StaffRolePermission } from './staff-role-permission.entity';
 import { StaffUserPermission } from './staff-user-permission.entity';
+import { Department } from '../departments/department.entity';
 import {
   GRANULAR_FALLBACK_TO_BASE,
   type PermissionKey,
@@ -84,8 +85,27 @@ export class RbacService {
     @InjectRepository(StaffUserPermission)
     private readonly userRepo: Repository<StaffUserPermission>,
 
+    @InjectRepository(Department)
+    private readonly departments: Repository<Department>,
+
     private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * 'ai_employees' — по решению владельца от 2026-09-23 — доступен только руководителям отделов
+   * (Department.managerId) и владельцу аккаунта (который и так проходит без проверки), НЕ по
+   * StaffRole (обычная роль 'manager' в StaffRole — это не то же самое, что «руководитель
+   * конкретного отдела»: сотрудник может иметь role='sales' и при этом быть managerId отдела
+   * продаж). Рядовым сотрудникам по умолчанию недоступен; явное индивидуальное разрешение
+   * («Настройки прав доступа» → RbacGuard.getUserOverride) может открыть его точечно — этот
+   * метод сам не даёт override победить, вызывающая сторона (RbacGuard) решает порядок.
+   */
+  async isDepartmentHead(tenantId: string, staffUserId: string): Promise<boolean> {
+    const count = await this.departments.count({
+      where: { tenantId, managerId: staffUserId, isActive: true },
+    });
+    return count > 0;
+  }
 
   /**
    * Lazy global lookup instead of a constructor dependency — AuditLogModule already imports

@@ -1,4 +1,5 @@
 // src/layout/MainLayout.tsx
+import { AiActivityFab } from '../components/ai/AiActivityFab';
 import React, { useEffect, useMemo, useReducer, useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -34,6 +35,7 @@ import {
 } from '../pages/projects/taskAssignees';
 import { isTextMentioning } from '../pages/projects/mentions';
 import { fetchStaffPermissions, fetchUserPermissions, type PermissionKey, type RolePermissionMatrix, type UserPermissionMatrix } from '../api/rbac';
+import { fetchDepartments } from '../api/departments';
 import { fetchTenantComponents, type TenantComponent } from '../api/tenants';
 import { fetchCustomObject } from '../api/customObjects';
 import { fetchPendingApprovals } from '../api/automations';
@@ -85,7 +87,6 @@ type NavItem = {
 };
 
 const NAV_SECTION_ORDER: NavSectionId[] = ['main', 'clients', 'bookings', 'sales', 'communications', 'marketing', 'tools', 'management'];
-const COLLAPSIBLE_NAV_SECTIONS: NavSectionId[] = ['clients', 'bookings', 'sales', 'marketing', 'tools', 'management'];
 
 function normalizeLayoutPath(pathname: string): string {
   if (pathname.startsWith('/app/')) return pathname.slice(4);
@@ -229,6 +230,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const [userMatrix, setUserMatrix] = useState<UserPermissionMatrix | null>(null);
   const [permsLoaded, setPermsLoaded] = useState(false);
   const [staffLoaded, setStaffLoaded] = useState(false);
+  // «ai_employees» дополнительно открыт руководителям отделов (Department.managerId), не только
+  // через обычную матрицу ролей/индивидуальные права — см. canAccess() и RbacGuard.isDepartmentHead
+  // на бэкенде (то же правило, продублировано на фронте только для скрытия пункта меню/редиректа,
+  // сам доступ к данным проверяет бэкенд).
+  const [isDeptHead, setIsDeptHead] = useState(false);
+  const [deptHeadLoaded, setDeptHeadLoaded] = useState(false);
   const [tenantComponents, setTenantComponents] = useState<TenantComponent[]>([]);
   const [componentsLoaded, setComponentsLoaded] = useState(false);
   const billingLocked = isBillingLocked();
@@ -247,9 +254,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const loadingInProgressRef = useRef(false);
 
   /** Подменю: явное сворачивание стрелкой (иначе activeRoot снова раскрывает раздел) */
-  const [sectionExpanded, setSectionExpanded] = useState<Record<string, boolean>>({});
-  /** Категории меню (аккордеон): null — не трогали (открыта категория активной страницы), 'none' — явно всё свёрнуто */
-  const [expandedCategory, setExpandedCategory] = useState<NavSectionId | 'none' | null>(null);
+  // Раскрыт может быть один модуль: ручной выбор действует, пока пользователь остаётся на той же странице-модуле
+  const [moduleOverride, setModuleOverride] = useState<{ open: string | null; at: string } | null>(null);
   const SIDEBAR_COLLAPSED_KEY = 'lumiva_sidebar_rail_v1';
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -359,7 +365,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    setSectionExpanded({});
+    setModuleOverride(null);
   }, [location.pathname]);
 
   /** «Добавить на главную» из аналитики: Dashboard не смонтирован — пишем layout здесь */
@@ -913,6 +919,40 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.role]);
 
+  // Руководитель ли текущий сотрудник хоть какого-то отдела — для автодоступа к 'ai_employees'
+  // (то же правило и на бэкенде, см. RbacGuard.isDepartmentHead). GET /departments открыт всем
+  // авторизованным независимо от прав (см. комментарий в departments.controller.ts), так что
+  // это безопасно грузить до того, как известно, есть ли у сотрудника право 'staff'.
+  useEffect(() => {
+    if (!user || user.role === 'owner') {
+      setDeptHeadLoaded(true);
+      return;
+    }
+    // Ждём, пока разрешится currentStaff (staffLoaded) — иначе при неразрешённом currentStaff
+    // (редкий случай, когда сотрудника не нашли в /staff-users) deptHeadLoaded зависал бы false
+    // навсегда, блокируя редирект-проверку ниже.
+    if (!staffLoaded) return;
+    if (!currentStaff?.id) {
+      setDeptHeadLoaded(true);
+      return;
+    }
+    let alive = true;
+    fetchDepartments()
+      .then((list) => {
+        if (alive) setIsDeptHead(list.some((d) => d.managerId === currentStaff.id));
+      })
+      .catch(() => {
+        /* оставляем isDeptHead=false — canAccess() безопасно откатится на обычную матрицу прав */
+      })
+      .finally(() => {
+        if (alive) setDeptHeadLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, staffLoaded, currentStaff?.id]);
+
   // загрузка компонентов тенанта - только один раз при монтировании или смене пользователя
   useEffect(() => {
     if (!user) {
@@ -1087,7 +1127,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       {
         label: t('crm.nav.booking'),
         path: '/bookings',
-        icon: 'calendar',
+        icon: 'ticket',
         section: 'bookings',
         matchPaths: ['/app/bookings'],
         children: [
@@ -1107,7 +1147,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       {
         label: t('crm.nav.hotels'),
         path: '/hotels',
-        icon: 'calendar',
+        icon: 'hotel',
         section: 'bookings',
         matchPaths: ['/app/hotels'],
         children: [
@@ -1162,21 +1202,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       {
         label: t('crm.nav.helpdesk'),
         path: '/helpdesk',
-        icon: 'invoice',
+        icon: 'lifebuoy',
         section: 'communications',
       },
 
       {
         label: t('crm.nav.esign'),
         path: '/esign',
-        icon: 'invoice',
+        icon: 'sign',
         section: 'communications',
       },
 
       {
         label: t('crm.nav.telephony'),
         path: '/app/telephony',
-        icon: 'chat',
+        icon: 'phone',
         section: 'communications',
         matchPaths: ['/app/telephony', '/telephony', '/app/sms', '/sms'],
         children: [
@@ -1201,6 +1241,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             matchPaths: ['/app/marketing/broadcasts', '/marketing/broadcasts'],
           },
           { label: t('crm.nav.marketingUtms'), path: '/app/marketing/utms' },
+          { label: t('crm.nav.marketingUtmLinks'), path: '/app/marketing/utm-links' },
           { label: t('crm.nav.marketingSegments'), path: '/app/marketing/segments' },
           { label: t('crm.nav.marketingChannels'), path: '/app/marketing/channels' },
           { label: t('crm.nav.marketingSeo'), path: '/app/marketing/seo' },
@@ -1212,7 +1253,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       {
         label: t('crm.nav.aiEmployees'),
         path: '/app/ai-employees',
-        icon: 'tools',
+        icon: 'sparkles',
         section: 'tools',
         matchPaths: [
           '/app/ai-employees',
@@ -1222,6 +1263,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.aiEmployeesDashboard'), path: '/app/ai-employees' },
           { label: t('crm.nav.aiEmployeesChoose'), path: '/app/ai-employees/choose' },
           { label: t('crm.nav.aiEmployeesApprovals'), path: '/app/ai-employees/approvals' },
+          { label: t('crm.nav.aiEmployeesKnowledge'), path: '/app/ai-employees/knowledge' },
+          { label: t('crm.nav.aiEmployeesInsights'), path: '/app/ai-employees/insights' },
           { label: t('crm.nav.aiEmployeesLogs'), path: '/app/ai-employees/logs' },
           { label: t('crm.nav.aiEmployeesReports'), path: '/app/ai-employees/reports' },
         ],
@@ -1284,7 +1327,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       {
         label: t('crm.nav.clientAccounts'),
         path: '/app/client-accounts',
-        icon: 'invoice',
+        icon: 'briefcase',
         section: 'management',
         matchPaths: ['/app/client-accounts', '/client-accounts'],
         children: [
@@ -1436,6 +1479,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/online-chat')) return 'chat';
     if (p.startsWith('/helpdesk')) return 'helpdesk';
     if (p.startsWith('/esign')) return 'esign';
+    if (p.startsWith('/ai-employees')) return 'ai_employees';
     if (p.startsWith('/client-accounts')) return 'client_accounts';
     if (p.startsWith('/analytics')) return 'analytics';
     if (p.startsWith('/bi')) return 'analytics';
@@ -1489,6 +1533,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     const override = userId && userMatrix ? userMatrix[userId]?.[perm] : undefined;
     if (override !== undefined) return override;
 
+    // 'ai_employees': руководители отделов проходят автоматически, даже без записи в матрице
+    // ролей — тот же порядок, что и в RbacGuard на бэкенде (индивидуальный override уже
+    // проверен выше и побеждает это правило).
+    if (perm === 'ai_employees' && isDeptHead) return true;
+
     const rolePerms = matrixRole ? roleMatrix[matrixRole] ?? [] : [];
     return rolePerms.includes(perm);
   };
@@ -1506,13 +1555,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // на секунду откатывается на user?.role из localStorage/сессии — при быстрой навигации между
     // двумя обычными страницами (а не с Главной, где есть время на фоновую загрузку) это давало
     // ложное «нет доступа» и редирект, хотя реальные права уже были верными.
-    if (!permsLoaded || !componentsLoaded || !staffLoaded) return;
+    if (!permsLoaded || !componentsLoaded || !staffLoaded || !deptHeadLoaded) return;
     if (routeAllowed) return;
     if (location.pathname === '/dashboard') return;
     persistForbiddenNotice(location.pathname);
     navigate('/dashboard', { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeAllowed, permsLoaded, componentsLoaded, staffLoaded, location.pathname]);
+  }, [routeAllowed, permsLoaded, componentsLoaded, staffLoaded, deptHeadLoaded, location.pathname]);
 
   const filteredNav = NAV.map((item) => {
     // Проверка компонента
@@ -1654,31 +1703,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     scored[0]?.item ?? (isWorkspacePath ? workspaceVirtualNavItem : filteredNav[0] ?? NAV[0]);
 
   const isSectionOpen = (path: string) => {
-    if (Object.prototype.hasOwnProperty.call(sectionExpanded, path)) {
-      return sectionExpanded[path];
-    }
+    if (moduleOverride && moduleOverride.at === activeRoot?.path) return moduleOverride.open === path;
     return activeRoot?.path === path;
   };
 
   const toggleSection = (path: string) => {
-    setSectionExpanded((prev) => {
-      const defaultOpen = activeRoot?.path === path;
-      const current = path in prev ? prev[path] : defaultOpen;
-      return { ...prev, [path]: !current };
-    });
-  };
-
-  /** Категория (группа меню), открытая по умолчанию: та, где находится текущая страница */
-  const defaultOpenCategory: NavSectionId | null =
-    activeRoot && COLLAPSIBLE_NAV_SECTIONS.includes(activeRoot.section) ? activeRoot.section : null;
-  const openCategoryId: NavSectionId | null =
-    expandedCategory === null ? defaultOpenCategory : expandedCategory === 'none' ? null : expandedCategory;
-
-  const toggleCategory = (id: NavSectionId) => {
-    setExpandedCategory((prev) => {
-      const current = prev === null ? defaultOpenCategory : prev === 'none' ? null : prev;
-      return current === id ? 'none' : id;
-    });
+    const at = activeRoot?.path ?? '';
+    setModuleOverride({ open: isSectionOpen(path) ? null : path, at });
   };
 
   const activeChild =
@@ -1752,7 +1783,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
         {/* Навигация (desktop) + рабочие области сразу под пунктами меню (общий скролл) */}
         <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug pr-0.5 text-neutral-800">
-          {(!componentsLoaded || !permsLoaded || !staffLoaded) ? (
+          {(!componentsLoaded || !permsLoaded || !staffLoaded || !deptHeadLoaded) ? (
             // Показываем скелетон загрузки вместо меню
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -1765,35 +1796,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           ) : (
             <>
             {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => {
-              const isCollapsible = COLLAPSIBLE_NAV_SECTIONS.includes(sectionId);
-              const isCategoryOpen = !isCollapsible || openCategoryId === sectionId;
               return (
               <div key={sectionId} className={sectionIdx > 0 ? 'mt-1' : ''}>
                 {!sidebarCollapsed && (
-                  isCollapsible ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleCategory(sectionId)}
-                      title={isCategoryOpen ? t('crm.sidebar.collapseCategory') : t('crm.sidebar.expandCategory')}
-                      className={`w-full flex items-center justify-between gap-1 px-2.5 rounded-md text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100/70 transition-colors ${
-                        sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
-                      }`}
-                      aria-expanded={isCategoryOpen}
-                    >
-                      <span>{navSectionTitle(sectionId)}</span>
-                      <NavChevronDown expanded={isCategoryOpen} />
-                    </button>
-                  ) : (
-                    <div
-                      className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
-                        sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
-                      }`}
-                    >
-                      {navSectionTitle(sectionId)}
-                    </div>
-                  )
+                  <div
+                    className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
+                      sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                    }`}
+                  >
+                    {navSectionTitle(sectionId)}
+                  </div>
                 )}
-                {(sidebarCollapsed || isCategoryOpen) && (
                 <div className="space-y-0.5">
                   {secItems.map((item) => {
             const hasChildren = !!item.children?.length;
@@ -1879,7 +1892,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             );
                   })}
                 </div>
-                )}
               </div>
               );
             })}
@@ -1968,29 +1980,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
               )}
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            title={t('crm.common.logout')}
-            aria-label={t('crm.common.logout')}
-            className={`text-slate-500 hover:text-lumiva-accent transition-colors ${
-              sidebarCollapsed
-                ? 'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50'
-                : ''
-            }`}
-          >
-            {sidebarCollapsed ? (
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
-                />
-              </svg>
-            ) : (
-              t('crm.common.logout')
-            )}
-          </button>
         </div>
       </aside>
 
@@ -2678,7 +2667,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
               {/* Навигация (mobile) + workspace под меню */}
               <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug text-neutral-800">
-                {(!componentsLoaded || !permsLoaded || !staffLoaded) ? (
+                {(!componentsLoaded || !permsLoaded || !staffLoaded || !deptHeadLoaded) ? (
                   // Показываем скелетон загрузки вместо меню
                   <div className="space-y-2">
                     {[1, 2, 3, 4, 5].map((i) => (
@@ -2691,33 +2680,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                 ) : (
                   <>
                   {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => {
-                    const isCollapsible = COLLAPSIBLE_NAV_SECTIONS.includes(sectionId);
-                    const isCategoryOpen = !isCollapsible || openCategoryId === sectionId;
                     return (
                     <div key={sectionId} className={sectionIdx > 0 ? 'mt-1' : ''}>
-                      {isCollapsible ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleCategory(sectionId)}
-                          title={isCategoryOpen ? t('crm.sidebar.collapseCategory') : t('crm.sidebar.expandCategory')}
-                          className={`w-full flex items-center justify-between gap-1 px-2.5 rounded-md text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100/70 transition-colors ${
-                            sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
-                          }`}
-                          aria-expanded={isCategoryOpen}
-                        >
-                          <span>{navSectionTitle(sectionId)}</span>
-                          <NavChevronDown expanded={isCategoryOpen} />
-                        </button>
-                      ) : (
-                        <div
-                          className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
-                            sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
-                          }`}
-                        >
-                          {navSectionTitle(sectionId)}
-                        </div>
-                      )}
-                      {isCategoryOpen && (
+                      <div
+                        className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
+                          sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                        }`}
+                      >
+                        {navSectionTitle(sectionId)}
+                      </div>
                       <div className="space-y-0.5">
                   {secItems.map((item) => {
                     const hasChildren = !!item.children?.length;
@@ -2798,7 +2769,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                     );
                   })}
                       </div>
-                      )}
                     </div>
                     );
                   })}
@@ -2861,7 +2831,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             fullBleed ? 'px-0 py-0' : 'px-3 md:px-6 py-4 md:py-6'
           }`}
         >
-          {(!componentsLoaded || !permsLoaded || !staffLoaded || !routeAllowed) ? (
+          {(!componentsLoaded || !permsLoaded || !staffLoaded || !deptHeadLoaded || !routeAllowed) ? (
             // Показываем загрузку вместо контента (в т.ч. пока routeAllowed=false ведёт на /dashboard —
             // страница без доступа не должна успеть смонтироваться и выстрелить своими запросами)
             <div className="flex items-center justify-center h-full">
@@ -2900,6 +2870,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         onClose={() => setAiAssistantOpen(false)}
         userName={user?.name?.trim() || null}
       />
+
+      {canAccess('ai_employees') ? <AiActivityFab /> : null}
 
       <CommandPalette
         open={commandPaletteOpen}

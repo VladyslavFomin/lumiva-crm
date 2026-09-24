@@ -170,6 +170,7 @@ export const SettingsCompanyPage: React.FC = () => {
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [uiLanguage, setUiLanguage] = useState<string | ''>('');
+  const [primaryCurrency, setPrimaryCurrency] = useState<string>('EUR');
   const [aiWrapperEmailTemplateId, setAiWrapperEmailTemplateId] =
     useState<string>('');
   const [documentRequisites, setDocumentRequisites] = useState('');
@@ -216,6 +217,8 @@ export const SettingsCompanyPage: React.FC = () => {
     [t],
   );
 
+  const CURRENCY_OPTIONS = ['EUR', 'USD', 'TRY', 'RUB', 'GBP'];
+
   const loadSettings = useCallback(() => {
     return fetchCompanySettings()
       .then((settings) => {
@@ -225,6 +228,7 @@ export const SettingsCompanyPage: React.FC = () => {
           normalizeLogoUrl(settings.logoUrl) ?? settings.logoUrl ?? '',
         );
         setUiLanguage(settings.uiLanguage || '');
+        setPrimaryCurrency(settings.primaryCurrency || 'EUR');
         setAiWrapperEmailTemplateId(settings.aiWrapperEmailTemplateId ?? '');
         setDocumentRequisites(settings.documentRequisites ?? '');
         setDocumentManagerName(settings.documentManagerName ?? '');
@@ -350,6 +354,7 @@ export const SettingsCompanyPage: React.FC = () => {
         name: name.trim() || data.name,
         logoUrl: logoUrl.trim() || null,
         uiLanguage: uiLanguage || null,
+        primaryCurrency,
         aiWrapperEmailTemplateId: aiWrapperEmailTemplateId.trim()
           ? aiWrapperEmailTemplateId.trim()
           : null,
@@ -611,7 +616,7 @@ export const SettingsCompanyPage: React.FC = () => {
                       />
                     </div>
 
-                    <div className="ai-field-row" style={{ marginBottom: 14 }}>
+                    <div className="ai-field-row" style={{ marginBottom: 14, gridTemplateColumns: '1fr 1fr 1fr' }}>
                       <div className="ai-field" style={{ margin: 0 }}>
                         <label className="ai-label">{t('crm.settings.company.fields.language')}</label>
                         <select
@@ -628,6 +633,23 @@ export const SettingsCompanyPage: React.FC = () => {
                         ))}
                       </select>
                       <p className="ai-hint">{t('crm.settings.company.fields.languageHint')}</p>
+                    </div>
+
+                    <div className="ai-field" style={{ margin: 0 }}>
+                      <label className="ai-label">{t('crm.settings.company.fields.primaryCurrency')}</label>
+                      <select
+                        className="ai-select"
+                        value={primaryCurrency}
+                        onChange={(e) => setPrimaryCurrency(e.target.value)}
+                        disabled={!isOwner}
+                      >
+                        {CURRENCY_OPTIONS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="ai-hint">{t('crm.settings.company.fields.primaryCurrencyHint')}</p>
                     </div>
 
                     <div className="ai-field" style={{ margin: 0 }}>

@@ -19,6 +19,7 @@ import { TelegramAiToolsService } from './telegram-ai-tools';
 import { BookingsModule } from '../bookings/bookings.module';
 import { SalesModule } from '../sales/sales.module';
 import { ContactsModule } from '../contacts/contacts.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 // Note: HelpdeskModule is deliberately NOT imported here even though TelegramAiToolsService
 // calls into HelpdeskService — HelpdeskModule already imports TelegramCrmModule (for its own
@@ -37,6 +38,7 @@ import { ContactsModule } from '../contacts/contacts.module';
     forwardRef(() => BookingsModule),
     forwardRef(() => SalesModule),
     forwardRef(() => ContactsModule),
+    forwardRef(() => TenantsModule), // TenantLogsService — security-event visibility for pl1
   ],
   controllers: [TelegramCrmController, TelegramCrmPublicController],
   providers: [TelegramCrmService, TelegramBotSchedulerService, TelegramPollingService, TelegramAiToolsService],

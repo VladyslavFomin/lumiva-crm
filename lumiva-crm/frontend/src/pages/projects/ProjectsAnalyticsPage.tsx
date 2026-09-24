@@ -6,8 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
 import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage';
 import { fetchProjects } from '../../api/projects';
+import { postAiBuildAnalyticsDashboard } from '../../api/ai';
 import type { Project } from './projectTypes';
 import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
+import { MetricCard } from '../../components/analytics/MetricCard';
+import { applyVisibleOrder, useBlockGridInteractions } from '../../components/analytics/useBlockGridInteractions';
 import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
 import {
   convertMarketingAmount,
@@ -73,6 +76,10 @@ type FormulaMode = 'count' | 'percent' | 'sum';
 type FormulaFn = 'count' | 'percent' | 'ratio' | 'diff' | 'sumif';
 type FormulaOperandType = string;
 type ChartValueMode = 'count' | 'sum';
+type CompareDisplay = 'number' | 'bar' | 'line' | 'donut' | 'table';
+/** Одна сторона сравнения месячных групп ("Первая", "Вторая", ...) — сумма выбранных месяцев,
+ * с необязательными своими подписью и цветом. */
+type CompareSide = { id: string; label?: string; monthKeys: string[]; color?: string };
 
 type PivotMeasureConfig = {
   id: string;
@@ -229,6 +236,14 @@ type WidgetConfig = {
   formulaRightKey?: string;
   formulaMode?: FormulaMode;
   formulaFilters?: FormulaFilterRow[];
+  /** Для formula-сравнения месячных полей (любая formulaFn — sumif/count/percent/ratio/diff):
+   * как показать результат, помимо заголовочного числа. Работает только если formulaLeftType
+   * и formulaRightType — оба месячные суммы (см. isMonthOperand), иначе рендер молча падает на 'number'. */
+  compareDisplay?: CompareDisplay;
+  /** Стороны сравнения месячных групп (2+) — только для diff/ratio; если заданы, используются
+   * для графика вместо старой пары Левая/Правая (та пара остаётся источником заголовочного числа
+   * diff/ratio, его считаем по первым двум сторонам). */
+  compareSides?: CompareSide[];
   metricKey?: MetricKey;
   chartKey?: ChartKey;
   chartValueMode?: ChartValueMode;
@@ -243,17 +258,6 @@ type WidgetConfig = {
 
 type StatusChartPoint = { code: string; label: string; count: number };
 
-type ResizeState = {
-  id: string;
-  startX: number;
-  startY: number;
-  startSize: WidgetSize;
-  startSpan: number;
-  startHeight: number;
-  minHeight: number;
-  axis: 'x' | 'y' | 'both';
-};
-
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
   if (lang.startsWith('en')) return 'en-US';
@@ -265,6 +269,33 @@ function parseDate(value?: string | null) {
   const ts = Date.parse(value);
   if (!Number.isFinite(ts)) return null;
   return new Date(ts);
+}
+
+const MONTH_NAMES = [
+  ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'],
+  ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'],
+  ['ocak', 'şubat', 'mart', 'nisan', 'mayıs', 'haziran', 'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık'],
+];
+
+/** Колонка вида "m_2026_09" / "2026-09" или подпись "Сентябрь 2026" → 1-е число этого месяца. Нужно, чтобы
+ * отличать "широкие" таблицы (строка = категория, колонки = месяцы) от обычных таблиц с датой создания. */
+function parseMonthFieldDate(field: { key: string; label?: string }): Date | null {
+  const keyMatch = /^m_(\d{4})_(\d{1,2})$/.exec(field.key) || /^(\d{4})-(\d{1,2})$/.exec(field.key);
+  if (keyMatch) {
+    const year = Number(keyMatch[1]);
+    const month = Number(keyMatch[2]);
+    if (year >= 1990 && year <= 2100 && month >= 1 && month <= 12) return new Date(year, month - 1, 1);
+  }
+  const label = (field.label || '').toLowerCase().trim();
+  const yearMatch = /\b(19|20)\d{2}\b/.exec(label);
+  if (yearMatch) {
+    const monthPart = label.replace(yearMatch[0], '').trim();
+    for (const names of MONTH_NAMES) {
+      const idx = names.findIndex((name) => monthPart === name || monthPart.startsWith(name.slice(0, 4)));
+      if (idx >= 0) return new Date(Number(yearMatch[0]), idx, 1);
+    }
+  }
+  return null;
 }
 
 const isFilled = (value: any) => {
@@ -295,38 +326,31 @@ const parseNumericLoose = (raw: any) => {
 };
 
 const V2_PALETTE = ['#222222', '#1769d1', '#3b6cb6', '#214b8a', '#1f8a5e', '#c08319', '#cc2f47', '#5a45a8'];
+const COMPARE_SIDE_ORDINALS = ['Первая', 'Вторая', 'Третья', 'Четвёртая', 'Пятая', 'Шестая', 'Седьмая', 'Восьмая'];
 
 function compactNumber(value: number) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(value));
+}
+
+/** Подбирает размер шрифта под длину числа в центре пончика — фиксированный размер рано или
+ * поздно вылезает за кольцо (суммы денег могут быть сколь угодно длинными, в отличие от счётчиков
+ * записей). thresholds — пары [макс. длина строки, класс], отсортированные по возрастанию. */
+function donutCenterFontClass(text: string, thresholds: Array<[number, string]>): string {
+  for (const [maxLen, cls] of thresholds) {
+    if (text.length <= maxLen) return cls;
+  }
+  return thresholds[thresholds.length - 1][1];
 }
 
 function percent(part: number, total: number) {
   return total > 0 ? Math.round((part / total) * 100) : 0;
 }
 
-function MiniSparkline({ data, color = '#222222' }: { data: number[]; color?: string }) {
-  const chartData = (data.length ? data : [0, 0, 0]).map((value, index) => ({ index, value }));
-  const gradientId = `projects-spark-${color.replace(/[^a-z0-9]/gi, '')}`;
-  return (
-    <ResponsiveContainer width="100%" height={44}>
-      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} fill={`url(#${gradientId})`} dot={false} isAnimationActive={false} />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
-const ALLOWED_SPANS = [3, 4, 6, 8, 12];
+const MIN_WIDGET_SPAN = 3;
 const MIN_WIDGET_H = 100;
 const MAX_WIDGET_H = 1400;
 
@@ -342,10 +366,8 @@ function sizeFromSpan(span: number): WidgetSize {
   return 'sm';
 }
 
-function closestSpan(value: number) {
-  return ALLOWED_SPANS.reduce((best, span) =>
-    Math.abs(span - value) < Math.abs(best - value) ? span : best,
-  ALLOWED_SPANS[0]);
+function clampSpan(value: number) {
+  return Math.min(12, Math.max(MIN_WIDGET_SPAN, Math.round(value)));
 }
 
 function isChartWidgetType(type: WidgetType) {
@@ -387,7 +409,9 @@ interface ProjectsAnalyticsPageProps {
   toolbarSlot?: React.ReactNode;
   analyticsFields?: AnalyticsFieldMeta[];
   /** Источник данных для пресета на главной */
-  dashboardPresetSource?: 'projects' | 'sales' | 'leads';
+  dashboardPresetSource?: 'projects' | 'sales' | 'leads' | 'workspace' | 'client-account';
+  /** Для 'workspace'/'client-account' — id таблицы/клиента, нужен главной, чтобы подгрузить те же данные заново */
+  dashboardPresetRef?: string;
   header?: {
     kicker?: string;
     title?: string;
@@ -400,6 +424,11 @@ interface ProjectsAnalyticsPageProps {
     record?: string;
   };
   defaultWidgetsOverride?: WidgetConfig[];
+  /** UUID таблицы рабочей области — нужен только для «Разобрать через АИ» в workspace-режиме. */
+  workspaceObjectId?: string;
+  /** Произвольный блок над вкладками представлений (напр. WorkspaceAiAnalyticsPanel) — рендерится
+   * после toolbarSlot, до переключателя видов. */
+  beforeContentSlot?: React.ReactNode;
 }
 
 export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
@@ -408,9 +437,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   toolbarSlot,
   analyticsFields = EMPTY_ANALYTICS_FIELDS,
   dashboardPresetSource = 'projects',
+  dashboardPresetRef,
   header,
   analyticsLabels,
   defaultWidgetsOverride,
+  workspaceObjectId,
+  beforeContentSlot,
 }) => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
@@ -418,6 +450,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodId>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [search, setSearch] = useState('');
   const [activeView, setActiveView] = useState<ViewId>('overview');
   const [globalFilters, setGlobalFilters] = useState<GlobalFilterRow[]>([]);
@@ -438,7 +472,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
-  const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const [addedToHomeToast, setAddedToHomeToast] = useState(false);
   const [draftType, setDraftType] = useState<WidgetType>('metric');
   const [draftMetric, setDraftMetric] = useState<MetricKey>('total');
@@ -456,6 +490,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     useState<FormulaOperandType>('total');
   const [draftFormulaRightKey, setDraftFormulaRightKey] = useState<string>('');
   const [draftFormulaFilters, setDraftFormulaFilters] = useState<FormulaFilterRow[]>([]);
+  const [draftCompareDisplay, setDraftCompareDisplay] = useState<CompareDisplay>('bar');
+  const [draftCompareSides, setDraftCompareSides] = useState<CompareSide[]>([]);
   const [draftPivotRowKey, setDraftPivotRowKey] = useState<string>('category');
   const [draftPivotColKey, setDraftPivotColKey] = useState<string>('status');
   const [draftPivotMeasures, setDraftPivotMeasures] = useState<PivotMeasureConfig[]>([
@@ -468,10 +504,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [draftTheme, setDraftTheme] = useState<ThemeKey>('lumiva');
   const [draftShowLabels, setDraftShowLabels] = useState(true);
   const [resetOpen, setResetOpen] = useState(false);
+  const [aiConfirmOpen, setAiConfirmOpen] = useState(false);
+  const [aiBuilding, setAiBuilding] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [activeDonut, setActiveDonut] = useState<Record<string, number | null>>(
     {},
   );
-  const [resizing, setResizing] = useState<ResizeState | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const prevAddOpenRef = useRef(false);
 
@@ -575,26 +613,86 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     });
   }, [displayItems, search, analyticsFields]);
 
-  const periodItems = useMemo(() => {
-    if (period === 'all' || period === 'custom') return searchedItems;
-    const now = new Date();
-    const cutoff = new Date(now);
-    if (period === '7d') cutoff.setDate(now.getDate() - 6);
-    if (period === '30d') cutoff.setDate(now.getDate() - 29);
-    if (period === '1y') cutoff.setFullYear(now.getFullYear() - 1);
-    return searchedItems.filter((p) => {
-      const created = parseDate(p.createdAt);
-      if (!created) return true;
-      return created >= cutoff && created <= now;
-    });
-  }, [searchedItems, period]);
-
   const isWorkspaceMode = analyticsFields.length > 0;
   const analyticsFieldMap = useMemo(
     () => new Map(analyticsFields.map((field) => [field.key, field])),
     [analyticsFields],
   );
   const getCustomFieldValue = (item: Project, key: string) => item.customFields?.[key];
+
+  /** "Широкая" таблица (строка = категория, одна числовая колонка на месяц, напр. расходы по
+   * странам из маркетингового импорта) — у строк нет собственной даты события, поэтому период
+   * нельзя применять построчно по createdAt (это дата импорта, а не дата расхода). Вместо этого
+   * период сужает то, СУММА КАКИХ МЕСЯЧНЫХ КОЛОНОК идёт в расчёт метрик/графиков. */
+  const monthFieldDates = useMemo(() => {
+    const map = new Map<string, Date>();
+    if (!isWorkspaceMode) return map;
+    analyticsFields.forEach((field) => {
+      if (String(field.type || '').toLowerCase() !== 'number') return;
+      const date = parseMonthFieldDate(field);
+      if (date) map.set(field.key, date);
+    });
+    return map;
+  }, [analyticsFields, isWorkspaceMode]);
+  const isWideMonthlyTable = monthFieldDates.size >= 2;
+  /** Два самых свежих месячных поля (старое, новое) — авто-подстановка в Левую/Правую часть,
+   * когда пользователь впервые включает график сравнения, чтобы не искать их вручную в списке. */
+  const pickTwoRecentMonthKeys = (): [string, string] | null => {
+    const sorted = [...monthFieldDates.entries()].sort((a, b) => b[1].getTime() - a[1].getTime());
+    if (sorted.length < 2) return null;
+    return [`sum:${sorted[1][0]}`, `sum:${sorted[0][0]}`];
+  };
+
+  const activePeriodRange = useMemo(() => {
+    if (period === 'all') return null;
+    const now = new Date();
+    if (period === 'custom') {
+      if (!customFrom && !customTo) return null;
+      const start = customFrom ? new Date(`${customFrom}T00:00:00`) : new Date(0);
+      const end = customTo ? new Date(`${customTo}T23:59:59.999`) : now;
+      return { start, end };
+    }
+    const start = new Date(now);
+    if (period === '7d') start.setDate(now.getDate() - 6);
+    if (period === '30d') start.setDate(now.getDate() - 29);
+    if (period === '1y') start.setFullYear(now.getFullYear() - 1);
+    return { start, end: now };
+  }, [period, customFrom, customTo]);
+
+  /** Месячная колонка хранит ОДНО число на весь месяц — суточной детализации внутри него нет.
+   * Поэтому "попадание в период" — это пересечение периода с календарным месяцем (а не только
+   * попадание 1-го числа месяца в узкое окно вроде "7 дней", иначе такие окна всегда были бы пустыми). */
+  const monthOverlapsRange = (monthStart: Date, range: { start: Date; end: Date }) => {
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59, 999);
+    return monthStart <= range.end && monthEnd >= range.start;
+  };
+
+  /** Числовое значение поля с учётом периода: для обычных полей и для КОНКРЕТНОЙ месячной
+   * колонки (её явно выбрали руками — например чтобы сравнить "Август" с "Сентябрь" в формуле,
+   * такое сравнение не должно зависеть от периода на странице) — как есть, без фильтрации.
+   * Период сужает только АГРЕГАТНОЕ поле (напр. "Итого") — сумму месячных колонок, попадающих
+   * в период. */
+  const getPeriodAwareFieldValue = (item: Project, fieldKey: string): number => {
+    const raw = parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+    if (!isWideMonthlyTable || !activePeriodRange) return raw;
+    if (monthFieldDates.has(fieldKey)) return raw;
+    let sum = 0;
+    monthFieldDates.forEach((date, key) => {
+      if (monthOverlapsRange(date, activePeriodRange)) {
+        sum += parseNumericLoose(getCustomFieldValue(item, key)) ?? 0;
+      }
+    });
+    return sum;
+  };
+
+  const periodItems = useMemo(() => {
+    if (isWideMonthlyTable || !activePeriodRange) return searchedItems;
+    return searchedItems.filter((p) => {
+      const created = parseDate(p.createdAt);
+      if (!created) return true;
+      return created >= activePeriodRange.start && created <= activePeriodRange.end;
+    });
+  }, [searchedItems, activePeriodRange, isWideMonthlyTable]);
 
   const dashboardFilterFields = useMemo(
     () =>
@@ -668,12 +766,17 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   );
   const avgAmount = totalProjects > 0 ? Math.round(totalAmount / totalProjects) : 0;
 
+  /** Группировка (chartKey/tableKey-как-измерение/formula "count по значению") имеет смысл
+   * только для категориальных полей — числовое поле (включая помесячные колонки "широких"
+   * таблиц) как измерение даёт по сути одну "категорию" на строку и бессмысленный график. */
   const dynamicDimensionOptions = useMemo(
     () =>
-      analyticsFields.map((field) => ({
-        id: `field:${field.key}`,
-        label: field.label || field.key,
-      })),
+      analyticsFields
+        .filter((field) => String(field.type || '').toLowerCase() !== 'number')
+        .map((field) => ({
+          id: `field:${field.key}`,
+          label: field.label || field.key,
+        })),
     [analyticsFields],
   );
 
@@ -890,10 +993,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})`,
             },
           ]),
-          ...analyticsFields.map((field) => ({
-            id: `filled:${field.key}`,
-            label: `${field.label} (filled)`,
-          })),
+          ...analyticsFields
+            .filter((field) => String(field.type || '').toLowerCase() !== 'number')
+            .map((field) => ({
+              id: `filled:${field.key}`,
+              label: `${field.label} (filled)`,
+            })),
         ];
       }
       return [
@@ -1040,10 +1145,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})`,
             },
           ]),
-          ...analyticsFields.map((field) => ({
-            id: `filled:${field.key}`,
-            label: `${field.label} (filled)`,
-          })),
+          ...analyticsFields
+            .filter((field) => String(field.type || '').toLowerCase() !== 'number')
+            .map((field) => ({
+              id: `filled:${field.key}`,
+              label: `${field.label} (filled)`,
+            })),
           ...dynamicDimensionOptions,
         ];
       }
@@ -1090,7 +1197,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     if (type === 'donut' || type === 'bar') {
       return size === 'lg' ? 380 : size === 'md' ? 320 : 280;
     }
-    return size === 'lg' ? 240 : size === 'md' ? 200 : 160;
+    return size === 'lg' ? 260 : size === 'md' ? 220 : 200;
   };
 
   const defaultWidgets = useMemo<WidgetConfig[]>(
@@ -1374,6 +1481,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       setDraftSpan(3);
       setDraftSize('sm');
       setDraftFormulaFilters([]);
+      setDraftCompareDisplay('bar');
+      setDraftCompareSides([makeCompareSide(0), makeCompareSide(1)]);
       const co = chartOptions;
       setDraftPivotRowKey(String(co[0]?.id || 'category'));
       setDraftPivotColKey(String(co.length > 1 ? co[1].id : co[0]?.id || 'status'));
@@ -1385,26 +1494,29 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
   }, [addOpen, chartOptions, editOpen, editingWidgetId]);
 
-  const handleWidgetDrop = (targetId: string) => {
-    if (!editMode || !dragWidgetId || dragWidgetId === targetId) return;
-    setWidgets((prev) => {
-      const next = [...prev];
-      const from = next.findIndex((w) => w.id === dragWidgetId);
-      const to = next.findIndex((w) => w.id === targetId);
-      if (from === -1 || to === -1) return prev;
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
-    });
-    setDragWidgetId(null);
-  };
-
   const removeWidget = (id: string) => {
     setWidgets((prev) => prev.filter((w) => w.id !== id));
   };
 
+  const swapFormulaLeftRight = () => {
+    setDraftFormulaLeftType(draftFormulaRightType);
+    setDraftFormulaRightType(draftFormulaLeftType);
+    setDraftFormulaLeftKey(draftFormulaRightKey);
+    setDraftFormulaRightKey(draftFormulaLeftKey);
+  };
+
   const addWidget = () => {
     const id = `${draftType}-${Date.now()}`;
+    const usingCompareSides =
+      isWideMonthlyTable &&
+      (draftFormulaFn === 'diff' || draftFormulaFn === 'ratio') &&
+      draftCompareSides.length >= 2;
+    const effectiveFormulaLeftType = usingCompareSides
+      ? buildSumMonthsType(draftCompareSides[0].monthKeys)
+      : draftFormulaLeftType;
+    const effectiveFormulaRightType = usingCompareSides
+      ? buildSumMonthsType(draftCompareSides[1].monthKeys)
+      : draftFormulaRightType;
     const next: WidgetConfig = {
       id,
       type: draftType,
@@ -1415,12 +1527,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       themeKey: draftTheme,
       showLabels: draftType === 'donut' ? draftShowLabels : undefined,
       formulaFn: draftType === 'formula' ? draftFormulaFn : undefined,
-      formulaLeftType: draftType === 'formula' ? draftFormulaLeftType : undefined,
+      formulaLeftType: draftType === 'formula' ? effectiveFormulaLeftType : undefined,
       formulaLeftKey: draftType === 'formula' ? draftFormulaLeftKey : undefined,
-      formulaRightType: draftType === 'formula' ? draftFormulaRightType : undefined,
+      formulaRightType: draftType === 'formula' ? effectiveFormulaRightType : undefined,
       formulaRightKey: draftType === 'formula' ? draftFormulaRightKey : undefined,
       formulaMode: draftType === 'formula' ? draftFormulaMode : undefined,
       formulaFilters: draftFormulaFilters,
+      compareDisplay: draftType === 'formula' ? draftCompareDisplay : undefined,
+      compareSides: draftType === 'formula' && usingCompareSides ? draftCompareSides : undefined,
       metricKey: draftType === 'metric' ? draftMetric : undefined,
       chartKey:
         isChartWidgetType(draftType) ? draftChart : undefined,
@@ -1478,6 +1592,23 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         migrateFormulaFilterRow(f as { scope?: string; key?: string; keys?: unknown }),
       ),
     );
+    setDraftCompareDisplay((widget.compareDisplay ?? 'bar') as CompareDisplay);
+    if (Array.isArray(widget.compareSides) && widget.compareSides.length >= 2) {
+      setDraftCompareSides(widget.compareSides);
+    } else {
+      // Старый двухсторонний формат (Левая/Правая) — переносим в стороны, чтобы можно было
+      // сразу редактировать/добавлять новые в новом интерфейсе.
+      const extractMonthKeys = (type?: string): string[] => {
+        if (!type) return [];
+        if (type.startsWith('summonths:')) return parseSumMonthsKeys(type);
+        if (type.startsWith('sum:') && monthFieldDates.has(type.slice(4))) return [type.slice(4)];
+        return [];
+      };
+      setDraftCompareSides([
+        { ...makeCompareSide(0), monthKeys: extractMonthKeys(widget.formulaLeftType) },
+        { ...makeCompareSide(1), monthKeys: extractMonthKeys(widget.formulaRightType) },
+      ]);
+    }
     setDraftPivotRowKey(widget.pivotRowKey ?? String(chartOptions[0]?.id || 'category'));
     setDraftPivotColKey(
       widget.pivotColKey ?? String(chartOptions.length > 1 ? chartOptions[1].id : chartOptions[0]?.id || 'status'),
@@ -1519,6 +1650,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   const saveWidget = () => {
     if (editingWidgetId) {
+      const usingCompareSides =
+        isWideMonthlyTable &&
+        (draftFormulaFn === 'diff' || draftFormulaFn === 'ratio') &&
+        draftCompareSides.length >= 2;
+      const effectiveFormulaLeftType = usingCompareSides
+        ? buildSumMonthsType(draftCompareSides[0].monthKeys)
+        : draftFormulaLeftType;
+      const effectiveFormulaRightType = usingCompareSides
+        ? buildSumMonthsType(draftCompareSides[1].monthKeys)
+        : draftFormulaRightType;
       setWidgets((prev) =>
         prev.map((item) =>
           item.id === editingWidgetId
@@ -1533,16 +1674,20 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                 showLabels: draftType === 'donut' ? draftShowLabels : undefined,
                 formulaFn: draftType === 'formula' ? draftFormulaFn : undefined,
                 formulaLeftType:
-                  draftType === 'formula' ? draftFormulaLeftType : undefined,
+                  draftType === 'formula' ? effectiveFormulaLeftType : undefined,
                 formulaLeftKey:
                   draftType === 'formula' ? draftFormulaLeftKey : undefined,
                 formulaRightType:
-                  draftType === 'formula' ? draftFormulaRightType : undefined,
+                  draftType === 'formula' ? effectiveFormulaRightType : undefined,
                 formulaRightKey:
                   draftType === 'formula' ? draftFormulaRightKey : undefined,
                 formulaMode:
                   draftType === 'formula' ? draftFormulaMode : undefined,
                 formulaFilters: draftFormulaFilters,
+                compareDisplay:
+                  draftType === 'formula' ? draftCompareDisplay : undefined,
+                compareSides:
+                  draftType === 'formula' && usingCompareSides ? draftCompareSides : undefined,
                 metricKey: draftType === 'metric' ? draftMetric : undefined,
                 chartKey:
                   isChartWidgetType(draftType)
@@ -1602,21 +1747,51 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     setResetOpen(false);
   };
 
+  const buildWithAi = async () => {
+    setAiConfirmOpen(false);
+    setAiError(null);
+    setAiBuilding(true);
+    try {
+      const res = await postAiBuildAnalyticsDashboard({
+        module: isWorkspaceMode ? 'workspace' : 'projects',
+        workspaceObjectId: isWorkspaceMode ? workspaceObjectId : undefined,
+        periodFrom: activePeriodRange ? activePeriodRange.start.toISOString() : undefined,
+        periodTo: activePeriodRange ? activePeriodRange.end.toISOString() : undefined,
+      });
+      if (!res.ok || !res.widgets || !res.widgets.length) {
+        setAiError(res.note || res.error || 'Не удалось построить дашборд — недостаточно данных.');
+        return;
+      }
+      const nextWidgets = res.widgets as unknown as WidgetConfig[];
+      setWidgets(nextWidgets);
+      try {
+        localStorage.setItem(`${storageNamespace}_widgets`, JSON.stringify(nextWidgets));
+        localStorage.setItem(`${storageNamespace}_version`, ANALYTICS_LAYOUT_VERSION);
+      } catch {
+        // ignore
+      }
+    } catch (e: any) {
+      setAiError(e?.message || 'Не удалось построить дашборд.');
+    } finally {
+      setAiBuilding(false);
+    }
+  };
+
   const periodRangeLabel = useMemo(() => {
-    if (period === 'all' || period === 'custom') return periodLabels[period];
-    const now = new Date();
-    const start = new Date(now);
-    if (period === '7d') start.setDate(now.getDate() - 6);
-    if (period === '30d') start.setDate(now.getDate() - 29);
-    if (period === '1y') start.setFullYear(now.getFullYear() - 1);
+    if (period === 'all') return periodLabels[period];
     const format = (date: Date) =>
       date.toLocaleDateString(locale, {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
       });
-    return `${format(start)} – ${format(now)}`;
-  }, [locale, period, periodLabels]);
+    if (period === 'custom') {
+      if (!activePeriodRange) return periodLabels.custom;
+      return `${format(activePeriodRange.start)} – ${format(activePeriodRange.end)}`;
+    }
+    if (!activePeriodRange) return periodLabels[period];
+    return `${format(activePeriodRange.start)} – ${format(activePeriodRange.end)}`;
+  }, [locale, period, periodLabels, activePeriodRange]);
 
   const handleShare = () => {
     const url = new URL(window.location.href);
@@ -1679,7 +1854,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const removeGlobalFilter = (id: string) =>
     setGlobalFilters((prev) => prev.filter((filter) => filter.id !== id));
 
-  const widgetSpan = (widget: WidgetConfig) => closestSpan(widget.span ?? spanFromSize(widget.size));
+  const widgetSpan = (widget: WidgetConfig) => clampSpan(widget.span ?? spanFromSize(widget.size));
 
   const duplicateWidget = (id: string) => {
     setWidgets((prev) => {
@@ -1723,49 +1898,43 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     ? 'Загрузка'
     : `${filteredItems.length} ${isWorkspaceMode ? 'записей' : 'проектов'} · обновлено только что`;
 
-  useEffect(() => {
-    if (!resizing) return;
-    const prevCursor = document.body.style.cursor;
-    const prevSelect = document.body.style.userSelect;
-    document.body.style.cursor =
-      resizing.axis === 'y'
-        ? 'ns-resize'
-        : resizing.axis === 'both'
-          ? 'nwse-resize'
-          : 'ew-resize';
-    document.body.style.userSelect = 'none';
-    const handleMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - resizing.startX;
-      const deltaY = e.clientY - resizing.startY;
-      let nextSize = resizing.startSize;
-      let nextSpan = resizing.startSpan;
-      if (resizing.axis === 'x' || resizing.axis === 'both') {
-        nextSpan = closestSpan(resizing.startSpan + Math.round(deltaX / 120));
-        nextSize = sizeFromSpan(nextSpan);
-      }
-      let nextHeight = resizing.startHeight;
-      if (resizing.axis === 'y' || resizing.axis === 'both') {
-        nextHeight = Math.min(
-          MAX_WIDGET_H,
-          Math.max(resizing.minHeight, resizing.startHeight + deltaY),
-        );
-      }
+  const minWidgetHeight = (id: string) => {
+    const type = widgets.find((w) => w.id === id)?.type ?? 'metric';
+    return type === 'pivot'
+      ? 280
+      : type === 'table'
+        ? 240
+        : type === 'donut' || type === 'bar' || type === 'line' || type === 'funnel' || type === 'leaderboard'
+          ? 220
+          : 160;
+  };
+
+  const visibleWidgetIds = useMemo(() => visibleWidgets.map((w) => w.id), [visibleWidgets]);
+  const { beginDrag, beginResize, dragId, previewOrder, live } = useBlockGridInteractions({
+    gridRef,
+    enabled: editMode && !isMobile,
+    order: visibleWidgetIds,
+    minSpan: MIN_WIDGET_SPAN,
+    minHeight: minWidgetHeight,
+    maxHeight: MAX_WIDGET_H,
+    onResizeCommit: (id, m) =>
       setWidgets((prev) =>
-        prev.map((item) =>
-          item.id === resizing.id ? { ...item, size: nextSize, span: nextSpan, height: nextHeight } : item,
-        ),
-      );
-    };
-    const handleUp = () => setResizing(null);
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    return () => {
-      document.body.style.cursor = prevCursor;
-      document.body.style.userSelect = prevSelect;
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-  }, [resizing]);
+        prev.map((item) => (item.id === id ? { ...item, size: sizeFromSpan(m.span), span: m.span, height: m.height } : item)),
+      ),
+    onReorderCommit: (nextVisible) =>
+      setWidgets((prev) => {
+        const byId = new Map(prev.map((w) => [w.id, w]));
+        return applyVisibleOrder(prev.map((w) => w.id), nextVisible)
+          .map((id) => byId.get(id))
+          .filter((w): w is WidgetConfig => !!w);
+      }),
+  });
+  // во время перетаскивания рисуем «живой» порядок, во время растягивания — живые размеры
+  const renderedWidgets = useMemo(() => {
+    if (!previewOrder) return visibleWidgets;
+    const byId = new Map(visibleWidgets.map((w) => [w.id, w]));
+    return previewOrder.map((id) => byId.get(id)).filter((w): w is WidgetConfig => !!w);
+  }, [previewOrder, visibleWidgets]);
 
   useEffect(() => {
     const ensureKey = (
@@ -1888,11 +2057,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
     if (key?.startsWith('sum:')) {
       const fieldKey = key.slice(4);
-      const sum = sourceItems.reduce((acc, item) => {
-        const raw = getCustomFieldValue(item, fieldKey);
-        const value = parseNumericLoose(raw);
-        return acc + (value ?? 0);
-      }, 0);
+      const sum = sourceItems.reduce((acc, item) => acc + getPeriodAwareFieldValue(item, fieldKey), 0);
       const fieldLabel = analyticsFieldMap.get(fieldKey)?.label || fieldKey;
       const currencySuffix = /\bUSD\b/i.test(fieldLabel) || /usd/i.test(fieldKey)
         ? ' USD'
@@ -1903,9 +2068,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
     if (key?.startsWith('avg:')) {
       const fieldKey = key.slice(4);
-      const values = sourceItems
-        .map((item) => parseNumericLoose(getCustomFieldValue(item, fieldKey)))
-        .filter((value): value is number => value !== null);
+      const values = sourceItems.map((item) => getPeriodAwareFieldValue(item, fieldKey));
       const avg = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
       return new Intl.NumberFormat(locale).format(avg);
     }
@@ -1936,38 +2099,6 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   const resolveTheme = (key?: ThemeKey) =>
     THEME_PRESETS.find((preset) => preset.key === key) || THEME_PRESETS[0];
-
-  const beginResize = (
-    id: string,
-    axis: 'x' | 'y' | 'both',
-    event: React.MouseEvent<HTMLElement>,
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const current = widgets.find((w) => w.id === id);
-    const size = current?.size || 'md';
-    const startHeight = current?.height ?? getDefaultHeight(size, current?.type || 'metric');
-    const startSpan = current ? widgetSpan(current) : spanFromSize(size);
-    const type = current?.type ?? 'metric';
-    const minHeight =
-      type === 'pivot'
-        ? 280
-        : type === 'table'
-          ? 240
-          : type === 'donut' || type === 'bar' || type === 'line' || type === 'funnel' || type === 'leaderboard'
-            ? 220
-            : 160;
-    setResizing({
-      id,
-      startX: event.clientX,
-      startY: event.clientY,
-      startSize: size,
-      startSpan,
-      startHeight,
-      minHeight,
-      axis,
-    });
-  };
 
   const itemMatchesOneKey = (item: Project, scope: FormulaScope, key: string) => {
     if (scope.startsWith('field:')) {
@@ -2011,16 +2142,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   ) => {
     const getNumericValue = (item: Project) => {
       if (!valueField) return isWorkspaceMode ? 0 : item.amount || 0;
-      if (valueField.startsWith('sum:')) {
-        const fieldKey = valueField.slice(4);
-        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
-      }
-      if (valueField.startsWith('field:')) {
-        const fieldKey = valueField.slice(6);
-        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
-      }
+      if (valueField.startsWith('sum:')) return getPeriodAwareFieldValue(item, valueField.slice(4));
+      if (valueField.startsWith('field:')) return getPeriodAwareFieldValue(item, valueField.slice(6));
       if (valueField === 'amount') return item.amount || 0;
-      return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+      return getPeriodAwareFieldValue(item, valueField);
     };
 
     if (!isWorkspaceMode) {
@@ -2119,16 +2244,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   ) {
     const getNumericValue = (item: Project) => {
       if (!valueField) return isWorkspaceMode ? 0 : item.amount || 0;
-      if (valueField.startsWith('sum:')) {
-        const fieldKey = valueField.slice(4);
-        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
-      }
-      if (valueField.startsWith('field:')) {
-        const fieldKey = valueField.slice(6);
-        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
-      }
+      if (valueField.startsWith('sum:')) return getPeriodAwareFieldValue(item, valueField.slice(4));
+      if (valueField.startsWith('field:')) return getPeriodAwareFieldValue(item, valueField.slice(6));
       if (valueField === 'amount') return item.amount || 0;
-      return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+      return getPeriodAwareFieldValue(item, valueField);
     };
     const grouped = new Map<string, { cells: string[]; count: number }>();
     sourceItems.forEach((item) => {
@@ -2172,16 +2291,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   const pivotNumericValue = (item: Project, valueField?: string): number => {
     if (!valueField) return isWorkspaceMode ? 0 : item.amount || 0;
-    if (valueField.startsWith('sum:')) {
-      const fieldKey = valueField.slice(4);
-      return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
-    }
-    if (valueField.startsWith('field:')) {
-      const fieldKey = valueField.slice(6);
-      return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
-    }
+    if (valueField.startsWith('sum:')) return getPeriodAwareFieldValue(item, valueField.slice(4));
+    if (valueField.startsWith('field:')) return getPeriodAwareFieldValue(item, valueField.slice(6));
     if (valueField === 'amount') return item.amount || 0;
-    return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+    return getPeriodAwareFieldValue(item, valueField);
   };
 
   const pivotMeasureAggregate = (
@@ -2232,6 +2345,68 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     });
   };
 
+  /** Для "широкой" помесячной таблицы обычный тренд по createdAt бессмысленен (все строки
+   * импортированы почти одновременно, дата импорта — не дата расхода). Строим тренд иначе: одна
+   * точка на каждую месячную колонку (ось X), значение — сумма этой колонки по всем строкам. */
+  const buildMonthTrend = (sourceItems: Project[]) => {
+    const sortedMonths = [...monthFieldDates.entries()].sort((a, b) => a[1].getTime() - b[1].getTime());
+    const relevant = activePeriodRange
+      ? sortedMonths.filter(([, date]) => monthOverlapsRange(date, activePeriodRange))
+      : sortedMonths;
+    const points = (relevant.length ? relevant : sortedMonths).map(([key, date]) => ({
+      name: date.toLocaleDateString(locale, { month: 'short', year: '2-digit' }),
+      value: sourceItems.reduce((sum, item) => sum + (parseNumericLoose(getCustomFieldValue(item, key)) ?? 0), 0),
+      previous: 0,
+    }));
+    return points.length ? points : [{ name: '—', value: 0, previous: 0 }];
+  };
+
+  /** "summonths:m_2025_08,m_2025_09" — операнд формулы = сумма НЕСКОЛЬКИХ месячных колонок разом
+   * (например «Август+Сентябрь 2025» одной группой) — для сравнения произвольных групп месяцев,
+   * а не только двух отдельных месяцев. Ключи не зависят от периода страницы (выбраны явно). */
+  const parseSumMonthsKeys = (type: string): string[] =>
+    type.startsWith('summonths:') ? type.slice(10).split(',').filter(Boolean) : [];
+  const buildSumMonthsType = (keys: string[]): string => (keys.length ? `summonths:${keys.join(',')}` : 'total');
+  const isMonthOperand = (type: string): boolean =>
+    type.startsWith('summonths:') || (type.startsWith('sum:') && monthFieldDates.has(type.slice(4)));
+  /** Подмножество formulaOperandOptions, проходящее isMonthOperand — используем его в полях
+   * "Правая часть" (и в СУММЕСЛИ), которые нужны только для графика сравнения, чтобы нельзя
+   * было выбрать поле, с которым canCompareVisually всё равно окажется false. */
+  const monthOperandOptions = formulaOperandOptions.filter((opt) => isMonthOperand(opt.id));
+  const describeMonthOperand = (type: string): string => {
+    const fmt = (d: Date) => d.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
+    if (type.startsWith('summonths:')) {
+      const dates = parseSumMonthsKeys(type)
+        .map((k) => monthFieldDates.get(k))
+        .filter((d): d is Date => !!d)
+        .sort((a, b) => a.getTime() - b.getTime());
+      if (!dates.length) return 'Группа';
+      return dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])}–${fmt(dates[dates.length - 1])}`;
+    }
+    if (type.startsWith('sum:')) {
+      const fieldKey = type.slice(4);
+      const date = monthFieldDates.get(fieldKey);
+      return date ? fmt(date) : analyticsFieldMap.get(fieldKey)?.label || fieldKey;
+    }
+    return '';
+  };
+
+  const describeCompareSide = (side: CompareSide): string => {
+    if (side.label?.trim()) return side.label.trim();
+    return describeMonthOperand(buildSumMonthsType(side.monthKeys)) || 'Группа';
+  };
+  const sumCompareSide = (side: CompareSide, sourceItems: Project[]): number =>
+    sourceItems.reduce(
+      (acc, item) =>
+        acc + side.monthKeys.reduce((s, k) => s + (parseNumericLoose(getCustomFieldValue(item, k)) ?? 0), 0),
+      0,
+    );
+  const makeCompareSide = (ordinal: number): CompareSide => ({
+    id: `cs-${Date.now()}-${ordinal}`,
+    monthKeys: [],
+    color: V2_PALETTE[ordinal % V2_PALETTE.length],
+  });
+
   const buildHeatmap = (sourceItems: Project[]) => {
     const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
     const hours = ['00', '03', '06', '09', '12', '15', '18', '21'];
@@ -2270,30 +2445,77 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const renderWidget = (w: WidgetConfig) => {
     const widgetHeight = w.height ?? getDefaultHeight(w.size, w.type);
     const widgetItems = applyWidgetFilters(filteredItems, w.formulaFilters);
-    const widgetColor = '#222222';
-    const metricSpark = (() => {
-      if (w.type !== 'metric' && w.type !== 'formula') return [0, 0, 0];
+    const widgetColor = resolveTheme(w.themeKey).primary;
+    const metricSparkData = (() => {
+      if (w.type !== 'metric' && w.type !== 'formula') return { values: [0, 0, 0], labels: [] as string[] };
+      // «Широкая» таблица (колонка на месяц): у строк нет своей даты события (createdAt — дата
+      // импорта), поэтому график суммы/среднего строим по месячным колонкам, а не по createdAt —
+      // иначе всё падает в одну корзину и получается пик + нули.
+      const isSumLike =
+        w.type === 'metric'
+          ? !!w.metricKey && (w.metricKey.startsWith('sum:') || w.metricKey.startsWith('avg:'))
+          : w.formulaMode === 'sum';
+      if (isWideMonthlyTable && isSumLike) {
+        const sortedMonths = [...monthFieldDates.entries()].sort((a, b) => a[1].getTime() - b[1].getTime());
+        const inPeriod = activePeriodRange
+          ? sortedMonths.filter(([, date]) => monthOverlapsRange(date, activePeriodRange))
+          : sortedMonths;
+        const months = inPeriod.length >= 2 ? inPeriod : sortedMonths;
+        const isAvg = w.type === 'metric' && !!w.metricKey?.startsWith('avg:');
+        return {
+          values: months.map(([key]) => {
+            const total = widgetItems.reduce((sum, item) => sum + (parseNumericLoose(getCustomFieldValue(item, key)) ?? 0), 0);
+            return isAvg ? (widgetItems.length ? total / widgetItems.length : 0) : total;
+          }),
+          labels: months.map(([, date]) => date.toLocaleDateString(locale, { month: 'short', year: '2-digit' })),
+        };
+      }
       const dated = widgetItems
         .map((item) => ({ item, time: parseDate(item.createdAt)?.getTime() ?? NaN }))
         .filter((entry) => Number.isFinite(entry.time));
-      if (!dated.length) return [widgetItems.length || 0, widgetItems.length || 0, widgetItems.length || 0];
+      if (!dated.length) {
+        const flat = widgetItems.length || 0;
+        return { values: [flat, flat, flat], labels: [] as string[] };
+      }
       const min = Math.min(...dated.map((entry) => entry.time));
       const max = Math.max(...dated.map((entry) => entry.time));
-      const buckets = 8;
-      const step = Math.max(1, (max - min || 1) / buckets);
-      const values = Array.from({ length: buckets }, () => 0);
-      dated.forEach(({ item, time }) => {
-        const index = Math.min(buckets - 1, Math.max(0, Math.floor((time - min) / step)));
-        if (w.metricKey === 'amount') values[index] += item.amount || 0;
-        else if (w.metricKey === 'avgAmount') values[index] += item.amount || 0;
-        else if (w.metricKey?.startsWith('sum:')) {
-          values[index] += parseNumericLoose(getCustomFieldValue(item, w.metricKey.slice(4))) ?? 0;
-        } else {
-          values[index] += 1;
+      const metricKey = w.metricKey;
+      const isAverage = metricKey === 'avgAmount' || !!metricKey?.startsWith('avg:');
+      const contribution = (item: Project): number => {
+        if (metricKey === 'amount' || metricKey === 'avgAmount') return item.amount || 0;
+        if (metricKey?.startsWith('sum:') || metricKey?.startsWith('avg:')) {
+          return parseNumericLoose(getCustomFieldValue(item, metricKey.slice(4))) ?? 0;
         }
+        return 1;
+      };
+      const aggregate = (list: Project[]) => {
+        const total = list.reduce((sum, item) => sum + contribution(item), 0);
+        return isAverage ? (list.length ? total / list.length : 0) : total;
+      };
+      // Все записи за один момент (типичный импорт) — динамики нет: ровная линия на итоговом
+      // значении, а не пик в первой корзине и нули в остальных.
+      if (max - min < 86_400_000) {
+        const flat = aggregate(dated.map((entry) => entry.item));
+        return { values: [flat, flat, flat], labels: [] as string[] };
+      }
+      const buckets = 8;
+      const step = Math.max(1, (max - min) / buckets);
+      const grouped: Project[][] = Array.from({ length: buckets }, () => []);
+      dated.forEach(({ item, time }) => {
+        grouped[Math.min(buckets - 1, Math.max(0, Math.floor((time - min) / step)))].push(item);
       });
-      return values;
+      const values = grouped.map(aggregate);
+      const dateFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' });
+      const labels = values.map((_, index) => {
+        const from = new Date(min + index * step);
+        const to = new Date(Math.min(max, min + (index + 1) * step));
+        const a = dateFmt.format(from);
+        const b = dateFmt.format(to);
+        return a === b ? a : `${a} – ${b}`;
+      });
+      return { values, labels };
     })();
+    const metricSpark = metricSparkData.values;
 
     if (w.type === 'pivot') {
       const rowKey = w.pivotRowKey || String(chartOptions[0]?.id || 'status');
@@ -2427,21 +2649,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     if (w.type === 'metric') {
       const value = resolveMetricValue(w.metricKey, widgetItems, filteredItems);
       return (
-        <div className="flex h-full items-end gap-3">
-          <div className="flex min-w-0 flex-1 flex-col justify-end gap-1">
-            <div className="flex flex-wrap items-baseline gap-2 leading-none">
-              <span className="text-[2.5rem] font-semibold tracking-[-0.04em] text-[#222]">
-                {value}
-              </span>
-            </div>
-            <div className="text-[11px] font-medium text-neutral-400">
-              {period === 'custom' ? t('crm.projects.analytics.period.custom') : periodLabels[period]}
-            </div>
-          </div>
-          <div className="w-20 shrink-0">
-            <MiniSparkline data={metricSpark} color={widgetColor} />
-          </div>
-        </div>
+        <MetricCard
+          value={String(value)}
+          caption={period === 'custom' ? t('crm.projects.analytics.period.custom') : periodLabels[period]}
+          spark={metricSpark}
+          sparkLabels={metricSparkData.labels}
+          color={widgetColor}
+          locale={locale}
+        />
       );
     }
 
@@ -2459,18 +2674,20 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         key?: string,
         sourceItems: Project[] = widgetItems,
       ) => {
-        if (type.startsWith('sum:')) {
-          const fieldKey = type.slice(4);
+        if (type.startsWith('summonths:')) {
+          const keys = parseSumMonthsKeys(type);
           return sourceItems.reduce(
-            (acc, item) => acc + (parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0),
+            (acc, item) => acc + keys.reduce((s, k) => s + (parseNumericLoose(getCustomFieldValue(item, k)) ?? 0), 0),
             0,
           );
         }
+        if (type.startsWith('sum:')) {
+          const fieldKey = type.slice(4);
+          return sourceItems.reduce((acc, item) => acc + getPeriodAwareFieldValue(item, fieldKey), 0);
+        }
         if (type.startsWith('avg:')) {
           const fieldKey = type.slice(4);
-          const values = sourceItems
-            .map((item) => parseNumericLoose(getCustomFieldValue(item, fieldKey)))
-            .filter((value): value is number => value !== null);
+          const values = sourceItems.map((item) => getPeriodAwareFieldValue(item, fieldKey));
           return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
         }
         if (type.startsWith('filled:')) {
@@ -2560,39 +2777,224 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
       const primaryLabel =
         mode === 'sum'
-          ? new Intl.NumberFormat(locale).format(primaryValue)
+          ? new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(primaryValue)
           : fn === 'percent' || fn === 'ratio' || mode === 'percent'
           ? `${primaryValue}%`
-          : primaryValue.toLocaleString(locale);
+          : primaryValue.toLocaleString(locale, { maximumFractionDigits: 2 });
       const secondaryLabel =
         secondaryValue === null
           ? null
-          : mode === 'percent' || fn === 'percent' || fn === 'ratio'
-            ? secondaryValue.toLocaleString(locale)
+          : mode === 'percent' || fn === 'percent' || fn === 'ratio' || fn === 'diff'
+            ? secondaryValue.toLocaleString(locale, { maximumFractionDigits: 2 })
             : `${secondaryValue}%`;
 
+      // Обе части — суммы по месяцам ("широкая" таблица) — тогда, помимо числа, можно показать
+      // сравнение как график/таблицу (настраивается в блоке), независимо от функции формулы:
+      // leftValue/rightValue считаются для всех fn (sumif/count/percent/ratio/diff), не только diff/ratio.
+      const canCompareVisually =
+        isWideMonthlyTable && isMonthOperand(leftType) && isMonthOperand(rightType);
+      const compareDisplay: CompareDisplay = canCompareVisually ? w.compareDisplay || 'bar' : 'number';
+      const compareLeftLabel = describeMonthOperand(leftType);
+      const compareRightLabel = describeMonthOperand(rightType);
+      const compareData: Array<{ name: string; value: number; color: string }> = canCompareVisually
+        ? Array.isArray(w.compareSides) && w.compareSides.length >= 2
+          ? w.compareSides.map((side, idx) => ({
+              name: describeCompareSide(side),
+              value: sumCompareSide(side, widgetItems),
+              color: side.color || V2_PALETTE[idx % V2_PALETTE.length],
+            }))
+          : [
+              { name: compareLeftLabel, value: leftValue, color: widgetColor },
+              { name: compareRightLabel, value: rightValue, color: V2_PALETTE[1] },
+            ]
+        : [];
+      const showCompareVisual = canCompareVisually && compareDisplay !== 'number';
+      const formatCompareValue = (value: number) =>
+        new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
+
+      const formulaCaption = (
+        <span className="line-clamp-2">
+          {secondaryLabel ? `${secondaryLabel} · ` : ''}
+          {canCompareVisually
+            ? compareData.map((d) => d.name).join(' vs ')
+            : period === 'custom'
+              ? t('crm.projects.analytics.period.custom')
+              : periodLabels[period]}
+        </span>
+      );
+      if (!showCompareVisual) {
+        return (
+          <MetricCard
+            value={String(primaryLabel)}
+            caption={formulaCaption}
+            spark={metricSpark}
+            sparkLabels={metricSparkData.labels}
+            color={widgetColor}
+            locale={locale}
+          />
+        );
+      }
+
       return (
-        <div className="flex h-full items-end gap-3">
-          <div className="flex min-w-0 flex-1 flex-col justify-end gap-1">
-            <div className="text-[2.5rem] font-semibold tracking-[-0.04em] text-[#222]">
+        <div className="flex h-full flex-col gap-2">
+          <div className="flex min-w-0 flex-col justify-end gap-1" style={{ containerType: 'inline-size' }}>
+            <div
+              className="whitespace-nowrap font-semibold leading-none tracking-[-0.04em] text-[#222] tabular-nums"
+              style={{ fontSize: `clamp(16px, calc(100cqw / ${(String(primaryLabel).length * 0.58).toFixed(2)}), 40px)` }}
+            >
               {primaryLabel}
             </div>
-            <div className="line-clamp-2 text-[11px] font-medium text-neutral-400">
-              {secondaryLabel ? `${secondaryLabel} · ` : ''}
-              {period === 'custom'
-                ? t('crm.projects.analytics.period.custom')
-                : periodLabels[period]}
+            <div className="text-[11px] font-medium text-neutral-400">{formulaCaption}</div>
+          </div>
+          {showCompareVisual && compareDisplay === 'bar' && (
+            <div style={{ height: Math.max(90, widgetHeight - 130) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={compareData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9a9a9a', fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#b5b5b5', fontSize: 11 }} width={36} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12 }}
+                    formatter={(value: number) => [formatCompareValue(Number(value)), '']}
+                  />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {compareData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-          <div className="w-20 shrink-0">
-            <MiniSparkline data={metricSpark} color={widgetColor} />
-          </div>
+          )}
+          {showCompareVisual && compareDisplay === 'line' && (
+            <div style={{ height: Math.max(90, widgetHeight - 130) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={compareData} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9a9a9a', fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#b5b5b5', fontSize: 11 }} width={36} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12 }}
+                    formatter={(value: number) => [formatCompareValue(Number(value)), '']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={widgetColor}
+                    strokeWidth={2.5}
+                    fill="transparent"
+                    isAnimationActive={false}
+                    dot={(props: any) => {
+                      const { cx, cy, index, key } = props;
+                      const color = compareData[index]?.color || widgetColor;
+                      return <circle key={key} cx={cx} cy={cy} r={5} strokeWidth={2} fill="#fff" stroke={color} />;
+                    }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {showCompareVisual && compareDisplay === 'donut' && (() => {
+            // Пирог не умеет отрицательные сектора (leftValue/rightValue теоретически могут быть
+            // < 0, если суммируемое поле само бывает отрицательным, например "прибыль/убыток") —
+            // сектор размером по |value|, а подпись/тултип показывают настоящее (со знаком) число.
+            const donutData = compareData.map((entry) => ({ ...entry, rawValue: entry.value, value: Math.abs(entry.value) }));
+            const donutTotal = donutData.reduce((sum, row) => sum + row.value, 0);
+            const donutTotalText = compactNumber(donutTotal);
+            const donutTotalFontClass = donutCenterFontClass(donutTotalText, [
+              [5, 'text-xl'],
+              [7, 'text-lg'],
+              [9, 'text-base'],
+              [Infinity, 'text-sm'],
+            ]);
+            const activeIndex = activeDonut[w.id] ?? null;
+            const activeProps =
+              activeIndex === null ? {} : ({ activeIndex, activeShape: renderActiveDonut } as any);
+            return (
+            <div className="grid grid-cols-[minmax(100px,0.9fr)_1.1fr] items-center gap-3" style={{ height: Math.max(90, widgetHeight - 130) }}>
+              <div className="relative h-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={38}
+                      outerRadius={54}
+                      paddingAngle={2}
+                      stroke="#fff"
+                      strokeWidth={2}
+                      {...activeProps}
+                      onMouseLeave={() => setActiveDonut((prev) => ({ ...prev, [w.id]: null }))}
+                      onMouseEnter={(_, idx) => setActiveDonut((prev) => ({ ...prev, [w.id]: idx }))}
+                    >
+                      {donutData.map((entry, idx) => (
+                        <Cell
+                          key={entry.name}
+                          fill={entry.color}
+                          opacity={activeIndex === null || activeIndex === idx ? 1 : 0.3}
+                          style={{ transition: 'opacity 180ms ease' }}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      wrapperStyle={{ zIndex: 20 }}
+                      contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12 }}
+                      formatter={(_value: number, _n, p: any) => [formatCompareValue(p?.payload?.rawValue ?? 0), '']}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2">
+                  <span className={`${donutTotalFontClass} font-semibold leading-tight text-center`}>{donutTotalText}</span>
+                  <span className="text-[9px] uppercase tracking-[0.18em] text-neutral-400">всего</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {donutData.map((entry, idx) => {
+                  const isActive = activeIndex === idx;
+                  return (
+                    <button
+                      key={entry.name}
+                      type="button"
+                      onMouseEnter={() => setActiveDonut((prev) => ({ ...prev, [w.id]: idx }))}
+                      onMouseLeave={() => setActiveDonut((prev) => ({ ...prev, [w.id]: null }))}
+                      className={`grid w-full grid-cols-[10px_1fr_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs transition ${
+                        isActive ? 'bg-neutral-100 text-[#222]' : 'text-neutral-600 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: entry.color }} />
+                      <span className="truncate text-left">{entry.name}</span>
+                      <span className="font-mono text-[#222]">{formatCompareValue(entry.rawValue)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            );
+          })()}
+          {showCompareVisual && compareDisplay === 'table' && (
+            <table className="w-full border-collapse text-[11px]">
+              <tbody>
+                {compareData.map((entry) => (
+                  <tr key={entry.name} className="border-b border-neutral-100 last:border-b-0">
+                    <td className="py-2 pr-3 font-medium text-neutral-600">
+                      <span className="mr-2 inline-block h-2 w-2 rounded-sm align-middle" style={{ backgroundColor: entry.color }} />
+                      {entry.name}
+                    </td>
+                    <td className="py-2 text-right font-mono text-[#222]">{formatCompareValue(entry.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       );
     }
 
     if (w.type === 'line') {
-      const trend = buildTrend(widgetItems, w.chartValueMode || 'count', w.chartValueField);
+      const trend = isWideMonthlyTable
+        ? buildMonthTrend(widgetItems)
+        : buildTrend(widgetItems, w.chartValueMode || 'count', w.chartValueField);
       const chartHeight = Math.max(widgetHeight - 90, 160);
       const areaId = `projects-area-${w.id}`;
       return (
@@ -2600,7 +3002,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           <div className="flex items-center gap-4 px-1">
             <span className="flex items-center gap-1.5 text-[11px] text-neutral-500">
               <span className="inline-block h-0.5 w-5 rounded-full" style={{ backgroundColor: widgetColor }} />
-              Текущий период
+              {isWideMonthlyTable ? 'По месяцам' : 'Текущий период'}
             </span>
           </div>
           <div style={{ height: Math.max(120, chartHeight - 28) }}>
@@ -2631,9 +3033,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         widgetItems,
         w.chartValueMode || 'count',
         w.chartValueField,
-      );
-      const palette = V2_PALETTE;
+      ).sort((a, b) => b.count - a.count);
+      const palette = resolveTheme(w.themeKey).palette;
       const donutTotal = donutData.reduce((sum, row) => sum + row.count, 0);
+      const donutTotalText = compactNumber(donutTotal);
+      const donutTotalFontClass = donutCenterFontClass(donutTotalText, [
+        [5, 'text-2xl'],
+        [7, 'text-xl'],
+        [9, 'text-lg'],
+        [Infinity, 'text-base'],
+      ]);
       const chartHeight = Math.max(widgetHeight - 96, 180);
       const activeIndex = activeDonut[w.id] ?? null;
       const activeProps =
@@ -2642,11 +3051,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       return (
         <div
           className={cx(
-            'grid h-full min-h-[220px] items-center gap-4',
+            'grid h-full min-h-[220px] items-start gap-4',
             showLabels ? 'grid-cols-1 md:grid-cols-[minmax(140px,0.9fr)_1.1fr]' : 'grid-cols-1',
           )}
         >
-          <div className="relative" style={{ height: chartHeight }}>
+          {/* sticky: длинная легенда (много категорий) растягивает строку грида выше видимой
+              карточки — без sticky центрированный по items-center пончик оказывался прижат к низу
+              (реально по центру ВСЕЙ строки, но видна была только её верхняя часть). */}
+          <div className="relative sticky top-0" style={{ height: chartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -2675,11 +3087,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip
+                    wrapperStyle={{ zIndex: 20 }}
+                    contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12 }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-semibold">{compactNumber(donutTotal)}</span>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2">
+                <span className={`${donutTotalFontClass} font-semibold leading-tight text-center`}>{donutTotalText}</span>
                 <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">всего</span>
               </div>
             </div>
@@ -2726,7 +3141,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         label: item.label,
         count: item.count,
       }));
-      const palette = V2_PALETTE;
+      const palette = resolveTheme(w.themeKey).palette;
       const chartHeight = Math.max(widgetHeight - 72, 180);
       return (
         <div style={{ height: chartHeight }}>
@@ -2756,13 +3171,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       );
       const ordered = [...data].sort((a, b) => b.count - a.count);
       const max = Math.max(1, ordered[0]?.count || widgetItems.length);
+      const palette = resolveTheme(w.themeKey).palette;
       return (
         <div className="flex h-full flex-col justify-center">
           {ordered.map((item, index) => (
             <div key={item.code} className="grid grid-cols-[130px_1fr_64px] items-center gap-3 border-b border-neutral-100 py-2 text-xs last:border-b-0">
               <span className="truncate font-medium text-[#222]">{item.label}</span>
               <span className="h-7 overflow-hidden rounded-md bg-neutral-100">
-                <span className="flex h-full items-center rounded-md px-3 font-mono text-[11px] font-medium text-white" style={{ width: `${Math.max(8, percent(item.count, max))}%`, backgroundColor: V2_PALETTE[index % V2_PALETTE.length] }}>{compactNumber(item.count)}</span>
+                <span className="flex h-full items-center rounded-md px-3 font-mono text-[11px] font-medium text-white" style={{ width: `${Math.max(8, percent(item.count, max))}%`, backgroundColor: palette[index % palette.length] }}>{compactNumber(item.count)}</span>
               </span>
               <span className="text-right font-mono text-neutral-500">{index === 0 ? '100%' : `${percent(item.count, max)}%`}</span>
             </div>
@@ -2948,7 +3364,24 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
 
     if (w.type === 'table' && isWorkspaceMode) {
-      const previewFields = analyticsFields.slice(0, 4);
+      // Для "широкой" помесячной таблицы первые 4 поля схемы — это всегда самые старые месяцы
+      // (сентябрь/октябрь/ноябрь 2024 и т.п.), что превращало этот виджет в замороженный на
+      // старых данных, не реагирующий на выбранный на странице период. Показываем колонки
+      // месяцев, которые реально попадают в период (или последние месяцы, если период "всё время").
+      const monthFieldsSorted = [...monthFieldDates.entries()].sort((a, b) => a[1].getTime() - b[1].getTime());
+      let previewFields = analyticsFields.slice(0, 4);
+      if (isWideMonthlyTable) {
+        const nonMonthFields = analyticsFields.filter((f) => !monthFieldDates.has(f.key));
+        const relevant = activePeriodRange
+          ? monthFieldsSorted.filter(([, date]) => monthOverlapsRange(date, activePeriodRange))
+          : monthFieldsSorted.slice(-3);
+        const chosenKeys = (relevant.length ? relevant : monthFieldsSorted.slice(-3)).slice(0, 3).map(([key]) => key);
+        const monthFieldMap = new Map(analyticsFields.map((f) => [f.key, f]));
+        previewFields = [
+          ...nonMonthFields.slice(0, 1),
+          ...chosenKeys.map((key) => monthFieldMap.get(key)).filter((f): f is AnalyticsFieldMeta => !!f),
+        ];
+      }
       return (
         <div className="h-full">
           <div
@@ -2998,8 +3431,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               <React.Fragment key={row.day}>
                 <span className="pr-1 text-right font-mono text-[10px] text-neutral-400">{row.day}</span>
                 {row.hours.map((hour) => {
-                  const lightness = 96 - Math.min(1, hour.value / max) * 68;
-                  return <span key={`${row.day}-${hour.hour}`} className="aspect-square rounded hover:scale-110 hover:ring-1 hover:ring-[#222]" title={`${row.day} ${hour.hour}:00 — ${hour.value}`} style={{ background: `hsl(0 0% ${lightness}%)` }} />;
+                  const intensity = Math.max(0.06, Math.min(1, hour.value / max));
+                  return <span key={`${row.day}-${hour.hour}`} className="aspect-square rounded hover:scale-110 hover:ring-1 hover:ring-[#222]" title={`${row.day} ${hour.hour}:00 — ${hour.value}`} style={{ backgroundColor: widgetColor, opacity: intensity }} />;
                 })}
               </React.Fragment>
             ))}
@@ -3082,7 +3515,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           </div>
         )}
 
-        <div className="sticky top-0 z-30 -mx-3 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-mx-6 md:px-6">
+        <div className="sticky -top-4 z-30 -mx-3 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-top-6 md:-mx-6 md:px-6">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 text-sm text-neutral-500">
               <span className="hidden sm:inline">
@@ -3141,11 +3574,32 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   </button>
                 ))}
               </div>
-              <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm sm:inline-flex">
-                <Icon name="calendar" size={15} />
-                <span className="text-xs uppercase tracking-[0.16em] text-neutral-400">Период</span>
-                <span className="font-medium">{periodRangeLabel}</span>
-              </div>
+              {period === 'custom' ? (
+                <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm sm:inline-flex">
+                  <Icon name="calendar" size={15} />
+                  <input
+                    type="date"
+                    value={customFrom}
+                    max={customTo || undefined}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="w-[130px] border-none bg-transparent text-sm font-medium text-[#222] outline-none"
+                  />
+                  <span className="text-neutral-400">–</span>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom || undefined}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="w-[130px] border-none bg-transparent text-sm font-medium text-[#222] outline-none"
+                  />
+                </div>
+              ) : (
+                <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm sm:inline-flex">
+                  <Icon name="calendar" size={15} />
+                  <span className="text-xs uppercase tracking-[0.16em] text-neutral-400">Период</span>
+                  <span className="font-medium">{periodRangeLabel}</span>
+                </div>
+              )}
               <AnalyticsCurrencyControl state={currencyPrefs} onStateChange={setCurrencyPrefs} />
               <button
                 type="button"
@@ -3178,6 +3632,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               <div className="-mx-3 overflow-x-auto px-3 md:mx-0 md:px-0">{toolbarSlot}</div>
             </nav>
           )}
+
+          {beforeContentSlot}
 
           <nav className="border-b border-neutral-200">
             <div className="-mx-3 flex items-center justify-between overflow-x-auto px-3 md:mx-0 md:px-0">
@@ -3311,6 +3767,19 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               </button>
               <button
                 type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20 disabled:opacity-50"
+                onClick={() => setAiConfirmOpen(true)}
+                disabled={aiBuilding}
+              >
+                {aiBuilding ? (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <Icon name="download" size={13} />
+                )}
+                {aiBuilding ? 'Разбираю данные…' : 'Разобрать через АИ'}
+              </button>
+              <button
+                type="button"
                 className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20"
                 onClick={() => setResetOpen(true)}
               >
@@ -3343,59 +3812,48 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             </button>
           ) : (
             <div
+              ref={gridRef}
               className={cx(
                 'grid min-h-[600px] grid-cols-12 gap-3 rounded-xl sm:gap-4',
                 editMode &&
                   'bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]',
               )}
             >
-              {visibleWidgets.map((w) => {
-                const isResizing = resizing?.id === w.id;
-                const widgetHeight = w.height ?? getDefaultHeight(w.size, w.type);
-                const currentSpan = widgetSpan(w);
+              {renderedWidgets.map((w) => {
+                const isResizing = live?.id === w.id;
+                const isDragging = dragId === w.id;
+                const widgetHeight = isResizing ? live.height : w.height ?? getDefaultHeight(w.size, w.type);
+                const currentSpan = isResizing ? live.span : widgetSpan(w);
+                const startResize = (axis: 'x' | 'y' | 'both') => (e: React.PointerEvent<HTMLElement>) =>
+                  beginResize(e, w.id, axis, {
+                    span: widgetSpan(w),
+                    height: w.height ?? getDefaultHeight(w.size, w.type),
+                  });
                 return (
                   <div
                     key={w.id}
-                    draggable={editMode}
-                    onDragStart={(e) => {
-                      if (!editMode) return;
-                      setDragWidgetId(w.id);
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', w.id);
-                      const node = (e.currentTarget as HTMLElement).cloneNode(true) as HTMLElement;
-                      node.style.width = `${e.currentTarget.clientWidth}px`;
-                      node.style.height = `${e.currentTarget.clientHeight}px`;
-                      node.style.position = 'absolute';
-                      node.style.top = '-9999px';
-                      node.style.left = '-9999px';
-                      node.style.borderRadius = '18px';
-                      node.style.overflow = 'hidden';
-                      node.style.boxShadow = '0 20px 60px rgba(15, 23, 42, 0.15)';
-                      document.body.appendChild(node);
-                      e.dataTransfer.setDragImage(node, 20, 20);
-                      setTimeout(() => {
-                        if (node.parentNode) node.parentNode.removeChild(node);
-                      }, 0);
-                    }}
-                    onDragEnd={() => setDragWidgetId(null)}
-                    onDragOver={(e) => editMode && e.preventDefault()}
-                    onDrop={() => editMode && handleWidgetDrop(w.id)}
+                    data-block-id={w.id}
                     style={{
                       height: widgetHeight,
                       minHeight: Math.max(MIN_WIDGET_H, widgetHeight),
                       gridColumn: isMobile ? 'span 12' : `span ${currentSpan}`,
                     }}
                     className={cx(
-                      'group relative flex flex-col overflow-hidden rounded-[18px] border bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.05)] transition',
-                      isResizing ? 'border-[#222] ring-1 ring-[#222]' : 'border-neutral-200 hover:border-neutral-300',
+                      'group relative flex flex-col overflow-hidden rounded-[18px] border bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.05)]',
+                      !isResizing && 'transition-[border-color]',
+                      isDragging
+                        ? 'border-2 border-dashed border-blue-400 bg-blue-50/60 shadow-none [&>*]:opacity-0'
+                        : isResizing
+                          ? 'border-[#222] ring-1 ring-[#222]'
+                          : 'border-neutral-200 hover:border-neutral-300',
                       editMode && 'pt-7',
                     )}
                   >
                     {editMode && (
                       <button
                         type="button"
-                        className="absolute left-0 right-0 top-0 flex h-6 cursor-grab items-center justify-center rounded-t-[18px] bg-gradient-to-b from-neutral-100 to-transparent text-neutral-400 active:cursor-grabbing"
-                        onMouseDown={(event) => event.stopPropagation()}
+                        className="absolute left-0 right-0 top-0 flex h-6 cursor-grab touch-none items-center justify-center rounded-t-[18px] bg-gradient-to-b from-neutral-100 to-transparent text-neutral-400 active:cursor-grabbing"
+                        onPointerDown={(event) => beginDrag(event, w.id)}
                         aria-label="Перетащить блок"
                       >
                         <Icon name="drag" size={13} />
@@ -3421,6 +3879,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                               source: dashboardPresetSource,
                               slug: w.id,
                               widgetConfig: w,
+                              sourceRef: dashboardPresetRef,
                             });
                             setAddedToHomeToast(true);
                             window.setTimeout(() => setAddedToHomeToast(false), 2800);
@@ -3459,29 +3918,31 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     <div className="min-h-0 flex-1 overflow-hidden">{renderWidget(w)}</div>
 
                     {isResizing && (
-                      <div className="pointer-events-none absolute inset-0 rounded-[18px] border border-slate-900/20" />
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-md bg-[#222] px-2 py-1 font-mono text-[10px] text-white shadow">
+                        {live.span}/12 · {Math.round(live.height)}px
+                      </div>
                     )}
 
-                    {editMode && (
+                    {editMode && !isMobile && (
                       <>
                         <div
-                          onMouseDown={(e) => beginResize(w.id, 'x', e)}
-                          className="absolute -right-1.5 top-6 bottom-6 flex w-3 cursor-ew-resize items-center justify-center"
+                          onPointerDown={startResize('x')}
+                          className="absolute -right-1.5 top-6 bottom-6 z-10 flex w-3 cursor-ew-resize touch-none items-center justify-center"
                           title={t('crm.projects.analytics.resize.width')}
                         >
                           <div className="h-10 w-1.5 rounded-full bg-neutral-300 opacity-0 transition group-hover:opacity-100" />
                         </div>
                         <div
-                          onMouseDown={(e) => beginResize(w.id, 'y', e)}
-                          className="absolute -bottom-1.5 left-6 right-6 flex h-3 cursor-ns-resize items-center justify-center"
+                          onPointerDown={startResize('y')}
+                          className="absolute -bottom-1.5 left-6 right-6 z-10 flex h-3 cursor-ns-resize touch-none items-center justify-center"
                           title={t('crm.projects.analytics.resize.height')}
                         >
                           <div className="h-1.5 w-10 rounded-full bg-neutral-300 opacity-0 transition group-hover:opacity-100" />
                         </div>
                         <button
                           type="button"
-                          className="absolute bottom-0 right-0 flex h-7 w-7 cursor-nwse-resize items-end justify-end p-1 text-neutral-300 hover:text-[#222]"
-                          onMouseDown={(e) => beginResize(w.id, 'both', e)}
+                          className="absolute bottom-0 right-0 z-10 flex h-7 w-7 cursor-nwse-resize touch-none items-end justify-end p-1 text-neutral-300 hover:text-[#222]"
+                          onPointerDown={startResize('both')}
                           title={t('crm.projects.analytics.resize.both')}
                         >
                           <Icon name="resize" size={14} />
@@ -3742,6 +4203,45 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
                 {draftType === 'formula' && (
                   <div className="space-y-3">
+                    {(() => {
+                      const previewUsingCompareSides =
+                        isWideMonthlyTable &&
+                        (draftFormulaFn === 'diff' || draftFormulaFn === 'ratio') &&
+                        draftCompareSides.length >= 2;
+                      const previewHeight = 168;
+                      const previewWidget: WidgetConfig = {
+                        id: '__preview__',
+                        type: 'formula',
+                        title: draftTitle || t('crm.projects.analytics.widgets.defaultTitle'),
+                        size: sizeFromSpan(draftSpan),
+                        span: draftSpan,
+                        height: previewHeight,
+                        themeKey: draftTheme,
+                        formulaFn: draftFormulaFn,
+                        formulaLeftType: previewUsingCompareSides
+                          ? buildSumMonthsType(draftCompareSides[0]?.monthKeys || [])
+                          : draftFormulaLeftType,
+                        formulaLeftKey: draftFormulaLeftKey,
+                        formulaRightType: previewUsingCompareSides
+                          ? buildSumMonthsType(draftCompareSides[1]?.monthKeys || [])
+                          : draftFormulaRightType,
+                        formulaRightKey: draftFormulaRightKey,
+                        formulaMode: draftFormulaMode,
+                        formulaFilters: draftFormulaFilters,
+                        compareDisplay: draftCompareDisplay,
+                        compareSides: previewUsingCompareSides ? draftCompareSides : undefined,
+                      };
+                      return (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3" style={{ height: previewHeight }}>
+                          <div className="mb-1 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                            Предпросмотр
+                          </div>
+                          <div className="min-h-0" style={{ height: previewHeight - 34 }}>
+                            {renderWidget(previewWidget)}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div>
                       <label className="block text-[11px] text-slate-500 mb-1">
                         {t('crm.projects.analytics.formula.fn.label')}
@@ -3884,6 +4384,98 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                             </select>
                           </div>
                         )}
+                        {isWideMonthlyTable && (
+                          <>
+                            {draftFormulaMode !== 'sum' && (
+                              <div>
+                                <label className="block text-[11px] text-slate-500 mb-1">
+                                  {t('crm.projects.analytics.formula.left.label')}
+                                </label>
+                                <select
+                                  value={draftFormulaLeftType}
+                                  onChange={(e) =>
+                                    setDraftFormulaLeftType(e.target.value as FormulaOperandType)
+                                  }
+                                  className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                                >
+                                  {(monthOperandOptions.length
+                                    ? monthOperandOptions
+                                    : [{ id: 'total', label: t('crm.projects.analytics.kpis.total') }]
+                                  ).map((opt) => (
+                                    <option key={opt.id} value={opt.id}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                            <div>
+                              <div className="mb-1 flex items-center justify-between">
+                                <label className="block text-[11px] text-slate-500">
+                                  {t('crm.projects.analytics.formula.right.label')}
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={swapFormulaLeftRight}
+                                  title="Поменять местами левую и правую часть"
+                                  className="text-[13px] leading-none text-slate-400 hover:text-slate-700"
+                                >
+                                  ⇄
+                                </button>
+                              </div>
+                              <select
+                                value={draftFormulaRightType}
+                                onChange={(e) =>
+                                  setDraftFormulaRightType(e.target.value as FormulaOperandType)
+                                }
+                                className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                              >
+                                {(monthOperandOptions.length
+                                  ? monthOperandOptions
+                                  : [{ id: 'total', label: t('crm.projects.analytics.kpis.total') }]
+                                ).map((opt) => (
+                                  <option key={opt.id} value={opt.id}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {!monthOperandOptions.length && (
+                                <p className="mt-1 text-[10px] text-amber-600">
+                                  Нет месячных полей — график сравнения будет недоступен.
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-500 mb-1">
+                                Как показать сравнение
+                              </label>
+                              <select
+                                value={draftCompareDisplay}
+                                onChange={(e) => {
+                                  const next = e.target.value as CompareDisplay;
+                                  setDraftCompareDisplay(next);
+                                  if (
+                                    next !== 'number' &&
+                                    !(isMonthOperand(draftFormulaLeftType) && isMonthOperand(draftFormulaRightType))
+                                  ) {
+                                    const picked = pickTwoRecentMonthKeys();
+                                    if (picked) {
+                                      setDraftFormulaLeftType(picked[0]);
+                                      setDraftFormulaRightType(picked[1]);
+                                    }
+                                  }
+                                }}
+                                className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                              >
+                                <option value="number">Только число</option>
+                                <option value="bar">Столбцы</option>
+                                <option value="line">Линия</option>
+                                <option value="donut">Пончик</option>
+                                <option value="table">Таблица</option>
+                              </select>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                     {draftFormulaFn !== 'sumif' && (
@@ -3891,61 +4483,104 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">
                           {t('crm.projects.analytics.formula.block.expression')}
                         </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-500 mb-1">
-                            {t('crm.projects.analytics.formula.left.label')}
-                          </label>
-                          <select
-                            value={draftFormulaLeftType}
-                            onChange={(e) =>
-                              setDraftFormulaLeftType(
-                                e.target.value as FormulaOperandType,
-                              )
-                            }
-                            className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
-                          >
-                            {formulaOperandOptions.map((opt) => (
-                              <option key={opt.id} value={opt.id}>
-                                {opt.label}
-                              </option>
+                        {isWideMonthlyTable && (draftFormulaFn === 'diff' || draftFormulaFn === 'ratio') ? (
+                          <div className="space-y-3">
+                            <label className="block text-[11px] text-slate-500 mb-1">Стороны сравнения</label>
+                            {draftCompareSides.map((side, idx) => (
+                              <div key={side.id} className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-medium text-slate-600">
+                                    {COMPARE_SIDE_ORDINALS[idx] || `Сторона ${idx + 1}`}
+                                  </span>
+                                  {draftCompareSides.length > 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setDraftCompareSides((prev) => prev.filter((s) => s.id !== side.id))
+                                      }
+                                      className="text-[11px] text-red-500 hover:underline"
+                                    >
+                                      Удалить
+                                    </button>
+                                  )}
+                                </div>
+                                <input
+                                  type="text"
+                                  placeholder={describeCompareSide(side)}
+                                  value={side.label || ''}
+                                  onChange={(e) =>
+                                    setDraftCompareSides((prev) =>
+                                      prev.map((s) => (s.id === side.id ? { ...s, label: e.target.value } : s)),
+                                    )
+                                  }
+                                  className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs outline-none"
+                                />
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {V2_PALETTE.map((color) => (
+                                    <button
+                                      key={color}
+                                      type="button"
+                                      onClick={() =>
+                                        setDraftCompareSides((prev) =>
+                                          prev.map((s) => (s.id === side.id ? { ...s, color } : s)),
+                                        )
+                                      }
+                                      className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                                        side.color === color
+                                          ? 'border-slate-900 shadow-[0_0_0_2px_rgba(15,23,42,0.1)]'
+                                          : 'border-slate-200'
+                                      }`}
+                                    >
+                                      <span className="h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
+                                  {[...monthFieldDates.entries()]
+                                    .sort((a, b) => a[1].getTime() - b[1].getTime())
+                                    .map(([key]) => {
+                                      const checked = side.monthKeys.includes(key);
+                                      return (
+                                        <label key={key} className="flex items-center gap-2 text-xs text-slate-600">
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={(e) => {
+                                              const next = e.target.checked
+                                                ? [...side.monthKeys, key]
+                                                : side.monthKeys.filter((k) => k !== key);
+                                              setDraftCompareSides((prev) =>
+                                                prev.map((s) => (s.id === side.id ? { ...s, monthKeys: next } : s)),
+                                              );
+                                            }}
+                                          />
+                                          {analyticsFieldMap.get(key)?.label || key}
+                                        </label>
+                                      );
+                                    })}
+                                </div>
+                              </div>
                             ))}
-                          </select>
-                        </div>
-                        {Boolean(formulaValueItems[draftFormulaLeftType]) && (
-                          <div>
-                            <label className="block text-[11px] text-slate-500 mb-1">
-                              {t('crm.projects.analytics.formula.left.value')}
-                            </label>
-                            <select
-                              value={draftFormulaLeftKey}
-                              onChange={(e) => setDraftFormulaLeftKey(e.target.value)}
-                              className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraftCompareSides((prev) => [...prev, makeCompareSide(prev.length)])
+                              }
+                              className="text-xs font-medium text-slate-600 hover:text-[#222]"
                             >
-                              {(formulaValueItems[
-                                draftFormulaLeftType as FormulaScope
-                              ].length
-                                ? formulaValueItems[
-                                    draftFormulaLeftType as FormulaScope
-                                  ]
-                                : formulaValueFallback
-                              ).map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.label}
-                                </option>
-                              ))}
-                            </select>
+                              + Добавить сторону
+                            </button>
                           </div>
-                        )}
-                        {(draftFormulaFn === 'ratio' || draftFormulaFn === 'diff') && (
+                        ) : (
                           <>
                             <div>
                               <label className="block text-[11px] text-slate-500 mb-1">
-                                {t('crm.projects.analytics.formula.right.label')}
+                                {t('crm.projects.analytics.formula.left.label')}
                               </label>
                               <select
-                                value={draftFormulaRightType}
+                                value={draftFormulaLeftType}
                                 onChange={(e) =>
-                                  setDraftFormulaRightType(
+                                  setDraftFormulaLeftType(
                                     e.target.value as FormulaOperandType,
                                   )
                                 }
@@ -3958,21 +4593,21 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                                 ))}
                               </select>
                             </div>
-                            {Boolean(formulaValueItems[draftFormulaRightType]) && (
+                            {Boolean(formulaValueItems[draftFormulaLeftType]) && (
                               <div>
                                 <label className="block text-[11px] text-slate-500 mb-1">
-                                  {t('crm.projects.analytics.formula.right.value')}
+                                  {t('crm.projects.analytics.formula.left.value')}
                                 </label>
                                 <select
-                                  value={draftFormulaRightKey}
-                                  onChange={(e) => setDraftFormulaRightKey(e.target.value)}
+                                  value={draftFormulaLeftKey}
+                                  onChange={(e) => setDraftFormulaLeftKey(e.target.value)}
                                   className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
                                 >
                                   {(formulaValueItems[
-                                    draftFormulaRightType as FormulaScope
+                                    draftFormulaLeftType as FormulaScope
                                   ].length
                                     ? formulaValueItems[
-                                        draftFormulaRightType as FormulaScope
+                                        draftFormulaLeftType as FormulaScope
                                       ]
                                     : formulaValueFallback
                                   ).map((item) => (
@@ -3983,7 +4618,109 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                                 </select>
                               </div>
                             )}
+                            {(draftFormulaFn === 'ratio' ||
+                              draftFormulaFn === 'diff' ||
+                              draftFormulaFn === 'count' ||
+                              draftFormulaFn === 'percent') && (
+                              <>
+                                <div>
+                                  <div className="mb-1 flex items-center justify-between">
+                                    <label className="block text-[11px] text-slate-500">
+                                      {t('crm.projects.analytics.formula.right.label')}
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={swapFormulaLeftRight}
+                                      title="Поменять местами левую и правую часть"
+                                      className="text-[13px] leading-none text-slate-400 hover:text-slate-700"
+                                    >
+                                      ⇄
+                                    </button>
+                                  </div>
+                                  <select
+                                    value={draftFormulaRightType}
+                                    onChange={(e) =>
+                                      setDraftFormulaRightType(
+                                        e.target.value as FormulaOperandType,
+                                      )
+                                    }
+                                    className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                                  >
+                                    {(draftFormulaFn === 'count' || draftFormulaFn === 'percent'
+                                      ? monthOperandOptions
+                                      : formulaOperandOptions
+                                    ).map((opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {(draftFormulaFn === 'count' || draftFormulaFn === 'percent') &&
+                                    !monthOperandOptions.length && (
+                                      <p className="mt-1 text-[10px] text-amber-600">
+                                        Нет месячных полей — график сравнения будет недоступен.
+                                      </p>
+                                    )}
+                                </div>
+                                {Boolean(formulaValueItems[draftFormulaRightType]) && (
+                                  <div>
+                                    <label className="block text-[11px] text-slate-500 mb-1">
+                                      {t('crm.projects.analytics.formula.right.value')}
+                                    </label>
+                                    <select
+                                      value={draftFormulaRightKey}
+                                      onChange={(e) => setDraftFormulaRightKey(e.target.value)}
+                                      className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                                    >
+                                      {(formulaValueItems[
+                                        draftFormulaRightType as FormulaScope
+                                      ].length
+                                        ? formulaValueItems[
+                                            draftFormulaRightType as FormulaScope
+                                          ]
+                                        : formulaValueFallback
+                                      ).map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                          {item.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </>
+                        )}
+                        {isWideMonthlyTable && (
+                          <div>
+                            <label className="block text-[11px] text-slate-500 mb-1">
+                              Как показать сравнение
+                            </label>
+                            <select
+                              value={draftCompareDisplay}
+                              onChange={(e) => {
+                                const next = e.target.value as CompareDisplay;
+                                setDraftCompareDisplay(next);
+                                if (
+                                  next !== 'number' &&
+                                  !(isMonthOperand(draftFormulaLeftType) && isMonthOperand(draftFormulaRightType))
+                                ) {
+                                  const picked = pickTwoRecentMonthKeys();
+                                  if (picked) {
+                                    setDraftFormulaLeftType(picked[0]);
+                                    setDraftFormulaRightType(picked[1]);
+                                  }
+                                }
+                              }}
+                              className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                            >
+                              <option value="number">Только число</option>
+                              <option value="bar">Столбцы</option>
+                              <option value="line">Линия</option>
+                              <option value="donut">Пончик</option>
+                              <option value="table">Таблица</option>
+                            </select>
+                          </div>
                         )}
                         {(draftFormulaFn === 'count' || draftFormulaFn === 'diff') && (
                           <div>
@@ -4297,7 +5034,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       }}
                       className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
                     >
-                      {ALLOWED_SPANS.map((span) => (
+                      {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((span) => (
                         <option key={span} value={span}>
                           {span}/12
                         </option>
@@ -4320,6 +5057,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                               source: dashboardPresetSource,
                               slug: w.id,
                               widgetConfig: w,
+                              sourceRef: dashboardPresetRef,
                             });
                             setAddedToHomeToast(true);
                             window.setTimeout(() => setAddedToHomeToast(false), 2800);
@@ -4384,7 +5122,49 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             </div>
           </div>
         )}
+        {aiConfirmOpen && (
+          <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#222]">
+                Разобрать через АИ?
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-neutral-500">
+                {widgets.length > 0
+                  ? `ИИ изучит реальные данные и построит новый набор блоков — заменит текущие ${widgets.length} блок(ов). Это можно отменить кнопкой «Сбросить».`
+                  : 'ИИ изучит реальные данные и построит полноценный набор блоков дашборда.'}
+              </p>
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAiConfirmOpen(false)}
+                  className="btn-secondary"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={buildWithAi}
+                  className="btn-primary"
+                >
+                  Разобрать
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+      {aiError && (
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-rose-600 px-5 py-3 text-sm text-white shadow-lg">
+          {aiError}
+          <button
+            type="button"
+            className="pointer-events-auto ml-3 underline"
+            onClick={() => setAiError(null)}
+          >
+            Закрыть
+          </button>
+        </div>
+      )}
       {addedToHomeToast && (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-[#222] px-5 py-3 text-sm text-white shadow-lg">
           {t('crm.dashboard.widgets.addedToHome')}

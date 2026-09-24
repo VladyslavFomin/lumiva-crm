@@ -32,7 +32,10 @@ export const TRIGGER_GROUPS: Array<{ group: string; events: string[] }> = [
       'hotel.reservation_status_changed',
     ],
   },
-  { group: 'workspace', events: ['custom_object.record_created'] },
+  {
+    group: 'workspace',
+    events: ['custom_object.record_created', 'custom_object.record_updated', 'custom_object.status_changed'],
+  },
 ];
 
 /** События, у которых есть смысл выбирать «все записи / только где я ответственный». */
@@ -43,6 +46,8 @@ const SCOPEABLE = new Set([
   'task.status_changed',
   'telegram.message_received',
   'email.received',
+  'custom_object.record_updated',
+  'custom_object.status_changed',
 ]);
 
 const DEFAULT_SCOPE: Record<string, AiTriggerScope> = {
@@ -51,6 +56,8 @@ const DEFAULT_SCOPE: Record<string, AiTriggerScope> = {
   'task.status_changed': 'mine',
   'telegram.message_received': 'mine',
   'email.received': 'mine',
+  'custom_object.record_updated': 'mine',
+  'custom_object.status_changed': 'mine',
 };
 
 const eventKey = (event: string) => event.replace(/\./g, '_');

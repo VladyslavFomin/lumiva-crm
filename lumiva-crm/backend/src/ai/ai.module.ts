@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Tenant } from '../tenants/tenant.entity';
+import { User } from '../users/user.entity';
 import { Lead } from '../leads/lead.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { Company } from '../companies/company.entity';
@@ -25,7 +26,10 @@ import { ProductsModule } from '../products/products.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { HotelsModule } from '../hotels/hotels.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { CurrencyModule } from '../currency/currency.module';
 import { ProjectTablesModule } from '../project-tables/project-tables.module';
+import { TenantsModule } from '../tenants/tenants.module';
+import { DataVisibilityModule } from '../data-visibility/data-visibility.module';
 import { AiUsageLog } from './ai-usage-log.entity';
 import { AiMemoryChunk } from './ai-memory-chunk.entity';
 import { AiChatSession } from './ai-chat-session.entity';
@@ -40,11 +44,14 @@ import { AiAnthropicService } from './ai-anthropic.service';
 import { AiToolsService } from './ai-tools.service';
 import { AiAssistantService } from './ai-assistant.service';
 import { AiController } from './ai.controller';
+import { WorkspaceSyncService } from '../workspace-sync/workspace-sync.service';
+import { WorkspaceSyncScheduler } from '../workspace-sync/workspace-sync.scheduler';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Tenant,
+      User,
       AiUsageLog,
       AiMemoryChunk,
       AiChatSession,
@@ -78,7 +85,10 @@ import { AiController } from './ai.controller';
     BookingsModule,
     HotelsModule,
     RbacModule,
+    CurrencyModule,
     ProjectTablesModule,
+    forwardRef(() => TenantsModule), // TenantLogsService — security-event visibility for pl1
+    DataVisibilityModule, // own-only/masking rules for AI-tool reads of sales/contacts/companies
   ],
   controllers: [AiController],
   providers: [
@@ -87,7 +97,9 @@ import { AiController } from './ai.controller';
     AiAnthropicService,
     AiToolsService,
     AiAssistantService,
+    WorkspaceSyncService,
+    WorkspaceSyncScheduler,
   ],
-  exports: [AiQuotaService, AiOpenAiService, AiAssistantService, AiToolsService],
+  exports: [AiQuotaService, AiOpenAiService, AiAssistantService, AiToolsService, WorkspaceSyncService],
 })
 export class AiModule {}

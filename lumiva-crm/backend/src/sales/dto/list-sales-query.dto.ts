@@ -29,6 +29,11 @@ export class ListSalesQueryDto {
   @IsString()
   leadId?: string;
 
+  /** Фильтр: продажи, привязанные к этому контакту (для статистики клиента в карточке) */
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
   @IsOptional()
   @IsEnum(['native', 'converted'])
   currencyMode?: 'native' | 'converted';

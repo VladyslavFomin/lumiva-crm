@@ -125,6 +125,7 @@ export class TenantsService {
       clientKey: tenant.clientKey,
       logoUrl: toRelativeUploadsUrl(tenant.logoUrl) ?? tenant.logoUrl ?? null,
       uiLanguage: tenant.uiLanguage,
+      primaryCurrency: tenant.primaryCurrency || 'EUR',
       status: tenant.status,
       plan: tenant.plan,
       apiEnabled: tenant.apiEnabled,
@@ -238,6 +239,10 @@ export class TenantsService {
 
     if (patch.uiLanguage !== undefined) {
       tenant.uiLanguage = patch.uiLanguage || null;
+    }
+
+    if (patch.primaryCurrency !== undefined) {
+      tenant.primaryCurrency = (patch.primaryCurrency || 'EUR').toUpperCase();
     }
 
     if (patch.plan !== undefined) {

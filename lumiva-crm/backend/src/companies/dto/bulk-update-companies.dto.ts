@@ -19,6 +19,10 @@ export class BulkUpdateCompaniesDto {
   status?: string;
 
   @IsOptional()
+  @IsString()
+  type?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tagsToAdd?: string[];

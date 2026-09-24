@@ -61,6 +61,9 @@ export class TenantPlanActivationService {
     // Реальная оплата — триал (если он был) больше не актуален, см. applyPaidSession's исходный
     // комментарий в billing.service.ts для полного обоснования.
     tenant.trialEndsAt = null;
+    // Сброс отметки "уведомление о просрочке уже отправлено" — при следующем истечении
+    // activeUntil cron (tenant-access-expiry.scheduler.ts) должен уведомить заново.
+    tenant.accessExpiredNotifiedAt = null;
     tenant.lastBillingSessionId = idempotencyKey;
     if (tenant.status !== 'blocked') {
       tenant.status = 'active';

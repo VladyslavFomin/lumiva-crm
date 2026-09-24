@@ -20,6 +20,8 @@ export interface SmmProfile {
   handle: string;
   url: string | null;
   isActive: boolean;
+  /** Откуда данные: Meta / ВКонтакте по интеграции либо вручную. */
+  source?: 'meta' | 'vk' | 'manual';
   meta?: Record<string, any> | null;
   createdAt: string;
   updatedAt: string;
@@ -156,4 +158,32 @@ export async function syncVkNow(params?: {
 }> {
   const qs = params?.days ? `?days=${params.days}` : '';
   return api.post(`/smm/vk/sync${qs}`);
+}
+
+export interface SmmProviderStatus {
+  connected: boolean;
+  connectedAt: string | null;
+  expiresAt: string | null;
+  /** Срок токена истёк — интеграцию нужно переподключить. */
+  expired: boolean;
+  lastSyncAt: string | null;
+  lastSync: { synced: number; skipped: number; errors: number } | null;
+}
+
+export interface SmmIntegrationsStatus {
+  meta: SmmProviderStatus;
+  vk: SmmProviderStatus;
+  telegram: { mode: 'manual' };
+}
+
+export async function fetchSmmIntegrations(): Promise<SmmIntegrationsStatus> {
+  return api.get<SmmIntegrationsStatus>('/smm/integrations');
+}
+
+/** Включить / отключить профиль (отключённый не синхронизируется, история остаётся). */
+export async function updateSmmProfile(
+  id: string,
+  patch: { isActive?: boolean; url?: string | null },
+): Promise<SmmProfile> {
+  return api.patch<SmmProfile>(`/smm/profiles/${id}`, patch);
 }

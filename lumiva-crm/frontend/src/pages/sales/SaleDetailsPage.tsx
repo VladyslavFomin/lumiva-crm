@@ -1,4 +1,5 @@
 // src/pages/sales/SaleDetailsPage.tsx
+import { CommentMetaLine } from '../../components/ai/aiComments';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -1129,7 +1130,7 @@ export const SaleDetailsPage: React.FC = () => {
                           return (
                             <>
                               <div className="sd-cm-meta">
-                                {comment.createdAt} · {comment.author}
+                                <CommentMetaLine createdAt={comment.createdAt} author={comment.author} locale={locale} />
                               </div>
                               <div className="sd-cm-text">{renderMentions(comment.text)}</div>
                               {mentions.length > 0 && (
@@ -1234,6 +1235,7 @@ export const SaleDetailsPage: React.FC = () => {
                     placeholder={t('crm.sales.details.comments.newPlaceholder')}
                   />
                   {mentionQuery !== null &&
+                    mentionQuery.length >= 2 &&
                     mentionDropdownPos &&
                     (() => {
                       const q = mentionQuery.toLowerCase();

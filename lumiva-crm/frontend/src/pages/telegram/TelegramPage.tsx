@@ -124,10 +124,10 @@ export const TelegramPage: React.FC = () => {
   };
 
   const reinstallWebhook = async () => {
-    if (!bot?.webhookUrl) return;
+    if (!bot) return;
     setBusy(true);
     try {
-      await setWebhook(bot.id, bot.webhookUrl);
+      await setWebhook(bot.id);
       await load();
       showAlert(t('crm.telegram.bots.webhookReinstalled'), { variant: 'success' });
     } catch (e: any) {
@@ -276,7 +276,7 @@ export const TelegramPage: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button className="btn btn-sm btn-primary" disabled={busy} onClick={saveGreeting}><Ic d={TG_ICON.check} size={13} />{t('crm.telegram.bots.save')}</button>
-                      <button className="btn btn-sm" disabled={busy || !bot.webhookUrl} onClick={reinstallWebhook}><Ic d={TG_ICON.refresh} size={13} />{t('crm.telegram.bots.reinstallWebhook')}</button>
+                      <button className="btn btn-sm" disabled={busy} onClick={reinstallWebhook}><Ic d={TG_ICON.refresh} size={13} />{t('crm.telegram.bots.reinstallWebhook')}</button>
                       <button className="btn btn-sm" onClick={togglePause}>{bot.status === 'active' ? t('crm.telegram.bots.pause') : t('crm.telegram.bots.resume')}</button>
                       <button className="btn btn-sm" style={{ color: '#cc2f47' }} onClick={removeBot}><Ic d={TG_ICON.trash} size={13} />{t('crm.telegram.bots.delete')}</button>
                     </div>
@@ -291,8 +291,8 @@ export const TelegramPage: React.FC = () => {
         {!loading && !error && bots.length > 0 && bot && tab === 'funnel' && <TelegramFunnelTab bot={bot} />}
         {!loading && !error && bots.length > 0 && bot && tab === 'ai' && <TelegramAiTab bot={bot} onBotChange={(u) => setBots((prev) => prev.map((b) => (b.id === u.id ? u : b)))} />}
         {!loading && !error && bots.length > 0 && bot && tab === 'settings' && <TelegramSettingsTab bot={bot} onBotChange={(u) => setBots((prev) => prev.map((b) => (b.id === u.id ? u : b)))} />}
+        {connectOpen && <TelegramConnectModal onClose={() => setConnectOpen(false)} onCreated={handleCreated} />}
       </div>
-      {connectOpen && <TelegramConnectModal onClose={() => setConnectOpen(false)} onCreated={handleCreated} />}
     </MainLayout>
   );
 };

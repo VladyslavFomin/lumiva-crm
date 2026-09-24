@@ -1,6 +1,8 @@
 import { forwardRef, Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Tenant } from '../tenants/tenant.entity';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
 import { Reservation, ReservationStatus } from './reservation.entity';
 import { ReservationActivity, ReservationActivityType } from './reservation-activity.entity';
 import { Lead } from '../leads/lead.entity';
@@ -47,7 +49,9 @@ export interface CustomerStats {
   visits: number;
   cancellations: number;
   noShows: number;
+  /** В основной валюте тенанта (см. currency) — у броней разные валюты, числа не складываются */
   ltv: number;
+  currency: string;
   lastVisit: string | null;
   tags: string[];
 }
@@ -83,6 +87,9 @@ export class ReservationsService {
     private readonly staffUsersService: StaffUsersService,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
+    private readonly currencyRates: CurrencyRatesService,
   ) {}
 
   /** Уведомляет в колокольчик нового ответственного по брони (только если поле реально
@@ -196,14 +203,25 @@ export class ReservationsService {
       (r) => r.status === 'cancelled_by_customer' || r.status === 'cancelled_by_business',
     ).length;
     const noShows = reservations.filter((r) => r.status === 'no_show').length;
-    const ltv = reservations
-      .filter((r) => r.status === 'completed')
-      .reduce((sum, r) => sum + Number(r.price || 0), 0);
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'primaryCurrency'] });
+    const currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+    const rates = await this.currencyRates.getRates();
+    const ltv =
+      Math.round(
+        reservations
+          .filter((r) => r.paymentStatus === 'paid' || r.paymentStatus === 'partially_refunded')
+          .reduce(
+            (sum, r) =>
+              sum + this.currencyRates.convertWithRates(Number(r.price || 0), (r.currency || currency).toUpperCase(), currency, rates),
+            0,
+          ) * 100,
+      ) / 100;
     return {
       visits,
       cancellations,
       noShows,
       ltv,
+      currency,
       lastVisit: reservations[0]?.startAt.toISOString() || null,
       tags: contact?.tags || [],
     };

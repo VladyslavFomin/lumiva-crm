@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -8,9 +8,15 @@ import { getStoredUser } from '../auth/session';
 
 import { fetchLeads, isLeadOmittedFromAnalytics, type Lead } from '../api/leads';
 import { fetchProject, fetchProjects } from '../api/projects';
+import { loadDashboardFx } from '../dashboard/dashboardFx';
 import { resolvePublicAssetUrl } from '../api/client';
 import { fetchSalesStats } from '../api/sales';
-import { fetchDashboardHome, type ProfileCompletionStepId } from '../api/dashboard';
+import {
+  fetchDashboardHome,
+  fetchDashboardServerLayout,
+  pushDashboardServerLayout,
+  type ProfileCompletionStepId,
+} from '../api/dashboard';
 import { fetchStaff, type StaffUser } from '../api/staff';
 import type { Project, ProjectTask } from './projects/projectTypes';
 import { readProjectTasksCache } from './projects/projectTasksCache';
@@ -22,16 +28,22 @@ import {
   DASHBOARD_LAYOUT_CHANGED_EVENT,
   loadDashboardLayout,
   saveDashboardLayout,
+  resetDashboardLayout,
   type DashboardLayoutState,
-  type WidgetSize,
   isDashboardPresetInstanceId,
   getDefaultWidgetHeight,
   requestAddDashboardPreset,
-  sizeToColSpan,
   colSpanToSize,
+  getWidgetColSpan,
+  serializeLayout,
+  isServerDashboardLayoutNewer,
+  applyServerDashboardLayout,
+  markOwnDashboardLayoutPush,
   type DashboardLayoutChangedDetail } from '../dashboard/dashboardLayout';
+import '../dashboard/dashboard-design.css';
 import { getPresetDefinition } from '../dashboard/presetCatalog';
 import { DashboardWidgetChrome } from '../dashboard/DashboardWidgetChrome';
+import { applyVisibleOrder, useBlockGridInteractions } from '../components/analytics/useBlockGridInteractions';
 import { DashboardCalendarMini } from '../dashboard/DashboardCalendarMini';
 import { DashboardPresetWidget } from '../dashboard/DashboardPresetWidget';
 import { DashboardAddPresetsModal } from '../dashboard/DashboardAddPresetsModal';
@@ -147,6 +159,10 @@ interface DashboardData {
   leadPickerOptions: { id: string; name: string }[];
   leadCalendarMeetings: LeadMeetingCalendarEvent[];
   salesSnapshot: { count: number; amount: number };
+  /** Валюта, в которую приведены все суммы на главной (по курсу, см. dashboardFx) */
+  currency: string;
+  /** Валюты, для которых курс не найден — их суммы показаны как есть */
+  fxMissing: string[];
   myProjects: Project[];
   activityRecentLeads: { id: string; name: string; channel: string; createdAt: string }[];
   activityUrgentTasks: {
@@ -253,17 +269,27 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   // Каждый источник — .catch() на пустое значение, не re-throw: сотруднику может быть не выдано
   // право на лиды/проекты/продажи, и это не должно ронять весь дашборд с сырой ошибкой API —
   // виджеты, которым эти данные нужны, сами скрываются через widgetAllowed() в DashboardPage.
-  const [leadsRaw, projectsRes, salesStatsRes, homeApi] = await Promise.all([
+  const [leadsRaw, projectsRes, salesStatsRes, homeApi, fx] = await Promise.all([
     fetchLeads().catch((err) => { console.warn('fetchLeads', err); return []; }),
     fetchProjects().catch((err) => { console.warn('fetchProjects', err); return { items: [], total: 0 }; }),
     fetchSalesStats().catch(() => null),
     fetchDashboardHome().catch((err) => { console.warn('fetchDashboardHome', err); return null; }),
+    loadDashboardFx(),
   ]);
 
   const allLeads = (leadsRaw || []).filter((l) => !isLeadOmittedFromAnalytics(l));
+  // /sales/stats.totalAmount — сумма amount БЕЗ учёта валюты (см. sales.service.ts::getStats), поэтому
+  // берём разбивку byCurrency и приводим каждую валюту к валюте отчёта по курсу.
+  const salesByCurrency = salesStatsRes?.byCurrency || [];
   const salesSnapshot = {
     count: salesStatsRes?.totalCount ?? 0,
-    amount: salesStatsRes?.totalAmount ?? 0 };
+    amount: salesByCurrency.length
+      ? salesByCurrency.reduce((sum, row) => sum + fx.convert(row.amount, row.currency), 0)
+      : salesStatsRes?.totalAmount ?? 0,
+  };
+  // Сумма проекта в валюте отчёта (у каждого проекта своя валюта — складывать числа нельзя).
+  const money = (p: any): number =>
+    typeof p.amount === 'number' ? Math.round(fx.convert(p.amount, p.currency) * 100) / 100 : 0;
 
   let projects: Project[] = [];
   if (Array.isArray((projectsRes as any)?.items)) {
@@ -322,7 +348,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   const revenueEUR = myProjects.reduce((sum, p: any) => {
     const st = (p.status || '').toString().toLowerCase();
     const isWon = ['забронирован', 'оплачен', 'выигран', 'closed won'].some((x) => st.includes(x));
-    return isWon && typeof p.amount === 'number' ? sum + p.amount : sum;
+    return isWon ? sum + money(p) : sum;
   }, 0);
 
   const leadsByChannelMap = new Map<string, number>();
@@ -339,7 +365,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
     const stage = p.status || t('crm.dashboard.fallbacks.noStatus');
     const prev = pipelineMap.get(stage) || { count: 0, valueEUR: 0 };
     prev.count += 1;
-    if (typeof p.amount === 'number') prev.valueEUR += p.amount;
+    prev.valueEUR += money(p);
     pipelineMap.set(stage, prev);
   }
   const pipeline = Array.from(pipelineMap.entries()).map(([stage, { count, valueEUR }]) => ({ stage, count, valueEUR }));
@@ -376,7 +402,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   for (const p of myProjects) {
     projectsSummary.total += 1;
     const st = (p.status || '').toString().toLowerCase();
-    const amount = typeof p.amount === 'number' ? p.amount : 0;
+    const amount = money(p);
     let bucket: 'open' | 'won' | 'lost' = 'open';
     if (['lost', 'проигран', 'cancel', 'отмен'].some((x) => st.includes(x))) bucket = 'lost';
     else if (['забронирован', 'оплачен', 'выигран', 'closed won', 'client'].some((x) => st.includes(x))) bucket = 'won';
@@ -431,7 +457,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
           if (!ownerMatch) return sum;
           const st = (p.status || '').toString().toLowerCase();
           const isWon = ['забронирован', 'оплачен', 'выигран', 'closed won', 'client'].some((x) => st.includes(x));
-          return isWon && typeof p.amount === 'number' ? sum + p.amount : sum;
+          return isWon ? sum + money(p) : sum;
         }, 0);
         return {
           id: s.id,
@@ -449,7 +475,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
       if (!isWon || typeof (p as any).amount !== 'number') continue;
       const lead = (p as any).leadId ? leadById.get((p as any).leadId) : null;
       const ch = (lead?.channel || t('crm.dashboard.fallbacks.other')).toString();
-      salesByChannelMap.set(ch, (salesByChannelMap.get(ch) || 0) + (p as any).amount);
+      salesByChannelMap.set(ch, (salesByChannelMap.get(ch) || 0) + money(p));
     }
   }
 
@@ -504,13 +530,22 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   const topProjectItems = (isOwner ? projectsWithTasksForDashboard : myProjects)
     .map((p) => {
       const stats = projectTaskCountMap.get(p.id) || { total: 0, done: 0 };
-      return { id: p.id, name: p.name, taskTotal: stats.total, taskDone: stats.done, amount: typeof p.amount === 'number' ? p.amount : 0 };
+      return { id: p.id, name: p.name, taskTotal: stats.total, taskDone: stats.done, amount: money(p) };
     })
     .sort((a, b) => b.amount - a.amount || b.taskTotal - a.taskTotal)
     .slice(0, 5);
 
+  // Виджеты-пресеты «Проекты» берут суммы отсюда — отдаём уже приведённые к валюте отчёта.
+  const myProjectsConverted = myProjects.map((p) => ({
+    ...p,
+    amount: typeof p.amount === 'number' ? Math.round(fx.convert(p.amount, p.currency) * 100) / 100 : p.amount,
+    currency: fx.currency,
+  }));
+
   return {
-    myProjects, summary: { todayLeads, totalLeads, conversion: Number(conversion.toFixed(1)), activeChats: 0, revenueEUR, avgResponseMin: 0 },
+    currency: fx.currency,
+    fxMissing: fx.missing,
+    myProjects: myProjectsConverted, summary: { todayLeads, totalLeads, conversion: Number(conversion.toFixed(1)), activeChats: 0, revenueEUR, avgResponseMin: 0 },
     leadsByChannel, pipeline, recentLeads, myTasks, leadsTimeline, projectsSummary, tasksSummary,
     staffPerformance, salesByChannel, leadPickerOptions, leadCalendarMeetings, salesSnapshot,
     activityRecentLeads, activityUrgentTasks, topProjectItems, ...homeMerged };
@@ -592,7 +627,7 @@ const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number]; t: Translat
   return (
     <Link
       to={item.href}
-      className="group relative block rounded-[18px] border border-neutral-200 bg-white p-3.5 shadow-[0_16px_45px_rgba(15,23,42,0.05)] transition-all duration-150 hover:border-[#222] hover:-translate-y-px"
+      className="group relative block rounded-xl border border-neutral-200 bg-white p-3.5 transition-all duration-150 hover:border-[#222] hover:-translate-y-px"
     >
       <div className="relative h-[72px] rounded-md bg-neutral-50 border border-neutral-100 overflow-hidden mb-3">
         {item.preview === 'table' && <PrevTable />}
@@ -696,7 +731,7 @@ const KpiStrip: React.FC<{
           ✕
         </button>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 overflow-hidden rounded-[18px] border border-neutral-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.05)]">
+      <div className="grid grid-cols-2 lg:grid-cols-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <KpiCell
           label={t('crm.dashboard.kpi.todayLeads')}
           value={summary?.todayLeads ?? 0}
@@ -771,100 +806,6 @@ const KpiCell: React.FC<{
 );
 
 /* ─────────────────────────────────────────────
- *  SIDEBAR CARDS
- * ─────────────────────────────────────────── */
-const SidebarProfileCard: React.FC<{
-  percent: number;
-  steps: { id: ProfileCompletionStepId; done: boolean }[];
-  onDismiss: () => void;
-  t: TranslateFn;
-}> = ({ percent, steps, onDismiss, t }) => (
-  <div className="rounded-xl border border-neutral-200 bg-white p-[18px]">
-    <div className="flex items-start justify-between mb-3.5">
-      <div>
-        <Link
-          to="/profile/overview"
-          className="text-[13px] font-semibold text-[#222] leading-snug hover:text-neutral-600 transition-colors block"
-        >
-          {t('crm.dashboard.profileCompletion.title')}
-        </Link>
-        <div className="text-[11.5px] text-neutral-500 mt-0.5">
-          {t('crm.dashboard.profileCompletion.progressLine', {
-            done: steps.filter((s) => s.done).length,
-            total: steps.length,
-            percent })}
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="w-5 h-5 flex items-center justify-center text-neutral-400 hover:text-[#222] hover:bg-neutral-100 rounded transition-colors"
-        aria-label={t('crm.common.close')}
-      >
-        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 6l12 12M6 18L18 6" />
-        </svg>
-      </button>
-    </div>
-    <div className="flex items-center gap-2.5 mb-3">
-      <div className="flex-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-neutral-600 via-neutral-800 to-[#222222] transition-all duration-500"
-          style={{ width: `${Math.min(100, percent)}%` }}
-        />
-      </div>
-      <span className="font-mono text-[11px] text-[#222] font-medium min-w-[32px] text-right">{percent}%</span>
-    </div>
-    <div className="flex flex-col gap-px">
-      <DashboardProfileCompletion percent={percent} steps={steps} inSidebar />
-    </div>
-  </div>
-);
-
-const SidebarDarkCard: React.FC<{ t: TranslateFn; onChooseTemplate: () => void }> = ({
-  t,
-  onChooseTemplate }) => (
-  <div className="rounded-xl bg-[#222222] text-white p-[18px]">
-    <div className="text-[13px] font-semibold leading-snug mb-1.5 text-white">
-      {t('crm.dashboard.sidebar.personalizeTitle')}
-    </div>
-    <div className="text-[11.5px] text-white/80 leading-relaxed">
-      {t('crm.dashboard.sidebar.personalizeDesc')}
-    </div>
-    <button
-      type="button"
-      onClick={onChooseTemplate}
-      className="mt-3.5 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold text-[#222222] bg-white rounded-[7px] px-3 py-1.5 hover:bg-neutral-100 transition-colors"
-    >
-      {t('crm.dashboard.sidebar.personalizeBtn')}
-      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 6l6 6-6 6" />
-      </svg>
-    </button>
-  </div>
-);
-
-const SidebarTemplatesCard: React.FC<{ t: TranslateFn }> = ({ t }) => (
-  <div className="rounded-xl border border-neutral-200 bg-white p-[18px]">
-    <div className="text-[13px] font-semibold text-[#222] leading-snug mb-1.5">
-      {t('crm.dashboard.sidebar.templatesTitle')}
-    </div>
-    <div className="text-[11.5px] text-neutral-500 leading-relaxed">
-      {t('crm.dashboard.sidebar.templatesDesc')}
-    </div>
-    <Link
-      to="/automations"
-      className="mt-3.5 inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold text-white bg-[#222222] rounded-[7px] px-3 py-1.5 hover:opacity-95 transition-opacity"
-    >
-      {t('crm.dashboard.sidebar.templatesBtn')}
-      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 6l6 6-6 6" />
-      </svg>
-    </Link>
-  </div>
-);
-
-/* ─────────────────────────────────────────────
  *  MAIN PAGE
  * ─────────────────────────────────────────── */
 export const DashboardPage: React.FC = () => {
@@ -923,48 +864,37 @@ export const DashboardPage: React.FC = () => {
     return widgetPerms[perm] ?? true;
   };
   const [presetsModalOpen, setPresetsModalOpen] = useState(false);
-  const [resizing, setResizing] = useState<{
-    id: string; startX: number; startY: number; startHeight: number; startColSpan: number;
-    liveHeight: number; liveColSpan: number; minHeight: number; axis: 'x' | 'y' | 'both';
-  } | null>(null);
   const [leadsModalOpen, setLeadsModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<{ targetId: string; place: 'before' | 'after' } | null>(null);
   const [widgetEditOpen, setWidgetEditOpen] = useState(false);
   const [widgetEditId, setWidgetEditId] = useState<string | null>(null);
   const [widgetEditTitle, setWidgetEditTitle] = useState('');
   const [layoutTemplateModalOpen, setLayoutTemplateModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
-  // Sidebar onboarding dismissal — key scoped to user+tenant so new accounts always see the widget
-  const _uid = (user as any)?.id || (user as any)?.userId || (user as any)?.sub || '';
-  const _tid = (user as any)?.tenantId || '';
-  const dismissKey = `lumiva_onboard_dismissed_${_tid || 'x'}_${_uid || 'x'}`;
-  const [profileDismissed, setProfileDismissed] = useState(
-    () => localStorage.getItem(dismissKey) === '1',
-  );
-  const dismissProfile = () => {
-    localStorage.setItem(dismissKey, '1');
-    setProfileDismissed(true);
-  };
-
-  // Auto-dismiss once all steps are complete
-  useEffect(() => {
-    if (data?.profileCompletion.percent === 100 && !profileDismissed) {
-      dismissProfile();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.profileCompletion.percent]);
+  // Каждое ручное изменение зеркалим на сервер (User.preferences.dashboardLayout) — иначе
+  // у ИИ-ассистента (crm_dashboard_configure) нет актуальной базы для action:"add"/"remove",
+  // только для собственных action:"replace". Не блокирует UI и не критично при офлайне —
+  // localStorage остаётся мгновенным локальным источником в любом случае.
+  const pushLayoutToServer = useCallback((next: DashboardLayoutState) => {
+    const updatedAt = new Date().toISOString();
+    markOwnDashboardLayoutPush(updatedAt);
+    pushDashboardServerLayout(serializeLayout(next), updatedAt).catch(() => {
+      /* офлайн/ошибка сети — локальная копия всё равно сохранена, синхронизация просто отложится */
+    });
+  }, []);
 
   const persistLayout = useCallback(
     (updater: (p: DashboardLayoutState) => DashboardLayoutState) => {
       setLayout((prev) => {
         const next = updater(prev);
         saveDashboardLayout(next);
+        pushLayoutToServer(next);
         return next;
       });
     },
-    [],
+    [pushLayoutToServer],
   );
 
   useEffect(() => {
@@ -990,15 +920,35 @@ export const DashboardPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout, widgetPerms]);
 
-  // Sidebar widgets are rendered separately, not in main grid
-  const SIDEBAR_WIDGET_IDS = new Set(['profile-completion', 'learn-inspire']);
+  // KPI strip is pinned above the grid (its own remove control), everything else is a draggable block
   const KPI_STRIP_ID = 'kpi';
 
   const mainGridIds = useMemo(() =>
-    visibleIds.filter((id) => !SIDEBAR_WIDGET_IDS.has(id) && id !== KPI_STRIP_ID),
+    visibleIds.filter((id) => id !== KPI_STRIP_ID),
     [visibleIds],
   );
   const kpiVisible = visibleIds.includes(KPI_STRIP_ID);
+
+  const gridRef = useRef<HTMLElement | null>(null);
+  const { beginDrag, beginResize, dragId, previewOrder, liveStore } = useBlockGridInteractions({
+    gridRef,
+    enabled: editMode,
+    reactiveLive: false,
+    order: mainGridIds,
+    minSpan: 3,
+    minHeight: 160,
+    maxHeight: 900,
+    onResizeCommit: (id, m) =>
+      persistLayout((prev) => ({
+        ...prev,
+        heights: { ...prev.heights, [id]: m.height },
+        sizes: { ...prev.sizes, [id]: colSpanToSize(m.span) },
+        spans: { ...prev.spans, [id]: m.span },
+      })),
+    onReorderCommit: (nextVisible) =>
+      persistLayout((prev) => ({ ...prev, order: applyVisibleOrder(prev.order, nextVisible) })),
+  });
+  const renderedGridIds = previewOrder ?? mainGridIds;
 
   const availableToAdd = useMemo(() => {
     return ALL_DASHBOARD_WIDGET_IDS.filter((id) => {
@@ -1009,25 +959,52 @@ export const DashboardPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout.hidden, widgetPerms]);
 
-  const reorderByDrag = (fromId: string, toId: string, place: 'before' | 'after') => {
-    if (fromId === toId) return;
-    persistLayout((prev) => {
-      const order = [...prev.order];
-      const fromIdx = order.indexOf(fromId);
-      const toIdx = order.indexOf(toId);
-      if (fromIdx < 0 || toIdx < 0) return prev;
-      const next = order.filter((x) => x !== fromId);
-      const newToIdx = next.indexOf(toId);
-      if (newToIdx < 0) return prev;
-      const insertAt = place === 'before' ? newToIdx : newToIdx + 1;
-      next.splice(insertAt, 0, fromId);
-      return { ...prev, order: next };
-    });
-  };
-
   const hideWidget = (id: string) => {
     persistLayout((prev) => ({ ...prev, hidden: new Set([...prev.hidden, id]) }));
   };
+
+  // Auto-hide the onboarding block once all steps are complete
+  useEffect(() => {
+    if (data?.profileCompletion.percent === 100 && !layout.hidden.has('profile-completion')) {
+      hideWidget('profile-completion');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.profileCompletion.percent]);
+
+  const doResetLayout = () => {
+    const next = resetDashboardLayout();
+    setLayout(next);
+    pushLayoutToServer(next);
+    setResetConfirmOpen(false);
+    setToast(t('crm.dashboard.widgets.resetDone'));
+    window.setTimeout(() => setToast(null), 2200);
+  };
+
+  // На mount и при возвращении фокуса на вкладку — подтягиваем серверную копию layout, если она
+  // новее того, что уже применено локально (обычно после того, как ИИ-ассистент вызвал
+  // crm_dashboard_configure в чате, но актуально и для смены устройства/браузера).
+  useEffect(() => {
+    let alive = true;
+    const sync = async () => {
+      try {
+        const res = await fetchDashboardServerLayout();
+        if (!alive || !res.layout || !isServerDashboardLayoutNewer(res.updatedAt)) return;
+        const next = applyServerDashboardLayout(res.layout, res.updatedAt as string);
+        setLayout(next);
+        setToast(t('crm.dashboard.widgets.aiUpdated'));
+        window.setTimeout(() => setToast(null), 2800);
+      } catch {
+        /* нет сети/сервера — просто останемся на локальной копии */
+      }
+    };
+    sync();
+    window.addEventListener('focus', sync);
+    return () => {
+      alive = false;
+      window.removeEventListener('focus', sync);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const removeWidgetBlock = (id: string) => {
     if (isDashboardPresetInstanceId(id)) {
@@ -1036,9 +1013,10 @@ export const DashboardPage: React.FC = () => {
         const presetInstances = { ...prev.presetInstances };
         delete presetInstances[id];
         const sizes = { ...prev.sizes }; delete sizes[id];
+        const spans = { ...prev.spans }; delete spans[id];
         const heights = { ...prev.heights }; delete heights[id];
         const titleOverrides = { ...prev.titleOverrides }; delete titleOverrides[id];
-        return { ...prev, order, presetInstances, sizes, heights, titleOverrides };
+        return { ...prev, order, presetInstances, sizes, spans, heights, titleOverrides };
       });
       return;
     }
@@ -1069,47 +1047,22 @@ export const DashboardPage: React.FC = () => {
     setPresetsModalOpen(false);
   };
 
-  const beginResize = (id: string, size: WidgetSize, axis: 'x' | 'y' | 'both', e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    const startHeight = getDefaultWidgetHeight(id, layout);
-    const startColSpan = sizeToColSpan(size);
-    const startX = e.clientX; const startY = e.clientY;
-    const minHeight = 160;
-    setResizing({ id, startX, startY, startHeight, startColSpan, liveHeight: startHeight, liveColSpan: startColSpan, minHeight, axis });
-
-    const handleMove = (ev: MouseEvent) => {
-      const deltaX = ev.clientX - startX; const deltaY = ev.clientY - startY;
-      let liveHeight = startHeight; let liveColSpan = startColSpan;
-      if (axis === 'y' || axis === 'both') liveHeight = Math.min(720, Math.max(minHeight, startHeight + deltaY));
-      if (axis === 'x' || axis === 'both') liveColSpan = Math.max(4, Math.min(12, startColSpan + Math.round(deltaX / 6)));
-      setResizing((prev) => prev && prev.id === id ? { ...prev, liveHeight, liveColSpan } : prev);
-    };
-
-    const handleUp = () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      setResizing((prev) => {
-        if (prev && prev.id === id) {
-          persistLayout((layoutState) => ({
-            ...layoutState,
-            heights: { ...layoutState.heights, [id]: prev.liveHeight },
-            sizes: { ...layoutState.sizes, [id]: colSpanToSize(prev.liveColSpan) } }));
-        }
-        return null;
-      });
-    };
-
-    document.body.style.cursor = axis === 'y' ? 'ns-resize' : axis === 'both' ? 'nwse-resize' : 'ew-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleUp);
-  };
-
   const widgetSub = (id: string): string | undefined => {
     const now = new Date();
     const monthName = now.toLocaleDateString(locale, { month: 'long' });
+    if (isDashboardPresetInstanceId(id)) {
+      const filters = layout.presetInstances[id]?.filters;
+      if (filters?.dateFrom || filters?.dateTo) {
+        const fmt = (s: string) => {
+          const d = new Date(s);
+          return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString(locale);
+        };
+        if (filters.dateFrom && filters.dateTo) return `${fmt(filters.dateFrom)} – ${fmt(filters.dateTo)}`;
+        if (filters.dateFrom) return `${fmt(filters.dateFrom)} →`;
+        return `→ ${fmt(filters.dateTo!)}`;
+      }
+      return undefined;
+    }
     switch (id) {
       case 'channels-funnel':
         return `${monthName} · ${t('crm.dashboard.channels.allChannels')}`;
@@ -1156,6 +1109,12 @@ export const DashboardPage: React.FC = () => {
     switch (id) {
       case 'quick-actions':
         return <DashboardQuickActions />;
+      case 'profile-completion':
+        return data.profileCompletion.steps.length > 0
+          ? <DashboardProfileCompletion percent={data.profileCompletion.percent} steps={data.profileCompletion.steps} />
+          : null;
+      case 'learn-inspire':
+        return <DashboardLearnInspire slugs={data.learnSlugs} />;
       case 'activity-feed':
         return (
           <DashboardActivityFeed
@@ -1200,7 +1159,7 @@ export const DashboardPage: React.FC = () => {
                     <div className="min-w-0">
                       <div className="text-[12.5px] font-medium text-[#222] truncate">{p.name}</div>
                       <div  className="text-[10px] text-neutral-400 mt-0.5">
-                        {p.taskTotal} {t('crm.dashboard.projects.tasksLabel')}{p.amount > 0 ? ` · ${p.amount.toLocaleString(locale)} €` : ''}
+                        {p.taskTotal} {t('crm.dashboard.projects.tasksLabel')}{p.amount > 0 ? ` · ${p.amount.toLocaleString(locale)} ${data.currency}` : ''}
                       </div>
                     </div>
                     <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
@@ -1219,9 +1178,9 @@ export const DashboardPage: React.FC = () => {
               <>
                 <ProjectDistributionBar summary={projectsSummary} />
                 <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
-                  <ProjectSummaryChip label={t('crm.dashboard.projects.chips.open')} color="bg-sky-400" count={projectsSummary.open} value={projectsSummary.openValueEUR} />
-                  <ProjectSummaryChip label={t('crm.dashboard.projects.chips.won')} color="bg-emerald-400" count={projectsSummary.won} value={projectsSummary.wonValueEUR} />
-                  <ProjectSummaryChip label={t('crm.dashboard.projects.chips.lost')} color="bg-rose-400" count={projectsSummary.lost} value={projectsSummary.lostValueEUR} />
+                  <ProjectSummaryChip label={t('crm.dashboard.projects.chips.open')} color="bg-sky-400" count={projectsSummary.open} value={projectsSummary.openValueEUR} currency={data.currency} />
+                  <ProjectSummaryChip label={t('crm.dashboard.projects.chips.won')} color="bg-emerald-400" count={projectsSummary.won} value={projectsSummary.wonValueEUR} currency={data.currency} />
+                  <ProjectSummaryChip label={t('crm.dashboard.projects.chips.lost')} color="bg-rose-400" count={projectsSummary.lost} value={projectsSummary.lostValueEUR} currency={data.currency} />
                 </div>
               </>
             ) : (
@@ -1237,7 +1196,7 @@ export const DashboardPage: React.FC = () => {
           <div className="flex flex-col gap-0">
             {stages.map((stage, i) => {
               const pct = Math.round((stage.count / maxCount) * 100);
-              const valLabel = 'valueEUR' in stage && stage.valueEUR > 0 ? `${stage.valueEUR.toLocaleString(locale)} €` : 'count' in stage && 'channel' in (stage as any) ? '' : '—';
+              const valLabel = 'valueEUR' in stage && stage.valueEUR > 0 ? `${stage.valueEUR.toLocaleString(locale)} ${data.currency}` : 'count' in stage && 'channel' in (stage as any) ? '' : '—';
               return (
                 <div
                   key={('stage' in stage ? stage.stage : (stage as any).channel) + i}
@@ -1342,7 +1301,7 @@ export const DashboardPage: React.FC = () => {
                   <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
                     <div className="h-full bg-[#222222] rounded-full" style={{ width: `${pct}%` }} />
                   </div>
-                  <div  className="text-[11px] text-[#222] text-right font-medium">{s.revenueEUR.toLocaleString(locale)} €</div>
+                  <div  className="text-[11px] text-[#222] text-right font-medium">{s.revenueEUR.toLocaleString(locale)} {data.currency}</div>
                 </div>
               );
             })}
@@ -1362,7 +1321,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
                 <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.projectsAnalytics.kpiRevenue')}</div>
-                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{(summary?.revenueEUR ?? 0).toLocaleString(locale)} €</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{(summary?.revenueEUR ?? 0).toLocaleString(locale)} {data.currency}</div>
               </div>
             </div>
             <Link to="/projects/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.projectsAnalytics.openFull')}</Link>
@@ -1394,7 +1353,9 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
                 <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.salesAnalyticsWidget.kpiAmount')}</div>
-                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{data.salesSnapshot.amount.toLocaleString(locale)}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">
+                  {Math.round(data.salesSnapshot.amount).toLocaleString(locale)} {data.currency}
+                </div>
               </div>
             </div>
             <Link to="/sales/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.salesAnalyticsWidget.openFull')}</Link>
@@ -1428,8 +1389,7 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="relative isolate overflow-visible rounded-[18px] border border-neutral-200 bg-white px-3 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.05)] sm:px-4 md:px-7 md:py-7">
-        <div className="relative z-10 pb-2 md:pb-4">
+      <div className="px-scope relative isolate overflow-visible pb-2 md:pb-4">
 
           {/* ── HERO ── */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-100 pb-5 mb-6 flex-wrap">
@@ -1441,117 +1401,134 @@ export const DashboardPage: React.FC = () => {
                 <span className="text-neutral-400 font-medium">{getGreeting()}, </span>
                 {user?.name?.trim() || user?.email || t('crm.dashboard.fallbacks.user')}
               </h1>
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
-                {tasksSummary && tasksSummary.today > 0 && (
-                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-neutral-600">
-                    {t('crm.dashboard.hero.stats.tasksToday', { count: tasksSummary.today })}
-                  </span>
-                )}
-                {tasksSummary && tasksSummary.overdue > 0 && (
-                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-rose-600">
-                    {t('crm.dashboard.hero.stats.overdue', { count: tasksSummary.overdue })}
-                  </span>
-                )}
-                {summary && summary.todayLeads > 0 && (
-                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-neutral-600">
-                    {t('crm.dashboard.hero.stats.newLeads', { count: summary.todayLeads })}
-                  </span>
-                )}
-                {summary && summary.revenueEUR > 0 && (
-                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-neutral-600">
-                    {t('crm.dashboard.hero.stats.revenue', {
-                      amount: summary.revenueEUR.toLocaleString(locale) })}
-                  </span>
-                )}
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10.5px] uppercase tracking-[0.1em] text-neutral-500">
+                {[
+                  tasksSummary && tasksSummary.today > 0
+                    ? { key: 'tasksToday', node: t('crm.dashboard.hero.stats.tasksToday', { count: tasksSummary.today }), tone: 'text-neutral-600' }
+                    : null,
+                  tasksSummary && tasksSummary.overdue > 0
+                    ? { key: 'overdue', node: t('crm.dashboard.hero.stats.overdue', { count: tasksSummary.overdue }), tone: 'text-rose-600' }
+                    : null,
+                  summary && summary.todayLeads > 0
+                    ? { key: 'newLeads', node: t('crm.dashboard.hero.stats.newLeads', { count: summary.todayLeads }), tone: 'text-neutral-600' }
+                    : null,
+                  summary && summary.revenueEUR > 0
+                    ? { key: 'revenue', node: t('crm.dashboard.hero.stats.revenue', { amount: `${summary.revenueEUR.toLocaleString(locale)} ${data.currency}` }), tone: 'text-neutral-600' }
+                    : null,
+                ]
+                  .filter((x): x is { key: string; node: string; tone: string } => x !== null)
+                  .map((item, i, arr) => (
+                    <React.Fragment key={item.key}>
+                      <span className={item.tone}>{item.node}</span>
+                      {i < arr.length - 1 && <span className="text-neutral-300">·</span>}
+                    </React.Fragment>
+                  ))}
               </div>
+              {data?.fxMissing?.length ? (
+                <div className="mt-1.5 text-[11px] text-amber-600">
+                  {t('crm.dashboard.fxMissing', { currencies: data.fxMissing.join(', ') })}
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPresetsModalOpen(true)}
-                className="rounded-2xl border border-neutral-200 bg-white px-3 py-1.5 text-[11px] text-neutral-600 hover:border-[#222] hover:text-[#222] transition-colors"
+                className="dh-btn"
               >
                 + {t('crm.dashboard.widgets.addBlock')}
               </button>
             </div>
           </div>
 
-          {/* ── MAIN GRID + SIDEBAR ── */}
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
+          {/* ── QUICK ACCESS ── */}
+          <QuickAccessSection t={t} />
 
-            {/* Main column */}
-            <div className="min-w-0">
-              {/* Quick access */}
-              <QuickAccessSection t={t} />
+          {/* ── KPI STRIP ── */}
+          {kpiVisible && data && (
+            <KpiStrip
+              data={data}
+              locale={locale}
+              t={t}
+              onRemove={() => hideWidget('kpi')}
+            />
+          )}
 
-              {/* KPI Strip */}
-              {kpiVisible && data && (
-                <KpiStrip
-                  data={data}
-                  locale={locale}
-                  t={t}
-                  onRemove={() => hideWidget('kpi')}
-                />
-              )}
+          {/* ── BLOCK GRID ── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
+                <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
+              </svg>
+              <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.sections.myBlocks')}</span>
+              <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{mainGridIds.length}</span>
+            </div>
 
-              {/* Widget section */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
-                      <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
-                    </svg>
-                    <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.sections.myBlocks')}</span>
-                    <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{mainGridIds.length}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setPresetsModalOpen(true)}
-                    className="text-[11px] text-neutral-500 hover:text-[#222] font-medium transition-colors flex items-center gap-1"
-                  >
-                    + {t('crm.dashboard.widgets.addBlock')}
-                  </button>
-                </div>
+            {/* ── toolbar: edit-mode toggle, hint, add block, templates, reset ── */}
+            <div className="dh-toolbar">
+              <button
+                type="button"
+                onClick={() => setEditMode((v) => !v)}
+                className={`dh-btn${editMode ? ' on' : ''}`}
+              >
+                {editMode ? t('crm.dashboard.widgets.done') : t('crm.dashboard.widgets.customize')}
+              </button>
+              <span className="dh-hint">
+                {editMode
+                  ? t('crm.dashboard.widgets.toolbarHintEdit')
+                  : t('crm.dashboard.widgets.toolbarHintView', { count: mainGridIds.length })}
+              </span>
+              <div className="dh-toolbar-sp" />
+              <button
+                type="button"
+                onClick={() => setPresetsModalOpen(true)}
+                className="dh-btn ghost"
+              >
+                + {t('crm.dashboard.widgets.addBlock')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutTemplateModalOpen(true)}
+                className="dh-btn ghost"
+              >
+                {t('crm.dashboard.sidebar.personalizeBtn')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setResetConfirmOpen(true)}
+                className="dh-btn ghost"
+              >
+                {t('crm.dashboard.widgets.reset.button')}
+              </button>
+            </div>
 
-                <section className="grid grid-cols-12 gap-4 md:gap-5 items-start">
-                  {mainGridIds.map((id) => {
+            <section
+              ref={gridRef}
+              className={`grid grid-cols-12 gap-4 md:gap-5 items-start rounded-xl${editMode ? ' bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]' : ''}`}
+            >
+              {renderedGridIds.map((id) => {
                     const size = layout.sizes[id] || 'md';
-                    const heightPx = resizing?.id === id ? resizing.liveHeight : getDefaultWidgetHeight(id, layout);
-                    const colSpan = resizing?.id === id ? resizing.liveColSpan : sizeToColSpan(size);
+                    const heightPx = getDefaultWidgetHeight(id, layout);
+                    const colSpan = getWidgetColSpan(id, layout);
                     return (
                       <DashboardWidgetChrome
                         key={id}
+                        blockId={id}
+                        liveStore={liveStore}
                         title={widgetTitle(id)}
                         sub={widgetSub(id)}
                         size={size}
                         colSpan={colSpan}
                         heightPx={heightPx}
-                        resizeActive={resizing?.id === id}
-                        dragging={draggingId === id}
-                        dropBefore={!!dropIndicator && dropIndicator.targetId === id && dropIndicator.place === 'before' && draggingId !== null && draggingId !== id}
-                        dropAfter={!!dropIndicator && dropIndicator.targetId === id && dropIndicator.place === 'after' && draggingId !== null && draggingId !== id}
-                        onBeginResize={(axis, e) => beginResize(id, size, axis, e)}
-                        dragOver={dropIndicator?.targetId === id && draggingId !== null && draggingId !== id}
+                        edit={editMode}
+                        dragging={dragId === id}
+                        onBeginResize={(axis, e) => beginResize(e, id, axis, {
+                          span: getWidgetColSpan(id, layout),
+                          height: getDefaultWidgetHeight(id, layout),
+                        })}
+                        onBeginDrag={(e) => beginDrag(e, id)}
                         onEdit={() => { setWidgetEditId(id); setWidgetEditTitle(widgetTitle(id)); setWidgetEditOpen(true); }}
-                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; setDraggingId(id); }}
-                        onDragEnd={() => { setDraggingId(null); setDropIndicator(null); }}
-                        onDragOver={(e) => {
-                          e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-                          if (!draggingId || draggingId === id) return;
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          const mid = rect.top + rect.height / 2;
-                          setDropIndicator({ targetId: id, place: e.clientY < mid ? 'before' : 'after' });
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const from = e.dataTransfer.getData('text/plain') || draggingId;
-                          if (!from || from === id) { setDraggingId(null); setDropIndicator(null); return; }
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          const mid = rect.top + rect.height / 2;
-                          reorderByDrag(from, id, e.clientY < mid ? 'before' : 'after');
-                          setDraggingId(null); setDropIndicator(null);
-                        }}
                         actions={
                           id === 'recent-leads' ? (
                             <button
@@ -1573,7 +1550,7 @@ export const DashboardPage: React.FC = () => {
                   {/* Empty add slot */}
                   {mainGridIds.length === 0 && (
                     <div
-                      className="col-span-12 border border-dashed border-neutral-300 rounded-[18px] p-10 text-center text-neutral-500 text-[12px] cursor-pointer transition-colors hover:border-[#222] hover:text-[#222]"
+                      className="col-span-12 border border-dashed border-neutral-300 rounded-xl p-10 text-center text-neutral-500 text-[12px] cursor-pointer transition-colors hover:border-[#222] hover:text-[#222]"
                       onClick={() => setPresetsModalOpen(true)}
                     >
                       <div className="w-8 h-8 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
@@ -1585,38 +1562,6 @@ export const DashboardPage: React.FC = () => {
                   )}
                 </section>
               </div>
-            </div>
-
-            {/* ── SIDEBAR ── */}
-            <aside className="flex flex-col gap-4 xl:sticky xl:top-[72px]">
-
-              {/* Profile completion — hide when dismissed, at 100%, or when steps not loaded */}
-              {!profileDismissed && data && data.profileCompletion.steps.length > 0 && data.profileCompletion.percent < 100 && (
-                <SidebarProfileCard
-                  percent={data.profileCompletion.percent}
-                  steps={data.profileCompletion.steps}
-                  onDismiss={dismissProfile}
-                  t={t}
-                />
-              )}
-
-              {/* Personalize */}
-              <SidebarDarkCard t={t} onChooseTemplate={() => setLayoutTemplateModalOpen(true)} />
-
-              {/* Templates */}
-              <SidebarTemplatesCard t={t} />
-
-              {/* Learn & Inspire */}
-              {data && (
-                <div className="rounded-xl border border-neutral-200 bg-white p-[18px]">
-                  <div className="text-[13px] font-semibold text-[#222] leading-snug mb-2">
-                    {t('crm.dashboard.learn.sidebarTitle')}
-                  </div>
-                  <DashboardLearnInspire slugs={data.learnSlugs} inSidebar />
-                </div>
-              )}
-            </aside>
-          </div>
 
           {/* ── MODALS ── */}
           {leadsModalOpen && data && createPortal(
@@ -1678,6 +1623,43 @@ export const DashboardPage: React.FC = () => {
             />
           )}
 
+          {resetConfirmOpen && createPortal(
+            <div
+              className="fixed inset-0 z-[10090] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
+              role="presentation"
+              onClick={() => setResetConfirmOpen(false)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                className="w-full max-w-sm rounded-[18px] border border-neutral-200/90 bg-white p-5 shadow-2xl text-[#222]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-sm font-semibold text-[#222]">{t('crm.dashboard.widgets.reset.title')}</h3>
+                <p className="mt-1.5 text-[12px] text-neutral-500 leading-relaxed">
+                  {t('crm.dashboard.widgets.reset.message')}
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetConfirmOpen(false)}
+                    className="rounded-xl border border-neutral-200 px-4 py-2 text-[12px] font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    {t('crm.dashboard.widgets.reset.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={doResetLayout}
+                    className="rounded-xl bg-[#222222] px-4 py-2 text-[12px] font-medium text-white hover:opacity-90"
+                  >
+                    {t('crm.dashboard.widgets.reset.confirm')}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
+
           {widgetEditOpen && widgetEditId && createPortal(
             <div
               className="fixed inset-0 z-[10085] flex items-center justify-center p-4 bg-black/45 backdrop-blur-md"
@@ -1722,7 +1704,6 @@ export const DashboardPage: React.FC = () => {
             document.body,
           )}
 
-        </div>
       </div>
 
       {toast && (
@@ -1792,7 +1773,7 @@ const ProjectDistributionBar: React.FC<{ summary: DashboardData['projectsSummary
   );
 };
 
-const ProjectSummaryChip: React.FC<{ label: string; color: string; count: number; value: number }> = ({ label, color, count, value }) => {
+const ProjectSummaryChip: React.FC<{ label: string; color: string; count: number; value: number; currency: string }> = ({ label, color, count, value, currency }) => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
   return (
@@ -1804,7 +1785,7 @@ const ProjectSummaryChip: React.FC<{ label: string; color: string; count: number
         {t('crm.dashboard.projects.countLabel')} <span className="text-[#222] font-medium">{count}</span>
       </div>
       <div  className="text-[10px] text-neutral-500">
-        {t('crm.dashboard.projects.amountLabel')} <span className="text-[#222] font-medium">{value.toLocaleString(locale)} €</span>
+        {t('crm.dashboard.projects.amountLabel')} <span className="text-[#222] font-medium">{value.toLocaleString(locale)} {currency}</span>
       </div>
     </div>
   );

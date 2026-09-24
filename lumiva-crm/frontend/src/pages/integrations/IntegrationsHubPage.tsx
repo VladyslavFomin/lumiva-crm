@@ -249,6 +249,7 @@ export const IntegrationsHubPage: React.FC = () => {
   const [connectCatalogId, setConnectCatalogId] = useState<string | null>(null);
   const [ga4QuickConnectOpen, setGa4QuickConnectOpen] = useState(false);
   const [marketingPanelRefreshSignal, setMarketingPanelRefreshSignal] = useState(0);
+  const [openMetaAdsSignal, setOpenMetaAdsSignal] = useState(0);
 
   const load = useCallback(async (opts?: { quiet?: boolean }) => {
     const quiet = Boolean(opts?.quiet);
@@ -289,7 +290,8 @@ export const IntegrationsHubPage: React.FC = () => {
     const hs = searchParams.get('hubspotOAuth');
     const mc = searchParams.get('mailchimpOAuth');
     const jr = searchParams.get('jiraOAuth');
-    if (!ads && !ga4 && !gcal && !ocal && !slk && !hs && !mc && !jr) return;
+    const metaAds = searchParams.get('metaAdsOAuth');
+    if (!ads && !ga4 && !gcal && !ocal && !slk && !hs && !mc && !jr && !metaAds) return;
     setSearchParams(
       (prev) => {
         const n = new URLSearchParams(prev);
@@ -301,6 +303,7 @@ export const IntegrationsHubPage: React.FC = () => {
         if (hs) n.delete('hubspotOAuth');
         if (mc) n.delete('mailchimpOAuth');
         if (jr) n.delete('jiraOAuth');
+        if (metaAds) n.delete('metaAdsOAuth');
         return n;
       },
       { replace: true },
@@ -313,6 +316,12 @@ export const IntegrationsHubPage: React.FC = () => {
       refresh = true;
     } else if (ads === 'error') {
       pushMsg('crm.marketingIntegrations.oauth.callback.error');
+    }
+    if (metaAds === 'connected') {
+      pushMsg('crm.marketingIntegrations.metaOauth.callback.connected');
+      setOpenMetaAdsSignal((n) => n + 1);
+    } else if (metaAds === 'error') {
+      pushMsg('crm.marketingIntegrations.metaOauth.callback.error');
     }
     if (ga4 === 'connected') {
       pushMsg('crm.marketingIntegrations.ga4.oauth.callback.connected');
@@ -1264,6 +1273,7 @@ export const IntegrationsHubPage: React.FC = () => {
           <MarketingIntegrationsPanel
             variant="embedded"
             listRefreshSignal={marketingPanelRefreshSignal}
+            openMetaAdsSignal={openMetaAdsSignal}
             onMarketingDataChanged={() => void load({ quiet: true })}
           />
         )}

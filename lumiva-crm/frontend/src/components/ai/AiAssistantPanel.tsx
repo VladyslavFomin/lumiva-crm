@@ -17,10 +17,12 @@ import {
   type AiChatWorkspaceFileContext,
   type AiMemoryChunkDto,
   type AiQuotaSnapshot,
+  type AiChatProposal,
 } from '../../api/ai';
 import { previewSalesImport, previewWorkspaceFileImport } from '../../api/imports';
 import { ApiError, createAiAddonCheckoutSession } from '../../api/client';
 import { AiChatMarkdown } from './AiChatMarkdown';
+import { AiProposalCards } from './AiProposalCards';
 import { AiEmailComposerTab } from './AiEmailComposerTab';
 import { OpenAiConnectModal } from '../integrations/OpenAiConnectModal';
 import { LottieIcon } from '../LottieIcon';
@@ -1333,6 +1335,27 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                           >
                             <AiChatMarkdown text={m.content || ''} variant={isUser ? 'user' : 'assistant'} />
                           </div>
+                          {!isUser && Array.isArray((m.meta as any)?.proposals) && (m.meta as any).proposals.length ? (
+                            <AiProposalCards
+                              messageId={m.id}
+                              proposals={(m.meta as any).proposals as AiChatProposal[]}
+                              onUpdated={(np) =>
+                                setMessages((prev) =>
+                                  prev.map((x) =>
+                                    x.id === m.id
+                                      ? {
+                                          ...x,
+                                          meta: {
+                                            ...(x.meta || {}),
+                                            proposals: ((x.meta as any)?.proposals as AiChatProposal[]).map((op) => (op.id === np.id ? np : op)),
+                                          },
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
+                            />
+                          ) : null}
                         </div>
                       </div>
                     );

@@ -10,6 +10,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ModuleRef } from '@nestjs/core';
 import { Repository, LessThan, LessThanOrEqual, Not, In } from 'typeorm';
 import axios from 'axios';
 import ExcelJS from 'exceljs';
@@ -65,6 +66,8 @@ export class AutomationsService {
     return run;
   }
   constructor(
+    // Лениво (AiEmployeesModule сам зависит от модулей, импортирующих AutomationsModule — прямой DI дал бы цикл)
+    private readonly moduleRef: ModuleRef,
     @InjectRepository(Automation)
     private readonly automationRepo: Repository<Automation>,
     @InjectRepository(AutomationExecution)
@@ -345,6 +348,16 @@ export class AutomationsService {
   ): Promise<void> {
     // ── Telegram CRM notifications for key events ────────────────────────
     void this.dispatchTelegramNotification(tenantId, event, triggerData).catch(() => undefined);
+
+    // ── ИИ-сотрудники: то же событие, что запускает правила ниже, получают подписанные на него ИИ ──
+    // Импорт динамический: ai-employees.service транзитивно импортирует этот файл, статический
+    // импорт даёт циклическую загрузку модулей и `undefined` в metadata конструкторов (Nest не стартует).
+    void (async () => {
+      const { AiEmployeesService } = await import('../ai-employees/ai-employees.service.js');
+      await this.moduleRef
+        .get(AiEmployeesService, { strict: false })
+        .handleAutomationEvent(tenantId, event, triggerData);
+    })().catch(() => undefined);
 
     // Находим все активные автоматизации для этого события
     const automations = await this.automationRepo.find({
