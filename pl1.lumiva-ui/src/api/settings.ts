@@ -16,6 +16,11 @@ export interface PlatformSettings {
   stripePriceProfessional: string | null;
   stripePriceEnterprise: string | null;
   stripePriceUltimate: string | null;
+  iyzicoApiKey: string | null;
+  iyzicoSecretKey: string | null;
+  iyzicoSandbox: boolean;
+  yookassaShopId: string | null;
+  yookassaSecretKey: string | null;
   billingPlans: BillingPlanContent[] | null;
   openAiApiKey: string | null;
   openAiBaseUrl: string | null;
@@ -43,6 +48,7 @@ export interface BillingPlanContent {
   description: string;
   features: string[];
   highlighted?: boolean;
+  monthlyAmounts?: { eur?: number; rub?: number; try?: number };
   i18n?: {
     en?: {
       subtitle?: string;
@@ -115,6 +121,44 @@ export async function sendStripeTest(): Promise<{ ok: boolean }> {
 export async function fetchBillingHealth(): Promise<BillingHealth> {
   try {
     const res = await apiClient.get<BillingHealth>(`/platform/settings/billing-health`);
+    return res.data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err));
+  }
+}
+
+export interface BillingOverviewTenantRow {
+  id: string;
+  name: string;
+  clientKey: string;
+  plan: string;
+  status: string;
+  activeUntil: string | null;
+  telephonyAddonEnabled: boolean;
+  lastPaymentFailedAt: string | null;
+  expired: boolean;
+  expiringSoon: boolean;
+}
+
+export interface BillingOverview {
+  stripeConfigured: boolean;
+  revenue: {
+    last30d: { count: number; byCurrency: Array<{ currency: string; amount: number }> };
+    last90d: { count: number; byCurrency: Array<{ currency: string; amount: number }> };
+  } | null;
+  tenants: BillingOverviewTenantRow[];
+  summary: {
+    totalPayingTenants: number;
+    expiredCount: number;
+    expiringSoonCount: number;
+    telephonySubscribers: number;
+    recentPaymentFailures: number;
+  };
+}
+
+export async function fetchBillingOverview(): Promise<BillingOverview> {
+  try {
+    const res = await apiClient.get<BillingOverview>(`/platform/billing/overview`);
     return res.data;
   } catch (err) {
     throw new Error(getApiErrorMessage(err));

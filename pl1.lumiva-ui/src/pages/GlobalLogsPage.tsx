@@ -36,6 +36,7 @@ const GlobalLogsPage: React.FC = () => {
 
   /** Быстрый фильтр по путям маркетинга / API (подстрока в path/type/message). */
   const LOG_PRESETS: { label: string; q: string }[] = [
+    { label: "Безопасность ИИ", q: "ai_security" },
     { label: "Маркетинг", q: "/marketing" },
     { label: "Трафик / импорт", q: "traffic" },
     { label: "Интеграции", q: "integration" },

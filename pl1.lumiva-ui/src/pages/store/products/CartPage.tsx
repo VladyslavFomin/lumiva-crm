@@ -12,6 +12,8 @@ const CartPage: React.FC = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
+  const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +32,14 @@ const CartPage: React.FC = () => {
         customerName: name,
         customerEmail: email || undefined,
         customerPhone: phone || undefined,
+        customerCity: city || undefined,
+        customerAddress: address || undefined,
       });
       cart.clear();
+      if (order.paymentPageUrl) {
+        window.location.href = order.paymentPageUrl;
+        return;
+      }
       navigate(`/store/${clientKey}/orders/${order.orderCode}?email=${encodeURIComponent(email)}`);
     } catch (e) {
       setError(getApiErrorMessage(e));
@@ -103,6 +111,18 @@ const CartPage: React.FC = () => {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Телефон"
+            className="w-full rounded-xl border border-amber-300 px-3 py-2 text-sm"
+          />
+          <input
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="Город (для оплаты картой)"
+            className="w-full rounded-xl border border-amber-300 px-3 py-2 text-sm"
+          />
+          <input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Адрес (для оплаты картой)"
             className="w-full rounded-xl border border-amber-300 px-3 py-2 text-sm"
           />
         </div>

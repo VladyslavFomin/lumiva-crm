@@ -8,8 +8,10 @@ import {
   createTenant,
   updateTenant,
   deleteTenant as deleteTenantApi,
+  setTenantDomain,
   type TenantSummary,
   type TenantPlan,
+  type TenantPaymentProvider,
   type CreateTenantDto,
   type UpdateTenantDto,
 } from "../api/tenants";
@@ -26,16 +28,24 @@ const PLAN_OPTIONS: TenantPlan[] = [
   "ultimate",
 ];
 
+const PAYMENT_PROVIDER_OPTIONS: TenantPaymentProvider[] = [
+  "stripe",
+  "yookassa",
+  "iyzico",
+];
+
 interface EditTenantForm {
   id: string;
   name: string;
   clientKey: string;
   plan: TenantPlan | "";
+  paymentProvider: TenantPaymentProvider | "";
   activeUntil: string; // YYYY-MM-DD
   ownerName: string;
   ownerEmail: string;
   apiEnabled: boolean;
   notes: string;
+  customDomain: string;
 }
 
 interface CreateTenantForm {
@@ -95,6 +105,10 @@ const TenantsPage: React.FC = () => {
   /** Смена clientKey опасна: старые ссылки и интеграции с прежним ключом перестанут работать. */
   const [editClientKeyUnlocked, setEditClientKeyUnlocked] = useState(false);
   const [editOriginalClientKey, setEditOriginalClientKey] = useState("");
+  const [editOriginalCustomDomain, setEditOriginalCustomDomain] = useState("");
+  const [editCustomDomainStatus, setEditCustomDomainStatus] = useState<
+    TenantSummary["customDomainStatus"] | null
+  >(null);
 
   // ---------- импорт CSV ----------
   const [importOpen, setImportOpen] = useState(false);
@@ -276,16 +290,20 @@ const TenantsPage: React.FC = () => {
     const activeDate = t.activeUntil ? t.activeUntil.slice(0, 10) : "";
     setEditClientKeyUnlocked(false);
     setEditOriginalClientKey(t.clientKey);
+    setEditOriginalCustomDomain(t.customDomain ?? "");
+    setEditCustomDomainStatus(t.customDomainStatus ?? "none");
     setEditForm({
       id: t.id,
       name: t.name,
       clientKey: t.clientKey,
       plan: t.plan ?? "standard",
+      paymentProvider: t.paymentProvider ?? "",
       activeUntil: activeDate,
       ownerName: t.ownerName ?? "",
       ownerEmail: t.ownerEmail ?? "",
       apiEnabled: t.apiEnabled,
       notes: t.notes ?? "",
+      customDomain: t.customDomain ?? "",
     });
     setEditOpen(true);
   };
@@ -299,6 +317,7 @@ const TenantsPage: React.FC = () => {
       const dto: UpdateTenantDto = {
         name: editForm.name.trim(),
         plan: (editForm.plan || "standard") as TenantPlan,
+        paymentProvider: editForm.paymentProvider || null,
         activeUntil: editForm.activeUntil
           ? new Date(editForm.activeUntil + "T00:00:00Z").toISOString()
           : null,
@@ -327,7 +346,13 @@ const TenantsPage: React.FC = () => {
         }
       }
 
-      const updated = await updateTenant(editForm.id, dto);
+      let updated = await updateTenant(editForm.id, dto);
+
+      const nextDomain = editForm.customDomain.trim();
+      if (nextDomain !== editOriginalCustomDomain.trim()) {
+        updated = await setTenantDomain(editForm.id, nextDomain || null);
+      }
+
       setTenants((prev) =>
         prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t))
       );
@@ -468,12 +493,29 @@ const TenantsPage: React.FC = () => {
   };
 
   const applyBatch = async (
-    action: "activate" | "block" | "api-on" | "api-off" | TenantPlan,
+    action:
+      | "activate"
+      | "block"
+      | "api-on"
+      | "api-off"
+      | "provider-auto"
+      | "provider-stripe"
+      | "provider-yookassa"
+      | "provider-iyzico"
+      | TenantPlan,
   ) => {
     if (selectedIds.size === 0) return;
     setBatchLoading(true);
     try {
       const ids = Array.from(selectedIds);
+      const providerFromAction = (): TenantPaymentProvider | null =>
+        action === "provider-stripe"
+          ? "stripe"
+          : action === "provider-yookassa"
+            ? "yookassa"
+            : action === "provider-iyzico"
+              ? "iyzico"
+              : null;
       await Promise.all(
         ids.map((id) => {
           switch (action) {
@@ -485,6 +527,12 @@ const TenantsPage: React.FC = () => {
               return updateTenant(id, { apiEnabled: true });
             case "api-off":
               return updateTenant(id, { apiEnabled: false });
+            case "provider-auto":
+              return updateTenant(id, { paymentProvider: null });
+            case "provider-stripe":
+            case "provider-yookassa":
+            case "provider-iyzico":
+              return updateTenant(id, { paymentProvider: providerFromAction() });
             default:
               return updateTenant(id, { plan: action as TenantPlan });
           }
@@ -501,7 +549,13 @@ const TenantsPage: React.FC = () => {
               ? "API включено"
               : action === "api-off"
                 ? "API выключено"
-                : `План ${action}`;
+                : action === "provider-auto"
+                  ? "Payment provider: авто"
+                  : action === "provider-stripe" ||
+                      action === "provider-yookassa" ||
+                      action === "provider-iyzico"
+                    ? `Payment provider: ${providerFromAction()}`
+                    : `План ${action}`;
 
       setTenants((prev) =>
         prev.map((t) => {
@@ -510,6 +564,14 @@ const TenantsPage: React.FC = () => {
           if (action === "block") return { ...t, status: "blocked" };
           if (action === "api-on") return { ...t, apiEnabled: true };
           if (action === "api-off") return { ...t, apiEnabled: false };
+          if (action === "provider-auto") return { ...t, paymentProvider: null };
+          if (
+            action === "provider-stripe" ||
+            action === "provider-yookassa" ||
+            action === "provider-iyzico"
+          ) {
+            return { ...t, paymentProvider: providerFromAction() };
+          }
           return { ...t, plan: action as TenantPlan };
         })
       );
@@ -780,6 +842,25 @@ const TenantsPage: React.FC = () => {
             >
               План Professional
             </button>
+            <select
+              className="pl1-select"
+              disabled={batchLoading}
+              defaultValue=""
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                void applyBatch(v as any);
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>
+                Payment provider →
+              </option>
+              <option value="provider-auto">— авто —</option>
+              <option value="provider-stripe">stripe</option>
+              <option value="provider-yookassa">yookassa</option>
+              <option value="provider-iyzico">iyzico</option>
+            </select>
           </div>
         )}
         <table className="pl1-table">
@@ -799,6 +880,7 @@ const TenantsPage: React.FC = () => {
               <th>CLIENT KEY</th>
               <th>СТАТУС</th>
               <th>ПЛАН</th>
+              <th>ОПЛАТА</th>
               <th>API</th>
               <th>АКТИВЕН ДО</th>
               <th>ЗАМЕТКИ</th>
@@ -811,7 +893,7 @@ const TenantsPage: React.FC = () => {
           <tbody>
             {filteredTenants.length === 0 && !loading && (
               <tr>
-                <td colSpan={12} className="pl1-table-empty">
+                <td colSpan={13} className="pl1-table-empty">
                   Нет тенантов по текущему фильтру
                 </td>
               </tr>
@@ -840,6 +922,7 @@ const TenantsPage: React.FC = () => {
                   </span>
                 </td>
                 <td>{t.plan || "—"}</td>
+                <td>{t.paymentProvider || "—"}</td>
                 <td>
                   <button
                     type="button"
@@ -926,7 +1009,7 @@ const TenantsPage: React.FC = () => {
 
             {loading && (
               <tr>
-                <td colSpan={12} className="pl1-table-empty">
+                <td colSpan={13} className="pl1-table-empty">
                   Загрузка…
                 </td>
               </tr>
@@ -1162,6 +1245,31 @@ const TenantsPage: React.FC = () => {
               </label>
 
               <label className="pl1-field">
+                <span>Payment provider</span>
+                <select
+                  className="pl1-select"
+                  value={editForm.paymentProvider}
+                  onChange={(e) =>
+                    setEditForm((f) =>
+                      f
+                        ? {
+                            ...f,
+                            paymentProvider: e.target.value as TenantPaymentProvider | "",
+                          }
+                        : f
+                    )
+                  }
+                >
+                  <option value="">— авто (по uiLanguage) —</option>
+                  {PAYMENT_PROVIDER_OPTIONS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="pl1-field">
                 <span>Активен до</span>
                 <input
                   type="date"
@@ -1199,6 +1307,43 @@ const TenantsPage: React.FC = () => {
                     )
                   }
                 />
+              </label>
+
+              <label className="pl1-field">
+                <span>
+                  Кастомный домен
+                  {editCustomDomainStatus && editCustomDomainStatus !== "none" && (
+                    <span className="text-[11px] text-slate-500 ml-2">
+                      (
+                      {editCustomDomainStatus === "active"
+                        ? "активен"
+                        : editCustomDomainStatus === "failed"
+                          ? "ошибка"
+                          : "ожидает провижининга"}
+                      )
+                    </span>
+                  )}
+                </span>
+                {editForm.plan !== "ultimate" && (
+                  <div className="text-[11px] text-amber-400 mb-1">
+                    Доступно только на тарифе Ultimate — на "{editForm.plan || "standard"}"
+                    бэкенд отклонит сохранение нового домена.
+                  </div>
+                )}
+                <input
+                  className="pl1-input"
+                  placeholder="crm.clientcompany.com"
+                  value={editForm.customDomain}
+                  onChange={(e) =>
+                    setEditForm((f) =>
+                      f ? { ...f, customDomain: e.target.value } : f
+                    )
+                  }
+                />
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Изменение здесь переводит домен в статус "pending" — активацию и статус
+                  ошибки смотрите в карточке тенанта.
+                </span>
               </label>
 
               <label className="pl1-field">

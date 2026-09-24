@@ -179,7 +179,40 @@ const DEFAULT_BILLING_PLANS: BillingPlanContent[] = [
   },
 ];
 
+type BillingProviderId = "stripe" | "yookassa" | "iyzico";
+
+const BILLING_PROVIDER_TABS: Array<{
+  id: BillingProviderId;
+  label: string;
+  currencyKey: "eur" | "rub" | "try";
+  symbol: string;
+  hint: string;
+}> = [
+  {
+    id: "stripe",
+    label: "Stripe",
+    currencyKey: "eur",
+    symbol: "€",
+    hint: "Используется по умолчанию для всех тенантов, кроме ru/tr.",
+  },
+  {
+    id: "yookassa",
+    label: "ЮKassa",
+    currencyKey: "rub",
+    symbol: "₽",
+    hint: "Используется для тенантов с языком интерфейса ru.",
+  },
+  {
+    id: "iyzico",
+    label: "iyzico",
+    currencyKey: "try",
+    symbol: "₺",
+    hint: "Используется для тенантов с языком интерфейса tr.",
+  },
+];
+
 const PlatformSettingsPage: React.FC = () => {
+  const [billingTab, setBillingTab] = useState<BillingProviderId>("stripe");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -203,6 +236,11 @@ const PlatformSettingsPage: React.FC = () => {
     stripePriceProfessional: "",
     stripePriceEnterprise: "",
     stripePriceUltimate: "",
+    iyzicoApiKey: "",
+    iyzicoSecretKey: "",
+    iyzicoSandbox: true,
+    yookassaShopId: "",
+    yookassaSecretKey: "",
     billingPlans: DEFAULT_BILLING_PLANS as BillingPlanContent[],
     openAiApiKey: "",
     openAiBaseUrl: "https://api.openai.com/v1",
@@ -229,6 +267,11 @@ const PlatformSettingsPage: React.FC = () => {
     !!form.stripePriceProfessional.trim() &&
     !!form.stripePriceEnterprise.trim() &&
     !!form.stripePriceUltimate.trim();
+  const billingProviderConfigured: Record<BillingProviderId, boolean> = {
+    stripe: stripeConfigured,
+    yookassa: !!form.yookassaShopId.trim() && !!form.yookassaSecretKey.trim(),
+    iyzico: !!form.iyzicoApiKey.trim() && !!form.iyzicoSecretKey.trim(),
+  };
 
   const loadHealth = async () => {
     try {
@@ -260,6 +303,11 @@ const PlatformSettingsPage: React.FC = () => {
         stripePriceProfessional: data.stripePriceProfessional || "",
         stripePriceEnterprise: data.stripePriceEnterprise || "",
         stripePriceUltimate: data.stripePriceUltimate || "",
+        iyzicoApiKey: data.iyzicoApiKey || "",
+        iyzicoSecretKey: data.iyzicoSecretKey || "",
+        iyzicoSandbox: data.iyzicoSandbox !== false,
+        yookassaShopId: data.yookassaShopId || "",
+        yookassaSecretKey: data.yookassaSecretKey || "",
         billingPlans: data.billingPlans && data.billingPlans.length ? data.billingPlans : DEFAULT_BILLING_PLANS,
         openAiApiKey: data.openAiApiKey || "",
         openAiBaseUrl: data.openAiBaseUrl || "https://api.openai.com/v1",
@@ -335,6 +383,11 @@ const PlatformSettingsPage: React.FC = () => {
         stripePriceProfessional: form.stripePriceProfessional.trim() || null,
         stripePriceEnterprise: form.stripePriceEnterprise.trim() || null,
         stripePriceUltimate: form.stripePriceUltimate.trim() || null,
+        iyzicoApiKey: form.iyzicoApiKey.trim() || null,
+        iyzicoSecretKey: form.iyzicoSecretKey.trim() || null,
+        iyzicoSandbox: form.iyzicoSandbox,
+        yookassaShopId: form.yookassaShopId.trim() || null,
+        yookassaSecretKey: form.yookassaSecretKey.trim() || null,
         openAiApiKey: form.openAiApiKey.trim() || null,
         openAiBaseUrl: form.openAiBaseUrl.trim() || null,
         openAiModel: form.openAiModel.trim() || null,
@@ -474,7 +527,212 @@ const PlatformSettingsPage: React.FC = () => {
           )}
         </div>
 
-        <div>
+        <div className="border-t border-slate-800/80 pt-4">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+            Тарифы и оплата
+          </div>
+          <p className="text-sm text-slate-400 mt-1">
+            Провайдер выбирается автоматически по языку интерфейса тенанта (ru → ЮKassa, tr → iyzico,
+            иначе → Stripe). На каждой вкладке — сумма по тарифам в своей валюте и ключи этого провайдера.
+          </p>
+        </div>
+
+        <div className="flex gap-1 rounded-2xl border border-slate-800 bg-slate-950/60 p-1">
+          {BILLING_PROVIDER_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setBillingTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                billingTab === tab.id
+                  ? "bg-slate-800 text-slate-50"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  billingProviderConfigured[tab.id] ? "bg-emerald-400" : "bg-amber-400"
+                }`}
+              />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {BILLING_PROVIDER_TABS.map(
+          (tab) =>
+            billingTab === tab.id && (
+              <div key={tab.id} className="space-y-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-xs text-slate-400">
+                  {tab.hint}{" "}
+                  <span
+                    className={billingProviderConfigured[tab.id] ? "text-emerald-300" : "text-amber-300"}
+                  >
+                    {billingProviderConfigured[tab.id] ? "ключи заполнены" : "нужны ключи"}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-800 rounded-2xl border border-slate-800">
+                  {form.billingPlans.map((plan, idx) => (
+                    <div key={plan.code} className="flex items-center justify-between gap-4 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-100">{plan.title || plan.code}</div>
+                        <div className="text-[11px] uppercase tracking-[0.15em] text-slate-500">{plan.code}</div>
+                      </div>
+                      <div className="relative w-36">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+                          {tab.symbol}
+                        </span>
+                        <input
+                          type="number"
+                          value={plan.monthlyAmounts?.[tab.currencyKey] ?? ""}
+                          onChange={(e) =>
+                            setForm((s) => ({
+                              ...s,
+                              billingPlans: s.billingPlans.map((p, i) =>
+                                i === idx
+                                  ? {
+                                      ...p,
+                                      monthlyAmounts: {
+                                        ...p.monthlyAmounts,
+                                        [tab.currencyKey]:
+                                          e.target.value === "" ? undefined : Number(e.target.value),
+                                      },
+                                    }
+                                  : p,
+                              ),
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2 pl-7 pr-2 text-sm text-slate-100"
+                          placeholder="—"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {tab.id === "stripe" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Secret key
+                      <input
+                        value={form.stripeSecretKey}
+                        onChange={(e) => setForm((s) => ({ ...s, stripeSecretKey: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="sk_test_..."
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Publishable key
+                      <input
+                        value={form.stripePublishableKey}
+                        onChange={(e) => setForm((s) => ({ ...s, stripePublishableKey: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="pk_test_..."
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500 md:col-span-2">
+                      Webhook secret
+                      <input
+                        value={form.stripeWebhookSecret}
+                        onChange={(e) => setForm((s) => ({ ...s, stripeWebhookSecret: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="whsec_..."
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Price Standard
+                      <input
+                        value={form.stripePriceStandard}
+                        onChange={(e) => setForm((s) => ({ ...s, stripePriceStandard: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="price_..."
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Price Professional
+                      <input
+                        value={form.stripePriceProfessional}
+                        onChange={(e) => setForm((s) => ({ ...s, stripePriceProfessional: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="price_..."
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Price Enterprise
+                      <input
+                        value={form.stripePriceEnterprise}
+                        onChange={(e) => setForm((s) => ({ ...s, stripePriceEnterprise: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="price_..."
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Price Ultimate
+                      <input
+                        value={form.stripePriceUltimate}
+                        onChange={(e) => setForm((s) => ({ ...s, stripePriceUltimate: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        placeholder="price_..."
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {tab.id === "iyzico" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      API key
+                      <input
+                        value={form.iyzicoApiKey}
+                        onChange={(e) => setForm((s) => ({ ...s, iyzicoApiKey: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Secret key
+                      <input
+                        value={form.iyzicoSecretKey}
+                        onChange={(e) => setForm((s) => ({ ...s, iyzicoSecretKey: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-slate-500 md:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={form.iyzicoSandbox}
+                        onChange={(e) => setForm((s) => ({ ...s, iyzicoSandbox: e.target.checked }))}
+                      />
+                      Sandbox
+                    </label>
+                  </div>
+                )}
+
+                {tab.id === "yookassa" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Shop ID
+                      <input
+                        value={form.yookassaShopId}
+                        onChange={(e) => setForm((s) => ({ ...s, yookassaShopId: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                      />
+                    </label>
+                    <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Secret key
+                      <input
+                        value={form.yookassaSecretKey}
+                        onChange={(e) => setForm((s) => ({ ...s, yookassaSecretKey: e.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+            ),
+        )}
+
+        <div className="border-t border-slate-800/80 pt-4">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
             Telegram bot
           </div>
@@ -597,6 +855,11 @@ const PlatformSettingsPage: React.FC = () => {
                 className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100"
                 placeholder="Price, e.g. EUR 14"
               />
+              <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-500">
+                Суммы к списанию настраиваются на вкладках{" "}
+                <span className="font-semibold text-slate-300">«Тарифы и оплата»</span> выше
+                (Stripe / ЮKassa / iyzico).
+              </div>
               <input
                 value={plan.subtitle}
                 onChange={(e) =>
@@ -900,81 +1163,6 @@ const PlatformSettingsPage: React.FC = () => {
               value={form.storagePackBytes}
               onChange={(e) => setForm((s) => ({ ...s, storagePackBytes: e.target.value }))}
               className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-            />
-          </label>
-        </div>
-
-        <div className="border-t border-slate-800/80 pt-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-            Stripe (Billing)
-          </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Ключи для оплаты CRM и Price ID тарифов.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Secret key
-            <input
-              value={form.stripeSecretKey}
-              onChange={(e) => setForm((s) => ({ ...s, stripeSecretKey: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="sk_test_..."
-            />
-          </label>
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Publishable key
-            <input
-              value={form.stripePublishableKey}
-              onChange={(e) => setForm((s) => ({ ...s, stripePublishableKey: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="pk_test_..."
-            />
-          </label>
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500 md:col-span-2">
-            Webhook secret
-            <input
-              value={form.stripeWebhookSecret}
-              onChange={(e) => setForm((s) => ({ ...s, stripeWebhookSecret: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="whsec_..."
-            />
-          </label>
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Price Standard
-            <input
-              value={form.stripePriceStandard}
-              onChange={(e) => setForm((s) => ({ ...s, stripePriceStandard: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="price_..."
-            />
-          </label>
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Price Professional
-            <input
-              value={form.stripePriceProfessional}
-              onChange={(e) => setForm((s) => ({ ...s, stripePriceProfessional: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="price_..."
-            />
-          </label>
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Price Enterprise
-            <input
-              value={form.stripePriceEnterprise}
-              onChange={(e) => setForm((s) => ({ ...s, stripePriceEnterprise: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="price_..."
-            />
-          </label>
-          <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            Price Ultimate
-            <input
-              value={form.stripePriceUltimate}
-              onChange={(e) => setForm((s) => ({ ...s, stripePriceUltimate: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
-              placeholder="price_..."
             />
           </label>
         </div>

@@ -300,6 +300,35 @@
   color: rgba(148, 163, 184, 0.75);
 }
 
+/* Multi-line variant — .pl1-input's pill border-radius (999px) looks broken on a
+   textarea, so this uses a normal rounded rect instead while keeping the same palette. */
+.pl1-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  border-radius: 12px;
+  border: 1px solid rgba(30, 64, 175, 0.75);
+  background: radial-gradient(circle at 0 0, rgba(30, 64, 175, 0.18), transparent 65%), #020617;
+  color: #e5e7eb;
+  outline: none;
+  resize: vertical;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.pl1-textarea::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.pl1-textarea:focus {
+  border-color: rgba(56, 189, 248, 0.9);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
 .pl1-input:focus,
 .pl1-select:focus {
   border-color: #38bdf8;
@@ -447,6 +476,21 @@
   background: rgba(148, 163, 184, 0.14);
   color: #e5e7eb;
   border-color: rgba(148, 163, 184, 0.5);
+}
+
+.pl1-pill-blue {
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.pl1-pill-muted {
+  background: transparent;
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.4);
+  border-style: dashed;
+  text-decoration: line-through;
+  text-decoration-color: rgba(100, 116, 139, 0.5);
 }
 
 .pl1-pill-clickable {

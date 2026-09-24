@@ -20,6 +20,7 @@ import PanelLoginPage from "./pages/PanelLoginPage";
 import ModulesPage from "./pages/ModulesPage";
 import ComponentsPage from "./pages/ComponentsPage";
 import BillingMonitorPage from "./pages/BillingMonitorPage";
+import SalesPanelPage from "./pages/SalesPanelPage";
 import StoreRoutes from "./pages/store/StoreRoutes";
 import { isPanelAuthed, clearPanelSession } from "./auth/panelSession";
 
@@ -36,16 +37,23 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const onTenants = location.pathname.startsWith("/tenants");
+  const onSalesPanel = location.pathname.startsWith("/sales-panel");
 
   const handleLogout = () => {
     clearPanelSession();
     navigate("/panel-login", { replace: true });
   };
 
-  const title = onTenants ? "Тенанты" : "Обзор платформы";
+  const title = onTenants
+    ? "Тенанты"
+    : onSalesPanel
+      ? "Панель продаж"
+      : "Обзор платформы";
   const subtitle = onTenants
     ? "Список всех компаний, статусы, планы и управление доступом."
-    : "Панель управления компаниями и доступами.";
+    : onSalesPanel
+      ? "Поиск потенциальных клиентов и рассылка приглашений о сотрудничестве."
+      : "Панель управления компаниями и доступами.";
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 flex">
@@ -95,6 +103,21 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           >
             <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
             <span>Тенанты</span>
+          </NavLink>
+
+          <NavLink
+            to="/sales-panel"
+            className={({ isActive }) =>
+              [
+                "flex items-center gap-2 rounded-xl px-3 py-2 transition-colors",
+                isActive
+                  ? "bg-slate-800 text-slate-50"
+                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-50",
+              ].join(" ")
+            }
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-400" />
+            <span>Панель продаж</span>
           </NavLink>
 
           <NavLink
@@ -291,6 +314,14 @@ const App: React.FC = () => {
           element={
             <PanelProtectedRoute>
               <TenantDetailsPage />
+            </PanelProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales-panel"
+          element={
+            <PanelProtectedRoute>
+              <SalesPanelPage />
             </PanelProtectedRoute>
           }
         />

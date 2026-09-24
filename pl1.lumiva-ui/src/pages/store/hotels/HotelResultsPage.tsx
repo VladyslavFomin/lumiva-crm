@@ -28,8 +28,19 @@ const HotelResultsPage: React.FC = () => {
 
   return (
     <StoreLayout title="Результаты поиска">
-      <div className="text-sm text-stone-500 mb-4">
-        {checkIn} → {checkOut} · {pax} гостей
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-stone-700">
+          {checkIn} → {checkOut}
+        </span>
+        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-stone-700">
+          {pax} {pax === "1" ? "гость" : "гостей"}
+        </span>
+        <Link
+          to={`/store/${clientKey}/hotels`}
+          className="text-xs font-medium text-amber-700 hover:underline ml-1"
+        >
+          Изменить поиск
+        </Link>
       </div>
       {error && <div className="rounded-xl border border-rose-300 bg-rose-50 text-rose-700 px-4 py-3 mb-4 text-sm">{error}</div>}
       {loading && <div className="text-stone-500 text-sm">Ищем варианты…</div>}

@@ -30,6 +30,7 @@ export interface StoreOrderResult {
   total: number;
   currency: string;
   items: StoreOrderItem[];
+  paymentPageUrl?: string | null;
 }
 
 export async function fetchCategories(clientKey: string): Promise<StoreCategory[]> {
@@ -56,6 +57,8 @@ export async function createOrder(
     customerName: string;
     customerEmail?: string;
     customerPhone?: string;
+    customerCity?: string;
+    customerAddress?: string;
   },
 ): Promise<StoreOrderResult> {
   const { data } = await publicClient.post(`/public/catalog/${clientKey}/orders`, dto);

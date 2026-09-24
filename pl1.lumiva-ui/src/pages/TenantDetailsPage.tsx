@@ -9,6 +9,9 @@ import {
   updateTenant,
   requestPasswordResetLink,
   sendPasswordResetEmail,
+  setTenantDomain,
+  markTenantDomainActive,
+  markTenantDomainFailed,
 } from "../api/tenants";
 import { apiClient, getApiErrorMessage } from "../api/client";
 
@@ -48,6 +51,9 @@ const TenantDetailsPage: React.FC = () => {
   const [notesDraft, setNotesDraft] = useState<string>("");
   const [notesSaving, setNotesSaving] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [domainDraft, setDomainDraft] = useState<string>("");
+  const [domainSaving, setDomainSaving] = useState(false);
+  const [domainErrorDraft, setDomainErrorDraft] = useState<string>("");
 
   const LOG_PRESETS: { label: string; q: string }[] = [
     { label: "Маркетинг", q: "/marketing" },
@@ -122,6 +128,7 @@ const TenantDetailsPage: React.FC = () => {
       setTenant(info);
       setLogs(history);
       setNotesDraft(info.notes ?? "");
+      setDomainDraft(info.customDomain ?? "");
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -174,6 +181,49 @@ const TenantDetailsPage: React.FC = () => {
       alert("Не удалось сохранить заметки: " + getApiErrorMessage(err));
     } finally {
       setNotesSaving(false);
+    }
+  };
+
+  const saveDomain = async () => {
+    if (!tenant) return;
+    setDomainSaving(true);
+    try {
+      const updated = await setTenantDomain(tenant.id, domainDraft.trim() || null);
+      setTenant((prev) => (prev ? { ...prev, ...updated } : prev));
+    } catch (err) {
+      alert("Не удалось сохранить домен: " + getApiErrorMessage(err));
+    } finally {
+      setDomainSaving(false);
+    }
+  };
+
+  const activateDomain = async () => {
+    if (!tenant) return;
+    setDomainSaving(true);
+    try {
+      const updated = await markTenantDomainActive(tenant.id);
+      setTenant((prev) => (prev ? { ...prev, ...updated } : prev));
+    } catch (err) {
+      alert("Не удалось активировать домен: " + getApiErrorMessage(err));
+    } finally {
+      setDomainSaving(false);
+    }
+  };
+
+  const failDomain = async () => {
+    if (!tenant) return;
+    setDomainSaving(true);
+    try {
+      const updated = await markTenantDomainFailed(
+        tenant.id,
+        domainErrorDraft.trim() || "Неизвестная ошибка",
+      );
+      setTenant((prev) => (prev ? { ...prev, ...updated } : prev));
+      setDomainErrorDraft("");
+    } catch (err) {
+      alert("Не удалось сохранить ошибку: " + getApiErrorMessage(err));
+    } finally {
+      setDomainSaving(false);
     }
   };
 
@@ -365,6 +415,9 @@ const TenantDetailsPage: React.FC = () => {
             >
               {tenant?.apiEnabled ? "API Off" : "API On"}
             </button>
+            <span className="pl1-pill pl1-pill-gray">
+              Оплата: {tenant?.paymentProvider || "авто"}
+            </span>
           </div>
         </div>
 
@@ -628,6 +681,18 @@ const TenantDetailsPage: React.FC = () => {
                     {formatDate(tenant.activeUntil)}
                   </div>
                 </div>
+                {tenant.trialEndsAt && (
+                  <div className="rounded-xl border border-amber-800/60 bg-amber-950/30 p-4 space-y-2">
+                    <div className="text-xs text-amber-500 uppercase tracking-[0.12em]">
+                      Триал Enterprise
+                    </div>
+                    <div className="text-sm text-amber-200 font-semibold">
+                      {new Date(tenant.trialEndsAt).getTime() > Date.now()
+                        ? `до ${formatDate(tenant.trialEndsAt)}`
+                        : `истёк ${formatDate(tenant.trialEndsAt)}`}
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4 space-y-2">
                   <div className="text-xs text-slate-500 uppercase tracking-[0.12em]">
                     Владельцы
@@ -728,6 +793,105 @@ const TenantDetailsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-slate-500 uppercase tracking-[0.12em]">
+                      Кастомный домен
+                    </div>
+                    {tenant.customDomainStatus !== "none" && (
+                      <span
+                        className={
+                          "text-[10px] uppercase tracking-[0.1em] px-2 py-0.5 rounded-full " +
+                          (tenant.customDomainStatus === "active"
+                            ? "bg-emerald-950/40 text-emerald-300 border border-emerald-800/60"
+                            : tenant.customDomainStatus === "failed"
+                              ? "bg-red-950/40 text-red-300 border border-red-800/60"
+                              : "bg-amber-950/40 text-amber-300 border border-amber-800/60")
+                        }
+                      >
+                        {tenant.customDomainStatus === "active"
+                          ? "активен"
+                          : tenant.customDomainStatus === "failed"
+                            ? "ошибка"
+                            : "ожидает провижининга"}
+                      </span>
+                    )}
+                  </div>
+                  {tenant.plan !== "ultimate" && (
+                    <div className="text-[11px] text-amber-300">
+                      Доступно только на тарифе Ultimate — на текущем тарифе ({tenant.plan ?? "—"})
+                      сохранение нового домена бэкенд отклонит.
+                    </div>
+                  )}
+                  <input
+                    className="pl1-input"
+                    placeholder="crm.clientcompany.com"
+                    value={domainDraft}
+                    onChange={(e) => setDomainDraft(e.target.value)}
+                  />
+                  {tenant.customDomainStatus === "failed" && tenant.customDomainError && (
+                    <div className="text-[11px] text-red-300">{tenant.customDomainError}</div>
+                  )}
+                  {tenant.customDomainStatus === "pending" && (
+                    <div className="text-[11px] text-slate-400">
+                      Клиент должен направить DNS (CNAME) на сервер CRM, затем нужно вручную
+                      выполнить provision-tenant-domain.sh на сервере и отметить результат ниже.
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="pl1-btn-outline"
+                      onClick={() => void saveDomain()}
+                      disabled={domainSaving}
+                    >
+                      {domainSaving ? "Сохраняем…" : "Сохранить"}
+                    </button>
+                  </div>
+                  {tenant.customDomainStatus === "pending" && (
+                    <div className="pt-2 border-t border-slate-800/60 space-y-2">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          className="pl1-btn-primary text-xs"
+                          onClick={() => void activateDomain()}
+                          disabled={domainSaving}
+                        >
+                          Отметить активным
+                        </button>
+                      </div>
+                      <input
+                        className="pl1-input text-xs"
+                        placeholder="Причина ошибки провижининга (если не удалось)"
+                        value={domainErrorDraft}
+                        onChange={(e) => setDomainErrorDraft(e.target.value)}
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          className="pl1-btn-outline text-xs"
+                          onClick={() => void failDomain()}
+                          disabled={domainSaving}
+                        >
+                          Отметить ошибкой
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {tenant.customDomainStatus === "failed" && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="pl1-btn-outline text-xs"
+                        onClick={() => void activateDomain()}
+                        disabled={domainSaving}
+                      >
+                        Всё же отметить активным
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4 space-y-2">
                   <div className="text-xs text-slate-500 uppercase tracking-[0.12em]">
                     Notes

@@ -12,6 +12,12 @@ export type TenantPlan =
   | "enterprise"
   | "ultimate";
 
+/** Статус провижининга кастомного домена тенанта */
+export type CustomDomainStatus = "none" | "pending" | "active" | "failed";
+
+/** Провайдер оплаты тарифа. null — ещё не резолвился (авто-выбор при первом чекауте). */
+export type TenantPaymentProvider = "stripe" | "yookassa" | "iyzico";
+
 /** Объект тенанта из платформенного API */
 export interface TenantSummary {
   id: string;
@@ -21,9 +27,16 @@ export interface TenantSummary {
   status: TenantStatus;
   plan: TenantPlan | null;
   apiEnabled: boolean;
+  paymentProvider: TenantPaymentProvider | null;
   notes?: string | null;
 
+  customDomain: string | null;
+  customDomainStatus: CustomDomainStatus;
+  customDomainError: string | null;
+
   activeUntil: string | null;
+  /** Дата окончания 14-дневного бесплатного Enterprise-триала (self-service регистрация). Null — тенант не на триале либо уже оплатил/тариф назначен вручную. */
+  trialEndsAt: string | null;
 
   ownerName: string | null;
   ownerEmail: string | null;
@@ -106,6 +119,7 @@ export interface UpdateTenantDto {
   ownerName?: string | null;
   ownerEmail?: string | null;
   notes?: string | null;
+  paymentProvider?: TenantPaymentProvider | null;
 }
 
 /* ───── Базовые запросы ───── */
@@ -229,6 +243,50 @@ export async function sendPasswordResetEmail(
     const res = await apiClient.post<{ ok: boolean; sentTo: string }>(
       `/platform/tenants/${id}/password-reset/send`,
       to ? { to } : undefined,
+    );
+    return res.data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err));
+  }
+}
+
+/** Записать (или снять, передав null) запрошенный клиентом кастомный домен — переводит в pending. */
+export async function setTenantDomain(
+  id: string,
+  customDomain: string | null,
+): Promise<TenantSummary> {
+  try {
+    const res = await apiClient.patch<TenantSummary>(
+      `/platform/tenants/${id}/domain`,
+      { customDomain },
+    );
+    return res.data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err));
+  }
+}
+
+/** Отметить домен активным вручную — после того как provision-tenant-domain.sh реально отработал. */
+export async function markTenantDomainActive(id: string): Promise<TenantSummary> {
+  try {
+    const res = await apiClient.post<TenantSummary>(
+      `/platform/tenants/${id}/domain/mark-active`,
+    );
+    return res.data;
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err));
+  }
+}
+
+/** Отметить провижининг домена неудавшимся — с причиной, показанной в карточке тенанта. */
+export async function markTenantDomainFailed(
+  id: string,
+  error: string,
+): Promise<TenantSummary> {
+  try {
+    const res = await apiClient.post<TenantSummary>(
+      `/platform/tenants/${id}/domain/mark-failed`,
+      { error },
     );
     return res.data;
   } catch (err) {
