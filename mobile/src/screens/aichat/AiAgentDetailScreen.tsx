@@ -23,6 +23,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AvatarInitials, SkeletonList, Button, AppBottomSheet, AppBottomSheetRef, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 function relTime(dateStr: string) {
   const m = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
@@ -34,7 +35,7 @@ function relTime(dateStr: string) {
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 function buildPermMap(keys: string[], values: AiAgentPermissionMap): AiAgentPermissionMap {

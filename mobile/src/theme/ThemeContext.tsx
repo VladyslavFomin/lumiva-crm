@@ -93,8 +93,13 @@ const lightColors: ThemeColors = {
   accentFg: '#ffffff',
   glassBorder: 'rgba(255,255,255,0.75)',
   glassHighlight: 'rgba(255,255,255,0.9)',
-  glassGradient: ['rgba(255,255,255,0.80)', 'rgba(255,255,255,0.56)'],
-  glass2Gradient: ['rgba(255,255,255,0.62)', 'rgba(255,255,255,0.38)'],
+  // The CSS spec's `.80 → .56` gradient assumes a *blurred* backdrop underneath — that big a
+  // swing in opacity is a subtle sheen over softened content, but without blur (see GlassCard)
+  // it's a window straight onto the sharp, saturated AuraBackground colors, which read as a
+  // harsh, distinct "second block" rather than glass. Denser and narrower so every card is a
+  // consistently near-solid surface — still a visible top-to-bottom sheen, just not a reveal.
+  glassGradient: ['rgba(255,255,255,0.97)', 'rgba(255,255,255,0.90)'],
+  glass2Gradient: ['rgba(255,255,255,0.93)', 'rgba(255,255,255,0.84)'],
   glassLine: 'rgba(20,22,26,0.10)',
 };
 
@@ -136,8 +141,11 @@ const darkColors: ThemeColors = {
   accentFg: '#08121a',
   glassBorder: 'rgba(255,255,255,0.14)',
   glassHighlight: 'rgba(255,255,255,0.2)',
-  glassGradient: ['rgba(255,255,255,0.11)', 'rgba(255,255,255,0.045)'],
-  glass2Gradient: ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.03)'],
+  // Same reasoning as the light theme's tokens above — denser and narrower than the CSS's
+  // blur-assuming values so cards read as a consistent lightened surface against the dark
+  // background rather than a sharp reveal-through window.
+  glassGradient: ['rgba(255,255,255,0.20)', 'rgba(255,255,255,0.13)'],
+  glass2Gradient: ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.09)'],
   glassLine: 'rgba(255,255,255,0.12)',
 };
 

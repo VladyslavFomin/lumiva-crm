@@ -12,6 +12,8 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, showToast } from '../../components/ui';
 import { Pill, StatGrid2 } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { appLocale } from '../../i18n/format';
 
 function isToday(dateStr: string, ref: Date) {
   const d = new Date(dateStr);
@@ -24,6 +26,7 @@ function utilTone(pct: number): 'neg' | 'warn' | 'acc' {
 
 export const BookOverviewScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { fmt, toDisplay } = useCurrencyMode();
@@ -52,12 +55,12 @@ export const BookOverviewScreen: React.FC = () => {
       setResources(rsc);
       setResourceStats(stats);
     } catch {
-      showToast('Не удалось загрузить обзор бронирования', { variant: 'error' });
+      showToast(t('bookOverview.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -105,11 +108,11 @@ export const BookOverviewScreen: React.FC = () => {
       <View style={styles.nav}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={18} color={colors.text} />
-          <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Бронирования</Text>
+          <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>{t('bookOverview.backTitle')}</Text>
         </TouchableOpacity>
       </View>
-      <Text style={[styles.title, { color: colors.text }]}>Обзор бронирования</Text>
-      <Text style={[styles.sub, { color: colors.textSecondary }]}>Сегодня</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{t('bookOverview.title')}</Text>
+      <Text style={[styles.sub, { color: colors.textSecondary }]}>{t('bookOverview.today')}</Text>
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}
@@ -117,21 +120,21 @@ export const BookOverviewScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         <StatGrid2 items={[
-          { label: 'Заезды', value: String(today.arrivals) },
-          { label: 'Выезды', value: String(today.departures) },
-          { label: 'Выручка дня', value: fmt(today.revenue, undefined, { short: true }) },
+          { label: t('bookOverview.stat.arrivals'), value: String(today.arrivals) },
+          { label: t('bookOverview.stat.departures'), value: String(today.departures) },
+          { label: t('bookOverview.stat.dayRevenue'), value: fmt(today.revenue, undefined, { short: true }) },
           { label: 'No-show', value: String(today.noshow) },
         ]} />
 
         <GlassCard variant="g" style={styles.card} contentStyle={styles.cardInner}>
           <View style={styles.cardHead}>
             <Ionicons name="layers-outline" size={16} color={colors.text} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Ресурсы</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{t('bookOverview.resources')}</Text>
             <View style={{ flex: 1 }} />
-            <Text style={[styles.kicker, { color: colors.textTertiary }]}>занятость</Text>
+            <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('bookOverview.utilization')}</Text>
           </View>
           {resourceRows.length === 0 ? (
-            <Text style={[styles.emptyTxt, { color: colors.textSecondary }]}>Ресурсы не настроены</Text>
+            <Text style={[styles.emptyTxt, { color: colors.textSecondary }]}>{t('bookOverview.noResources')}</Text>
           ) : resourceRows.map(({ resource, stat }, i) => {
             const pct = stat?.utilizationToday || 0;
             return (
@@ -144,8 +147,8 @@ export const BookOverviewScreen: React.FC = () => {
                   <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct >= 90 ? colors.error : colors.accent }]} />
                 </View>
                 <Text style={[styles.resMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {resource.type} · слотов {resource.quantity}
-                  {stat?.nextReservation ? ` · ближайший ${new Date(stat.nextReservation.startAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                  {resource.type} · {t('bookOverview.slots')} {resource.quantity}
+                  {stat?.nextReservation ? ` · ${t('bookOverview.nearestPrefix')} ${new Date(stat.nextReservation.startAt).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}` : ''}
                 </Text>
               </View>
             );
@@ -155,18 +158,18 @@ export const BookOverviewScreen: React.FC = () => {
         <GlassCard variant="g" style={styles.card} contentStyle={styles.cardInner}>
           <View style={styles.cardHead}>
             <Ionicons name="pricetag-outline" size={16} color={colors.text} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Услуги</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{t('bookOverview.services')}</Text>
           </View>
           {serviceRows.length === 0 ? (
-            <Text style={[styles.emptyTxt, { color: colors.textSecondary }]}>Услуги не настроены</Text>
+            <Text style={[styles.emptyTxt, { color: colors.textSecondary }]}>{t('bookOverview.noServices')}</Text>
           ) : serviceRows.map(({ service, bookings }, i) => (
             <View key={service.id} style={[styles.svcRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line3 }]}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.resName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
-                <Text style={[styles.resMeta, { color: colors.textSecondary }]}>{service.durationMinutes} мин · {bookings} записей сегодня</Text>
+                <Text style={[styles.resMeta, { color: colors.textSecondary }]}>{service.durationMinutes} {t('bookOverview.min')} · {bookings} {t('bookOverview.bookingsToday')}</Text>
               </View>
               <Text style={[styles.svcPrice, { color: colors.text, fontFamily: fonts.mono }]}>
-                {Number(service.price) > 0 ? fmt(toDisplay(Number(service.price), service.currency), undefined, {}) : 'бесплатно'}
+                {Number(service.price) > 0 ? fmt(toDisplay(Number(service.price), service.currency), undefined, {}) : t('bookOverview.free')}
               </Text>
             </View>
           ))}
@@ -174,13 +177,13 @@ export const BookOverviewScreen: React.FC = () => {
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <TouchableOpacity style={[styles.linkBtn, { backgroundColor: colors.surfaceVariant }]} onPress={() => navigation.navigate('BookingsCalendar')} activeOpacity={0.7}>
-            <Text style={[styles.linkBtnTxt, { color: colors.text }]}>Все брони</Text>
+            <Text style={[styles.linkBtnTxt, { color: colors.text }]}>{t('bookOverview.allBookings')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.linkBtn, { backgroundColor: colors.surfaceVariant }]} onPress={() => navigation.navigate('Waitlist')} activeOpacity={0.7}>
-            <Text style={[styles.linkBtnTxt, { color: colors.text }]}>Лист ожидания</Text>
+            <Text style={[styles.linkBtnTxt, { color: colors.text }]}>{t('bookOverview.waitlist')}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={[styles.note, { color: colors.textTertiary }]}>Доступность, ресурсы, услуги и импорт настраиваются на ПК.</Text>
+        <Text style={[styles.note, { color: colors.textTertiary }]}>{t('bookOverview.note')}</Text>
       </ScrollView>
     </View>
   );

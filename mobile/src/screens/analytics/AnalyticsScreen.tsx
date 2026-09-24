@@ -7,14 +7,13 @@ import { fetchAllCompaniesAnalytics, AllCompaniesAnalytics } from '../../api/com
 import { fetchLeadRoi, LeadsRoiStats } from '../../api/leads';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
 import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { AuraBackground, GlassCard } from '../../components/glass';
 import { MgHeader, CurrencyChip, ThemeChip, Segmented, Chips, Pill, StatGrid2, FunnelBars, Sparkline } from '../../components/mg';
 import { showToast } from '../../components/ui';
+import { appLocale, formatDecimal } from '../../i18n/format';
 
 type AnTab = 'leads' | 'sales' | 'companies' | 'roi';
-
-const STATUS_LABEL: Record<string, string> = { new: 'Новые', in_progress: 'В работе', waiting: 'Ожидают', won: 'Выиграно', lost: 'Проиграно' };
-const STATUS_COLOR: Record<string, string> = {};
 
 function statusColor(colors: ReturnType<typeof useTheme>['colors'], status: string): string {
   const map: Record<string, string> = { new: colors.info, in_progress: colors.textSecondary, waiting: colors.warning, won: colors.success, lost: colors.error };
@@ -23,6 +22,7 @@ function statusColor(colors: ReturnType<typeof useTheme>['colors'], status: stri
 
 export const AnalyticsScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const { cur, mode, setMode } = useCurrencyMode();
   const [tab, setTab] = useState<AnTab>('leads');
 
@@ -31,17 +31,17 @@ export const AnalyticsScreen: React.FC = () => {
       <AuraBackground />
       <StatusBar barStyle="dark-content" />
       <MgHeader
-        title="Аналитика"
-        sub={mode === 'native' ? 'Суммы в валюте записи' : `Пересчёт в ${cur} по курсу тенанта`}
+        title={t('analytics.title')}
+        sub={mode === 'native' ? t('analytics.sub.native') : `${t('analytics.sub.convertedPrefix')} ${cur} ${t('analytics.sub.convertedSuffix')}`}
         right={<><CurrencyChip /><ThemeChip /></>}
       >
         <View style={{ marginTop: 11 }}>
           <Segmented
             options={[
-              { key: 'leads', label: 'Лиды' },
-              { key: 'sales', label: 'Продажи' },
-              { key: 'companies', label: 'Компании' },
-              { key: 'roi', label: 'ROI' },
+              { key: 'leads', label: t('analytics.tab.leads') },
+              { key: 'sales', label: t('analytics.tab.sales') },
+              { key: 'companies', label: t('analytics.tab.companies') },
+              { key: 'roi', label: t('analytics.tab.roi') },
             ]}
             activeKey={tab}
             onChange={(k) => setTab(k as AnTab)}
@@ -50,8 +50,8 @@ export const AnalyticsScreen: React.FC = () => {
         <View style={{ marginTop: spacing.sm }}>
           <Chips
             options={[
-              { key: 'converted', label: `Пересчёт в ${cur}` },
-              { key: 'native', label: 'Как в записи' },
+              { key: 'converted', label: `${t('analytics.chip.convertedPrefix')} ${cur}` },
+              { key: 'native', label: t('analytics.chip.native') },
             ]}
             activeKey={mode}
             onChange={(k) => setMode(k as 'converted' | 'native')}
@@ -75,19 +75,21 @@ function CardHeader({ title }: { title: string }) {
 
 function LeadsAnalytics() {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const STATUS_LABEL: Record<string, string> = { new: t('leadStatus.new'), in_progress: t('leadStatus.in_progress'), waiting: t('leadStatus.waiting'), won: t('leadStatus.won'), lost: t('leadStatus.lost') };
 
   useEffect(() => {
-    fetchLeadStats().then(setStats).catch(() => showToast('Не удалось загрузить аналитику лидов', { variant: 'error' })).finally(() => setLoading(false));
-  }, []);
+    fetchLeadStats().then(setStats).catch(() => showToast(t('analytics.leads.loadError'), { variant: 'error' })).finally(() => setLoading(false));
+  }, [t]);
 
   if (loading) return <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} />;
   if (!stats) return null;
 
   const total = stats.total || 1;
   const wonCount = stats.byStatus.find((s) => s.status === 'won')?.count || 0;
-  const conv = ((wonCount / total) * 100).toFixed(1).replace('.', ',');
+  const conv = formatDecimal(((wonCount / total) * 100), 1);
   const maxSource = Math.max(...stats.bySource.map((s) => s.count), 1);
   const maxCountry = Math.max(...stats.byCountry.map((s) => s.count), 1);
 
@@ -95,27 +97,27 @@ function LeadsAnalytics() {
     <>
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
         <View style={styles.cardHeadRow}>
-          <Text style={[styles.kicker, { color: colors.textTertiary }]}>ВСЕГО ЛИДОВ</Text>
+          <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('analytics.leads.total')}</Text>
           <View style={styles.spacer} />
-          <Pill label={`конверсия ${conv}%`} tone="pos" />
+          <Pill label={`${t('analytics.leads.conversion')} ${conv}%`} tone="pos" />
         </View>
-        <Text style={[styles.money, { color: colors.text, fontSize: 32 }]}>{stats.total.toLocaleString('ru-RU')}</Text>
-        <Text style={[styles.sub, { color: colors.textSecondary }]}>за всё время · корзина и архив исключены</Text>
+        <Text style={[styles.money, { color: colors.text, fontSize: 32 }]}>{stats.total.toLocaleString(appLocale())}</Text>
+        <Text style={[styles.sub, { color: colors.textSecondary }]}>{t('analytics.leads.allTime')}</Text>
         <View style={{ marginTop: spacing.md }}>
           <FunnelBars rows={stats.byStatus.map((s) => ({ label: STATUS_LABEL[s.status] || s.status, value: s.count, displayValue: String(s.count), color: statusColor(colors, s.status) }))} max={total} />
         </View>
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Источники" />
+        <CardHeader title={t('analytics.leads.sources')} />
         <FunnelBars rows={stats.bySource.map((s) => ({ label: s.source, value: s.count, displayValue: String(s.count) }))} max={maxSource} />
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
         <View style={styles.cardHeadRow}>
-          <Text style={[styles.h2, { color: colors.text }]}>Менеджеры</Text>
+          <Text style={[styles.h2, { color: colors.text }]}>{t('analytics.leads.managers')}</Text>
           <View style={styles.spacer} />
-          <Text style={[styles.kicker, { color: colors.textTertiary }]}>WON / LOST</Text>
+          <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('analytics.leads.wonLost')}</Text>
         </View>
         {stats.byManager.map((m) => (
           <View key={m.manager} style={{ paddingVertical: 8 }}>
@@ -134,7 +136,7 @@ function LeadsAnalytics() {
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Гео" />
+        <CardHeader title={t('analytics.leads.geo')} />
         <FunnelBars rows={stats.byCountry.map((c) => ({ label: c.country, value: c.count, displayValue: String(c.count) }))} max={maxCountry} />
       </GlassCard>
     </>
@@ -143,13 +145,17 @@ function LeadsAnalytics() {
 
 function SalesAnalyticsTab() {
   const { colors } = useTheme();
-  const { fmt } = useCurrencyMode();
+  const { t } = useLanguage();
+  const { fmt, fxParams, fxKey, ready: fxReady } = useCurrencyMode();
   const [a, setA] = useState<SalesAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Wait for FX rates and refetch when display currency/mode changes — the server converts only with `rates` supplied.
   useEffect(() => {
-    fetchSalesAnalytics().then(setA).catch(() => showToast('Не удалось загрузить аналитику продаж', { variant: 'error' })).finally(() => setLoading(false));
-  }, []);
+    if (!fxReady) return;
+    fetchSalesAnalytics(fxParams).then(setA).catch(() => showToast(t('analytics.sales.loadError'), { variant: 'error' })).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, fxKey]);
 
   if (loading) return <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} />;
   if (!a) return null;
@@ -163,44 +169,44 @@ function SalesAnalyticsTab() {
   return (
     <>
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <Text style={[styles.kicker, { color: colors.textTertiary }]}>ОБОРОТ</Text>
+        <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('analytics.sales.turnover')}</Text>
         <Text style={[styles.money, { color: colors.text, fontSize: 30 }]}>{fmt(a.totalAmount, a.displayCurrency, { short: true })}</Text>
         {timelineTotals.length > 1 && <View style={{ marginTop: 12, marginHorizontal: -2 }}><Sparkline data={timelineTotals} height={80} /></View>}
       </GlassCard>
 
       <StatGrid2 items={[
-        { label: 'Заказов', value: a.totalCount.toString() },
-        { label: 'Средний чек', value: fmt(a.avgCheck, a.displayCurrency) },
+        { label: t('analytics.sales.orders'), value: a.totalCount.toString() },
+        { label: t('analytics.sales.avgCheck'), value: fmt(a.avgCheck, a.displayCurrency) },
         { label: topStatus ? topStatus.status : '—', value: topStatus ? topStatus.count.toString() : '0' },
-        { label: 'Возвраты', value: refunds ? fmt(refunds.amount, a.displayCurrency, { short: true }) : '—' },
+        { label: t('analytics.sales.refunds'), value: refunds ? fmt(refunds.amount, a.displayCurrency, { short: true }) : '—' },
       ]} />
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="По статусам" />
+        <CardHeader title={t('analytics.sales.byStatus')} />
         <FunnelBars rows={a.byStatus.map((s) => ({ label: s.status, value: s.amount, displayValue: fmt(s.amount, a.displayCurrency, { short: true }) }))} />
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Каналы" />
+        <CardHeader title={t('analytics.sales.channels')} />
         <FunnelBars rows={a.byChannel.map((c) => ({ label: c.label, value: c.amount, displayValue: fmt(c.amount, a.displayCurrency, { short: true }) }))} max={maxChannel} />
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
         <View style={styles.cardHeadRow}>
-          <Text style={[styles.h2, { color: colors.text }]}>По валютам</Text>
+          <Text style={[styles.h2, { color: colors.text }]}>{t('analytics.sales.byCurrency')}</Text>
           <View style={styles.spacer} />
-          <Text style={[styles.kicker, { color: colors.textTertiary }]}>ИСХОДНЫЕ СУММЫ</Text>
+          <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('analytics.sales.originalAmounts')}</Text>
         </View>
         {a.byCurrency.map((c) => (
           <View key={c.label} style={[styles.row, { paddingVertical: 6 }]}>
-            <Text style={{ flex: 1, color: colors.textSecondary, fontSize: 13 }}>{c.label} · {c.count} заказов</Text>
+            <Text style={{ flex: 1, color: colors.textSecondary, fontSize: 13 }}>{c.label} · {c.count} {t('analytics.sales.ordersCount')}</Text>
             <Text style={[styles.money, { color: colors.text, fontSize: 13 }]}>{fmt(c.amount, c.label, { short: true })}</Text>
           </View>
         ))}
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Менеджеры" />
+        <CardHeader title={t('analytics.sales.managers')} />
         <FunnelBars rows={a.byManager.map((m) => ({ label: m.label, value: m.amount, displayValue: fmt(m.amount, a.displayCurrency, { short: true }) }))} max={maxManager} />
       </GlassCard>
     </>
@@ -209,6 +215,7 @@ function SalesAnalyticsTab() {
 
 function CompaniesAnalyticsTab() {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { fmt } = useCurrencyMode();
   const [c, setC] = useState<AllCompaniesAnalytics | null>(null);
@@ -216,8 +223,8 @@ function CompaniesAnalyticsTab() {
   const [metric, setMetric] = useState<'revenue' | 'projects' | 'leads'>('revenue');
 
   useEffect(() => {
-    fetchAllCompaniesAnalytics().then(setC).catch(() => showToast('Не удалось загрузить аналитику компаний', { variant: 'error' })).finally(() => setLoading(false));
-  }, []);
+    fetchAllCompaniesAnalytics().then(setC).catch(() => showToast(t('analytics.companies.loadError'), { variant: 'error' })).finally(() => setLoading(false));
+  }, [t]);
 
   if (loading) return <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} />;
   if (!c) return null;
@@ -233,12 +240,12 @@ function CompaniesAnalyticsTab() {
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
         <View style={styles.summaryGrid}>
           {[
-            ['Компаний', c.summary.totalCompanies.toLocaleString('ru-RU')],
-            ['Лидов', c.summary.totalLeads.toLocaleString('ru-RU')],
-            ['Проектов', c.summary.totalProjects.toLocaleString('ru-RU')],
-            ['Выручка', fmt(c.summary.totalRevenue, c.summary.currency, { short: true })],
-            ['Потенциал', fmt(c.summary.totalPotentialRevenue, c.summary.currency, { short: true })],
-            ['Конверсия', `${c.summary.avgConversionRate.toFixed(1).replace('.', ',')}%`],
+            [t('analytics.companies.count'), c.summary.totalCompanies.toLocaleString(appLocale())],
+            [t('analytics.companies.leads'), c.summary.totalLeads.toLocaleString(appLocale())],
+            [t('analytics.companies.projects'), c.summary.totalProjects.toLocaleString(appLocale())],
+            [t('analytics.companies.revenue'), fmt(c.summary.totalRevenue, c.summary.currency, { short: true })],
+            [t('analytics.companies.potential'), fmt(c.summary.totalPotentialRevenue, c.summary.currency, { short: true })],
+            [t('analytics.companies.conversion'), `${formatDecimal(c.summary.avgConversionRate, 1)}%`],
           ].map(([l, v]) => (
             <View key={l} style={styles.summaryCell}>
               <Text style={[styles.kicker, { color: colors.textTertiary }]}>{l}</Text>
@@ -249,10 +256,10 @@ function CompaniesAnalyticsTab() {
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Лидеры" />
+        <CardHeader title={t('analytics.companies.leaders')} />
         <View style={{ marginBottom: spacing.sm }}>
           <Segmented
-            options={[{ key: 'revenue', label: 'Выручка' }, { key: 'projects', label: 'Проекты' }, { key: 'leads', label: 'Лиды' }]}
+            options={[{ key: 'revenue', label: t('analytics.companies.metric.revenue') }, { key: 'projects', label: t('analytics.companies.metric.projects') }, { key: 'leads', label: t('analytics.companies.metric.leads') }]}
             activeKey={metric}
             onChange={(k) => setMetric(k as any)}
           />
@@ -277,20 +284,20 @@ function CompaniesAnalyticsTab() {
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Концентрация" />
+        <CardHeader title={t('analytics.companies.concentration')} />
         <Text style={[styles.money, { color: colors.text, fontSize: 28 }]}>{Math.round((top3 / total) * 100)}%</Text>
-        <Text style={[styles.sub, { color: colors.textSecondary }]}>выручки дают топ-3 клиента</Text>
+        <Text style={[styles.sub, { color: colors.textSecondary }]}>{t('analytics.companies.top3Note')}</Text>
         <View style={[styles.bar, { backgroundColor: colors.surfaceVariant, marginTop: 12 }]}>
           <View style={{ width: `${(top3 / total) * 100}%`, backgroundColor: colors.accent, height: '100%', borderRadius: 999 }} />
         </View>
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Закрыто и потенциал" />
+        <CardHeader title={t('analytics.companies.closedPotential')} />
         <FunnelBars
           rows={[
-            { label: 'Закрыто', value: c.summary.totalRevenue, displayValue: fmt(c.summary.totalRevenue, c.summary.currency, { short: true }) },
-            { label: 'Потенциал', value: c.summary.totalPotentialRevenue, displayValue: fmt(c.summary.totalPotentialRevenue, c.summary.currency, { short: true }) },
+            { label: t('analytics.companies.closed'), value: c.summary.totalRevenue, displayValue: fmt(c.summary.totalRevenue, c.summary.currency, { short: true }) },
+            { label: t('analytics.companies.potentialLabel'), value: c.summary.totalPotentialRevenue, displayValue: fmt(c.summary.totalPotentialRevenue, c.summary.currency, { short: true }) },
           ]}
         />
       </GlassCard>
@@ -300,13 +307,16 @@ function CompaniesAnalyticsTab() {
 
 function RoiAnalyticsTab() {
   const { colors } = useTheme();
-  const { fmt } = useCurrencyMode();
+  const { t } = useLanguage();
+  const { fmt, fxParams, fxKey, ready: fxReady } = useCurrencyMode();
   const [r, setR] = useState<LeadsRoiStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchLeadRoi().then(setR).catch(() => showToast('Не удалось загрузить ROI', { variant: 'error' })).finally(() => setLoading(false));
-  }, []);
+    if (!fxReady) return;
+    fetchLeadRoi(fxParams).then(setR).catch(() => showToast(t('analytics.roi.loadError'), { variant: 'error' })).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, fxKey]);
 
   if (loading) return <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} />;
   if (!r) return null;
@@ -325,13 +335,13 @@ function RoiAnalyticsTab() {
   return (
     <>
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <Text style={[styles.kicker, { color: colors.textTertiary }]}>ВЫРУЧКА ПО ЛИДАМ</Text>
+        <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('analytics.roi.revenueByLeads')}</Text>
         <Text style={[styles.money, { color: colors.text, fontSize: 30 }]}>{fmt(r.totalRevenue, r.currency, { short: true })}</Text>
-        <Text style={[styles.sub, { color: colors.textSecondary }]}>{r.leadsWithRevenue} лидов с выручкой · {r.dealsCount} сделок · чек {fmt(r.avgCheck, r.currency)}</Text>
+        <Text style={[styles.sub, { color: colors.textSecondary }]}>{r.leadsWithRevenue} {t('analytics.roi.leadsWithRevenue')} · {r.dealsCount} {t('analytics.roi.deals')} · {t('analytics.roi.check')} {fmt(r.avgCheck, r.currency)}</Text>
       </GlassCard>
 
       <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
-        <CardHeader title="Выручка по каналам" />
+        <CardHeader title={t('analytics.roi.byChannel')} />
         {channelRows.map((c) => (
           <View key={c.label} style={{ paddingVertical: 8 }}>
             <View style={styles.row}>
@@ -341,10 +351,10 @@ function RoiAnalyticsTab() {
             <View style={[styles.bar, { backgroundColor: colors.surfaceVariant, marginTop: 5 }]}>
               <View style={{ width: `${(c.revenue / maxRevenue) * 100}%`, backgroundColor: colors.accent, height: '100%', borderRadius: 999 }} />
             </View>
-            <Text style={[styles.sub, { color: colors.textTertiary, marginTop: 3 }]}>{c.deals} сделок</Text>
+            <Text style={[styles.sub, { color: colors.textTertiary, marginTop: 3 }]}>{c.deals} {t('analytics.roi.dealsCount')}</Text>
           </View>
         ))}
-        {channelRows.length === 0 && <Text style={{ color: colors.textSecondary, fontSize: 12.5, textAlign: 'center', padding: 12 }}>Нет данных за период</Text>}
+        {channelRows.length === 0 && <Text style={{ color: colors.textSecondary, fontSize: 12.5, textAlign: 'center', padding: 12 }}>{t('analytics.roi.noData')}</Text>}
       </GlassCard>
     </>
   );

@@ -8,13 +8,14 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, Button, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const STATUS_LABEL: Record<HelpdeskTicketStatus, string> = { open: 'Открыт', pending: 'Ожидает', resolved: 'Решён', closed: 'Закрыт' };
 const STATUS_TONE: Record<HelpdeskTicketStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   open: 'acc', pending: 'warn', resolved: 'pos', closed: 'default',
 };
 
-function fmtTime(d: string) { return new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
 
 export const HelpdeskTicketDetailScreen: React.FC = () => {
   const { colors } = useTheme();

@@ -20,3 +20,4 @@ export { CustomFieldsSection } from './CustomFieldsSection';
 export { ActivityFeed } from './ActivityFeed';
 export { CommentsSection } from './CommentsSection';
 export { AccessDenied } from './AccessDenied';
+export { NotesSection } from './NotesSection';

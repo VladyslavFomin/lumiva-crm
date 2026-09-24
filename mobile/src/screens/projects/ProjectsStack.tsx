@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ProjectsListScreen } from './ProjectsListScreen';
 import { ProjectDetailScreen } from './ProjectDetailScreen';
 import { ProjectCreateScreen } from './ProjectCreateScreen';
+import { ProjectEditScreen } from './ProjectEditScreen';
 import { ProjectsAnalyticsScreen } from './ProjectsAnalyticsScreen';
 import { ProjectSettingsScreen } from './ProjectSettingsScreen';
 import { ProjectTaskBoardScreen } from './ProjectTaskBoardScreen';
@@ -16,6 +17,7 @@ export type ProjectsStackParamList = {
   ProjectsList: undefined;
   ProjectDetail: { id: string };
   ProjectCreate: undefined;
+  ProjectEdit: { id: string };
   ProjectsAnalytics: undefined;
   ProjectSettings: undefined;
   ProjectTaskBoard: { id: string };
@@ -33,6 +35,7 @@ export const ProjectsStack = () => (
     <Stack.Screen name="ProjectsList" component={ProjectsListScreen} />
     <Stack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
     <Stack.Screen name="ProjectCreate" component={ProjectCreateScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+    <Stack.Screen name="ProjectEdit" component={ProjectEditScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
     <Stack.Screen name="ProjectsAnalytics" component={ProjectsAnalyticsScreen} />
     <Stack.Screen name="ProjectSettings" component={ProjectSettingsScreen} />
     <Stack.Screen name="ProjectTaskBoard" component={ProjectTaskBoardScreen} />

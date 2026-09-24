@@ -10,11 +10,12 @@ import { fetchLead } from '../../api/leads';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { Button, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<EmailInboxStackParamList, 'EmailMessageDetail'>;
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export const EmailMessageDetailScreen: React.FC<Props> = ({ route, navigation }) => {

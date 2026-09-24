@@ -8,10 +8,11 @@ import { fetchAiSessionMessages, sendAiChatMessage, AiChatMessage } from '../../
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<AiChatStackParamList, 'AiChatThread'>;
 
-function fmtTime(d: string) { return new Date(d).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }); }
 
 export const AiChatThreadScreen: React.FC<Props> = ({ route, navigation }) => {
   const { colors } = useTheme();
@@ -59,6 +60,12 @@ export const AiChatThreadScreen: React.FC<Props> = ({ route, navigation }) => {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
             <Ionicons name="chevron-back" size={18} color={colors.text} />
             <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>ИИ-ассистент</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.memoryBtn, { backgroundColor: colors.card }]} onPress={() => navigation.navigate('AiLetter')} hitSlop={8}>
+            <Ionicons name="mail-outline" size={16} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.memoryBtn, { backgroundColor: colors.card }]} onPress={() => navigation.navigate('AiMemory')} hitSlop={8}>
+            <Ionicons name="sparkles-outline" size={17} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -117,8 +124,9 @@ export const AiChatThreadScreen: React.FC<Props> = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  nav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  nav: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, flex: 1 },
+  memoryBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   backTxt: { fontSize: 15 },
   emptyIco: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   msgWrap: { gap: 3 },

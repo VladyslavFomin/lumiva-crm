@@ -12,11 +12,12 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, Button, showToast } from '../../components/ui';
 import { Segmented } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Tab = 'archive' | 'trash';
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export const ProjectsArchiveScreen: React.FC = () => {

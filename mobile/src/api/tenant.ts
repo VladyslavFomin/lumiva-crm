@@ -48,3 +48,14 @@ export async function updateTenantSettings(payload: Partial<TenantSettings>): Pr
   const res = await api.patch<TenantSettings>('/tenants/settings', payload);
   return res.data;
 }
+
+/** Which product modules the tenant's plan/platform admin has switched on (`GET /tenants/components`). */
+export interface TenantComponent {
+  key: string;
+  enabled: boolean;
+}
+
+export async function fetchTenantComponents(): Promise<TenantComponent[]> {
+  const res = await api.get<TenantComponent[]>('/tenants/components');
+  return res.data;
+}

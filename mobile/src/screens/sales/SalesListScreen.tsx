@@ -7,17 +7,16 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { fetchSales, Sale } from '../../api/sales';
 import type { SalesStackParamList } from './SalesStack';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { CurrencyChip, StatGrid2 } from '../../components/mg';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, ToolbarButton, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<SalesStackParamList, 'SalesList'>;
 
 const STATUS_ORDER = ['new', 'pending', 'confirmed', 'cancelled', 'refunded'] as const;
-const STATUS_LABEL: Record<string, string> = {
-  new: 'Новая', pending: 'Ожидает', confirmed: 'Подтверждена', cancelled: 'Отменена', refunded: 'Возврат', other: 'Другое',
-};
 const STATUS_TONE: Record<string, 'info' | 'neutral' | 'warning' | 'success' | 'error'> = {
   new: 'info', pending: 'warning', confirmed: 'success', cancelled: 'error', refunded: 'error', other: 'neutral',
 };
@@ -29,11 +28,15 @@ function toneColor(colors: ReturnType<typeof useTheme>['colors'], tone: 'info' |
 
 function fmtDate(dateStr: string | null) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+  return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' });
 }
 
 export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const STATUS_LABEL: Record<string, string> = {
+    new: t('saleStatus.new'), pending: t('saleStatus.pending'), confirmed: t('saleStatus.confirmed'), cancelled: t('saleStatus.cancelled'), refunded: t('saleStatus.refunded'), other: t('saleStatus.other'),
+  };
   const insets = useSafeAreaInsets();
   const { fmt, toDisplay } = useCurrencyMode();
   const [items, setItems] = useState<Sale[]>([]);
@@ -46,12 +49,12 @@ export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setItems(await fetchSales());
     } catch {
-      showToast('Не удалось загрузить продажи', { variant: 'error' });
+      showToast(t('salesList.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -77,8 +80,8 @@ export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerTop}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.text }]}>Продажи</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{visible.length} заказов · {fmt(turnover, undefined, { short: true })}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('salesList.title')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{visible.length} {t('salesList.orders')} · {fmt(turnover, undefined, { short: true })}</Text>
           </View>
           <CurrencyChip />
           <ToolbarButton icon="card-outline" onPress={() => navigation.navigate('Payments')} />
@@ -87,7 +90,7 @@ export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           <TouchableOpacity style={[styles.chip, { backgroundColor: statusFilter === 'all' ? colors.ink : colors.surfaceVariant }]} onPress={() => setStatusFilter('all')}>
-            <Text style={[styles.chipTxt, { color: statusFilter === 'all' ? colors.onInk : colors.text }]}>Все</Text>
+            <Text style={[styles.chipTxt, { color: statusFilter === 'all' ? colors.onInk : colors.text }]}>{t('salesList.all')}</Text>
             <Text style={[styles.chipCount, { color: statusFilter === 'all' ? colors.onInk : colors.textTertiary }]}>{items.length}</Text>
           </TouchableOpacity>
           {STATUS_ORDER.map((s) => (
@@ -103,7 +106,7 @@ export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
       {loading ? (
         <SkeletonList count={6} />
       ) : visible.length === 0 ? (
-        <EmptyState icon="cash-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title="Нет продаж" subtitle="Здесь появятся закрытые сделки" />
+        <EmptyState icon="cash-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title={t('salesList.empty.title')} subtitle={t('salesList.empty.subtitle')} />
       ) : (
         <Animated.FlatList
           data={visible}
@@ -113,8 +116,8 @@ export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <StatGrid2 items={[
-              { label: 'Оборот', value: fmt(turnover, undefined, { short: true }) },
-              { label: 'Средний чек', value: fmt(avgCheck, undefined, { short: true }) },
+              { label: t('salesList.stat.turnover'), value: fmt(turnover, undefined, { short: true }) },
+              { label: t('salesList.stat.avgCheck'), value: fmt(avgCheck, undefined, { short: true }) },
             ]} />
           }
           renderItem={({ item }: { item: Sale }) => {
@@ -130,7 +133,7 @@ export const SalesListScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={[styles.avatarTxt, { color: colors.text, fontFamily: fonts.mono }]} numberOfLines={1}>№{item.externalOrderNo || item.id.slice(0, 4)}</Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.guestName || item.hotel || item.market || 'Без имени'}</Text>
+                <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.guestName || item.hotel || item.market || t('common.noName')}</Text>
                 <View style={styles.metaRow}>
                   <View style={[styles.chipDot, { backgroundColor: toneColor(colors, tone) }]} />
                   <Text style={[styles.metaTxt, { color: colors.textSecondary }]} numberOfLines={1}>{STATUS_LABEL[item.status] || item.status}{item.hotel ? ` · ${item.hotel}` : ''}</Text>

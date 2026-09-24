@@ -47,6 +47,32 @@ export async function fetchTelephonyStats(days?: number): Promise<TelephonyStats
   return res.data;
 }
 
+export interface TelephonyAnalytics {
+  telephonyEnabled: boolean;
+  kpis: {
+    totalCalls: number;
+    totalSms: number;
+    pickupRate: number;
+    smsDeliveryRate: number;
+    avgCallDurationSeconds: number;
+  };
+  dailySeries: Array<{ date: string; calls: number; sms: number }>;
+  hourlyLoad: Array<{ hour: number; count: number }>;
+  byManager: Array<{ staffUserId: string | null; name: string; calls: number; sms: number }>;
+  sentiment: {
+    positive: number;
+    neutral: number;
+    negative: number;
+    analyzed: number;
+    topNegativeTopics: Array<{ topic: string; count: number }>;
+  };
+}
+
+export async function fetchTelephonyAnalytics(days?: number): Promise<TelephonyAnalytics> {
+  const res = await api.get<TelephonyAnalytics>('/telephony/analytics', { params: days ? { days } : undefined });
+  return res.data;
+}
+
 /** True when the backend responded 403 "not enabled for this tenant" (paid add-on) — distinct from a real network/error state. */
 export function isTelephonyDisabledError(e: any): boolean {
   return e?.response?.status === 403;

@@ -4,6 +4,7 @@ import Svg, { Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { appLocale } from '../../i18n/format';
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -137,9 +138,9 @@ export const WorldMap: React.FC<{ byCountry: Map<string, CountryAgg>; loading?: 
       {selected ? (
         <View style={[styles.tooltip, { backgroundColor: colors.card, borderColor: colors.glassBorder }]}>
           <Text style={[styles.tooltipTitle, { color: colors.text }]}>{selected.name}</Text>
-          <Text style={[styles.tooltipRow, { color: colors.textSecondary }]}>Сессии: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{selected.agg.sessions.toLocaleString('ru-RU')}</Text></Text>
-          <Text style={[styles.tooltipRow, { color: colors.textSecondary }]}>Клики: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{selected.agg.clicks.toLocaleString('ru-RU')}</Text></Text>
-          <Text style={[styles.tooltipRow, { color: colors.textSecondary }]}>Показы: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{selected.agg.impressions.toLocaleString('ru-RU')}</Text></Text>
+          <Text style={[styles.tooltipRow, { color: colors.textSecondary }]}>Сессии: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{selected.agg.sessions.toLocaleString(appLocale())}</Text></Text>
+          <Text style={[styles.tooltipRow, { color: colors.textSecondary }]}>Клики: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{selected.agg.clicks.toLocaleString(appLocale())}</Text></Text>
+          <Text style={[styles.tooltipRow, { color: colors.textSecondary }]}>Показы: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{selected.agg.impressions.toLocaleString(appLocale())}</Text></Text>
         </View>
       ) : (
         <Text style={[styles.hint, { color: colors.textTertiary }]}>Нажмите на страну, чтобы увидеть цифры</Text>
@@ -158,7 +159,7 @@ export const WorldMap: React.FC<{ byCountry: Map<string, CountryAgg>; loading?: 
         </Svg>
         <View style={styles.legendEnds}>
           <Text style={[styles.legendEndTxt, { color: colors.textTertiary }]}>0</Text>
-          <Text style={[styles.legendEndTxt, { color: colors.textTertiary }]}>{maxSessions.toLocaleString('ru-RU')}</Text>
+          <Text style={[styles.legendEndTxt, { color: colors.textTertiary }]}>{maxSessions.toLocaleString(appLocale())}</Text>
         </View>
       </View>
     </View>

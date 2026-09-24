@@ -14,26 +14,16 @@ import { fetchProfile } from '../../api/profile';
 import { fetchUnreadCount } from '../../api/notifications';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
 import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { AuraBackground, GlassCard } from '../../components/glass';
 import { MgHeader, CurrencyChip, ThemeChip, Pill, FunnelBars, Sparkline } from '../../components/mg';
 import { showToast, AppBottomSheet, AppBottomSheetRef } from '../../components/ui';
-
-const CREATE_OPTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap; go: (nav: any) => void }[] = [
-  { label: 'Лид', icon: 'podium-outline', go: (nav) => nav.navigate('Leads', { screen: 'LeadCreate' }) },
-  { label: 'Проект', icon: 'folder-outline', go: (nav) => nav.navigate('Projects', { screen: 'ProjectCreate' }) },
-  { label: 'Компания', icon: 'people-outline', go: (nav) => nav.navigate('Clients', { screen: 'CompanyCreate' }) },
-  { label: 'Контакт', icon: 'person-outline', go: (nav) => nav.navigate('Clients', { screen: 'ContactCreate' }) },
-];
+import { appLocale, formatDecimal } from '../../i18n/format';
 
 type WidgetKey = 'pulse' | 'funnel' | 'tasks' | 'activity' | 'sources' | 'sales';
 const DEFAULT_WIDGET_ORDER: WidgetKey[] = ['pulse', 'funnel', 'tasks', 'activity', 'sources', 'sales'];
-const WIDGET_LABEL: Record<WidgetKey, string> = {
-  pulse: 'Пульс', funnel: 'Воронка лидов', tasks: 'Открытые задачи', activity: 'Активность по лидам', sources: 'Источники за неделю', sales: 'Последние продажи',
-};
 const WIDGET_ORDER_STORAGE_KEY = 'home_widget_order';
 
-const STATUS_LABEL: Record<string, string> = { new: 'Новые', in_progress: 'В работе', waiting: 'Ожидают', won: 'Выиграно', lost: 'Проиграно' };
-const SALE_STATUS_LABEL: Record<string, string> = { new: 'Новая', pending: 'Ожидает', confirmed: 'Подтверждена', cancelled: 'Отменена', refunded: 'Возврат', other: 'Другое' };
 const SALE_STATUS_TONE: Record<string, 'pos' | 'neg' | 'warn' | 'default'> = { new: 'default', pending: 'warn', confirmed: 'pos', cancelled: 'neg', refunded: 'neg', other: 'default' };
 
 function statusColor(colors: ReturnType<typeof useTheme>['colors'], status: string): string {
@@ -41,12 +31,12 @@ function statusColor(colors: ReturnType<typeof useTheme>['colors'], status: stri
   return map[status] || colors.textSecondary;
 }
 
-function greeting(): string {
+function greeting(t: (key: string) => string): string {
   const h = new Date().getHours();
-  if (h < 5) return 'Доброй ночи';
-  if (h < 12) return 'Доброе утро';
-  if (h < 18) return 'Добрый день';
-  return 'Добрый вечер';
+  if (h < 5) return t('home.greeting.night');
+  if (h < 12) return t('home.greeting.morning');
+  if (h < 18) return t('home.greeting.day');
+  return t('home.greeting.evening');
 }
 
 interface HomeData {
@@ -70,7 +60,8 @@ interface HomeData {
 
 export const HomeScreen: React.FC = () => {
   const { colors } = useTheme();
-  const { fmt, toDisplay } = useCurrencyMode();
+  const { t } = useLanguage();
+  const { fmt, toDisplay, fxParams, fxKey, ready: fxReady } = useCurrencyMode();
   const navigation = useNavigation<any>();
   const [data, setData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +73,19 @@ export const HomeScreen: React.FC = () => {
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [widgetOrder, setWidgetOrder] = useState<WidgetKey[]>(DEFAULT_WIDGET_ORDER);
   const [editingOrder, setEditingOrder] = useState(false);
+
+  const CREATE_OPTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap; go: (nav: any) => void }[] = [
+    { label: t('home.create.lead'), icon: 'podium-outline', go: (nav) => nav.navigate('Leads', { screen: 'LeadCreate' }) },
+    { label: t('home.create.project'), icon: 'folder-outline', go: (nav) => nav.navigate('Projects', { screen: 'ProjectCreate' }) },
+    { label: t('home.create.company'), icon: 'people-outline', go: (nav) => nav.navigate('Clients', { screen: 'CompanyCreate' }) },
+    { label: t('home.create.contact'), icon: 'person-outline', go: (nav) => nav.navigate('Clients', { screen: 'ContactCreate' }) },
+  ];
+  const WIDGET_LABEL: Record<WidgetKey, string> = {
+    pulse: t('home.widget.pulse'), funnel: t('home.widget.funnel'), tasks: t('home.widget.tasks'),
+    activity: t('home.widget.activity'), sources: t('home.widget.sources'), sales: t('home.widget.sales'),
+  };
+  const STATUS_LABEL: Record<string, string> = { new: t('leadStatus.new'), in_progress: t('leadStatus.in_progress'), waiting: t('leadStatus.waiting'), won: t('leadStatus.won'), lost: t('leadStatus.lost') };
+  const SALE_STATUS_LABEL: Record<string, string> = { new: t('saleStatus.new'), pending: t('saleStatus.pending'), confirmed: t('saleStatus.confirmed'), cancelled: t('saleStatus.cancelled'), refunded: t('saleStatus.refunded'), other: t('saleStatus.other') };
 
   useEffect(() => {
     AsyncStorage.getItem(WIDGET_ORDER_STORAGE_KEY).then((raw) => {
@@ -126,8 +130,8 @@ export const HomeScreen: React.FC = () => {
         fetchLeads().catch(() => [] as Lead[]),
         fetchProjects().catch(() => ({ total: 0, items: [] as Project[] })),
         fetchSales().catch(() => [] as Sale[]),
-        fetchSalesAnalytics({ from: firstOfMonth }).catch(() => null),
-        fetchSalesAnalytics({ from: firstOfPrevMonth, to: lastOfPrevMonth }).catch(() => null),
+        fetchSalesAnalytics({ from: firstOfMonth, ...fxParams }).catch(() => null),
+        fetchSalesAnalytics({ from: firstOfPrevMonth, to: lastOfPrevMonth, ...fxParams }).catch(() => null),
         fetchAllCompaniesAnalytics().catch(() => null),
         fetchGlobalAuditLog({ entityType: 'lead', limit: 6 }).catch(() => ({ items: [] as GlobalAuditLogEntry[], total: 0 })),
         fetchCalendarEvents(todayStart, todayEnd).catch(() => []),
@@ -155,17 +159,20 @@ export const HomeScreen: React.FC = () => {
         activity: activityRes.items,
         meetingsToday: events.length,
         unread,
-        firstName: (profile?.name || 'Пользователь').split(' ')[0],
+        firstName: (profile?.name || t('common.user')).split(' ')[0],
       });
     } catch {
-      showToast('Не удалось загрузить данные', { variant: 'error' });
+      showToast(t('common.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+    // fxParams is intentionally keyed by fxKey (mode/currency/ready), not by object identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, fxKey]);
 
-  useEffect(() => { load(); }, [load]);
+  // Wait for the tenant's currencies + FX rates: fetching earlier means sales in non-display currencies come back as 0.
+  useEffect(() => { if (fxReady) load(); }, [load, fxReady]);
 
   const funnelRows = useMemo(() => {
     if (!data) return [];
@@ -217,8 +224,8 @@ export const HomeScreen: React.FC = () => {
       <AuraBackground />
       <StatusBar barStyle="dark-content" />
       <MgHeader
-        title={greeting()}
-        sub={`${data.firstName} · ${data.meetingsToday} встреч сегодня`}
+        title={greeting(t)}
+        sub={`${data.firstName} · ${data.meetingsToday} ${t('home.meetingsTodaySuffix')}`}
         right={<>
           <CurrencyChip />
           <ThemeChip />
@@ -234,7 +241,7 @@ export const HomeScreen: React.FC = () => {
         <TouchableOpacity onPress={openSearch} activeOpacity={0.8} style={{ marginTop: 10 }}>
           <GlassCard variant="flat" style={styles.searchCard} contentStyle={styles.searchCardContent}>
             <Ionicons name="search" size={16} color={colors.textTertiary} />
-            <Text style={{ color: colors.textTertiary, fontSize: 14, fontFamily: fonts.regular }}>Лиды, компании, проекты, продажи</Text>
+            <Text style={{ color: colors.textTertiary, fontSize: 14, fontFamily: fonts.regular }}>{t('home.searchPlaceholder')}</Text>
           </GlassCard>
         </TouchableOpacity>
       </MgHeader>
@@ -246,20 +253,20 @@ export const HomeScreen: React.FC = () => {
       >
         <GlassCard variant="g" style={styles.card} contentStyle={styles.heroContent}>
           <View style={styles.rowHead}>
-            <Text style={[styles.kicker, { color: colors.textTertiary }]}>ПРОДАЖИ В ЭТОМ МЕСЯЦЕ</Text>
+            <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('home.kicker.monthSales')}</Text>
             <View style={{ flex: 1 }} />
             {monthDelta !== null && <Pill label={`${monthDelta >= 0 ? '+' : ''}${monthDelta}%`} tone={monthDelta >= 0 ? 'pos' : 'neg'} />}
           </View>
           <Text style={[styles.money, { color: colors.text, fontSize: 34 }]}>{fmt(data.monthAmount, undefined, { short: true })}</Text>
           {data.monthTimeline.length > 1 && <View style={{ marginTop: 12, marginHorizontal: -2 }}><Sparkline data={data.monthTimeline} height={60} /></View>}
-          <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 8 }]}>{data.monthCount} заказов · средний чек {fmt(data.monthAvg, undefined, { short: true })}</Text>
+          <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 8 }]}>{data.monthCount} {t('home.orders')} · {t('home.avgCheck')} {fmt(data.monthAvg, undefined, { short: true })}</Text>
         </GlassCard>
 
         <View style={styles.rowHead}>
-          <Text style={[styles.kicker, { color: colors.textTertiary }]}>ВАША СВОДКА</Text>
+          <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('home.kicker.summary')}</Text>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={() => setEditingOrder((e) => !e)} activeOpacity={0.7}>
-            <Text style={[styles.link, { color: colors.textSecondary }]}>{editingOrder ? 'Готово' : 'Изменить порядок'}</Text>
+            <Text style={[styles.link, { color: colors.textSecondary }]}>{editingOrder ? t('common.done') : t('home.reorder')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -270,13 +277,13 @@ export const HomeScreen: React.FC = () => {
               <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
                 <View style={styles.rowHead}>
                   <Ionicons name="sparkles-outline" size={16} color={colors.text} />
-                  <Text style={[styles.h2, { color: colors.text }]}>Пульс</Text>
+                  <Text style={[styles.h2, { color: colors.text }]}>{t('home.pulse.title')}</Text>
                 </View>
                 <View style={styles.pulseGrid}>
-                  <PulseCell label="Лидов всего" value={(data.leadStats?.total || 0).toLocaleString('ru-RU')} />
-                  <PulseCell label="В работе" value={String(inWorkCount)} />
-                  <PulseCell label="Конверсия лид→сделка" value={`${data.conversionRate.toFixed(1).replace('.', ',')}%`} />
-                  <PulseCell label="Потенциал" value={fmt(data.potentialRevenue, undefined, { short: true })} />
+                  <PulseCell label={t('home.pulse.total')} value={(data.leadStats?.total || 0).toLocaleString(appLocale())} />
+                  <PulseCell label={t('home.pulse.inWork')} value={String(inWorkCount)} />
+                  <PulseCell label={t('home.pulse.conversion')} value={`${formatDecimal(data.conversionRate, 1)}%`} />
+                  <PulseCell label={t('home.pulse.potential')} value={fmt(data.potentialRevenue, undefined, { short: true })} />
                 </View>
               </GlassCard>
             );
@@ -285,9 +292,9 @@ export const HomeScreen: React.FC = () => {
               <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
                 <View style={styles.rowHead}>
                   <Ionicons name="git-branch-outline" size={16} color={colors.text} />
-                  <Text style={[styles.h2, { color: colors.text }]}>Воронка лидов</Text>
+                  <Text style={[styles.h2, { color: colors.text }]}>{t('home.funnel.title')}</Text>
                   <View style={{ flex: 1 }} />
-                  <TouchableOpacity onPress={() => navigation.navigate('Leads')}><Text style={[styles.link, { color: colors.accent }]}>Канбан →</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => navigation.navigate('Leads')}><Text style={[styles.link, { color: colors.accent }]}>{t('home.funnel.kanbanLink')}</Text></TouchableOpacity>
                 </View>
                 <FunnelBars rows={funnelRows} />
               </GlassCard>
@@ -297,7 +304,7 @@ export const HomeScreen: React.FC = () => {
               <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
                 <View style={styles.rowHead}>
                   <Ionicons name="checkmark-circle-outline" size={16} color={colors.text} />
-                  <Text style={[styles.h2, { color: colors.text }]}>Открытые задачи</Text>
+                  <Text style={[styles.h2, { color: colors.text }]}>{t('home.tasks.title')}</Text>
                   <View style={{ flex: 1 }} />
                   <Pill label={String(myTasks.length)} />
                 </View>
@@ -320,7 +327,7 @@ export const HomeScreen: React.FC = () => {
           } else if (key === 'activity' && data.activity.length > 0) {
             content = (
               <GlassCard variant="g" style={styles.card} contentStyle={styles.listCardContent}>
-                <Text style={[styles.h2, { color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.md }]}>Активность по лидам</Text>
+                <Text style={[styles.h2, { color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.md }]}>{t('home.activity.title')}</Text>
                 {data.activity.map((a, i) => (
                   <TouchableOpacity
                     key={a.id}
@@ -329,10 +336,10 @@ export const HomeScreen: React.FC = () => {
                     activeOpacity={0.7}
                   >
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontSize: 12.5, color: colors.text }} numberOfLines={1}><Text style={{ fontFamily: fonts.semibold }}>{a.entityLabel || 'Лид'}</Text> · {a.summary || a.action}</Text>
-                      <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 2 }]}>{a.actorName || 'Система'}</Text>
+                      <Text style={{ fontSize: 12.5, color: colors.text }} numberOfLines={1}><Text style={{ fontFamily: fonts.semibold }}>{a.entityLabel || t('home.activity.lead')}</Text> · {a.summary || a.action}</Text>
+                      <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 2 }]}>{a.actorName || t('home.activity.system')}</Text>
                     </View>
-                    <Text style={[styles.sub, { color: colors.textTertiary }]}>{relTime(a.createdAt)}</Text>
+                    <Text style={[styles.sub, { color: colors.textTertiary }]}>{relTime(a.createdAt, t)}</Text>
                   </TouchableOpacity>
                 ))}
               </GlassCard>
@@ -342,9 +349,9 @@ export const HomeScreen: React.FC = () => {
               <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
                 <View style={styles.rowHead}>
                   <Ionicons name="trending-up-outline" size={16} color={colors.text} />
-                  <Text style={[styles.h2, { color: colors.text }]}>Источники за неделю</Text>
+                  <Text style={[styles.h2, { color: colors.text }]}>{t('home.sources.title')}</Text>
                   <View style={{ flex: 1 }} />
-                  <Text style={[styles.kicker, { color: colors.textTertiary }]}>{data.weeklyStats.total} ЛИДОВ</Text>
+                  <Text style={[styles.kicker, { color: colors.textTertiary }]}>{data.weeklyStats.total} {t('home.sources.countSuffix')}</Text>
                 </View>
                 <FunnelBars rows={data.weeklyStats.bySource.map((s) => ({ label: s.source, value: s.count, displayValue: String(s.count) }))} />
               </GlassCard>
@@ -352,7 +359,7 @@ export const HomeScreen: React.FC = () => {
           } else if (key === 'sales' && data.sales.length > 0) {
             content = (
               <GlassCard variant="g" style={styles.card} contentStyle={styles.listCardContent}>
-                <Text style={[styles.h2, { color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.md }]}>Последние продажи</Text>
+                <Text style={[styles.h2, { color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.md }]}>{t('home.sales.title')}</Text>
                 {data.sales.slice(0, 4).map((s, i) => (
                   <TouchableOpacity
                     key={s.id}
@@ -393,13 +400,13 @@ export const HomeScreen: React.FC = () => {
         })}
 
         <TouchableOpacity onPress={() => navigation.navigate('More')} style={styles.moreBtn} activeOpacity={0.8}>
-          <Text style={[styles.link, { color: colors.textSecondary }]}>Все разделы</Text>
+          <Text style={[styles.link, { color: colors.textSecondary }]}>{t('home.allSections')}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
         </TouchableOpacity>
       </ScrollView>
 
       <AppBottomSheet ref={createSheetRef} snapPoints={['38%']}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Создать</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('common.create')}</Text>
         <View style={styles.createGrid}>
           {CREATE_OPTIONS.map((o) => (
             <TouchableOpacity
@@ -413,18 +420,18 @@ export const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 10 }]}>Продажи и брони создаются из своих разделов, настройка модулей — на ПК.</Text>
+        <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 10 }]}>{t('home.create.note')}</Text>
       </AppBottomSheet>
 
       <AppBottomSheet ref={searchSheetRef} snapPoints={['70%', '92%']}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Поиск</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('common.search')}</Text>
         <GlassCard variant="flat" style={styles.searchInputCard} contentStyle={styles.searchCardContent}>
           <Ionicons name="search" size={16} color={colors.textTertiary} />
           <TextInput
             autoFocus
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Лиды, проекты, компании"
+            placeholder={t('home.searchPlaceholder')}
             placeholderTextColor={colors.textTertiary}
             style={[styles.searchInput, { color: colors.text, fontFamily: fonts.regular }]}
           />
@@ -433,7 +440,7 @@ export const HomeScreen: React.FC = () => {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
           {searchResults.leads.length > 0 && (
             <>
-              <Text style={[styles.searchGroupLabel, { color: colors.textTertiary }]}>ЛИДЫ</Text>
+              <Text style={[styles.searchGroupLabel, { color: colors.textTertiary }]}>{t('home.search.leads')}</Text>
               <GlassCard variant="g2" style={styles.listCard}>
                 {searchResults.leads.map((l, i) => (
                   <TouchableOpacity
@@ -442,7 +449,7 @@ export const HomeScreen: React.FC = () => {
                     activeOpacity={0.7}
                     onPress={() => { searchSheetRef.current?.close(); navigation.navigate('Leads', { screen: 'LeadDetail', params: { id: l.id } }); }}
                   >
-                    <Text style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 13.5, fontFamily: fonts.regular }} numberOfLines={1}>{l.name || 'Без имени'}</Text>
+                    <Text style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 13.5, fontFamily: fonts.regular }} numberOfLines={1}>{l.name || t('common.noName')}</Text>
                     <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{STATUS_LABEL[l.status] || l.status}</Text>
                   </TouchableOpacity>
                 ))}
@@ -452,7 +459,7 @@ export const HomeScreen: React.FC = () => {
 
           {searchResults.projects.length > 0 && (
             <>
-              <Text style={[styles.searchGroupLabel, { color: colors.textTertiary }]}>ПРОЕКТЫ</Text>
+              <Text style={[styles.searchGroupLabel, { color: colors.textTertiary }]}>{t('home.search.projects')}</Text>
               <GlassCard variant="g2" style={styles.listCard}>
                 {searchResults.projects.map((p, i) => (
                   <TouchableOpacity
@@ -471,7 +478,7 @@ export const HomeScreen: React.FC = () => {
 
           {searchResults.companies.length > 0 && (
             <>
-              <Text style={[styles.searchGroupLabel, { color: colors.textTertiary }]}>КОМПАНИИ</Text>
+              <Text style={[styles.searchGroupLabel, { color: colors.textTertiary }]}>{t('home.search.companies')}</Text>
               <GlassCard variant="g2" style={styles.listCard}>
                 {searchResults.companies.map((c, i) => (
                   <TouchableOpacity
@@ -490,7 +497,7 @@ export const HomeScreen: React.FC = () => {
 
           {searchResults.leads.length === 0 && searchResults.projects.length === 0 && searchResults.companies.length === 0 && (
             <Text style={[styles.sub, { color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xxl }]}>
-              {searchQuery.trim() ? 'Ничего не найдено' : 'Начните вводить запрос'}
+              {searchQuery.trim() ? t('home.search.empty') : t('home.search.start')}
             </Text>
           )}
         </ScrollView>
@@ -509,13 +516,13 @@ function PulseCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-function relTime(dateStr: string): string {
+function relTime(dateStr: string, t: (key: string) => string): string {
   const m = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (m < 1) return 'сейчас';
-  if (m < 60) return `${m} мин`;
+  if (m < 1) return t('common.now');
+  if (m < 60) return `${m} ${t('common.min')}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ч`;
-  return `${Math.floor(h / 24)} дн`;
+  if (h < 24) return `${h} ${t('common.hour')}`;
+  return `${Math.floor(h / 24)} ${t('common.day')}`;
 }
 
 const styles = StyleSheet.create({

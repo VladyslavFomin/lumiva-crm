@@ -9,10 +9,11 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, Button, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 function fmtDate(d: string | null) {
   if (!d) return 'ещё не запускалась';
-  return new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export const AutomationDetailScreen: React.FC = () => {

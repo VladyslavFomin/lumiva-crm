@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
-  fetchHotelReservation, fetchHotel, Hotel, HotelReservation, HotelReservationStatus, HotelReservationPaidStatus,
+  fetchHotelReservation, fetchHotel, fetchHotelAgencies, Hotel, HotelReservation, HotelReservationStatus, HotelReservationPaidStatus,
 } from '../../api/hotels';
 import type { HotelsStackParamList } from './HotelsStack';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
@@ -12,6 +12,7 @@ import { formatMoney } from '../../utils/money';
 import { AvatarInitials, SkeletonList, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<HotelsStackParamList, 'HotelReservationDetail'>;
 
@@ -28,7 +29,7 @@ const PAID_TONE: Record<HotelReservationPaidStatus, 'acc' | 'default' | 'warn' |
 const SOURCE_LABEL: Record<string, string> = { manual: 'Вручную', import: 'Импорт', website: 'Сайт' };
 
 function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigation }) => {
@@ -36,6 +37,7 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
   const insets = useSafeAreaInsets();
   const { id } = route.params;
 
+  const [agencyName, setAgencyName] = useState<string | null>(null);
   const [reservation, setReservation] = useState<HotelReservation | null>(null);
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,6 +48,7 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
         const r = await fetchHotelReservation(id);
         setReservation(r);
         fetchHotel(r.hotelId).then(setHotel).catch(() => {});
+        if (r.agencyId) fetchHotelAgencies().then((a) => setAgencyName(a.find((x) => x.id === r.agencyId)?.name || null)).catch(() => {});
       } catch {
         showToast('Не удалось загрузить бронь', { variant: 'error' });
       } finally {
@@ -79,6 +82,7 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
     reservation.guestEmail && { label: 'Email', value: reservation.guestEmail, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${reservation.guestEmail}`) },
     { label: 'Даты', value: `${fmtDate(reservation.checkIn)} – ${fmtDate(reservation.checkOut)} (${nights} ноч.)`, icon: 'calendar-outline' as const, iconColor: colors.info },
     { label: 'Гостей', value: String(reservation.pax), icon: 'people-outline' as const, iconColor: colors.fg3 },
+    reservation.agencyId && { label: 'Агентство', value: agencyName || `#${reservation.agencyId.slice(0, 8)}`, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
     reservation.market && { label: 'Рынок', value: reservation.market, icon: 'globe-outline' as const, iconColor: colors.warning },
     (reservation.earlyCheckIn || reservation.lateCheckOut) && {
       label: 'Особые условия',
@@ -86,6 +90,8 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
       icon: 'alarm-outline' as const, iconColor: colors.warning,
     },
     { label: 'Источник', value: SOURCE_LABEL[reservation.source] || reservation.source, icon: 'code-slash-outline' as const, iconColor: colors.fg3 },
+    reservation.checkedInAt && { label: 'Фактический заезд', value: new Date(reservation.checkedInAt).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), icon: 'log-in-outline' as const, iconColor: colors.success },
+    reservation.checkedOutAt && { label: 'Фактический выезд', value: new Date(reservation.checkedOutAt).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), icon: 'log-out-outline' as const, iconColor: colors.fg3 },
     reservation.bookingCode && { label: 'Код брони', value: reservation.bookingCode, icon: 'ticket-outline' as const, iconColor: colors.fg3 },
     reservation.notes && { label: 'Заметки', value: reservation.notes, icon: 'document-text-outline' as const, iconColor: colors.fg3 },
   ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];

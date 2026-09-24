@@ -8,10 +8,11 @@ import { fetchChatMessages, sendChatMessage, ChatMessage } from '../../api/chat'
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatMessages'>;
 
-function fmtTime(d: string) { return new Date(d).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }); }
 
 export const ChatMessagesScreen: React.FC<Props> = ({ route, navigation }) => {
   const { id } = route.params;

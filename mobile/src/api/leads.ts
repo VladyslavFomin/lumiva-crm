@@ -28,6 +28,11 @@ export interface LeadDto {
   country: string | null;
   status: LeadStatusCode;
   source: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  utmTerm?: string | null;
   assignedTo: string | null;
   assignedUserId: string | null;
   assignedUserIds: string[] | null;
@@ -56,6 +61,9 @@ export interface Lead {
   assignedTo?: string | null;
   assignedUserId?: string | null;
   assignedToList: string[];
+  assignedUserIds: string[];
+  source: string | null;
+  utm: { source: string; medium: string; campaign: string; content: string; term: string };
   amount: number;
   currency: string;
   tasks: LeadTask[];
@@ -118,6 +126,16 @@ function mapLeadDto(dto: LeadDto): Lead {
     assignedTo: dto.assignedTo,
     assignedUserId: dto.assignedUserId,
     assignedToList: dto.assignedToList && dto.assignedToList.length > 0 ? dto.assignedToList : (dto.assignedTo ? [dto.assignedTo] : []),
+    assignedUserIds: dto.assignedUserIds && dto.assignedUserIds.length > 0 ? dto.assignedUserIds : (dto.assignedUserId ? [dto.assignedUserId] : []),
+    source: dto.source ?? null,
+    // The website writes/reads real utm* columns; older/imported leads only carry meta.utm_* — prefer the column, fall back to meta.
+    utm: {
+      source: dto.utmSource || meta.utm_source || '',
+      medium: dto.utmMedium || meta.utm_medium || '',
+      campaign: dto.utmCampaign || meta.utm_campaign || '',
+      content: dto.utmContent || meta.utm_content || '',
+      term: dto.utmTerm || meta.utm_term || '',
+    },
     amount: dto.amount ? parseFloat(String(dto.amount)) : 0,
     currency: dto.currency || 'EUR',
     tasks: dto.tasks || [],
@@ -171,7 +189,7 @@ export interface LeadsRoiStats {
   items: LeadRoiRow[];
 }
 
-export async function fetchLeadRoi(params?: { from?: string; to?: string; source?: 'sales' | 'projects' }): Promise<LeadsRoiStats> {
+export async function fetchLeadRoi(params?: { from?: string; to?: string; source?: 'sales' | 'projects'; currencyMode?: 'native' | 'converted'; displayCurrency?: string; rates?: string }): Promise<LeadsRoiStats> {
   const res = await api.get<LeadsRoiStats>('/leads/roi', { params });
   return res.data;
 }
@@ -191,7 +209,11 @@ export interface CreateLeadDto {
   amount?: string;
   currency?: string;
   companyId?: string | null;
+  contactId?: string | null;
   assignedToList?: string[];
+  assignedTo?: string | null;
+  assignedUserIds?: string[];
+  assignedUserId?: string | null;
 }
 
 export async function createLead(payload: CreateLeadDto) {
@@ -208,6 +230,18 @@ export interface UpdateLeadDto {
   status?: LeadStatusCode;
   meta?: any;
   assignedTo?: string | null;
+  assignedToList?: string[];
+  assignedUserId?: string | null;
+  assignedUserIds?: string[];
+  amount?: string;
+  currency?: string;
+  companyId?: string | null;
+  contactId?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  utmTerm?: string | null;
   country?: string | null;
   tasks?: LeadTask[];
   customFields?: Record<string, any>;

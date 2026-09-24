@@ -11,6 +11,7 @@ import { formatMoney } from '../../utils/money';
 import { SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
 
 type Props = NativeStackScreenProps<HotelsStackParamList, 'HotelsList'>;
 
@@ -18,6 +19,7 @@ const STATUS_LABEL: Record<HotelStatus, string> = { active: 'Активен', dr
 const STATUS_TONE: Record<HotelStatus, 'pos' | 'default'> = { active: 'pos', draft: 'default' };
 
 export const HotelsListScreen: React.FC<Props> = ({ navigation }) => {
+  const { fmt } = useCurrencyMode();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -46,9 +48,9 @@ export const HotelsListScreen: React.FC<Props> = ({ navigation }) => {
         { label: 'ОТЕЛИ', value: String(kpis.hotelsCount) },
         { label: 'НОМЕРА', value: String(kpis.roomsCount) },
         { label: 'ЗАГРУЗКА', value: `${kpis.occupancyToday}%` },
-        { label: 'ADR', value: kpis.adr.toLocaleString('ru-RU') },
+        { label: 'ADR', value: fmt(kpis.adr, kpis.currency) },
         { label: 'БРОНИ 30Д', value: String(kpis.bookings30d) },
-        { label: 'ВЫРУЧКА 30Д', value: kpis.revenue30d.toLocaleString('ru-RU') },
+        { label: 'ВЫРУЧКА 30Д', value: fmt(kpis.revenue30d, kpis.currency, { short: true }) },
       ]
     : [];
 

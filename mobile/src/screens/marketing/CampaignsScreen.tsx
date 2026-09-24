@@ -4,9 +4,11 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchTrafficChannels, TrafficItem } from '../../api/marketing';
 import { formatMoney } from '../../utils/money';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
 import { StatGrid2, FunnelBars, Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
 import { showToast } from '../../components/ui';
+import { appLocale } from '../../i18n/format';
 
 interface CampaignAgg {
   campaign: string;
@@ -39,6 +41,7 @@ function aggregateByCampaign(items: TrafficItem[]): CampaignAgg[] {
 
 export const CampaignsScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { toDisplay, cur, mode } = useCurrencyMode();
   const [campaigns, setCampaigns] = useState<CampaignAgg[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,14 +65,17 @@ export const CampaignsScreen: React.FC = () => {
     load();
   };
 
+  // Campaigns can be in different currencies (`currency: 'MIXED'` server-side) — sum in the display currency, not raw.
+  const singleCurrency = new Set(campaigns.map((c) => c.currency)).size <= 1;
+  const totalsCurrency = mode === 'native' && singleCurrency ? campaigns[0]?.currency : cur;
   const totals = useMemo(() => {
     return campaigns.reduce(
       (acc, c) => ({
-        cost: acc.cost + c.cost, clicks: acc.clicks + c.clicks, impressions: acc.impressions + c.impressions, leads: acc.leads + c.leads,
+        cost: acc.cost + (mode === 'native' && singleCurrency ? c.cost : toDisplay(c.cost, c.currency)), clicks: acc.clicks + c.clicks, impressions: acc.impressions + c.impressions, leads: acc.leads + c.leads,
       }),
       { cost: 0, clicks: 0, impressions: 0, leads: 0 },
     );
-  }, [campaigns]);
+  }, [campaigns, toDisplay, mode, singleCurrency]);
 
   const topByClicks = useMemo(() => {
     return [...campaigns]
@@ -79,7 +85,7 @@ export const CampaignsScreen: React.FC = () => {
       .map((c) => ({
         label: c.campaign.length > 12 ? c.campaign.slice(0, 12) + '…' : c.campaign,
         value: c.clicks,
-        displayValue: c.clicks.toLocaleString('ru-RU'),
+        displayValue: c.clicks.toLocaleString(appLocale()),
       }));
   }, [campaigns]);
 
@@ -103,10 +109,10 @@ export const CampaignsScreen: React.FC = () => {
       >
         <StatGrid2
           items={[
-            { label: 'Расход', value: formatMoney(totals.cost, campaigns[0]?.currency) },
-            { label: 'Клики', value: totals.clicks.toLocaleString('ru-RU') },
-            { label: 'Показы', value: totals.impressions.toLocaleString('ru-RU') },
-            { label: 'Лиды', value: totals.leads.toLocaleString('ru-RU') },
+            { label: 'Расход', value: formatMoney(totals.cost, totalsCurrency) },
+            { label: 'Клики', value: totals.clicks.toLocaleString(appLocale()) },
+            { label: 'Показы', value: totals.impressions.toLocaleString(appLocale()) },
+            { label: 'Лиды', value: totals.leads.toLocaleString(appLocale()) },
           ]}
         />
 
@@ -130,20 +136,20 @@ export const CampaignsScreen: React.FC = () => {
             <View style={styles.metrics}>
               <View style={styles.metric}>
                 <Text style={[styles.metricLabel, { color: colors.textTertiary }]}>ПОКАЗЫ</Text>
-                <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.impressions.toLocaleString('ru-RU')}</Text>
+                <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.impressions.toLocaleString(appLocale())}</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={[styles.metricLabel, { color: colors.textTertiary }]}>КЛИКИ</Text>
-                <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.clicks.toLocaleString('ru-RU')}</Text>
+                <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.clicks.toLocaleString(appLocale())}</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={[styles.metricLabel, { color: colors.textTertiary }]}>СЕССИИ</Text>
-                <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.sessions.toLocaleString('ru-RU')}</Text>
+                <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.sessions.toLocaleString(appLocale())}</Text>
               </View>
               {item.leads > 0 && (
                 <View style={styles.metric}>
                   <Text style={[styles.metricLabel, { color: colors.textTertiary }]}>ЛИДЫ</Text>
-                  <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.leads.toLocaleString('ru-RU')}</Text>
+                  <Text style={[styles.metricValue, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{item.leads.toLocaleString(appLocale())}</Text>
                 </View>
               )}
             </View>

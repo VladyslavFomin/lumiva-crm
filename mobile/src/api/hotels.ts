@@ -9,7 +9,7 @@ export type HotelStatus = 'active' | 'draft';
 /** Mirrors Hotel entity (src/hotels/hotel.entity.ts) plus the enrich() fields hotels.service.ts
  * attaches to every list()/get() response. Fields the entity has but that don't serve a
  * read-only display (infoFields, quickLinks, feedToken, referenceMarketGroupId,
- * seasonRevenueTarget, riskThreshold*) are intentionally left out of this type. */
+ * riskThreshold*) are intentionally left out of this type. */
 export interface Hotel {
   id: string;
   name: string;
@@ -24,6 +24,7 @@ export interface Hotel {
   checkOutTime: string;
   coverPhotoUrl: string | null;
   allowOverbooking: boolean;
+  seasonRevenueTarget?: string | null;
   createdAt: string;
   updatedAt: string;
   // enrich() additions — per-hotel KPIs, already computed server-side.
@@ -44,6 +45,41 @@ export async function fetchHotel(id: string): Promise<Hotel> {
   return res.data;
 }
 
+/** Mirrors HotelRoomType entity — trimmed to the fields a read-only room-type-count/rate view
+ * needs (pricing-mode internals like `ppNetOffset`/`isBaseRoomType` stay web-only config). */
+export interface HotelRoomType {
+  id: string;
+  hotelId: string;
+  name: string;
+  quantity: number;
+  currency: string;
+  basePrice: number;
+}
+
+export async function fetchHotelRoomTypes(hotelId: string): Promise<HotelRoomType[]> {
+  const res = await api.get<any[]>(`/hotels/${hotelId}/room-types`);
+  return res.data.map((rt) => ({
+    id: rt.id, hotelId: rt.hotelId, name: rt.name, quantity: rt.quantity,
+    currency: rt.currency, basePrice: Number(rt.basePrice) || 0,
+  }));
+}
+
+/** One day's rate is actually N market-group-specific rates (`hotels-pricing.service.ts`'s
+ * `getDailyRates` — this tenant prices per market, e.g. "Германия"/"Турция" get different net
+ * rates for the same room/night). `dailyAverageNetPP` here is a real average across whichever
+ * groups have a rate set that day, not a single authoritative "the" rate — labelled as such in
+ * the UI. Per-market editing stays web-only. */
+export async function fetchHotelDailyRates(roomTypeId: string, dates: string[]): Promise<Record<string, number>> {
+  if (dates.length === 0) return {};
+  const res = await api.get<{ date: string; groups: { netPP: string }[] }[]>(`/hotels/room-types/${roomTypeId}/daily-rates`, { params: { dates: dates.join(',') } });
+  const out: Record<string, number> = {};
+  for (const day of res.data) {
+    const vals = day.groups.map((g) => Number(g.netPP) || 0).filter((v) => v > 0);
+    out[day.date] = vals.length > 0 ? Math.round(vals.reduce((a, v) => a + v, 0) / vals.length) : 0;
+  }
+  return out;
+}
+
 /** Tenant-wide (all hotels combined) — HotelsController has no per-hotel variant of this route. */
 export interface HotelOverviewKpis {
   hotelsCount: number;
@@ -52,6 +88,8 @@ export interface HotelOverviewKpis {
   adr: number;
   bookings30d: number;
   revenue30d: number;
+  /** Currency of `adr`/`revenue30d` — the tenant's primary currency (bookings are converted server-side from each hotel's currency). */
+  currency: string;
 }
 
 export async function fetchHotelOverviewKpis(): Promise<HotelOverviewKpis> {
@@ -141,6 +179,34 @@ export async function fetchHotelReservation(id: string): Promise<HotelReservatio
   return res.data;
 }
 
+/** Narrow, deliberate exception to this file's read-only rule (see the top-of-file note): front
+ * desk check-in/check-out is a same-day operational action naturally done from a phone at the
+ * desk, not a back-office pricing/config edit — unlike everything else this file intentionally
+ * leaves write-only-on-web. */
+export async function checkInReservation(id: string, roomUnitId?: string): Promise<HotelReservation> {
+  const res = await api.post<HotelReservation>(`/hotels/reservations/${id}/check-in`, roomUnitId ? { roomUnitId } : {});
+  return res.data;
+}
+
+export async function checkOutReservation(id: string): Promise<HotelReservation> {
+  const res = await api.post<HotelReservation>(`/hotels/reservations/${id}/check-out`, {});
+  return res.data;
+}
+
+/* ---------- front desk (today's arrivals/departures) ---------- */
+
+export interface HotelFrontDeskToday {
+  date: string;
+  arrivals: HotelReservation[];
+  departures: HotelReservation[];
+  inHouseCount: number;
+}
+
+export async function fetchHotelFrontDeskToday(params?: { date?: string; hotelId?: string }): Promise<HotelFrontDeskToday> {
+  const res = await api.get<HotelFrontDeskToday>('/hotels/frontdesk/today', { params });
+  return res.data;
+}
+
 /* ---------- analytics ---------- */
 
 /** Flat subset of HotelAnalyticsService.getSummary()'s return value — this endpoint also
@@ -185,5 +251,16 @@ export async function fetchHotelAnalytics(filters?: HotelAnalyticsFilters): Prom
       dateTo: filters?.dateTo,
     },
   });
+  return res.data;
+}
+
+export interface HotelAgency {
+  id: string;
+  name: string;
+}
+
+/** `GET /hotels/agencies` — only used to show the agency's name on a booking (managing agencies stays on the website). */
+export async function fetchHotelAgencies(): Promise<HotelAgency[]> {
+  const res = await api.get<HotelAgency[]>('/hotels/agencies');
   return res.data;
 }

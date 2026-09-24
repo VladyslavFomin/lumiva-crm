@@ -4,11 +4,14 @@ import { useNavigation } from '@react-navigation/native';
 import { createProject, ProjectStatus } from '../../api/projects';
 import { fetchProjectStatusDefs, ProjectStatusDef } from '../../api/projectSettings';
 import { fetchLeads, Lead } from '../../api/leads';
+import { fetchCompanies, Company } from '../../api/companies';
+import { fetchContacts, Contact } from '../../api/contacts';
 import { fetchStaff, Staff } from '../../api/staff';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
 import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { showToast } from '../../components/ui';
-import { EntityFormShell, FieldCard, EntityField, ChipPicker } from '../../components/mg';
+import { EntityFormShell, FieldCard, EntityField, ChipPicker, LinkPicker } from '../../components/mg';
 
 const PickLabel: React.FC<{ label: string; marginTop?: number }> = ({ label, marginTop }) => {
   const { colors } = useTheme();
@@ -17,6 +20,7 @@ const PickLabel: React.FC<{ label: string; marginTop?: number }> = ({ label, mar
 
 export const ProjectCreateScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useLanguage();
   const { codes } = useCurrencyMode();
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -28,21 +32,28 @@ export const ProjectCreateScreen: React.FC = () => {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [ownerIds, setOwnerIds] = useState<string[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [leadId, setLeadId] = useState('');
+  const [leadId, setLeadId] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [description, setDescription] = useState('');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchProjectStatusDefs().then((defs) => { setStatuses(defs); if (defs[0]) setStatus(defs[0].value); }).catch(() => {});
     fetchStaff().then(setStaff).catch(() => {});
     fetchLeads().then(setLeads).catch(() => {});
+    fetchCompanies().then(setCompanies).catch(() => {});
+    fetchContacts().then(setContacts).catch(() => {});
   }, []);
 
   useEffect(() => { if (codes[0]) setCurrency(codes[0]); }, [codes]);
 
   const missing = [
-    ...(!name.trim() ? ['название'] : []),
-    ...(!ownerIds.length ? ['руководитель'] : []),
-    ...(!amount ? ['сумма'] : []),
+    ...(!name.trim() ? [t('projectCreate.missing.name')] : []),
+    ...(!ownerIds.length ? [t('projectCreate.missing.owner')] : []),
+    ...(!amount ? [t('projectCreate.missing.amount')] : []),
   ];
 
   const submit = async () => {
@@ -59,12 +70,15 @@ export const ProjectCreateScreen: React.FC = () => {
         ownerName,
         ownerUserIds: ownerIds,
         leadId: leadId || undefined,
+        companyId: companyId || undefined,
+        contactId: contactId || undefined,
+        description: description.trim() || undefined,
       });
-      showToast('Проект создан', { variant: 'success' });
+      showToast(t('projectCreate.created'), { variant: 'success' });
       navigation.goBack();
     } catch (e: any) {
       const msg = e?.response?.data?.message;
-      showToast((Array.isArray(msg) ? msg.join(', ') : msg) || 'Не удалось создать проект', { variant: 'error' });
+      showToast((Array.isArray(msg) ? msg.join(', ') : msg) || t('projectCreate.createError'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -72,37 +86,38 @@ export const ProjectCreateScreen: React.FC = () => {
 
   return (
     <EntityFormShell
-      title="Новый проект" kicker="Проекты" sub="Статусы — из справочника тенанта"
-      missing={missing} entityLabel="проект" saving={saving}
+      title={t('projectCreate.title')} kicker={t('tabs.projects')} sub={t('projectCreate.subHint')}
+      missing={missing} entityLabel={t('projectCreate.entityLabel')} saving={saving}
       onCancel={() => navigation.goBack()} onSave={submit}
     >
       <FieldCard>
-        <EntityField label="Название проекта" required value={name} onChangeText={setName} placeholder="Фасад БЦ «Marmara»" />
-        <EntityField label="Сумма проекта" required value={amount} onChangeText={setAmount} placeholder="0" keyboardType="numeric" />
-        <PickLabel label="Валюта" />
+        <EntityField label={t('projectCreate.field.name')} required value={name} onChangeText={setName} placeholder={t('projectCreate.field.namePlaceholder')} />
+        <EntityField label={t('projectEdit.field.description')} value={description} onChangeText={setDescription} multiline />
+        <EntityField label={t('projectCreate.field.amount')} required value={amount} onChangeText={setAmount} placeholder="0" keyboardType="numeric" />
+        <PickLabel label={t('projectCreate.field.currency')} />
         <ChipPicker options={codes.map((c) => ({ key: c, label: c }))} value={currency} onChange={setCurrency} />
       </FieldCard>
 
-      <FieldCard icon="flag-outline" title="Классификация">
-        <PickLabel label="Статус" />
+      <FieldCard icon="flag-outline" title={t('projectCreate.section.classification')}>
+        <PickLabel label={t('projectCreate.field.status')} />
         <View style={{ marginBottom: spacing.md }}>
           <ChipPicker options={statuses.map((s) => ({ key: s.value, label: s.value }))} value={status} onChange={setStatus} />
         </View>
-        <EntityField label="Категория" value={category} onChangeText={setCategory} placeholder="Разработка, дизайн…" />
-        <EntityField label="Метки" value={tags} onChangeText={setTags} placeholder="фасад, приоритет, тендер" help="через запятую" />
+        <EntityField label={t('projectCreate.field.category')} value={category} onChangeText={setCategory} placeholder={t('projectCreate.field.categoryPlaceholder')} />
+        <EntityField label={t('projectCreate.field.tags')} value={tags} onChangeText={setTags} placeholder={t('projectCreate.field.tagsPlaceholder')} help={t('projectCreate.field.tagsHelp')} />
       </FieldCard>
 
-      <FieldCard icon="people-outline" title="Команда и лид">
-        <PickLabel label="Руководитель и команда" />
+      <FieldCard icon="people-outline" title={t('projectCreate.section.team')}>
+        <PickLabel label={t('projectCreate.field.owner')} />
         <View style={{ marginBottom: spacing.md }}>
           <ChipPicker options={staff.map((s) => ({ key: s.id, label: s.fullName }))} value={ownerIds} onChange={setOwnerIds} multi />
         </View>
-        <PickLabel label="Из какого лида" />
-        <ChipPicker
-          options={[{ key: '', label: 'Без лида' }, ...leads.slice(0, 20).map((l) => ({ key: l.id, label: l.name }))]}
-          value={leadId}
-          onChange={setLeadId}
-        />
+      </FieldCard>
+
+      <FieldCard icon="link-outline" title={t('projectEdit.section.links')}>
+        <LinkPicker label={t('projectCreate.field.fromLead')} value={leadId} options={leads.map((l) => ({ id: l.id, label: l.name || l.email || l.phone || l.id, sub: l.email || l.phone }))} onChange={setLeadId} />
+        <LinkPicker label={t('projectEdit.field.company')} value={companyId} options={companies.map((c) => ({ id: c.id, label: c.name, sub: c.website }))} onChange={setCompanyId} />
+        <LinkPicker label={t('projectEdit.field.contact')} value={contactId} options={contacts.map((c) => ({ id: c.id, label: c.fullName, sub: c.email || c.phone }))} onChange={setContactId} />
       </FieldCard>
     </EntityFormShell>
   );

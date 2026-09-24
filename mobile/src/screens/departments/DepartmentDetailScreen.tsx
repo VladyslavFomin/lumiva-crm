@@ -10,6 +10,7 @@ import { useCurrencyMode } from '../../context/CurrencyModeContext';
 import { AvatarInitials, showToast } from '../../components/ui';
 import { StatGrid2 } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale, formatDecimal } from '../../i18n/format';
 
 export const DepartmentDetailScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -126,7 +127,7 @@ export const DepartmentDetailScreen: React.FC = () => {
             ]} />
             {stats.conversionPct != null && (
               <Text style={[styles.conversionNote, { color: colors.textSecondary }]}>
-                Конверсия лидов в продажу: {stats.conversionPct.toFixed(1).replace('.', ',')}%
+                Конверсия лидов в продажу: {formatDecimal(stats.conversionPct, 1)}%
               </Text>
             )}
           </View>
@@ -173,12 +174,12 @@ export const DepartmentDetailScreen: React.FC = () => {
           </View>
           <View style={[styles.infoRow, { borderTopColor: colors.line3, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Создан</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(department.createdAt).toLocaleDateString('ru-RU')}</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(department.createdAt).toLocaleDateString(appLocale())}</Text>
           </View>
           {department.updatedAt && (
             <View style={[styles.infoRow, { borderTopColor: colors.line3, borderTopWidth: StyleSheet.hairlineWidth }]}>
               <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Обновлён</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(department.updatedAt).toLocaleDateString('ru-RU')}</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{new Date(department.updatedAt).toLocaleDateString(appLocale())}</Text>
             </View>
           )}
         </GlassCard>

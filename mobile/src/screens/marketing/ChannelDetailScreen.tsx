@@ -14,6 +14,8 @@ import { formatMoney } from '../../utils/money';
 import { StatGrid2, FunnelBars, TapChart, WorldMap, CountryAgg, ZoomableChart, useDateDrilldown } from '../../components/mg';
 import { SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { appLocale, formatDecimal } from '../../i18n/format';
 
 const DS_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   meta_ads: { label: 'Meta Ads', icon: 'logo-facebook', color: '#0866FF' },
@@ -64,7 +66,8 @@ export const ChannelDetailScreen: React.FC = () => {
   const channelKey: string = route.params?.channelKey;
 
   const [daily, setDaily] = useState<TrafficData[]>([]);
-  const [stat, setStat] = useState<TrafficChannelStat | null>(null);
+  const { toDisplay, cur } = useCurrencyMode();
+  const [rawStat, setStat] = useState<TrafficChannelStat | null>(null);
   const [items, setItems] = useState<TrafficItem[]>([]);
   const [countryRows, setCountryRows] = useState<TrafficCountryRow[]>([]);
   const [labels, setLabels] = useState<Record<string, string> | undefined>();
@@ -105,6 +108,18 @@ export const ChannelDetailScreen: React.FC = () => {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [daily],
   );
+
+  // A channel whose rows span several currencies comes back as `currency: 'MIXED'` with a raw cross-currency sum —
+  // rebuild cost/revenue from the per-campaign rows in the display currency instead.
+  const stat = useMemo<TrafficChannelStat | null>(() => {
+    if (!rawStat || rawStat.currency !== 'MIXED' || items.length === 0) return rawStat;
+    return {
+      ...rawStat,
+      cost: items.reduce((s, i) => s + toDisplay(i.cost, i.currency), 0),
+      revenue: items.reduce((s, i) => s + toDisplay(i.revenue, i.currency), 0),
+      currency: cur,
+    };
+  }, [rawStat, items, toDisplay, cur]);
 
   const ctr = stat && stat.impressions > 0 ? (stat.clicks / stat.impressions) * 100 : null;
   const cpc = stat && stat.clicks > 0 ? stat.cost / stat.clicks : null;
@@ -163,10 +178,10 @@ export const ChannelDetailScreen: React.FC = () => {
             <View style={styles.statsWrap}>
               <StatGrid2
                 items={[
-                  { label: 'Показы', value: stat.impressions.toLocaleString('ru-RU') },
-                  { label: 'Клики / просмотры', value: stat.clicks.toLocaleString('ru-RU') },
-                  { label: 'Сессии / визиты', value: stat.sessions.toLocaleString('ru-RU') },
-                  { label: 'CTR', value: ctr != null ? `${ctr.toFixed(2)}%` : '—' },
+                  { label: 'Показы', value: stat.impressions.toLocaleString(appLocale()) },
+                  { label: 'Клики / просмотры', value: stat.clicks.toLocaleString(appLocale()) },
+                  { label: 'Сессии / визиты', value: stat.sessions.toLocaleString(appLocale()) },
+                  { label: 'CTR', value: ctr != null ? `${formatDecimal(ctr, 2)}%` : '—' },
                   { label: 'CPC', value: cpc != null && cpc > 0 ? formatMoney(cpc, stat.currency) : '—' },
                   { label: 'CPM', value: cpm != null && cpm > 0 ? formatMoney(cpm, stat.currency) : '—' },
                 ]}
@@ -183,7 +198,7 @@ export const ChannelDetailScreen: React.FC = () => {
                       { key: 'sessions', label: 'Сессии', color: colors.text, values: sortedDaily.map((d) => d.sessions) },
                       { key: 'clicks', label: 'Клики', color: colors.accent, values: sortedDaily.map((d) => d.clicks) },
                     ]}
-                    formatDate={(d) => new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
+                    formatDate={(d) => new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' })}
                   />
                 </ZoomableChart>
               </GlassCard>
@@ -199,7 +214,7 @@ export const ChannelDetailScreen: React.FC = () => {
             {topByImpressions.length > 0 && (
               <GlassCard variant="g" style={styles.card} contentStyle={styles.cardContent}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Топ кампаний по показам</Text>
-                <FunnelBars rows={topByImpressions.map((it) => ({ label: campaignLabel(it), value: it.impressions, displayValue: it.impressions.toLocaleString('ru-RU') }))} />
+                <FunnelBars rows={topByImpressions.map((it) => ({ label: campaignLabel(it), value: it.impressions, displayValue: it.impressions.toLocaleString(appLocale()) }))} />
               </GlassCard>
             )}
 
@@ -213,9 +228,9 @@ export const ChannelDetailScreen: React.FC = () => {
                   <View key={i} style={[styles.campRow, i > 0 && { borderTopColor: colors.borderLight, borderTopWidth: 1 }]}>
                     <Text style={[styles.campName, { color: colors.text }]} numberOfLines={1}>{campaignLabel(it)}</Text>
                     <View style={styles.campMetrics}>
-                      <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Показы <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.impressions.toLocaleString('ru-RU')}</Text></Text>
-                      <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Клики <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.clicks.toLocaleString('ru-RU')}</Text></Text>
-                      <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Сессии <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.sessions.toLocaleString('ru-RU')}</Text></Text>
+                      <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Показы <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.impressions.toLocaleString(appLocale())}</Text></Text>
+                      <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Клики <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.clicks.toLocaleString(appLocale())}</Text></Text>
+                      <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Сессии <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.sessions.toLocaleString(appLocale())}</Text></Text>
                       {it.leads > 0 && <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Лиды <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{it.leads}</Text></Text>}
                       <Text style={[styles.campMetric, { color: colors.textSecondary }]}>Расход <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{formatMoney(it.cost, it.currency)}</Text></Text>
                       {it.revenue > 0 && <Text style={[styles.campMetric, { color: colors.success }]}>Выручка <Text style={{ color: colors.success, fontFamily: fonts.monoSemibold }}>{formatMoney(it.revenue, it.currency)}</Text></Text>}
@@ -238,7 +253,7 @@ export const ChannelDetailScreen: React.FC = () => {
                     {bySource.map((r, i) => (
                       <View key={r.key} style={[styles.dimRowItem, i > 0 && { borderTopColor: colors.borderLight, borderTopWidth: 1 }]}>
                         <Text style={[styles.dimName, { color: colors.text }]} numberOfLines={1}>{r.key}</Text>
-                        <Text style={[styles.dimValue, { color: colors.textSecondary }]}>{r.sessions.toLocaleString('ru-RU')} сесс.</Text>
+                        <Text style={[styles.dimValue, { color: colors.textSecondary }]}>{r.sessions.toLocaleString(appLocale())} сесс.</Text>
                       </View>
                     ))}
                   </GlassCard>
@@ -249,7 +264,7 @@ export const ChannelDetailScreen: React.FC = () => {
                     {byMedium.map((r, i) => (
                       <View key={r.key} style={[styles.dimRowItem, i > 0 && { borderTopColor: colors.borderLight, borderTopWidth: 1 }]}>
                         <Text style={[styles.dimName, { color: colors.text }]} numberOfLines={1}>{r.key}</Text>
-                        <Text style={[styles.dimValue, { color: colors.textSecondary }]}>{r.sessions.toLocaleString('ru-RU')} сесс.</Text>
+                        <Text style={[styles.dimValue, { color: colors.textSecondary }]}>{r.sessions.toLocaleString(appLocale())} сесс.</Text>
                       </View>
                     ))}
                   </GlassCard>
@@ -265,8 +280,8 @@ export const ChannelDetailScreen: React.FC = () => {
                   {sortedCountries.map((r, i) => (
                     <View key={`${r.country}-${i}`} style={[styles.countryRow, i > 0 && { borderTopColor: colors.borderLight, borderTopWidth: 1 }]}>
                       <Text style={[styles.countryName, { color: colors.text }]}>{r.country || '—'}</Text>
-                      <Text style={[styles.countryMetric, { color: colors.textSecondary }]}>{r.sessions.toLocaleString('ru-RU')} сесс.</Text>
-                      <Text style={[styles.countryMetric, { color: colors.textSecondary }]}>{r.impressions.toLocaleString('ru-RU')} показ.</Text>
+                      <Text style={[styles.countryMetric, { color: colors.textSecondary }]}>{r.sessions.toLocaleString(appLocale())} сесс.</Text>
+                      <Text style={[styles.countryMetric, { color: colors.textSecondary }]}>{r.impressions.toLocaleString(appLocale())} показ.</Text>
                     </View>
                   ))}
                 </View>

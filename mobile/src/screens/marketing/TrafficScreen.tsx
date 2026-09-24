@@ -7,6 +7,8 @@ import { fetchTraffic, fetchTrafficChannels, TrafficData, TrafficChannelStat } f
 import { formatMoney } from '../../utils/money';
 import { StatGrid2, Pill, TapChart, ZoomableChart, useDateDrilldown } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { appLocale, formatDecimal } from '../../i18n/format';
 
 function dsLabel(dataSource: string, labels?: Record<string, string>): string {
   return labels?.[dataSource] || dataSource;
@@ -21,6 +23,7 @@ export const TrafficScreen: React.FC = () => {
   const [totals, setTotals] = useState({ sessions: 0, leads: 0, revenue: 0, cost: 0, clicks: 0, impressions: 0, currency: 'EUR' });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { toDisplay, cur, mode } = useCurrencyMode();
   const { from, to, label, canZoomIn, canZoomOut, zoomIn, zoomOut } = useDateDrilldown();
 
   const load = useCallback(async (isRefresh = false) => {
@@ -52,8 +55,14 @@ export const TrafficScreen: React.FC = () => {
   );
   const topSessions = channels[0]?.sessions || 1;
   const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : null;
-  const cpc = totals.clicks > 0 ? totals.cost / totals.clicks : null;
-  const cpm = totals.impressions > 0 ? (totals.cost / totals.impressions) * 1000 : null;
+  // The backend sums `cost` across rows of different currencies and reports `currency: 'MIXED'` — meaningless as a
+  // single number. Convert per provider row (each has its own currency) into the display currency, like the website does.
+  // Native mode + one currency in the data: keep that currency untouched.
+  const single = totals.currency !== 'MIXED' && mode === 'native';
+  const costTotal = single ? totals.cost : channels.reduce((sum, c) => sum + toDisplay(c.cost, c.currency), 0);
+  const moneyCur = single ? totals.currency : cur;
+  const cpc = totals.clicks > 0 ? costTotal / totals.clicks : null;
+  const cpm = totals.impressions > 0 ? (costTotal / totals.impressions) * 1000 : null;
 
   if (loading) {
     return (
@@ -82,7 +91,7 @@ export const TrafficScreen: React.FC = () => {
                   { key: 'sessions', label: 'Сессии', color: colors.text, values: sortedDaily.map((d) => d.sessions) },
                   { key: 'clicks', label: 'Клики', color: colors.accent, values: sortedDaily.map((d) => d.clicks) },
                 ]}
-                formatDate={(d) => new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
+                formatDate={(d) => new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' })}
               />
             </ZoomableChart>
           </GlassCard>
@@ -90,12 +99,12 @@ export const TrafficScreen: React.FC = () => {
 
         <StatGrid2
           items={[
-            { label: 'Показы', value: totals.impressions.toLocaleString('ru-RU') },
-            { label: 'Клики / просмотры', value: totals.clicks.toLocaleString('ru-RU') },
-            { label: 'Сессии / визиты', value: totals.sessions.toLocaleString('ru-RU') },
-            { label: 'CTR', value: ctr != null ? `${ctr.toFixed(2)}%` : '—' },
-            { label: 'CPC', value: cpc != null && cpc > 0 ? formatMoney(cpc, totals.currency) : '—' },
-            { label: 'CPM', value: cpm != null && cpm > 0 ? formatMoney(cpm, totals.currency) : '—' },
+            { label: 'Показы', value: totals.impressions.toLocaleString(appLocale()) },
+            { label: 'Клики / просмотры', value: totals.clicks.toLocaleString(appLocale()) },
+            { label: 'Сессии / визиты', value: totals.sessions.toLocaleString(appLocale()) },
+            { label: 'CTR', value: ctr != null ? `${formatDecimal(ctr, 2)}%` : '—' },
+            { label: 'CPC', value: cpc != null && cpc > 0 ? formatMoney(cpc, moneyCur) : '—' },
+            { label: 'CPM', value: cpm != null && cpm > 0 ? formatMoney(cpm, moneyCur) : '—' },
           ]}
         />
 
@@ -124,7 +133,7 @@ export const TrafficScreen: React.FC = () => {
                 >
                   <View style={styles.sourceTop}>
                     <Text style={[styles.sourceName, { color: colors.text }]} numberOfLines={1}>{dsLabel(ch.dataSource, labels)}</Text>
-                    <Text style={[styles.sourceNum, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{ch.sessions.toLocaleString('ru-RU')}</Text>
+                    <Text style={[styles.sourceNum, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{ch.sessions.toLocaleString(appLocale())}</Text>
                     <Pill label={`${ch.leads} лид.`} tone="acc" />
                     <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
                   </View>
@@ -132,7 +141,7 @@ export const TrafficScreen: React.FC = () => {
                     <View style={[styles.barFill, { width: `${Math.max(2, (ch.sessions / topSessions) * 100)}%`, backgroundColor: colors.accent }]} />
                   </View>
                   <Text style={[styles.sourceMeta, { color: colors.textTertiary }]}>
-                    CR {cr.toFixed(1).replace('.', ',')}% · CPL {cpl != null ? formatMoney(cpl, ch.currency) : 'бесплатно'}
+                    CR {formatDecimal(cr, 1)}% · CPL {cpl != null ? formatMoney(cpl, ch.currency) : 'бесплатно'}
                   </Text>
                 </TouchableOpacity>
               );

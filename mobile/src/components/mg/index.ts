@@ -21,4 +21,6 @@ export { MonthCalendar } from './MonthCalendar';
 export { ChipPicker } from './ChipPicker';
 export type { ChipPickerOption } from './ChipPicker';
 export { EntityField } from './EntityField';
+export { LinkPicker, LinkMultiPicker } from './LinkPicker';
+export type { LinkOption } from './LinkPicker';
 export { EntityFormShell, FieldCard } from './EntityFormShell';

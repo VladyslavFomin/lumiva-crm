@@ -1,19 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { fetchContact, deleteContact, fetchContactRelations, updateContact, Contact, ContactRelatedRef } from '../../api/contacts';
 import { fetchAuditLog, AuditLogEntry } from '../../api/auditLog';
 import { EntityComment } from '../../api/comments';
+import { countryName } from '../../utils/refData';
 import { AvatarInitials, Button, SkeletonList, showToast, CustomFieldsSection, ActivityFeed, CommentsSection } from '../../components/ui';
 import { Segmented, Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
 
-const LEAD_STATUS_LABEL: Record<string, string> = {
-  new: 'Новый', in_progress: 'В работе', waiting: 'Ожидает', won: 'Успех', lost: 'Проигран',
-};
 const LEAD_STATUS_TONE: Record<string, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   new: 'acc', in_progress: 'default', waiting: 'warn', won: 'pos', lost: 'neg',
 };
@@ -22,6 +21,10 @@ type Tab = 'about' | 'hist' | 'linked';
 
 export const ContactDetailScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const LEAD_STATUS_LABEL: Record<string, string> = {
+    new: t('contactDetail.leadStatus.new'), in_progress: t('contactDetail.leadStatus.in_progress'), waiting: t('contactDetail.leadStatus.waiting'), won: t('contactDetail.leadStatus.won'), lost: t('contactDetail.leadStatus.lost'),
+  };
   const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
@@ -34,7 +37,8 @@ export const ContactDetailScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('about');
 
-  useEffect(() => {
+  // Refetch on focus so edits saved in the edit modal show up immediately.
+  useFocusEffect(useCallback(() => {
     fetchContact(id)
       .then((data) => {
         setContact(data);
@@ -45,9 +49,10 @@ export const ContactDetailScreen: React.FC = () => {
         }).catch(() => {});
         fetchAuditLog('contact', id).then(setActivity).catch(() => {});
       })
-      .catch(() => showToast('Не удалось загрузить контакт', { variant: 'error' }))
+      .catch(() => showToast(t('contactDetail.loadError'), { variant: 'error' }))
       .finally(() => setLoading(false));
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]));
 
   const handleCustomFieldUpdate = async (key: string, value: any) => {
     if (!contact) return;
@@ -65,7 +70,7 @@ export const ContactDetailScreen: React.FC = () => {
   const handleDelete = () => {
     if (!contact) return;
     navigation.goBack();
-    deleteContact(contact.id).then(() => showToast('Контакт удалён', { variant: 'success' })).catch(() => showToast('Не удалось удалить контакт', { variant: 'error' }));
+    deleteContact(contact.id).then(() => showToast(t('contactDetail.deletedToast'), { variant: 'success' })).catch(() => showToast(t('contactDetail.deleteError'), { variant: 'error' }));
   };
 
   if (loading) {
@@ -79,22 +84,23 @@ export const ContactDetailScreen: React.FC = () => {
   if (!contact) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: colors.text }}>Контакт не найден</Text>
+        <Text style={{ color: colors.text }}>{t('contactDetail.notFound')}</Text>
       </View>
     );
   }
 
   const properties = [
     contact.companyId && {
-      label: 'Компания', value: companyName || `#${contact.companyId.slice(0, 8)}`, icon: 'business-outline' as const, iconColor: colors.secondary,
+      label: t('contactDetail.prop.company'), value: companyName || `#${contact.companyId.slice(0, 8)}`, icon: 'business-outline' as const, iconColor: colors.secondary,
       onPress: () => navigation.navigate('CompanyDetail', { id: contact.companyId }),
     },
-    contact.phone && { label: 'Телефон', value: contact.phone, icon: 'call-outline' as const, iconColor: colors.success, onPress: () => Linking.openURL(`tel:${contact.phone}`) },
-    contact.email && { label: 'Email', value: contact.email, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${contact.email}`) },
-    contact.position && { label: 'Должность', value: contact.position, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
-    contact.assignedTo && { label: 'Ответственный', value: contact.assignedTo, icon: 'person-outline' as const, iconColor: colors.ink },
-    (contact.city || contact.country) && { label: 'Город/Страна', value: [contact.city, contact.country].filter(Boolean).join(', '), icon: 'location-outline' as const, iconColor: colors.fg3 },
-    contact.address && { label: 'Адрес', value: contact.address, icon: 'map-outline' as const, iconColor: colors.fg3 },
+    contact.phone && { label: t('contactDetail.prop.phone'), value: contact.phone, icon: 'call-outline' as const, iconColor: colors.success, onPress: () => Linking.openURL(`tel:${contact.phone}`) },
+    contact.email && { label: t('contactDetail.prop.email'), value: contact.email, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${contact.email}`) },
+    contact.position && { label: t('contactDetail.prop.position'), value: contact.position, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
+    contact.assignedTo && { label: t('contactDetail.prop.assignedTo'), value: contact.assignedTo, icon: 'person-outline' as const, iconColor: colors.ink },
+    (contact.city || contact.country) && { label: t('contactDetail.prop.cityCountry'), value: [contact.city, countryName(contact.country)].filter(Boolean).join(', '), icon: 'location-outline' as const, iconColor: colors.fg3 },
+    contact.customFields?.passport && { label: t('contactEdit.field.passport'), value: String(contact.customFields.passport), icon: 'card-outline' as const, iconColor: colors.fg3 },
+    contact.address && { label: t('contactDetail.prop.address'), value: contact.address, icon: 'map-outline' as const, iconColor: colors.fg3 },
   ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];
 
   const hasLinked = leads.length > 0 || projects.length > 0 || !!contact.companyId;
@@ -106,11 +112,16 @@ export const ContactDetailScreen: React.FC = () => {
         <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={18} color={colors.text} />
-            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Клиенты</Text>
+            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>{t('clients.title')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={17} color={colors.error} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={() => navigation.navigate('ContactEdit', { id: contact.id })}>
+              <Ionicons name="create-outline" size={17} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={handleDelete}>
+              <Ionicons name="trash-outline" size={17} color={colors.error} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.heroRow}>
@@ -120,7 +131,7 @@ export const ContactDetailScreen: React.FC = () => {
             {contact.position && <Text style={[styles.heroSub, { color: colors.textSecondary }]}>{contact.position}</Text>}
             {contact.status && (
               <View style={{ marginTop: 6, alignSelf: 'flex-start' }}>
-                <Pill label={contact.status === 'active' ? 'активен' : contact.status === 'inactive' ? 'неактивен' : 'в архиве'} tone={contact.status === 'active' ? 'pos' : 'default'} />
+                <Pill label={contact.status === 'active' ? t('contactDetail.status.active') : contact.status === 'inactive' ? t('contactDetail.status.inactive') : t('contactDetail.status.archived')} tone={contact.status === 'active' ? 'pos' : 'default'} />
               </View>
             )}
           </View>
@@ -137,16 +148,16 @@ export const ContactDetailScreen: React.FC = () => {
         )}
 
         <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
-          {contact.phone && <Button label="Позвонить" variant="accent" size="sm" style={{ flex: 1 }} onPress={() => Linking.openURL(`tel:${contact.phone}`)} />}
-          {contact.email && <Button label="Письмо" variant="secondary" size="sm" style={{ flex: 1 }} onPress={() => Linking.openURL(`mailto:${contact.email}`)} />}
+          {contact.phone && <Button label={t('contactDetail.call')} variant="accent" size="sm" style={{ flex: 1 }} onPress={() => Linking.openURL(`tel:${contact.phone}`)} />}
+          {contact.email && <Button label={t('contactDetail.email')} variant="secondary" size="sm" style={{ flex: 1 }} onPress={() => Linking.openURL(`mailto:${contact.email}`)} />}
         </View>
 
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
           <Segmented
             options={[
-              { key: 'about', label: 'Профиль' },
-              { key: 'hist', label: 'История' },
-              { key: 'linked', label: 'Связи' },
+              { key: 'about', label: t('contactDetail.tab.about') },
+              { key: 'hist', label: t('contactDetail.tab.history') },
+              { key: 'linked', label: t('contactDetail.tab.linked') },
             ]}
             activeKey={tab}
             onChange={(k) => setTab(k as Tab)}
@@ -156,7 +167,7 @@ export const ContactDetailScreen: React.FC = () => {
         {tab === 'about' && <>
           {properties.length > 0 && (
             <>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>КОНТАКТНАЯ ИНФОРМАЦИЯ</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('contactDetail.section.contactInfo')}</Text>
               <GlassCard variant="g2" style={styles.listCard}>
                 {properties.map((p, i) => {
                   const Row = p.onPress ? TouchableOpacity : View;
@@ -178,7 +189,7 @@ export const ContactDetailScreen: React.FC = () => {
 
           {contact.notes ? (
             <>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ЗАМЕТКИ</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('contactDetail.section.notes')}</Text>
               <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
                 <Text style={[styles.notes, { color: colors.text }]}>{contact.notes}</Text>
               </GlassCard>
@@ -196,7 +207,7 @@ export const ContactDetailScreen: React.FC = () => {
             <>
               {(leads.length > 0 || projects.length > 0) && (
                 <>
-                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>СВЯЗАННЫЕ ЗАПИСИ</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('contactDetail.section.related')}</Text>
                   <GlassCard variant="g2" style={styles.listCard}>
                     {leads.map((l, i) => (
                       <TouchableOpacity
@@ -209,8 +220,8 @@ export const ContactDetailScreen: React.FC = () => {
                           <Ionicons name="flash-outline" size={16} color={colors.info} />
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={[styles.propLabel, { color: colors.textSecondary }]}>Лид</Text>
-                          <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{l.name || 'Без имени'}</Text>
+                          <Text style={[styles.propLabel, { color: colors.textSecondary }]}>{t('contactDetail.related.lead')}</Text>
+                          <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{l.name || t('common.noName')}</Text>
                         </View>
                         {l.status && <Pill label={LEAD_STATUS_LABEL[l.status] || l.status} tone={LEAD_STATUS_TONE[l.status] || 'default'} />}
                       </TouchableOpacity>
@@ -226,8 +237,8 @@ export const ContactDetailScreen: React.FC = () => {
                           <Ionicons name="layers-outline" size={16} color={colors.secondary} />
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={[styles.propLabel, { color: colors.textSecondary }]}>Проект</Text>
-                          <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{p.name || 'Без названия'}</Text>
+                          <Text style={[styles.propLabel, { color: colors.textSecondary }]}>{t('contactDetail.related.project')}</Text>
+                          <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{p.name || t('contactDetail.noProjectName')}</Text>
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -237,7 +248,7 @@ export const ContactDetailScreen: React.FC = () => {
 
               {contact.companyId && (
                 <>
-                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>КОМПАНИЯ</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('contactDetail.section.company')}</Text>
                   <TouchableOpacity
                     style={[styles.companyRow, { backgroundColor: colors.cardElevated }]}
                     onPress={() => navigation.navigate('CompanyDetail', { id: contact.companyId })}
@@ -247,8 +258,8 @@ export const ContactDetailScreen: React.FC = () => {
                       <Ionicons name="business-outline" size={16} color={colors.secondary} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{companyName || 'Компания'}</Text>
-                      <Text style={[styles.propLabel, { color: colors.textSecondary, marginTop: 2 }]}>карточка компании</Text>
+                      <Text style={[styles.propValue, { color: colors.text }]} numberOfLines={1}>{companyName || t('contactDetail.section.company')}</Text>
+                      <Text style={[styles.propLabel, { color: colors.textSecondary, marginTop: 2 }]}>{t('contactDetail.companyCard')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
                   </TouchableOpacity>
@@ -257,7 +268,7 @@ export const ContactDetailScreen: React.FC = () => {
             </>
           ) : (
             <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg, margin: spacing.lg }]}>
-              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Связанных записей нет</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{t('contactDetail.noRelated')}</Text>
             </GlassCard>
           )
         )}

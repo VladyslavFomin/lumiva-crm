@@ -16,6 +16,7 @@ export interface ContactDto {
   city: string | null;
   address: string | null;
   assignedTo: string | null;
+  assignedUserIds?: string[] | null;
   status: string | null;
   customFields: Record<string, any> | null;
   comments: EntityComment[] | null;
@@ -38,6 +39,7 @@ export interface Contact {
   city: string | null;
   address: string | null;
   assignedTo: string | null;
+  assignedUserIds: string[];
   status: string | null;
   customFields: Record<string, any> | null;
   comments: EntityComment[];
@@ -61,6 +63,7 @@ function mapContact(dto: ContactDto): Contact {
     city: dto.city,
     address: dto.address,
     assignedTo: dto.assignedTo,
+    assignedUserIds: dto.assignedUserIds ?? [],
     status: dto.status,
     customFields: dto.customFields || null,
     comments: dto.comments || [],
@@ -111,7 +114,13 @@ export interface CreateContactDto {
   notes?: string | null;
   tags?: string[] | null;
   city?: string | null;
+  country?: string | null;
+  address?: string | null;
+  status?: string | null;
   assignedTo?: string | null;
+  assignedUserId?: string | null;
+  assignedUserIds?: string[];
+  customFields?: Record<string, any>;
 }
 
 export async function createContact(payload: CreateContactDto) {
@@ -129,6 +138,13 @@ export interface UpdateContactDto {
   position?: string | null;
   notes?: string | null;
   tags?: string[] | null;
+  country?: string | null;
+  city?: string | null;
+  address?: string | null;
+  status?: string | null;
+  assignedUserIds?: string[];
+  assignedUserId?: string | null;
+  assignedTo?: string | null;
   customFields?: Record<string, any>;
   comments?: EntityComment[];
 }

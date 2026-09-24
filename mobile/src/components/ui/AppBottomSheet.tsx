@@ -28,7 +28,7 @@ export const AppBottomSheet = forwardRef<AppBottomSheetRef, Props>(({ snapPoints
       enablePanDownToClose
       onClose={onDismiss}
       // `<div className="mg-sheet g">` in the design — same `.g` glass surface as any card/the tab
-      // bar (gradient + blur + border + top highlight), just with the sheet's own 28px radius
+      // bar (gradient + border + top highlight), just with the sheet's own 28px radius
       // (`.mg-sheet{border-radius:28px}` overrides `.g`'s 22px later in the stylesheet).
       backgroundComponent={() => <GlassCard variant="g" style={styles.bg} />}
       handleIndicatorStyle={{ backgroundColor: colors.textTertiary, width: 36 }}

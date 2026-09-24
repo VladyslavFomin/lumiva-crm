@@ -33,13 +33,18 @@ export const GlobalTabBar: React.FC<Props> = ({ items, activeKey, onPress }) => 
   return (
     <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {/* `<nav className="mg-tabs g">` in the design — the tab bar IS a `.g` glass surface, same
-          gradient/blur/border/highlight as any card, not a hand-tuned one-off. */}
+          gradient/border/highlight as any card, not a hand-tuned one-off. */}
       <GlassCard variant="g" style={styles.pill} contentStyle={styles.row}>
         {items.map((item) => {
           const isFocused = item.key === activeKey;
           const color = isFocused ? colors.text : colors.textTertiary;
           return (
-            <TouchableOpacity key={item.key} onPress={() => onPress(item.key)} style={styles.item} activeOpacity={0.7}>
+            <TouchableOpacity
+              key={item.key}
+              onPress={() => onPress(item.key)}
+              style={[styles.item, isFocused && { backgroundColor: colors.surfaceVariant }]}
+              activeOpacity={0.7}
+            >
               <View style={styles.iconWrap}>
                 <Ionicons name={isFocused ? item.iconFocused : item.icon} size={22} color={color} />
                 {!!item.badge && (

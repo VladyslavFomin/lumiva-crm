@@ -12,11 +12,11 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SwipeableRow, SkeletonList, EmptyState, AppBottomSheet, AppBottomSheetRef, Button, showToast } from '../../components/ui';
 import { Pill, EntityField } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
-
-const PRIORITY_LABEL: Record<string, string> = { normal: 'Обычный', high: 'Высокий', vip: 'VIP' };
+import { useLanguage } from '../../i18n/LanguageContext';
+import { appLocale } from '../../i18n/format';
 
 function fmtDateTime(d: string) {
-  return new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 function backendError(e: any, fallback: string): string {
@@ -25,6 +25,8 @@ function backendError(e: any, fallback: string): string {
 
 export const WaitlistScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const PRIORITY_LABEL: Record<string, string> = { normal: t('waitlist.priority.normal'), high: t('waitlist.priority.high'), vip: t('waitlist.priority.vip') };
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const sheetRef = React.useRef<AppBottomSheetRef>(null);
@@ -47,12 +49,12 @@ export const WaitlistScreen: React.FC = () => {
       setEntries(w.filter((e) => e.status === 'waiting' || e.status === 'offer'));
       setServices(s);
     } catch {
-      showToast('Не удалось загрузить лист ожидания', { variant: 'error' });
+      showToast(t('waitlist.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -60,9 +62,9 @@ export const WaitlistScreen: React.FC = () => {
     setEntries((prev) => prev.filter((e) => e.id !== entry.id));
     removeWaitlistEntry(entry.id).catch(() => {
       setEntries((prev) => [entry, ...prev]);
-      showToast('Не удалось удалить заявку', { variant: 'error' });
+      showToast(t('waitlist.deleteError'), { variant: 'error' });
     });
-  }, []);
+  }, [t]);
 
   const openOffer = (entry: WaitlistEntry) => {
     setOfferTarget(entry);
@@ -79,9 +81,9 @@ export const WaitlistScreen: React.FC = () => {
       const updated = await offerWaitlistSlot(offerTarget.id, { startAt: iso(startAt), endAt: iso(endAt) });
       setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
       sheetRef.current?.close();
-      showToast('Слот предложен', { variant: 'success' });
+      showToast(t('waitlist.offeredToast'), { variant: 'success' });
     } catch (e: any) {
-      showToast(backendError(e, 'Не удалось предложить слот'), { variant: 'error' });
+      showToast(backendError(e, t('waitlist.offerError')), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -92,16 +94,16 @@ export const WaitlistScreen: React.FC = () => {
     try {
       const reservation = await convertWaitlistEntry(entry.id);
       setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-      showToast('Заявка превращена в бронь', { variant: 'success' });
+      showToast(t('waitlist.convertedToast'), { variant: 'success' });
       navigation.navigate('BookingDetail', { id: reservation.id });
     } catch (e: any) {
-      showToast(backendError(e, 'Не удалось создать бронь'), { variant: 'error' });
+      showToast(backendError(e, t('waitlist.convertError')), { variant: 'error' });
     } finally {
       setConvertingId(null);
     }
   };
 
-  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name || 'Без услуги';
+  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name || t('waitlist.noService');
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -110,15 +112,15 @@ export const WaitlistScreen: React.FC = () => {
       <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
           <Ionicons name="chevron-back" size={18} color={colors.text} />
-          <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.semibold }]}>Лист ожидания</Text>
+          <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.semibold }]}>{t('waitlist.title')}</Text>
         </TouchableOpacity>
       </View>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{entries.length} заявки без подтверждённой брони</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{entries.length} {t('waitlist.subtitle')}</Text>
 
       {loading ? (
         <SkeletonList count={5} />
       ) : entries.length === 0 ? (
-        <EmptyState icon="time-outline" title="Лист ожидания пуст" subtitle="Здесь появятся заявки без свободного слота" />
+        <EmptyState icon="time-outline" title={t('waitlist.empty.title')} subtitle={t('waitlist.empty.subtitle')} />
       ) : (
         <GlassCard variant="g2" style={styles.listCard} contentStyle={{ flex: 1 }}>
           <Animated.FlatList
@@ -128,27 +130,27 @@ export const WaitlistScreen: React.FC = () => {
             contentContainerStyle={{ paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }: { item: WaitlistEntry }) => (
-              <SwipeableRow rightAction={{ icon: 'trash-outline', label: 'Удалить', color: colors.error, onPress: () => remove(item) }}>
+              <SwipeableRow rightAction={{ icon: 'trash-outline', label: t('common.delete'), color: colors.error, onPress: () => remove(item) }}>
                 <View style={[styles.row, { borderBottomColor: colors.line3 }]}>
                   <View style={styles.rowTop}>
                     <View style={[styles.icoWrap, { backgroundColor: colors.surfaceVariant }]}>
                       <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{item.customerName || 'Без имени'}</Text>
+                      <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{item.customerName || t('common.noName')}</Text>
                       <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={1}>{serviceName(item.serviceId)}{item.preferredWindow ? ` · ${item.preferredWindow}` : ''}</Text>
                       {item.status === 'offer' && item.offeredStartAt && item.offeredEndAt && (
                         <Text style={[styles.meta, { color: colors.accent, marginTop: 2 }]} numberOfLines={1}>
-                          предложено: {fmtDateTime(item.offeredStartAt)} – {fmtDateTime(item.offeredEndAt)}
+                          {t('waitlist.offeredPrefix')} {fmtDateTime(item.offeredStartAt)} – {fmtDateTime(item.offeredEndAt)}
                         </Text>
                       )}
                     </View>
                     {item.priority !== 'normal' && <Pill label={PRIORITY_LABEL[item.priority]} tone={item.priority === 'vip' ? 'acc' : 'neg'} />}
                   </View>
                   <View style={styles.actionsRow}>
-                    <Button label={item.status === 'offer' ? 'Изменить слот' : 'Предложить слот'} variant="secondary" size="sm" style={{ flex: 1 }} onPress={() => openOffer(item)} />
+                    <Button label={item.status === 'offer' ? t('waitlist.changeSlot') : t('waitlist.offerSlot')} variant="secondary" size="sm" style={{ flex: 1 }} onPress={() => openOffer(item)} />
                     {item.status === 'offer' && (
-                      <Button label="Записать" variant="accent" size="sm" style={{ flex: 1 }} loading={convertingId === item.id} onPress={() => convert(item)} />
+                      <Button label={t('waitlist.book')} variant="accent" size="sm" style={{ flex: 1 }} loading={convertingId === item.id} onPress={() => convert(item)} />
                     )}
                   </View>
                 </View>
@@ -159,12 +161,12 @@ export const WaitlistScreen: React.FC = () => {
       )}
 
       <AppBottomSheet ref={sheetRef} snapPoints={['48%']}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Предложить слот</Text>
-        {offerTarget && <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>{offerTarget.customerName || 'Без имени'}</Text>}
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('waitlist.sheetTitle')}</Text>
+        {offerTarget && <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>{offerTarget.customerName || t('common.noName')}</Text>}
         <View style={{ marginTop: spacing.md }}>
-          <EntityField label="Начало" value={startAt} onChangeText={setStartAt} placeholder="ГГГГ-ММ-ДД ЧЧ:ММ" help="формат: ГГГГ-ММ-ДД ЧЧ:ММ" />
-          <EntityField label="Окончание" value={endAt} onChangeText={setEndAt} placeholder="ГГГГ-ММ-ДД ЧЧ:ММ" />
-          <Button label="Сохранить" variant="accent" fullWidth loading={saving} disabled={!startAt.trim() || !endAt.trim()} onPress={submitOffer} />
+          <EntityField label={t('waitlist.fieldStart')} value={startAt} onChangeText={setStartAt} placeholder={t('waitlist.dateFormatPlaceholder')} help={t('waitlist.dateFormatHelp')} />
+          <EntityField label={t('waitlist.fieldEnd')} value={endAt} onChangeText={setEndAt} placeholder={t('waitlist.dateFormatPlaceholder')} />
+          <Button label={t('waitlist.save')} variant="accent" fullWidth loading={saving} disabled={!startAt.trim() || !endAt.trim()} onPress={submitOffer} />
         </View>
       </AppBottomSheet>
     </View>

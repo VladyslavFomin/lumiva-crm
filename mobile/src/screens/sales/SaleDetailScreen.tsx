@@ -1,39 +1,43 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { SalesStackParamList } from './SalesStack';
 import { fetchSale, fetchSalesChannels, fetchSalesByContact, updateSale, Sale } from '../../api/sales';
 import { fetchLead } from '../../api/leads';
+import { fetchContact } from '../../api/contacts';
 import { fetchProject } from '../../api/projects';
 import { fetchAuditLog, AuditLogEntry } from '../../api/auditLog';
 import { EntityComment } from '../../api/comments';
 import { formatMoney } from '../../utils/money';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { SkeletonList, showToast, CustomFieldsSection, ActivityFeed, CommentsSection, Button } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<SalesStackParamList, 'SaleDetail'>;
 
-const STATUS_LABEL: Record<string, string> = {
-  new: 'Новая', pending: 'Ожидает', confirmed: 'Подтверждена', cancelled: 'Отменена', refunded: 'Возврат', other: 'Другое',
-};
 const STATUS_TONE: Record<string, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   new: 'acc', pending: 'warn', confirmed: 'pos', cancelled: 'neg', refunded: 'neg', other: 'default',
 };
 
 function fmtDate(dateStr: string | null) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
   const { id } = route.params;
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const STATUS_LABEL: Record<string, string> = {
+    new: t('saleStatus.new'), pending: t('saleStatus.pending'), confirmed: t('saleStatus.confirmed'), cancelled: t('saleStatus.cancelled'), refunded: t('saleStatus.refunded'), other: t('saleStatus.other'),
+  };
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { fmt, toDisplay } = useCurrencyMode();
@@ -45,13 +49,16 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
   const [activity, setActivity] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [contactName, setContactName] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Refetch on focus so edits saved in the edit modal show up immediately.
+  useFocusEffect(useCallback(() => {
     (async () => {
       try {
         const data = await fetchSale(id);
         setItem(data);
         fetchAuditLog('sale', id).then(setActivity).catch(() => {});
+        if (data.contactId) fetchContact(data.contactId).then((c) => setContactName(c.fullName || null)).catch(() => {});
         if (data.leadId) fetchLead(data.leadId).then((l) => setLeadName(l.name || null)).catch(() => {});
         if (data.projectId) fetchProject(data.projectId).then((p) => setProjectName(p.name)).catch(() => {});
         if (data.channelId) fetchSalesChannels().then((chans) => setChannelName(chans.find((c) => c.id === data.channelId)?.name || null)).catch(() => {});
@@ -64,12 +71,13 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
           }).catch(() => {});
         }
       } catch {
-        showToast('Не удалось загрузить продажу', { variant: 'error' });
+        showToast(t('saleDetail.loadError'), { variant: 'error' });
       } finally {
         setLoading(false);
       }
     })();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]));
 
   const handleCustomFieldUpdate = async (key: string, value: any) => {
     if (!item) return;
@@ -84,9 +92,9 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
     try {
       const updated = await updateSale({ id: item.id, status });
       setItem(updated);
-      showToast('Статус обновлён', { variant: 'success' });
+      showToast(t('saleDetail.statusUpdated'), { variant: 'success' });
     } catch {
-      showToast('Не удалось изменить статус', { variant: 'error' });
+      showToast(t('saleDetail.statusError'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -109,27 +117,36 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
   if (!item) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: colors.text }}>Продажа не найдена</Text>
+        <Text style={{ color: colors.text }}>{t('saleDetail.notFound')}</Text>
       </View>
     );
   }
 
   const properties = [
     item.leadId && {
-      label: 'Лид', value: leadName || `#${item.leadId.slice(0, 8)}`, icon: 'flash-outline' as const, iconColor: colors.info,
+      label: t('saleDetail.prop.lead'), value: leadName || `#${item.leadId.slice(0, 8)}`, icon: 'flash-outline' as const, iconColor: colors.info,
       onPress: () => navigation.navigate('App', { screen: 'Leads', params: { screen: 'LeadDetail', params: { id: item.leadId } } }),
     },
     item.projectId && {
-      label: 'Проект', value: projectName || `#${item.projectId.slice(0, 8)}`, icon: 'layers-outline' as const, iconColor: colors.secondary,
+      label: t('saleDetail.prop.project'), value: projectName || `#${item.projectId.slice(0, 8)}`, icon: 'layers-outline' as const, iconColor: colors.secondary,
       onPress: () => navigation.navigate('Projects', { screen: 'ProjectDetail', params: { id: item.projectId } }),
     },
-    item.channelId && { label: 'Канал', value: channelName || `#${item.channelId.slice(0, 8)}`, icon: 'git-network-outline' as const, iconColor: colors.info },
-    item.managerName && { label: 'Менеджер', value: item.managerName, icon: 'person-outline' as const, iconColor: colors.ink },
-    item.market && { label: 'Рынок', value: item.market, icon: 'globe-outline' as const, iconColor: colors.fg3 },
-    item.hotel && { label: 'Объект', value: item.hotel, icon: 'business-outline' as const, iconColor: colors.fg3 },
-    item.externalOrderNo && { label: '№ заказа', value: item.externalOrderNo, icon: 'receipt-outline' as const, iconColor: colors.warning },
-    { label: 'Дата продажи', value: fmtDate(item.saleDate), icon: 'calendar-outline' as const, iconColor: colors.fg3 },
-    { label: 'Создана', value: fmtDate(item.createdAt), icon: 'time-outline' as const, iconColor: colors.fg3 },
+    item.contactId && {
+      label: t('saleDetail.prop.contact'), value: contactName || `#${item.contactId.slice(0, 8)}`, icon: 'person-circle-outline' as const, iconColor: colors.info,
+      onPress: () => navigation.navigate('Clients', { screen: 'ContactDetail', params: { id: item.contactId } }),
+    },
+    item.guestName && { label: t('saleDetail.prop.guest'), value: item.guestName, icon: 'person-outline' as const, iconColor: colors.fg3 },
+    item.agentName && { label: t('saleDetail.prop.agent'), value: item.agentName, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
+    item.channelId && { label: t('saleDetail.prop.channel'), value: channelName || `#${item.channelId.slice(0, 8)}`, icon: 'git-network-outline' as const, iconColor: colors.info },
+    item.managerName && { label: t('saleDetail.prop.manager'), value: item.managerName, icon: 'person-outline' as const, iconColor: colors.ink },
+    item.market && { label: t('saleDetail.prop.market'), value: item.market, icon: 'globe-outline' as const, iconColor: colors.fg3 },
+    item.hotel && { label: t('saleDetail.prop.hotel'), value: item.hotel, icon: 'business-outline' as const, iconColor: colors.fg3 },
+    item.externalOrderNo && { label: t('saleDetail.prop.orderNo'), value: item.externalOrderNo, icon: 'receipt-outline' as const, iconColor: colors.warning },
+    item.checkInAt && { label: t('saleDetail.prop.checkIn'), value: fmtDate(item.checkInAt), icon: 'log-in-outline' as const, iconColor: colors.fg3 },
+    item.checkOutAt && { label: t('saleDetail.prop.checkOut'), value: fmtDate(item.checkOutAt), icon: 'log-out-outline' as const, iconColor: colors.fg3 },
+    item.externalId && { label: t('saleDetail.prop.externalId'), value: item.externalId, icon: 'key-outline' as const, iconColor: colors.fg3 },
+    { label: t('saleDetail.prop.saleDate'), value: fmtDate(item.saleDate), icon: 'calendar-outline' as const, iconColor: colors.fg3 },
+    { label: t('saleDetail.prop.created'), value: fmtDate(item.createdAt), icon: 'time-outline' as const, iconColor: colors.fg3 },
   ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];
 
   return (
@@ -139,7 +156,10 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
         <View style={[styles.nav, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={18} color={colors.text} />
-            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>Продажи</Text>
+            <Text style={[styles.backTxt, { color: colors.text, fontFamily: fonts.regular }]}>{t('salesList.title')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={() => navigation.navigate('SaleEdit', { id: item.id })}>
+            <Ionicons name="create-outline" size={17} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -155,22 +175,22 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
           <GlassCard variant="g" style={styles.statsCard} contentStyle={styles.statsCardRow}>
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: colors.text, fontFamily: fonts.mono }]}>{customerStats.count}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Заказов</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('saleDetail.stat.orders')}</Text>
             </View>
             <View style={[styles.statDiv, { backgroundColor: colors.separator }]} />
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: colors.success, fontFamily: fonts.mono }]} numberOfLines={1}>{fmt(customerStats.total)}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Всего потрачено</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('saleDetail.stat.totalSpent')}</Text>
             </View>
             <View style={[styles.statDiv, { backgroundColor: colors.separator }]} />
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text, fontFamily: fonts.mono }]} numberOfLines={1}>{new Date(customerStats.firstOrder).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: '2-digit' })}</Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Первый заказ</Text>
+              <Text style={[styles.statValue, { color: colors.text, fontFamily: fonts.mono }]} numberOfLines={1}>{new Date(customerStats.firstOrder).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: '2-digit' })}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('saleDetail.stat.firstOrder')}</Text>
             </View>
           </GlassCard>
         )}
 
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>СВОЙСТВА</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('saleDetail.section.properties')}</Text>
         <GlassCard variant="g2" style={styles.listCard}>
           {properties.map((p, i) => {
             const Row = p.onPress ? TouchableOpacity : View;
@@ -189,17 +209,17 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
           })}
         </GlassCard>
 
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ДЕЙСТВИЯ</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('saleDetail.section.actions')}</Text>
         <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
           <View style={styles.actionsRow}>
-            <Button label="Подтвердить" variant="accent" size="sm" disabled={saving || item.status === 'confirmed'} onPress={() => handleStatusChange('confirmed')} style={{ flex: 1 }} />
-            <Button label="Отменить" variant="secondary" size="sm" disabled={saving || item.status === 'cancelled'} onPress={() => handleStatusChange('cancelled')} style={{ flex: 1 }} />
+            <Button label={t('saleDetail.action.confirm')} variant="accent" size="sm" disabled={saving || item.status === 'confirmed'} onPress={() => handleStatusChange('confirmed')} style={{ flex: 1 }} />
+            <Button label={t('saleDetail.action.cancel')} variant="secondary" size="sm" disabled={saving || item.status === 'cancelled'} onPress={() => handleStatusChange('cancelled')} style={{ flex: 1 }} />
           </View>
         </GlassCard>
 
         {item.notes && (
           <>
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ЗАМЕТКА</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('saleDetail.section.note')}</Text>
             <GlassCard variant="g2" style={[styles.listCard, { padding: spacing.lg }]}>
               <Text style={[styles.notesText, { color: colors.text }]}>{item.notes}</Text>
             </GlassCard>
@@ -218,7 +238,8 @@ export const SaleDetailScreen: React.FC<Props> = ({ route }) => {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  nav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   backTxt: { fontSize: 15 },
   hero: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },

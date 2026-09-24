@@ -9,6 +9,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AvatarInitials, SkeletonList, EmptyState, Button, showToast } from '../../components/ui';
 import { Segmented, MonthCalendar, Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<LeadsStackParamList, 'LeadsCalendar'>;
 
@@ -148,7 +149,7 @@ export const LeadsCalendarScreen: React.FC<Props> = ({ navigation }) => {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{l.name || 'Без имени'}</Text>
                       <Text style={[styles.rowMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]} numberOfLines={1}>
-                        {new Date(l.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} · {l.channel || '—'}
+                        {new Date(l.createdAt).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })} · {l.channel || '—'}
                       </Text>
                     </View>
                     <Pill label={STATUS_LABEL[l.status]} tone={STATUS_TONE[l.status]} />

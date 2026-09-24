@@ -5,30 +5,33 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchReservations, confirmReservation, cancelReservation, Reservation, ReservationStatus } from '../../api/bookings';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { SwipeableRow, SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
-const STATUS_LABEL: Record<ReservationStatus, string> = {
-  draft: 'Черновик', pending: 'Ожидает', confirmed: 'Подтверждена', checked_in: 'Пришёл', in_progress: 'В процессе',
-  completed: 'Завершена', cancelled_by_customer: 'Отменена клиентом', cancelled_by_business: 'Отменена нами',
-  rejected: 'Отклонена', no_show: 'Неявка',
-};
 const STATUS_TONE: Record<ReservationStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   draft: 'default', pending: 'warn', confirmed: 'acc', checked_in: 'acc', in_progress: 'warn',
   completed: 'pos', cancelled_by_customer: 'neg', cancelled_by_business: 'neg', rejected: 'neg', no_show: 'neg',
 };
 const ACTIVE_STATUSES: ReservationStatus[] = ['draft', 'pending', 'confirmed', 'checked_in', 'in_progress'];
 
-const WEEKDAY = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
 const DAYS_BACK = 3;
 const DAYS_FORWARD = 14;
 
 function dayKey(d: Date) { return d.toISOString().slice(0, 10); }
-function fmtTime(d: string) { return new Date(d).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }); }
 
 export const BookingsCalendarScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const STATUS_LABEL: Record<ReservationStatus, string> = {
+    draft: t('bookingStatus.draft'), pending: t('bookingStatus.pending'), confirmed: t('bookingStatus.confirmed'), checked_in: t('bookingStatus.checked_in'), in_progress: t('bookingStatus.in_progress'),
+    completed: t('bookingStatus.completed'), cancelled_by_customer: t('bookingStatus.cancelled_by_customer'), cancelled_by_business: t('bookingStatus.cancelled_by_business'),
+    rejected: t('bookingStatus.rejected'), no_show: t('bookingStatus.no_show'),
+  };
+  const WEEKDAY = [t('weekday.sun'), t('weekday.mon'), t('weekday.tue'), t('weekday.wed'), t('weekday.thu'), t('weekday.fri'), t('weekday.sat')];
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
@@ -53,12 +56,12 @@ export const BookingsCalendarScreen: React.FC = () => {
       const items = await fetchReservations({ from: selectedDay, to: selectedDay });
       setReservations(items.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
     } catch {
-      showToast('Не удалось загрузить брони', { variant: 'error' });
+      showToast(t('bookingsCalendar.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedDay]);
+  }, [selectedDay, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -66,33 +69,33 @@ export const BookingsCalendarScreen: React.FC = () => {
     try {
       const updated = await confirmReservation(r.id);
       setReservations((prev) => prev.map((x) => (x.id === r.id ? updated : x)));
-      showToast('Бронь подтверждена', { variant: 'success' });
+      showToast(t('bookingsCalendar.confirmedToast'), { variant: 'success' });
     } catch {
-      showToast('Не удалось подтвердить бронь', { variant: 'error' });
+      showToast(t('bookingsCalendar.confirmError'), { variant: 'error' });
     }
-  }, []);
+  }, [t]);
 
   const handleCancel = useCallback(async (r: Reservation) => {
     try {
       const updated = await cancelReservation(r.id);
       setReservations((prev) => prev.map((x) => (x.id === r.id ? updated : x)));
-      showToast('Бронь отменена', { variant: 'success' });
+      showToast(t('bookingsCalendar.cancelledToast'), { variant: 'success' });
     } catch {
-      showToast('Не удалось отменить бронь', { variant: 'error' });
+      showToast(t('bookingsCalendar.cancelError'), { variant: 'error' });
     }
-  }, []);
+  }, [t]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}>
       <AuraBackground />
       <View style={styles.titleRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: colors.text }]}>Бронирования</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('bookingsCalendar.title')}</Text>
           {!loading && (
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {reservations.length} на этот день
+              {reservations.length} {t('bookingsCalendar.onThisDay')}
               {reservations.filter((r) => r.status === 'pending').length > 0 && (
-                <Text style={{ color: colors.warning, fontFamily: fonts.monoSemibold }}> · {reservations.filter((r) => r.status === 'pending').length} ждут подтверждения</Text>
+                <Text style={{ color: colors.warning, fontFamily: fonts.monoSemibold }}> · {reservations.filter((r) => r.status === 'pending').length} {t('bookingsCalendar.waitingConfirmation')}</Text>
               )}
             </Text>
           )}
@@ -124,7 +127,7 @@ export const BookingsCalendarScreen: React.FC = () => {
       {loading ? (
         <SkeletonList count={5} />
       ) : reservations.length === 0 ? (
-        <EmptyState icon="calendar-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title="Нет броней" subtitle="На этот день записей не найдено" />
+        <EmptyState icon="calendar-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title={t('bookingsCalendar.empty.title')} subtitle={t('bookingsCalendar.empty.subtitle')} />
       ) : (
         <ScrollView
           contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}
@@ -147,7 +150,7 @@ export const BookingsCalendarScreen: React.FC = () => {
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{r.customerName}</Text>
-                    <Text style={[styles.rowMeta, { color: colors.textTertiary }]} numberOfLines={1}>{r.participants} чел. {r.price ? `· ${r.price.toLocaleString('ru-RU')} ${r.currency}` : ''}</Text>
+                    <Text style={[styles.rowMeta, { color: colors.textTertiary }]} numberOfLines={1}>{r.participants} {t('bookingsCalendar.people')} {r.price ? `· ${r.price.toLocaleString(appLocale())} ${r.currency}` : ''}</Text>
                   </View>
                   <Pill label={STATUS_LABEL[r.status]} tone={STATUS_TONE[r.status]} />
                 </TouchableOpacity>
@@ -157,8 +160,8 @@ export const BookingsCalendarScreen: React.FC = () => {
             return (
               <SwipeableRow
                 key={r.id}
-                leftAction={canConfirm ? { icon: 'checkmark-outline', label: 'Подтвердить', color: colors.success, onPress: () => handleConfirm(r) } : undefined}
-                rightAction={canCancel ? { icon: 'close-outline', label: 'Отменить', color: colors.error, onPress: () => handleCancel(r) } : undefined}
+                leftAction={canConfirm ? { icon: 'checkmark-outline', label: t('bookingsCalendar.confirm'), color: colors.success, onPress: () => handleConfirm(r) } : undefined}
+                rightAction={canCancel ? { icon: 'close-outline', label: t('bookingsCalendar.cancel'), color: colors.error, onPress: () => handleCancel(r) } : undefined}
               >
                 {row}
               </SwipeableRow>

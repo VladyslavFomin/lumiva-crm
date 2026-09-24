@@ -5,12 +5,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { fetchProducts, Product, ProductStatus } from '../../api/products';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { ToolbarButton, Skeleton, EmptyState, showToast } from '../../components/ui';
 import { Chips } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const STATUS_ORDER: ProductStatus[] = ['active', 'draft', 'archived', 'out_of_stock'];
-const STATUS_LABEL: Record<ProductStatus, string> = { active: 'Активен', draft: 'Черновик', archived: 'В архиве', out_of_stock: 'Нет в наличии' };
 const STATUS_TONE: Record<ProductStatus, 'info' | 'neutral' | 'warning' | 'success' | 'error'> = {
   active: 'success', draft: 'neutral', archived: 'neutral', out_of_stock: 'error',
 };
@@ -29,6 +30,8 @@ function ProductSkeletonCard() {
 
 export const ProductsListScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const STATUS_LABEL: Record<ProductStatus, string> = { active: t('productStatus.active'), draft: t('productStatus.draft'), archived: t('productStatus.archived'), out_of_stock: t('productStatus.out_of_stock') };
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,16 +45,16 @@ export const ProductsListScreen: React.FC = () => {
   const load = useCallback(async (isRefresh = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     try {
-      const { items, total: t } = await fetchProducts({ status: statusFilter || undefined, search: search || undefined });
+      const { items, total: totalCount } = await fetchProducts({ status: statusFilter || undefined, search: search || undefined });
       setProducts(items);
-      setTotal(t);
+      setTotal(totalCount);
     } catch {
-      showToast('Не удалось загрузить товары', { variant: 'error' });
+      showToast(t('productsList.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [statusFilter, search]);
+  }, [statusFilter, search, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -89,15 +92,15 @@ export const ProductsListScreen: React.FC = () => {
           <View style={gridStyles.priceRow}>
             {p.salePrice != null ? (
               <>
-                <Text style={[gridStyles.price, { color: colors.error, fontFamily: fonts.bold }]}>{p.salePrice.toLocaleString('ru-RU')} {p.currency}</Text>
-                <Text style={[gridStyles.priceOld, { color: colors.textTertiary }]}>{p.price.toLocaleString('ru-RU')}</Text>
+                <Text style={[gridStyles.price, { color: colors.error, fontFamily: fonts.bold }]}>{p.salePrice.toLocaleString(appLocale())} {p.currency}</Text>
+                <Text style={[gridStyles.priceOld, { color: colors.textTertiary }]}>{p.price.toLocaleString(appLocale())}</Text>
               </>
             ) : (
-              <Text style={[gridStyles.price, { color: colors.text, fontFamily: fonts.bold }]}>{p.price.toLocaleString('ru-RU')} {p.currency}</Text>
+              <Text style={[gridStyles.price, { color: colors.text, fontFamily: fonts.bold }]}>{p.price.toLocaleString(appLocale())} {p.currency}</Text>
             )}
           </View>
           <Text style={[gridStyles.stock, { color: lowStock ? colors.error : colors.textTertiary, fontFamily: fonts.mono }]}>
-            {p.quantity} {p.unit || 'шт'} {lowStock ? '· мало' : ''}
+            {p.quantity} {p.unit || t('productsList.unit')} {lowStock ? `· ${t('productsList.lowStock')}` : ''}
           </Text>
         </View>
       </TouchableOpacity>
@@ -112,13 +115,14 @@ export const ProductsListScreen: React.FC = () => {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerTopRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.text }]}>Товары</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('productsList.title')}</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{total}</Text> позиций
-              {(statusCounts.out_of_stock || 0) > 0 && <Text style={{ color: colors.error, fontFamily: fonts.monoSemibold }}> · {statusCounts.out_of_stock} нет на складе</Text>}
+              <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{total}</Text> {t('productsList.items')}
+              {(statusCounts.out_of_stock || 0) > 0 && <Text style={{ color: colors.error, fontFamily: fonts.monoSemibold }}> · {statusCounts.out_of_stock} {t('productsList.outOfStock')}</Text>}
             </Text>
           </View>
           <ToolbarButton icon="add" active onPress={() => navigation.navigate('ProductCreate')} />
+          <ToolbarButton icon="cube-outline" onPress={() => navigation.navigate('Stock')} />
           <ToolbarButton icon="pricetags-outline" onPress={() => navigation.navigate('ProductCategories')} />
           <ToolbarButton icon="stats-chart-outline" onPress={() => navigation.navigate('ProductsAnalytics')} />
         </View>
@@ -127,7 +131,7 @@ export const ProductsListScreen: React.FC = () => {
           <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text, fontFamily: fonts.regular }]}
-            placeholder="Название, артикул…"
+            placeholder={t('productsList.searchPlaceholder')}
             placeholderTextColor={colors.textTertiary}
             value={search}
             onChangeText={setSearch}
@@ -144,7 +148,7 @@ export const ProductsListScreen: React.FC = () => {
         <View style={{ marginTop: spacing.sm }}>
           <Chips
             options={[
-              { key: 'all', label: 'Все', count: statusCounts.all || 0 },
+              { key: 'all', label: t('productsList.all'), count: statusCounts.all || 0 },
               ...STATUS_ORDER.map((s) => ({ key: s, label: STATUS_LABEL[s], count: statusCounts[s] || 0, dotColor: toneColor(colors, STATUS_TONE[s]) })),
             ]}
             activeKey={statusFilter || 'all'}
@@ -166,8 +170,8 @@ export const ProductsListScreen: React.FC = () => {
         <EmptyState
           icon="cube-outline"
           lottieSource={require('../../../assets/lottie/empty-pulse.json')}
-          title="Нет товаров"
-          subtitle={search || statusFilter ? 'Попробуйте изменить фильтры или запрос' : 'Здесь появится каталог товаров'}
+          title={t('productsList.empty.title')}
+          subtitle={search || statusFilter ? t('productsList.empty.subtitleFiltered') : t('productsList.empty.subtitleDefault')}
         />
       ) : (
         <FlatList

@@ -9,13 +9,14 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, Button, showToast } from '../../components/ui';
 import { Segmented, MonthCalendar } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<ProjectsStackParamList, 'ProjectsCalendar'>;
 
 const MONTH_NAME_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const TYPE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = { project_task: 'checkbox-outline', custom_date: 'bookmark-outline' };
 
-function fmtTime(d: string) { return new Date(d).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }); }
 
 export const ProjectsCalendarScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();

@@ -9,6 +9,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, AppBottomSheet, AppBottomSheetRef, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
 import { Pill } from '../../components/mg';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<ProjectsStackParamList, 'ProjectTaskBoard'>;
 
@@ -130,8 +131,16 @@ export const ProjectTaskBoardScreen: React.FC<Props> = ({ route, navigation }) =
                         <TouchableOpacity style={styles.cardTouchable} onLongPress={() => openMoveSheet(item)} delayLongPress={280} activeOpacity={0.8}>
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
+                            {item.checklist.length > 0 && (
+                              <View style={styles.checklistRow}>
+                                <View style={[styles.checklistTrack, { backgroundColor: colors.surfaceVariant }]}>
+                                  <View style={[styles.checklistFill, { width: `${Math.round((item.checklist.filter((c) => c.done).length / item.checklist.length) * 100)}%`, backgroundColor: colors.accent }]} />
+                                </View>
+                                <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{item.checklist.filter((c) => c.done).length}/{item.checklist.length}</Text>
+                              </View>
+                            )}
                             <View style={styles.cardMetaRow}>
-                              {item.deadline && <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{new Date(item.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}</Text>}
+                              {item.deadline && <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{new Date(item.deadline).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' })}</Text>}
                               {item.priority === 'Высокий' && <Text style={[styles.cardMeta, { color: colors.error, fontFamily: fonts.semibold }]}>Высокий</Text>}
                               {item.assignees.length > 0 && <Text style={[styles.cardMeta, { color: colors.textTertiary }]} numberOfLines={1}>{item.assignees.join(', ')}</Text>}
                             </View>
@@ -188,6 +197,9 @@ const styles = StyleSheet.create({
   cardTouchable: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm + 2 },
   cardTitle: { fontSize: 13.5, fontFamily: fonts.semibold },
   cardMetaRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 3, flexWrap: 'wrap' },
+  checklistRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 5 },
+  checklistTrack: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
+  checklistFill: { height: 4, borderRadius: 2 },
   cardMeta: { fontSize: 11 },
   moveBtn: { width: 28, height: 28, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: spacing.sm },

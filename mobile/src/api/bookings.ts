@@ -22,6 +22,10 @@ export interface ReservationDto {
   price: string | null;
   currency: string | null;
   source: string;
+  resourceId?: string | null;
+  confirmationStatus?: string | null;
+  assignedUserId?: string | null;
+  customFields?: Record<string, any> | null;
   createdAt: string;
 }
 
@@ -42,6 +46,11 @@ export interface Reservation {
   price: number | null;
   currency: string | null;
   source: string;
+  staffUserId: string | null;
+  resourceId: string | null;
+  confirmationStatus: string | null;
+  assignedUserId: string | null;
+  customFields: Record<string, any> | null;
   createdAt: string;
 }
 
@@ -63,6 +72,11 @@ function mapReservation(dto: ReservationDto): Reservation {
     price: dto.price != null ? Number(dto.price) : null,
     currency: dto.currency,
     source: dto.source,
+    staffUserId: dto.staffUserId ?? null,
+    resourceId: dto.resourceId ?? null,
+    confirmationStatus: dto.confirmationStatus ?? null,
+    assignedUserId: dto.assignedUserId ?? null,
+    customFields: dto.customFields ?? null,
     createdAt: dto.createdAt,
   };
 }
@@ -212,6 +226,7 @@ export async function fetchCustomerStats(contactId: string): Promise<CustomerSta
 
 export interface BookingResource {
   id: string;
+  locationId: string;
   name: string;
   type: string;
   quantity: number;
@@ -235,4 +250,23 @@ export interface ResourceStat {
 export async function fetchResourceStats(): Promise<ResourceStat[]> {
   const res = await api.get<ResourceStat[]>('/bookings/analytics/resources');
   return res.data;
+}
+
+export interface UpdateReservationPayload {
+  locationId?: string;
+  serviceId?: string | null;
+  staffUserId?: string | null;
+  resourceId?: string | null;
+  startAt?: string;
+  endAt?: string;
+  participants?: number;
+  price?: string | null;
+  currency?: string;
+  paymentStatus?: string;
+}
+
+/** `PATCH /bookings/reservations/:id` — same payload the website's "Edit booking" modal sends (the server re-checks staff/resource conflicts). */
+export async function updateReservation(id: string, payload: UpdateReservationPayload): Promise<Reservation> {
+  const res = await api.patch<ReservationDto>(`/bookings/reservations/${id}`, payload);
+  return mapReservation(res.data);
 }

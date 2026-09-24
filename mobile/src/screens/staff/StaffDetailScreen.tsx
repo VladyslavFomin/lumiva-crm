@@ -8,6 +8,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AvatarInitials, SkeletonList, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const ROLE_LABELS: Record<StaffRole, string> = {
   owner: 'Владелец', manager: 'Менеджер', viewer: 'Наблюдатель', finance: 'Финансы', sales: 'Продажи', developer: 'Разработчик', support: 'Поддержка',
@@ -46,7 +47,7 @@ export const StaffDetailScreen: React.FC = () => {
     { label: 'Email', value: staff.email, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${staff.email}`) },
     staff.phone && { label: 'Телефон', value: staff.phone, icon: 'call-outline' as const, iconColor: colors.success, onPress: () => Linking.openURL(`tel:${staff.phone}`) },
     staff.department && { label: 'Отдел', value: staff.department, icon: 'business-outline' as const, iconColor: colors.fg3 },
-    staff.lastLoginAt && { label: 'Последний вход', value: new Date(staff.lastLoginAt).toLocaleString('ru-RU'), icon: 'time-outline' as const, iconColor: colors.fg3 },
+    staff.lastLoginAt && { label: 'Последний вход', value: new Date(staff.lastLoginAt).toLocaleString(appLocale()), icon: 'time-outline' as const, iconColor: colors.fg3 },
   ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string; onPress?: () => void }[];
 
   return (

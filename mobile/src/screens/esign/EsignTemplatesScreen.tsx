@@ -9,9 +9,10 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export const EsignTemplatesScreen: React.FC = () => {

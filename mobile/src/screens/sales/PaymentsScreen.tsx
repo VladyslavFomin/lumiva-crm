@@ -7,11 +7,12 @@ import { useNavigation } from '@react-navigation/native';
 import { fetchPayments, fetchPaymentsAnalytics, Payment, PaymentStatus, PaymentsAnalytics } from '../../api/payments';
 import { formatMoney } from '../../utils/money';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { ToolbarButton, SkeletonList, EmptyState, AppBottomSheet, AppBottomSheetRef, Button, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
-const STATUS_LABEL: Record<PaymentStatus, string> = { pending: 'Ожидает', paid: 'Оплачен', failed: 'Ошибка', cancelled: 'Отменён' };
 const STATUS_TONE: Record<PaymentStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   pending: 'warn', paid: 'pos', failed: 'neg', cancelled: 'default',
 };
@@ -20,11 +21,13 @@ const STATUS_ORDER: PaymentStatus[] = ['pending', 'paid', 'failed', 'cancelled']
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export const PaymentsScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const STATUS_LABEL: Record<PaymentStatus, string> = { pending: t('payments.status.pending'), paid: t('payments.status.paid'), failed: t('payments.status.failed'), cancelled: t('payments.status.cancelled') };
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const filterSheetRef = useRef<AppBottomSheetRef>(null);
@@ -48,12 +51,12 @@ export const PaymentsScreen: React.FC = () => {
       setTotal(list.total);
       setAnalytics(an);
     } catch {
-      showToast('Не удалось загрузить платежи', { variant: 'error' });
+      showToast(t('payments.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -75,10 +78,10 @@ export const PaymentsScreen: React.FC = () => {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
             <Ionicons name="chevron-back" size={18} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Платежи</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('payments.title')}</Text>
         </View>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{total}</Text> платежей за 30 дней
+          <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{total}</Text> {t('payments.subtitle')}
         </Text>
       </View>
 
@@ -86,29 +89,29 @@ export const PaymentsScreen: React.FC = () => {
         <GlassCard variant="g" style={styles.statsCard} contentStyle={styles.statsCardRow}>
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.success, fontFamily: fonts.mono }]}>{analytics.paidCount}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Оплачено</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('payments.stat.paid')}</Text>
           </View>
           <View style={[styles.statDiv, { backgroundColor: colors.separator }]} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.error, fontFamily: fonts.mono }]}>{analytics.failedCount}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ошибок</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('payments.stat.failed')}</Text>
           </View>
           <View style={[styles.statDiv, { backgroundColor: colors.separator }]} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.text, fontFamily: fonts.mono }]}>{Math.round(analytics.successRate)}%</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Успешных</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('payments.stat.success')}</Text>
           </View>
         </GlassCard>
       )}
 
       <View style={styles.toolbar}>
-        <ToolbarButton icon="options-outline" label="Фильтры" active={!!statusFilter} onPress={openFilterSheet} />
+        <ToolbarButton icon="options-outline" label={t('payments.filters')} active={!!statusFilter} onPress={openFilterSheet} />
       </View>
 
       {loading ? (
         <SkeletonList count={6} />
       ) : payments.length === 0 ? (
-        <EmptyState icon="card-outline" title="Нет платежей" subtitle={statusFilter ? 'Попробуйте изменить фильтр' : 'Здесь появятся платежи по счетам продаж'} />
+        <EmptyState icon="card-outline" title={t('payments.empty.title')} subtitle={statusFilter ? t('payments.empty.subtitleFiltered') : t('payments.empty.subtitleDefault')} />
       ) : (
         <GlassCard variant="g2" style={styles.listCard} contentStyle={{ flex: 1 }}>
           <Animated.FlatList
@@ -141,10 +144,10 @@ export const PaymentsScreen: React.FC = () => {
       )}
 
       <AppBottomSheet ref={filterSheetRef} snapPoints={['45%']}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Статус платежа</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('payments.sheetTitle')}</Text>
         <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           <TouchableOpacity style={[styles.filterRow, { borderColor: draftFilter === null ? colors.ink : colors.line2 }]} onPress={() => setDraftFilter(null)}>
-            <Text style={[styles.filterAllTxt, { color: colors.text }]}>Все статусы</Text>
+            <Text style={[styles.filterAllTxt, { color: colors.text }]}>{t('payments.allStatuses')}</Text>
           </TouchableOpacity>
           {STATUS_ORDER.map((s) => (
             <TouchableOpacity key={s} style={[styles.filterRow, { borderColor: draftFilter === s ? colors.ink : colors.line2 }]} onPress={() => setDraftFilter(s)}>
@@ -152,7 +155,7 @@ export const PaymentsScreen: React.FC = () => {
             </TouchableOpacity>
           ))}
         </View>
-        <Button label="Применить" variant="primary" fullWidth onPress={applyFilter} style={{ marginTop: spacing.xl }} />
+        <Button label={t('payments.apply')} variant="primary" fullWidth onPress={applyFilter} style={{ marginTop: spacing.xl }} />
       </AppBottomSheet>
     </View>
   );

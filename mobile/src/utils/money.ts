@@ -1,3 +1,4 @@
+import { appLocale } from '../i18n/format';
 // Единый форматтер денежных сумм для всего мобильного приложения.
 //
 // На сайте единого formatCurrency() нет — разные страницы дублируют логику по-разному:
@@ -10,7 +11,7 @@ export function formatMoney(amount: number | string, currency: string | null | u
   const code = (currency || 'EUR').toUpperCase();
   if (!Number.isFinite(value)) return '—';
   try {
-    return new Intl.NumberFormat('ru-RU', {
+    return new Intl.NumberFormat(appLocale(), {
       style: 'currency',
       currency: code,
       maximumFractionDigits: value % 1 === 0 ? 0 : 2,
@@ -18,6 +19,6 @@ export function formatMoney(amount: number | string, currency: string | null | u
   } catch {
     // Intl бросает на некорректный/неизвестный код валюты — не должно случаться
     // с реальными данными бэкенда, но не роняем экран из-за форматирования.
-    return `${value.toLocaleString('ru-RU')} ${code}`;
+    return `${value.toLocaleString(appLocale())} ${code}`;
   }
 }

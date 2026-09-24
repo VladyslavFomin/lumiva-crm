@@ -8,6 +8,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, AppBottomSheet, AppBottomSheetRef, Button, showToast } from '../../components/ui';
 import { Chips, Pill, EntityField } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 interface OverdueTask extends ProjectTask {
   projectId: string;
@@ -135,7 +136,7 @@ export const OverdueScreen: React.FC = () => {
                 <Pill label={`+${daysOverdue(t.deadline!)} дн`} tone="neg" />
               </View>
               <View style={styles.metaRow}>
-                <Text style={[styles.metaTxt, { color: colors.textSecondary }]}>срок {new Date(t.deadline!).toLocaleDateString('ru-RU')}</Text>
+                <Text style={[styles.metaTxt, { color: colors.textSecondary }]}>срок {new Date(t.deadline!).toLocaleDateString(appLocale())}</Text>
                 {t.assignees.length > 0 && <Text style={[styles.metaTxt, { color: colors.textSecondary }]} numberOfLines={1}>{t.assignees.join(', ')}</Text>}
                 {t.priority !== 'Обычный' && <Pill label={t.priority} tone={t.priority === 'Высокий' ? 'neg' : 'default'} />}
               </View>

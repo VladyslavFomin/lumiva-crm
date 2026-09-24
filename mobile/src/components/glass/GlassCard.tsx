@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme/ThemeContext';
 
@@ -16,15 +15,15 @@ interface Props {
 
 /**
  * RN port of `.g`/`.g2`/`.g-flat` from styles/mobile-glass.css — the core "liquid glass"
- * surface used for every card/sheet/chip in the new design.
- * - `g`  — strong blur + shadow + border highlight (headers, sheets, hero cards).
- * - `g2` — lighter blur, no shadow (nested/secondary surfaces).
- * - `flat` — no blur, translucent tint only (list rows inside an already-blurred container —
- *   blurring every row in a scrolling list is expensive and janky on RN, the design itself
- *   only blurs the outer list container, see mglass-kit.jsx `Skel`/`Empty`/`Failed`).
+ * surface used for every card/sheet/chip in the new design. No native blur (see the comment
+ * inside the component for why) — the "glass" read comes from the gradient sheen + border
+ * highlight + shadow instead.
+ * - `g`  — stronger gradient + shadow + top highlight (headers, sheets, hero cards).
+ * - `g2` — lighter gradient, no shadow/highlight (nested/secondary surfaces).
+ * - `flat` — opaque tint, no gradient (list rows inside an already-"glassed" container).
  */
 export const GlassCard: React.FC<Props> = ({ variant = 'g', style, contentStyle, children }) => {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   const cornerRadius = variant === 'g' ? 22 : variant === 'g2' ? 18 : 14;
 
@@ -46,20 +45,23 @@ export const GlassCard: React.FC<Props> = ({ variant = 'g', style, contentStyle,
         { borderRadius: cornerRadius },
         variant === 'g' && (Platform.OS === 'ios'
           ? { shadowColor: colors.shadow, shadowOpacity: 1, shadowOffset: { width: 0, height: 10 }, shadowRadius: 24, elevation: 6 }
-          // Android's `elevation` always draws a flat, unthemeable dark ring — on a translucent
-          // glass surface that reads as a harsh black outline instead of the design's soft
-          // `0 10px 30px rgba(16,24,40,.10)` lift, so keep only a faint hint of depth there.
-          : { elevation: 2 }),
+          // Android's `elevation` always draws a flat, unthemeable dark ring, no matter how low
+          // the value — on a translucent glass surface that reads as an unwanted dark outline
+          // instead of the design's soft `0 10px 30px rgba(16,24,40,.10)` lift. iOS gets the real
+          // shadow via shadow* above; Android gets none rather than a compromise that still shows.
+          : null),
         { borderColor: colors.glassBorder, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
         style,
       ]}
     >
-      <BlurView
-        intensity={variant === 'g' ? (isDark ? 40 : 60) : isDark ? 24 : 36}
-        tint={isDark ? 'dark' : 'light'}
-        experimentalBlurMethod="dimezisBlurView"
-        style={StyleSheet.absoluteFillObject}
-      />
+      {/* No BlurView here — expo-blur's Android implementation (`dimezisBlurView`) blurs
+          whichever `react-native-screens` "Screen" ancestor it finds, or falls back to the app's
+          root content view; on a real device this produced a uniform pale haze across every
+          screen (cards, the always-mounted tab bar, even the unrelated auth stack) instead of a
+          crisp frosted-card look — almost certainly a blur-root/snapshot-timing issue specific to
+          this layout that isn't practical to debug without on-device native logs. The gradient +
+          border + shadow below reproduce the "glass sheen" reliably without depending on a native
+          blur implementation whose behavior we can't fully control or verify here. */}
       {/* `.g`/`.g2` are `background:var(--glass|--glass-2)` — a top-to-bottom gradient (the glass
           "sheen"), not a flat tint. A single solid overlay flattens that signature look away. */}
       <LinearGradient

@@ -16,6 +16,7 @@ import { fetchEmailMessages, sendNewEmail, patchEmailMessage, htmlToPlainText, E
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<DialogsStackParamList, 'DialogThread'>;
 
@@ -30,7 +31,7 @@ interface NormalizedMessage {
   attachments?: TelegramAttachment[];
 }
 
-function fmtTime(d: string) { return new Date(d).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }); }
 
 const ATTACHMENT_LABEL: Record<string, string> = { document: 'Файл', voice: 'Голосовое сообщение', video: 'Видео' };
 const ATTACHMENT_ICON: Record<string, keyof typeof Ionicons.glyphMap> = { document: 'document-outline', voice: 'mic-outline', video: 'videocam-outline' };

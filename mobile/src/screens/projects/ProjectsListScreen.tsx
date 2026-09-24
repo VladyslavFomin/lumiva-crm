@@ -7,6 +7,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { fetchProjects, Project, ProjectStatus } from '../../api/projects';
 import type { ProjectsStackParamList } from './ProjectsStack';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { CurrencyChip, StatGrid2, Pill } from '../../components/mg';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { ToolbarButton, SkeletonList, EmptyState, AvatarInitials, showToast } from '../../components/ui';
@@ -14,21 +15,24 @@ import { AuraBackground, GlassCard } from '../../components/glass';
 
 type Props = NativeStackScreenProps<ProjectsStackParamList, 'ProjectsList'>;
 
+// Real tenant-configurable status values from the backend (see ProjectSettingsScreen) — not UI
+// chrome, so these are intentionally left in their stored language, same as elsewhere in the app.
 const STATUS_ORDER: ProjectStatus[] = ['Новый', 'В работе', 'На проверке', 'Заморожен', 'Закрыт'];
 const STATUS_TONE: Record<ProjectStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   'Новый': 'acc', 'В работе': 'warn', 'На проверке': 'default', 'Заморожен': 'neg', 'Закрыт': 'pos',
 };
 
-function relTime(dateStr: string) {
+function relTime(dateStr: string, t: (key: string) => string) {
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-  if (days < 1) return 'сегодня';
-  if (days === 1) return 'вчера';
-  if (days < 30) return `${days} дн назад`;
-  return `${Math.floor(days / 30)} мес назад`;
+  if (days < 1) return t('projectsList.time.today');
+  if (days === 1) return t('projectsList.time.yesterday');
+  if (days < 30) return `${days} ${t('projectsList.time.daysAgo')}`;
+  return `${Math.floor(days / 30)} ${t('projectsList.time.monthsAgo')}`;
 }
 
 export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const { fmt, toDisplay } = useCurrencyMode();
 
@@ -44,12 +48,12 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
       const { items } = await fetchProjects();
       setProjects(items);
     } catch {
-      showToast('Не удалось загрузить проекты', { variant: 'error' });
+      showToast(t('projectsList.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -81,8 +85,8 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerTop}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.text }]}>Проекты</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{filtered.length} проектов · {openTasksCount} открытых задач</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('tabs.projects')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{filtered.length} {t('projectsList.subtitle')} · {openTasksCount} {t('projectsList.openTasks')}</Text>
           </View>
           <CurrencyChip />
           <ToolbarButton icon="checkbox-outline" onPress={() => navigation.navigate('AllTasks')} />
@@ -95,7 +99,7 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text, fontFamily: fonts.regular }]}
-            placeholder="Название, ответственный…"
+            placeholder={t('projectsList.searchPlaceholder')}
             placeholderTextColor={colors.textTertiary}
             value={search}
             onChangeText={setSearch}
@@ -111,7 +115,7 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           <TouchableOpacity style={[styles.chip, { backgroundColor: statusFilter === 'all' ? colors.ink : colors.surfaceVariant }]} onPress={() => setStatusFilter('all')}>
-            <Text style={[styles.chipTxt, { color: statusFilter === 'all' ? colors.onInk : colors.text }]}>Все</Text>
+            <Text style={[styles.chipTxt, { color: statusFilter === 'all' ? colors.onInk : colors.text }]}>{t('projectsList.all')}</Text>
             <Text style={[styles.chipCount, { color: statusFilter === 'all' ? colors.onInk : colors.textTertiary }]}>{projects.length}</Text>
           </TouchableOpacity>
           {STATUS_ORDER.map((s) => (
@@ -130,8 +134,8 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
         <EmptyState
           icon="layers-outline"
           lottieSource={require('../../../assets/lottie/empty-pulse.json')}
-          title="Нет проектов"
-          subtitle={search || statusFilter !== 'all' ? 'Попробуйте изменить фильтры или запрос' : 'Здесь появятся проекты'}
+          title={t('projectsList.empty.title')}
+          subtitle={search || statusFilter !== 'all' ? t('projectsList.empty.subtitleFiltered') : t('projectsList.empty.subtitleDefault')}
         />
       ) : (
         <Animated.FlatList
@@ -142,8 +146,8 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <StatGrid2 items={[
-              { label: 'Сумма проектов', value: fmt(totalAmount, undefined, { short: true }) },
-              { label: 'Закрыто', value: fmt(closedAmount, undefined, { short: true }) },
+              { label: t('projectsList.stat.amount'), value: fmt(totalAmount, undefined, { short: true }) },
+              { label: t('projectsList.stat.closed'), value: fmt(closedAmount, undefined, { short: true }) },
             ]} />
           }
           renderItem={({ item: p }: { item: Project }) => {
@@ -159,7 +163,7 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
                 <AvatarInitials name={p.owner || p.name} size={36} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2}>{p.name}</Text>
-                  <Text style={[styles.cardOwner, { color: colors.textSecondary }]} numberOfLines={1}>{p.owner || 'Без ответственного'}</Text>
+                  <Text style={[styles.cardOwner, { color: colors.textSecondary }]} numberOfLines={1}>{p.owner || t('common.unassigned')}</Text>
                 </View>
                 <Pill label={p.status} tone={STATUS_TONE[p.status]} />
               </View>
@@ -184,7 +188,7 @@ export const ProjectsListScreen: React.FC<Props> = ({ navigation }) => {
               )}
 
               <View style={styles.cardBottom}>
-                <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{relTime(p.createdAt)}</Text>
+                <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{relTime(p.createdAt, t)}</Text>
                 <View style={{ flex: 1 }} />
                 <Text style={[styles.cardAmount, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{fmt(p.amount, p.currency, { short: true })}</Text>
                 <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />

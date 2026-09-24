@@ -9,6 +9,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonCard, showToast } from '../../components/ui';
 import { Segmented } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { formatDecimal } from '../../i18n/format';
 
 const PERIODS = [
   { key: '7', label: '7 дней' },
@@ -106,7 +107,7 @@ export const BiDashboardScreen: React.FC = () => {
                       { fontFamily: fonts.bold, color: data.totals.avgSentiment > 0.2 ? colors.success : data.totals.avgSentiment < -0.2 ? colors.error : colors.text },
                     ]}
                   >
-                    {data.totals.avgSentiment > 0 ? '+' : ''}{data.totals.avgSentiment.toFixed(2)}
+                    {data.totals.avgSentiment > 0 ? '+' : ''}{formatDecimal(data.totals.avgSentiment, 2)}
                   </Text>
                 </GlassCard>
               )}

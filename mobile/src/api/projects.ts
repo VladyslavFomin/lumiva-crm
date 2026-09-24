@@ -11,6 +11,12 @@ export type ProjectStatus =
 export type TaskStatus = 'К выполнению' | 'В работе' | 'На проверке' | 'Заблокировано' | 'Отложено' | 'Готово';
 export type TaskPriority = 'Обычный' | 'Высокий' | 'Низкий';
 
+export interface ProjectTaskChecklistItem {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 export interface ProjectTask {
   id: string;
   title: string;
@@ -18,6 +24,7 @@ export interface ProjectTask {
   status: TaskStatus;
   priority: TaskPriority;
   deadline: string | null;
+  checklist: ProjectTaskChecklistItem[];
 }
 
 export interface ProjectFileLink {
@@ -32,6 +39,12 @@ export interface ProjectDto {
   id: string;
   tenantId: string;
   leadId: string | null;
+  companyId?: string | null;
+  contactId?: string | null;
+  ownerUserIds?: string[] | null;
+  relatedProjectIds?: string[] | null;
+  briefFileName?: string | null;
+  briefFileUrl?: string | null;
   name: string;
   description: string | null;
   amount: string;
@@ -63,6 +76,13 @@ export interface Project {
   category: string | null;
   tags: string[];
   owner: string | null;
+  ownerUserIds: string[];
+  leadId: string | null;
+  companyId: string | null;
+  contactId: string | null;
+  relatedProjectIds: string[];
+  briefFileName: string | null;
+  briefFileUrl: string | null;
   files: ProjectFileLink[];
   tasks: ProjectTask[];
   customFields: Record<string, any> | null;
@@ -86,6 +106,13 @@ function mapProject(dto: ProjectDto): Project {
     category: dto.category,
     tags: dto.tags ?? [],
     owner: dto.ownerName,
+    ownerUserIds: dto.ownerUserIds ?? (dto.ownerUserId ? [dto.ownerUserId] : []),
+    leadId: dto.leadId ?? null,
+    companyId: dto.companyId ?? null,
+    contactId: dto.contactId ?? null,
+    relatedProjectIds: dto.relatedProjectIds ?? [],
+    briefFileName: dto.briefFileName ?? null,
+    briefFileUrl: dto.briefFileUrl ?? null,
     files: dto.files ?? [],
     tasks: dto.tasks ?? [],
     customFields: dto.customFields ?? null,
@@ -99,14 +126,18 @@ function mapProject(dto: ProjectDto): Project {
   };
 }
 
+// `/projects` defaults to `limit=50` server-side and, for non-owners, filters "mine" AFTER paginating (so its `total` and
+// page boundaries can't be trusted for a page-walk loop). A bare call silently showed only the first 50 projects — and every
+// KPI/analytics built on them — so ask for everything in one go, matching the website's numbers.
+const PROJECTS_LIMIT = 2000;
+
 export async function fetchProjects(params?: { status?: ProjectStatus; archived?: boolean; deleted?: boolean }) {
   const search = new URLSearchParams();
   if (params?.status) search.set('status', params.status);
   if (params?.archived) search.set('archived', 'true');
   if (params?.deleted) search.set('deleted', 'true');
-  const res = await api.get<{ total: number; items: ProjectDto[] }>(
-    `/projects${search.toString() ? `?${search}` : ''}`,
-  );
+  search.set('limit', String(PROJECTS_LIMIT));
+  const res = await api.get<{ total: number; items: ProjectDto[] }>(`/projects?${search}`);
   return { total: res.data.total, items: res.data.items.map(mapProject) };
 }
 
@@ -142,6 +173,22 @@ export async function fetchProject(id: string): Promise<Project> {
 
 export interface UpdateProjectDto {
   id: string;
+  name?: string;
+  description?: string;
+  /** Decimal string ("11000.00") — same as the create payload. */
+  amount?: string;
+  currency?: string;
+  category?: string;
+  /** Comma-separated ("CRM,IT,WEB") — the backend DTO takes tags as a string, unlike the stored array. */
+  tags?: string;
+  ownerName?: string;
+  ownerUserIds?: string[];
+  leadId?: string | null;
+  companyId?: string | null;
+  contactId?: string | null;
+  relatedProjectIds?: string[];
+  briefFileName?: string | null;
+  briefFileUrl?: string | null;
   customFields?: Record<string, any>;
   comments?: EntityComment[];
   tasks?: ProjectTask[];
@@ -170,6 +217,9 @@ export interface CreateProjectPayload {
   ownerName?: string;
   ownerUserIds?: string[];
   leadId?: string;
+  description?: string;
+  companyId?: string;
+  contactId?: string;
 }
 
 export async function createProject(payload: CreateProjectPayload): Promise<void> {

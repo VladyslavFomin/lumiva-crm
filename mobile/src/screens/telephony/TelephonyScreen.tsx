@@ -95,6 +95,10 @@ export const TelephonyScreen: React.FC = () => {
             <Ionicons name="chevron-back" size={18} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>Телефония</Text>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity style={[styles.analyticsBtn, { backgroundColor: colors.card }]} onPress={() => navigation.navigate('TelephonyAnalytics')} hitSlop={8}>
+            <Ionicons name="stats-chart-outline" size={16} color={colors.text} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -190,6 +194,7 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   backBtn: { padding: 2 },
   title: { fontSize: 22, fontFamily: fonts.bold, letterSpacing: -0.4 },
+  analyticsBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   statsCard: { marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.sm, borderRadius: radius.xxl, padding: 14 },
   statsCardRow: { flexDirection: 'row', alignItems: 'center' },
   statItem: { flex: 1, alignItems: 'center' },

@@ -9,6 +9,7 @@ import { fetchAiSessions, fetchAiStatus, deleteAiSession, AiChatSession, AiStatu
 import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
 import { SwipeableRow, SkeletonList, EmptyState, ToolbarButton, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { formatMoney } from '../../utils/money';
 
 type Props = NativeStackScreenProps<AiChatStackParamList, 'AiChatSessions'>;
 
@@ -73,11 +74,13 @@ export const AiChatSessionsScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={[styles.title, { color: colors.text }]}>ИИ-ассистент</Text>
         {status && (
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Доступно: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{(status.quota.totalAvailableCents / 100).toFixed(2)} €</Text>
+            Доступно: <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{formatMoney(status.quota.totalAvailableCents / 100, 'EUR')}</Text>
           </Text>
         )}
         <View style={styles.toolbar}>
           <ToolbarButton icon="add" label="Новый чат" active onPress={() => navigation.navigate('AiChatThread', { sessionId: null })} />
+          <ToolbarButton icon="sparkles-outline" label="Память" onPress={() => navigation.navigate('AiMemory')} />
+          <ToolbarButton icon="mail-outline" label="Письмо" onPress={() => navigation.navigate('AiLetter')} />
           <ToolbarButton icon="checkmark-done-outline" label="Согласования" onPress={() => navigation.navigate('Approvals')} />
           <ToolbarButton icon="people-outline" label="ИИ-сотрудники" onPress={() => navigation.navigate('AiAgentsList')} />
         </View>

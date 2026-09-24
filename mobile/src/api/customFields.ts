@@ -1,10 +1,12 @@
 import { api } from './client';
 
-export type CustomFieldEntityType = 'contact' | 'company' | 'lead' | 'sale' | 'project';
+export type CustomFieldEntityType = 'contact' | 'company' | 'lead' | 'sale' | 'project' | 'product';
 
 export type CustomFieldType =
   | 'text' | 'number' | 'email' | 'phone' | 'date' | 'datetime' | 'daterange'
-  | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'url';
+  | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'url'
+  /** Shown but not editable on mobile (product `media` / `gallery` / `relation` / `repeater` fields). */
+  | 'complex';
 
 export interface CustomFieldOption {
   value: string;
@@ -23,6 +25,11 @@ export interface CustomFieldDef {
   options: CustomFieldOption[] | null;
   order: number;
   isActive: boolean;
+  meta?: { source?: string } | null;
+  /** Set for definitions that can be displayed but not edited on mobile. */
+  readOnly?: boolean;
+  /** Optional group heading (product fields). */
+  group?: string | null;
 }
 
 // Кэш по entityType на время жизни приложения — схема полей не меняется за сессию просмотра,

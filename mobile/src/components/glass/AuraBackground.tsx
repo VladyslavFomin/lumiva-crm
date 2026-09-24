@@ -35,7 +35,15 @@ export const AuraBackground: React.FC = () => {
       <Defs>
         {blobs.map((b, i) => (
           <RadialGradient key={i} id={`aura-${i}`} cx={b.cx} cy={b.cy} r={b.r}>
+            {/* A 2-stop (full → 0) radial fade concentrates all visible color in a small area
+                right at the blob's center and falls off fast — on a real phone, at normal
+                brightness, that reads as "mostly flat pale background with barely-there color in
+                the corners" rather than the design's colorful wash. A middle stop holding most of
+                the opacity out to ~65% of the radius keeps the same colors/peak intensity but
+                spreads them over far more of the screen, which is what actually reads as color
+                through glass instead of a hazy, washed-out card. */}
             <Stop offset="0" stopColor={b.color} stopOpacity={b.stop} />
+            <Stop offset="0.65" stopColor={b.color} stopOpacity={b.stop * 0.8} />
             <Stop offset="1" stopColor={b.color} stopOpacity={0} />
           </RadialGradient>
         ))}

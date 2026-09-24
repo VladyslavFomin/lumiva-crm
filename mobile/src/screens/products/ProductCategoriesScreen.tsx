@@ -9,6 +9,7 @@ import {
   fetchProductLocations, createProductLocation, deleteProductLocation, ProductLocation,
 } from '../../api/products';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { SwipeableRow, SkeletonList, EmptyState, Button, showToast } from '../../components/ui';
 import { Segmented } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
@@ -17,6 +18,7 @@ type Tab = 'categories' | 'locations';
 
 export const ProductCategoriesScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [tab, setTab] = useState<Tab>('categories');
@@ -34,12 +36,12 @@ export const ProductCategoriesScreen: React.FC = () => {
       setCategories(cats.categories);
       setLocations(locs);
     } catch {
-      showToast('Не удалось загрузить', { variant: 'error' });
+      showToast(t('productCategories.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -57,7 +59,7 @@ export const ProductCategoriesScreen: React.FC = () => {
       }
       setNewName('');
     } catch {
-      showToast('Не удалось создать', { variant: 'error' });
+      showToast(t('productCategories.createError'), { variant: 'error' });
     } finally {
       setAdding(false);
     }
@@ -69,7 +71,7 @@ export const ProductCategoriesScreen: React.FC = () => {
       await deleteProductCategory(c.id);
     } catch {
       setCategories((prev) => [...prev, c]);
-      showToast('Не удалось удалить категорию', { variant: 'error' });
+      showToast(t('productCategories.deleteCategoryError'), { variant: 'error' });
     }
   };
   const removeLocation = async (l: ProductLocation) => {
@@ -78,7 +80,7 @@ export const ProductCategoriesScreen: React.FC = () => {
       await deleteProductLocation(l.id);
     } catch {
       setLocations((prev) => [...prev, l]);
-      showToast('Не удалось удалить локацию', { variant: 'error' });
+      showToast(t('productCategories.deleteLocationError'), { variant: 'error' });
     }
   };
 
@@ -93,14 +95,14 @@ export const ProductCategoriesScreen: React.FC = () => {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
             <Ionicons name="chevron-back" size={18} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Категории и склады</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('productCategories.title')}</Text>
         </View>
       </View>
 
       <Segmented
         options={[
-          { key: 'categories', label: 'Категории' },
-          { key: 'locations', label: 'Локации' },
+          { key: 'categories', label: t('productCategories.tab.categories') },
+          { key: 'locations', label: t('productCategories.tab.locations') },
         ]}
         activeKey={tab}
         onChange={(key) => setTab(key as Tab)}
@@ -110,19 +112,19 @@ export const ProductCategoriesScreen: React.FC = () => {
         <View style={[styles.addInput, { backgroundColor: colors.surfaceVariant }]}>
           <TextInput
             style={[styles.addInputText, { color: colors.text, fontFamily: fonts.regular }]}
-            placeholder={tab === 'categories' ? 'Новая категория' : 'Новая локация'}
+            placeholder={tab === 'categories' ? t('productCategories.newCategory') : t('productCategories.newLocation')}
             placeholderTextColor={colors.textTertiary}
             value={newName}
             onChangeText={setNewName}
           />
         </View>
-        <Button label="Добавить" variant="primary" size="sm" loading={adding} disabled={!newName.trim()} onPress={handleAdd} />
+        <Button label={t('productCategories.add')} variant="primary" size="sm" loading={adding} disabled={!newName.trim()} onPress={handleAdd} />
       </View>
 
       {loading ? (
         <SkeletonList count={5} />
       ) : items.length === 0 ? (
-        <EmptyState icon="pricetags-outline" title={tab === 'categories' ? 'Нет категорий' : 'Нет локаций'} />
+        <EmptyState icon="pricetags-outline" title={tab === 'categories' ? t('productCategories.empty.categories') : t('productCategories.empty.locations')} />
       ) : (
         <GlassCard variant="g2" style={styles.listCard} contentStyle={{ flex: 1 }}>
           <Animated.FlatList
@@ -132,7 +134,7 @@ export const ProductCategoriesScreen: React.FC = () => {
             contentContainerStyle={{ paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }: { item: any }) => (
-              <SwipeableRow rightAction={{ icon: 'trash-outline', label: 'Удалить', color: colors.error, onPress: () => (tab === 'categories' ? removeCategory(item) : removeLocation(item)) }}>
+              <SwipeableRow rightAction={{ icon: 'trash-outline', label: t('productCategories.delete'), color: colors.error, onPress: () => (tab === 'categories' ? removeCategory(item) : removeLocation(item)) }}>
                 <View style={[styles.row, { borderBottomColor: colors.line3 }]}>
                   {tab === 'categories' ? (
                     <View style={[styles.colorDot, { backgroundColor: item.color }]} />
@@ -144,8 +146,8 @@ export const ProductCategoriesScreen: React.FC = () => {
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
                     {tab === 'categories'
-                      ? <Text style={[styles.rowMeta, { color: colors.textTertiary }]}>{item.productCount} товаров</Text>
-                      : item.isDefault && <Text style={[styles.rowMeta, { color: colors.textTertiary }]}>По умолчанию</Text>}
+                      ? <Text style={[styles.rowMeta, { color: colors.textTertiary }]}>{item.productCount} {t('productCategories.productsCount')}</Text>
+                      : item.isDefault && <Text style={[styles.rowMeta, { color: colors.textTertiary }]}>{t('productCategories.default')}</Text>}
                   </View>
                 </View>
               </SwipeableRow>

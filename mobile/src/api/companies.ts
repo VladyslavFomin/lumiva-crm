@@ -20,10 +20,13 @@ export interface CompanyDto {
   phone: string | null;
   address: string | null;
   city: string | null;
+  country?: string | null;
+  type?: string | null;
   industry: string | null;
   size: string | null;
   status: string | null;
   assignedTo: string | null;
+  assignedUserIds?: string[] | null;
   tags: string[] | null;
   customFields: Record<string, any> | null;
   comments: EntityComment[] | null;
@@ -43,10 +46,13 @@ export interface Company {
   phone: string | null;
   address: string | null;
   city: string | null;
+  country: string | null;
+  type: string | null;
   industry: string | null;
   size: string | null;
   status: string | null;
   assignedTo: string | null;
+  assignedUserIds: string[];
   tags: string[];
   customFields: Record<string, any> | null;
   comments: EntityComment[];
@@ -67,10 +73,13 @@ function mapCompany(dto: CompanyDto): Company {
     phone: dto.phone,
     address: dto.address,
     city: dto.city,
+    country: dto.country ?? null,
+    type: dto.type ?? null,
     industry: dto.industry,
     size: dto.size,
     status: dto.status,
     assignedTo: dto.assignedTo,
+    assignedUserIds: dto.assignedUserIds ?? [],
     tags: dto.tags || [],
     customFields: dto.customFields || null,
     comments: dto.comments || [],
@@ -187,10 +196,16 @@ export interface CreateCompanyDto {
   phone?: string | null;
   address?: string | null;
   city?: string | null;
+  country?: string | null;
+  type?: string | null;
+  legalName?: string | null;
+  taxId?: string | null;
   industry?: string | null;
   size?: string | null;
   status?: string | null;
   assignedTo?: string | null;
+  assignedUserId?: string | null;
+  assignedUserIds?: string[];
   tags?: string[] | null;
 }
 
@@ -207,6 +222,15 @@ export interface UpdateCompanyDto {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  type?: string | null;
+  legalName?: string | null;
+  taxId?: string | null;
+  status?: string | null;
+  assignedUserIds?: string[];
+  assignedUserId?: string | null;
+  assignedTo?: string | null;
   industry?: string | null;
   size?: string | null;
   tags?: string[] | null;

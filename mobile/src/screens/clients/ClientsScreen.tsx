@@ -7,12 +7,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { fetchContacts, deleteContact, Contact } from '../../api/contacts';
 import { fetchCompanies, deleteCompany, Company } from '../../api/companies';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { ToolbarButton, SwipeableRow, AvatarInitials, SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { Segmented } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
 
 export const ClientsScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -38,12 +40,12 @@ export const ClientsScreen: React.FC = () => {
       setContacts(c);
       setCompanies(co);
     } catch {
-      showToast('Не удалось загрузить клиентов', { variant: 'error' });
+      showToast(t('clients.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -63,43 +65,43 @@ export const ClientsScreen: React.FC = () => {
     const timer = setTimeout(() => {
       deleteContact(c.id).catch(() => {
         setContacts((prev) => [c, ...prev]);
-        showToast('Не удалось удалить контакт', { variant: 'error' });
+        showToast(t('clients.contact.deleteError'), { variant: 'error' });
       });
       delete deleteTimers.current[c.id];
     }, 3200);
     deleteTimers.current[c.id] = timer;
-    showToast('Контакт удалён', { actionLabel: 'Отменить', onAction: () => { clearTimeout(deleteTimers.current[c.id]); delete deleteTimers.current[c.id]; setContacts((prev) => [c, ...prev]); } });
-  }, []);
+    showToast(t('clients.contact.deletedToast'), { actionLabel: t('common.undo'), onAction: () => { clearTimeout(deleteTimers.current[c.id]); delete deleteTimers.current[c.id]; setContacts((prev) => [c, ...prev]); } });
+  }, [t]);
 
   const removeCompany = useCallback((c: Company) => {
     setCompanies((prev) => prev.filter((x) => x.id !== c.id));
     const timer = setTimeout(() => {
       deleteCompany(c.id).catch(() => {
         setCompanies((prev) => [c, ...prev]);
-        showToast('Не удалось удалить компанию', { variant: 'error' });
+        showToast(t('clients.company.deleteError'), { variant: 'error' });
       });
       delete deleteTimers.current[c.id];
     }, 3200);
     deleteTimers.current[c.id] = timer;
-    showToast('Компания удалена', { actionLabel: 'Отменить', onAction: () => { clearTimeout(deleteTimers.current[c.id]); delete deleteTimers.current[c.id]; setCompanies((prev) => [c, ...prev]); } });
-  }, []);
+    showToast(t('clients.company.deletedToast'), { actionLabel: t('common.undo'), onAction: () => { clearTimeout(deleteTimers.current[c.id]); delete deleteTimers.current[c.id]; setCompanies((prev) => [c, ...prev]); } });
+  }, [t]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <AuraBackground />
       <StatusBar barStyle="dark-content" />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Клиенты</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('clients.title')}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{contacts.length}</Text> контактов ·{' '}
-          <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{companies.length}</Text> компаний
+          <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{contacts.length}</Text> {t('clients.contacts')} ·{' '}
+          <Text style={{ color: colors.text, fontFamily: fonts.monoSemibold }}>{companies.length}</Text> {t('clients.companies')}
         </Text>
 
         <View style={[styles.searchBar, { backgroundColor: colors.surfaceVariant }]}>
           <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text, fontFamily: fonts.regular }]}
-            placeholder="Поиск…"
+            placeholder={t('clients.searchPlaceholder')}
             placeholderTextColor={colors.textTertiary}
             value={search}
             onChangeText={setSearch}
@@ -116,7 +118,7 @@ export const ClientsScreen: React.FC = () => {
         <View style={styles.toolbar}>
           <ToolbarButton
             icon="add"
-            label={activeTab === 'contacts' ? 'Добавить контакт' : 'Добавить компанию'}
+            label={activeTab === 'contacts' ? t('clients.addContact') : t('clients.addCompany')}
             active
             onPress={() => navigation.navigate(activeTab === 'contacts' ? 'ContactCreate' : 'CompanyCreate')}
           />
@@ -125,8 +127,8 @@ export const ClientsScreen: React.FC = () => {
 
       <Segmented
         options={[
-          { key: 'contacts', label: 'Контакты' },
-          { key: 'companies', label: 'Компании' },
+          { key: 'contacts', label: t('clients.tab.contacts') },
+          { key: 'companies', label: t('clients.tab.companies') },
         ]}
         activeKey={activeTab}
         onChange={(key) => setActiveTab(key as 'contacts' | 'companies')}
@@ -136,7 +138,7 @@ export const ClientsScreen: React.FC = () => {
         <SkeletonList count={7} />
       ) : activeTab === 'contacts' ? (
         filteredContacts.length === 0 ? (
-          <EmptyState icon="people-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title="Нет контактов" subtitle={q ? 'Попробуйте изменить запрос' : 'Здесь появятся контакты'} />
+          <EmptyState icon="people-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title={t('clients.empty.noContacts')} subtitle={q ? t('clients.empty.tryQuery') : t('clients.empty.contactsHere')} />
         ) : (
           <GlassCard variant="g2" style={styles.listCard} contentStyle={{ flex: 1 }}>
           <Animated.FlatList
@@ -146,7 +148,7 @@ export const ClientsScreen: React.FC = () => {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 8 }}
             renderItem={({ item: c }: { item: Contact }) => (
-              <SwipeableRow rightAction={{ icon: 'trash-outline', label: 'Удалить', color: colors.error, onPress: () => removeContact(c) }}>
+              <SwipeableRow rightAction={{ icon: 'trash-outline', label: t('common.delete'), color: colors.error, onPress: () => removeContact(c) }}>
                 <TouchableOpacity
                   style={[styles.row, { borderBottomColor: colors.line3 }]}
                   onPress={() => navigation.navigate('ContactDetail', { id: c.id })}
@@ -173,7 +175,7 @@ export const ClientsScreen: React.FC = () => {
           </GlassCard>
         )
       ) : filteredCompanies.length === 0 ? (
-        <EmptyState icon="business-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title="Нет компаний" subtitle={q ? 'Попробуйте изменить запрос' : 'Здесь появятся компании'} />
+        <EmptyState icon="business-outline" lottieSource={require('../../../assets/lottie/empty-pulse.json')} title={t('clients.empty.noCompanies')} subtitle={q ? t('clients.empty.tryQuery') : t('clients.empty.companiesHere')} />
       ) : (
         <GlassCard variant="g2" style={styles.listCard} contentStyle={{ flex: 1 }}>
         <Animated.FlatList
@@ -183,7 +185,7 @@ export const ClientsScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 8 }}
           renderItem={({ item: c }: { item: Company }) => (
-            <SwipeableRow rightAction={{ icon: 'trash-outline', label: 'Удалить', color: colors.error, onPress: () => removeCompany(c) }}>
+            <SwipeableRow rightAction={{ icon: 'trash-outline', label: t('common.delete'), color: colors.error, onPress: () => removeCompany(c) }}>
               <TouchableOpacity
                 style={[styles.row, { borderBottomColor: colors.line3 }]}
                 onPress={() => navigation.navigate('CompanyDetail', { id: c.id })}

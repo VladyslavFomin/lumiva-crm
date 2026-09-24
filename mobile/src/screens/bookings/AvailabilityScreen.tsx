@@ -7,14 +7,16 @@ import { fetchStaffAvailabilityGrid, fetchBookingLocations, StaffAvailabilityRow
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AvatarInitials, SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { useLanguage } from '../../i18n/LanguageContext';
 
-const WEEKDAY = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
 const CELL_W = 40;
 
 function dayKey(d: Date) { return d.toISOString().slice(0, 10); }
 
 export const AvailabilityScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const WEEKDAY = [t('weekday.sun'), t('weekday.mon'), t('weekday.tue'), t('weekday.wed'), t('weekday.thu'), t('weekday.fri'), t('weekday.sat')];
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [selectedDay, setSelectedDay] = useState(dayKey(new Date()));
@@ -42,11 +44,11 @@ export const AvailabilityScreen: React.FC = () => {
     try {
       setRows(await fetchStaffAvailabilityGrid(selectedDay, locationId));
     } catch {
-      showToast('Не удалось загрузить доступность', { variant: 'error' });
+      showToast(t('availability.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [selectedDay, locationId]);
+  }, [selectedDay, locationId, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -61,14 +63,14 @@ export const AvailabilityScreen: React.FC = () => {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={8}>
             <Ionicons name="chevron-back" size={18} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Доступность</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('availability.title')}</Text>
         </View>
       </View>
 
       {locations.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.locStrip} style={{ flexGrow: 0 }}>
           <TouchableOpacity onPress={() => setLocationId(undefined)} style={[styles.locChip, { backgroundColor: !locationId ? colors.ink : colors.surfaceVariant, borderColor: !locationId ? colors.ink : colors.glassBorder }]}>
-            <Text style={{ color: !locationId ? colors.onInk : colors.text, fontFamily: fonts.medium, fontSize: 12.5 }}>Все локации</Text>
+            <Text style={{ color: !locationId ? colors.onInk : colors.text, fontFamily: fonts.medium, fontSize: 12.5 }}>{t('availability.allLocations')}</Text>
           </TouchableOpacity>
           {locations.map((l) => (
             <TouchableOpacity key={l.id} onPress={() => setLocationId(l.id)} style={[styles.locChip, { backgroundColor: locationId === l.id ? colors.ink : colors.surfaceVariant, borderColor: locationId === l.id ? colors.ink : colors.glassBorder }]}>
@@ -96,7 +98,7 @@ export const AvailabilityScreen: React.FC = () => {
       {loading ? (
         <SkeletonList count={5} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="people-outline" title="Нет сотрудников" subtitle="Отметьте сотрудников доступными для записи на сайте" />
+        <EmptyState icon="people-outline" title={t('availability.empty.title')} subtitle={t('availability.empty.subtitle')} />
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
           <View style={{ paddingHorizontal: spacing.lg }}>
@@ -118,7 +120,7 @@ export const AvailabilityScreen: React.FC = () => {
                   <TouchableOpacity
                     key={s.hour}
                     style={[styles.cell, { backgroundColor: s.busy ? colors.errorBg : colors.successBg }]}
-                    onPress={() => s.busy && showToast(`${s.customerName || 'Клиент'} · ${s.serviceName || 'услуга'}`)}
+                    onPress={() => s.busy && showToast(`${s.customerName || t('availability.client')} · ${s.serviceName || t('availability.service')}`)}
                     disabled={!s.busy}
                   >
                     {s.busy && <Ionicons name="person" size={12} color={colors.error} />}

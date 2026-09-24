@@ -12,6 +12,7 @@ import { Button, SkeletonList, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import type { PillTone } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<EsignStackParamList, 'EsignDocumentDetail'>;
 
@@ -24,7 +25,7 @@ const STATUS_TONE: Record<string, PillTone> = {
 
 function fmtDate(dateStr: string | null) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export const EsignDocumentDetailScreen: React.FC<Props> = ({ route }) => {

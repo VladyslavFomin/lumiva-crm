@@ -13,6 +13,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const STATUS_LABEL: Record<string, string> = {
   queued: 'В очереди', ringing: 'Звонит', 'in-progress': 'В процессе', completed: 'Завершён',
@@ -28,7 +29,7 @@ function fmtDuration(s: number | null) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 function fmtDateTime(d: string) {
-  return new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export const CallDetailScreen: React.FC = () => {

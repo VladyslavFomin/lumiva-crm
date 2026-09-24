@@ -6,12 +6,13 @@ import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
 import { AuthShell } from './AuthShell';
 import { GlassCard } from '../../components/glass';
 import { Button } from '../../components/ui';
+import { appLocale } from '../../i18n/format';
 
 function fmtDate(v?: string) {
   if (!v) return null;
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString(appLocale(), { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 const KV: React.FC<{ k: string; v: string }> = ({ k, v }) => {

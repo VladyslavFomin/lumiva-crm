@@ -11,6 +11,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, AppBottomSheet, AppBottomSheetRef, Button, showToast } from '../../components/ui';
 import { EntityField, ChipPicker, Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -160,7 +161,7 @@ export const CoTasksScreen: React.FC = () => {
                             <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
                             <Text style={[styles.cardCompany, { color: colors.textTertiary }]} numberOfLines={1}>{item.companyName}</Text>
                             <View style={styles.cardMetaRow}>
-                              {item.dueDate && <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>до {new Date(item.dueDate).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}</Text>}
+                              {item.dueDate && <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>до {new Date(item.dueDate).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' })}</Text>}
                               {item.priority === 'Высокий' && <Text style={[styles.cardMeta, { color: colors.error, fontFamily: fonts.semibold }]}>Высокий</Text>}
                               {item.assignedTo && <Text style={[styles.cardMeta, { color: colors.textTertiary }]} numberOfLines={1}>{item.assignedTo}</Text>}
                             </View>

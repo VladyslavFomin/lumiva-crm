@@ -8,6 +8,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { Segmented, MonthCalendar } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const TYPE_LABEL: Record<CalendarEventType, string> = {
   lead_meeting: 'Встреча с лидом', project_task: 'Задача проекта', booking: 'Бронирование',
@@ -22,7 +23,7 @@ const TYPE_COLOR: Record<CalendarEventType, string> = {
 };
 const MONTH_NAME_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
-function fmtTime(d: string) { return new Date(d).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(d: string) { return new Date(d).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }); }
 
 function navigateToEvent(navigation: any, e: CalendarEvent) {
   const id = calendarEventEntityId(e);

@@ -9,12 +9,13 @@ import { ccpApi, CcpSite, CcpClient } from '../../api/ccp';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AvatarInitials, SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<CcpStackParamList, 'CcpClients'>;
 
 function fmt(v: string | number) {
   const n = Number(v || 0);
-  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  return n.toLocaleString(appLocale(), { maximumFractionDigits: 2 });
 }
 
 export const CcpClientsScreen: React.FC<Props> = ({ navigation }) => {

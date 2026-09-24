@@ -58,3 +58,25 @@ export async function sendAiChatMessage(sessionId: string | null, message: strin
   const res = await api.post<AiChatReply>('/ai/chat', { sessionId, message });
   return res.data;
 }
+
+export interface AiMemoryChunk {
+  id: string;
+  title: string | null;
+  content: string;
+  createdAt: string;
+}
+
+/** "Что помнить всегда" (`mglass-w5-ai.jsx`'s Память tab) — free-text notes mixed into every
+ * future AI chat reply. Real endpoint, was never wired to mobile at all. */
+export async function fetchAiMemory(limit = 40): Promise<AiMemoryChunk[]> {
+  const res = await api.get<AiMemoryChunk[]>('/ai/memory', { params: { limit } });
+  return res.data;
+}
+
+export async function addAiMemory(payload: { title?: string; content: string }): Promise<void> {
+  await api.post('/ai/memory', payload);
+}
+
+export async function deleteAiMemory(id: string): Promise<void> {
+  await api.delete(`/ai/memory/${id}`);
+}

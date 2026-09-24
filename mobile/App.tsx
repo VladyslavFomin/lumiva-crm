@@ -78,21 +78,20 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import {
-  useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-} from '@expo-google-fonts/inter';
-import {
-  InterTight_600SemiBold,
-  InterTight_700Bold,
-} from '@expo-google-fonts/inter-tight';
-import {
-  JetBrainsMono_400Regular,
-  JetBrainsMono_500Medium,
-  JetBrainsMono_600SemiBold,
-} from '@expo-google-fonts/jetbrains-mono';
+import { useFonts } from 'expo-font';
+// Import each weight from its own subpath, not the family's barrel index — the barrel
+// unconditionally `require()`s every weight (18 files for Inter alone) as a side effect of
+// loading the shared module, so importing even one named export from it bundled all 75 font
+// files (~18MB) into the APK regardless of which ones this app actually uses.
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { InterTight_600SemiBold } from '@expo-google-fonts/inter-tight/600SemiBold';
+import { InterTight_700Bold } from '@expo-google-fonts/inter-tight/700Bold';
+import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono/400Regular';
+import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';
+import { JetBrainsMono_600SemiBold } from '@expo-google-fonts/jetbrains-mono/600SemiBold';
 import { ThemeProvider } from './src/theme/ThemeContext';
+import { LanguageProvider } from './src/i18n/LanguageContext';
 import { ToastHost } from './src/components/ui/Toast';
 // Динамический импорт навигатора, чтобы отловить ошибки загрузки модуля
 let AppNavigator: any;
@@ -213,15 +212,17 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ThemeProvider>
-          <BottomSheetModalProvider>
-            <StatusBar style="auto" />
-            <AppErrorBoundary>
-              <AppNavigator />
-            </AppErrorBoundary>
-            <ToastHost />
-          </BottomSheetModalProvider>
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <BottomSheetModalProvider>
+              <StatusBar style="auto" />
+              <AppErrorBoundary>
+                <AppNavigator />
+              </AppErrorBoundary>
+              <ToastHost />
+            </BottomSheetModalProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

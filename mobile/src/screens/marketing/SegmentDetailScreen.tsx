@@ -8,6 +8,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, Button, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 const STATUS_LABEL: Record<string, string> = {
   new: 'Новый', in_progress: 'В работе', waiting: 'Ожидает', won: 'Успех', lost: 'Проигран',
@@ -18,7 +19,7 @@ const STATUS_TONE: Record<string, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = 
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export const SegmentDetailScreen: React.FC = () => {

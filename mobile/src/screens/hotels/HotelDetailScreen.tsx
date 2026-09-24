@@ -68,6 +68,8 @@ export const HotelDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     },
     { label: 'Заезд / выезд', value: `${hotel.checkInTime} / ${hotel.checkOutTime}`, icon: 'time-outline' as const, iconColor: colors.info },
     { label: 'Номерной фонд', value: `${hotel.roomsCount} номеров · ${hotel.roomTypesCount} типов`, icon: 'bed-outline' as const, iconColor: colors.secondary },
+    { label: 'Овербукинг', value: hotel.allowOverbooking ? 'Разрешён' : 'Запрещён', icon: 'layers-outline' as const, iconColor: colors.fg3 },
+    hotel.seasonRevenueTarget && Number(hotel.seasonRevenueTarget) > 0 && { label: 'План выручки сезона', value: formatMoney(Number(hotel.seasonRevenueTarget), hotel.currency), icon: 'flag-outline' as const, iconColor: colors.success },
     { label: 'Рынки', value: String(hotel.marketsCount), icon: 'globe-outline' as const, iconColor: colors.warning },
     hotel.description && { label: 'Описание', value: hotel.description, icon: 'document-text-outline' as const, iconColor: colors.fg3 },
   ].filter(Boolean) as { label: string; value: string; icon: any; iconColor: string }[];

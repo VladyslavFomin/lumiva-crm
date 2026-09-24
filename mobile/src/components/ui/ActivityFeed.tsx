@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AuditLogEntry } from '../../api/auditLog';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 const ACTION_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   create: 'flash-outline',
@@ -33,6 +34,7 @@ interface Props {
  */
 export const ActivityFeed: React.FC<Props> = ({ entries, title = 'ИСТОРИЯ' }) => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   if (entries.length === 0) return null;
 
   return (
@@ -46,6 +48,11 @@ export const ActivityFeed: React.FC<Props> = ({ entries, title = 'ИСТОРИЯ
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.summary, { color: colors.text }]} numberOfLines={2}>{e.summary || e.action}</Text>
+              {(e.changes || []).filter((c) => (c.oldValue ?? '') !== (c.newValue ?? '') && (c.oldValue || c.newValue)).slice(0, 4).map((c, ci) => {
+                const key = `history.field.${c.field}`;
+                const label = t(key) !== key ? t(key) : c.field;
+                return <Text key={ci} style={[styles.actor, { color: colors.textSecondary }]} numberOfLines={2}>{`${label}: ${c.oldValue || '—'} → ${c.newValue || '—'}`}</Text>;
+              })}
               {e.actorName && <Text style={[styles.actor, { color: colors.textSecondary }]} numberOfLines={1}>{e.actorName}</Text>}
             </View>
             <Text style={[styles.time, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{relativeTime(e.createdAt)}</Text>

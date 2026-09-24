@@ -18,6 +18,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { LeadsStackParamList } from './LeadsStack';
 import { fetchLeads, deleteLead, updateLead, Lead, LeadStatusCode } from '../../api/leads';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { CurrencyChip, Segmented, FunnelBars, Pill } from '../../components/mg';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import {
@@ -53,27 +54,27 @@ const STATUS_TONE: Record<LeadStatusCode, 'acc' | 'warn' | 'pos' | 'neg' | 'defa
   lost: 'neg',
 };
 
-const STATUS_LABEL: Record<LeadStatusCode, string> = {
-  new: 'Новый',
-  in_progress: 'В работе',
-  waiting: 'Ожидает',
-  won: 'Выиграно',
-  lost: 'Проиграно',
-};
-
-function relTime(dateStr: string) {
+function relTime(dateStr: string, t: (key: string) => string) {
   const m = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (m < 1) return 'только что';
-  if (m < 60) return `${m} мин`;
+  if (m < 1) return t('common.now');
+  if (m < 60) return `${m} ${t('common.min')}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ч`;
-  return `${Math.floor(h / 24)} дн`;
+  if (h < 24) return `${h} ${t('common.hour')}`;
+  return `${Math.floor(h / 24)} ${t('common.day')}`;
 }
 
 export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const { fmt, toDisplay } = useCurrencyMode();
+  const STATUS_LABEL: Record<LeadStatusCode, string> = {
+    new: t('leadStatusPill.new'),
+    in_progress: t('leadStatusPill.in_progress'),
+    waiting: t('leadStatusPill.waiting'),
+    won: t('leadStatusPill.won'),
+    lost: t('leadStatusPill.lost'),
+  };
   const filterSheetRef = useRef<AppBottomSheetRef>(null);
   const moveSheetRef = useRef<AppBottomSheetRef>(null);
   const boardRef = useRef<FlatList<KanbanColumn>>(null);
@@ -97,12 +98,12 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setLeads(await fetchLeads());
     } catch {
-      showToast('Не удалось загрузить лиды', { variant: 'error' });
+      showToast(t('leadsList.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -149,9 +150,9 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
   const lostSum = useMemo(() => lostLeads.reduce((a, l) => a + toDisplay(l.amount, l.currency), 0), [lostLeads, toDisplay]);
   const lostByManager = useMemo(() => {
     const counts2 = new Map<string, number>();
-    lostLeads.forEach((l) => (l.assignedToList || ['Без ответственного']).forEach((m) => counts2.set(m, (counts2.get(m) || 0) + 1)));
+    lostLeads.forEach((l) => (l.assignedToList || [t('common.unassigned')]).forEach((m) => counts2.set(m, (counts2.get(m) || 0) + 1)));
     return Array.from(counts2.entries()).sort((a, b) => b[1] - a[1]);
-  }, [lostLeads]);
+  }, [lostLeads, t]);
 
   const openFilterSheet = () => {
     setDraftFilter(new Set(statusFilter));
@@ -198,20 +199,20 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
     const timer = setTimeout(() => {
       deleteLead(id).catch(() => {
         setLeads((prev) => [removed, ...prev]);
-        showToast('Не удалось удалить лид', { variant: 'error' });
+        showToast(t('leadsList.deleteError'), { variant: 'error' });
       });
       delete deleteTimers.current[id];
     }, 3200);
     deleteTimers.current[id] = timer;
-    showToast('Лид удалён', {
-      actionLabel: 'Отменить',
+    showToast(t('leadsList.deletedToast'), {
+      actionLabel: t('common.undo'),
       onAction: () => {
         clearTimeout(deleteTimers.current[id]);
         delete deleteTimers.current[id];
         setLeads((prev) => [removed, ...prev]);
       },
     });
-  }, [leads]);
+  }, [leads, t]);
 
   const softDeleteMany = useCallback((ids: string[]) => {
     ids.forEach((id) => softDelete(id));
@@ -221,11 +222,11 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const updated = await updateLead({ id, status: 'in_progress' });
       setLeads((prev) => prev.map((l) => (l.id === id ? updated : l)));
-      showToast('Лид взят в работу', { variant: 'success' });
+      showToast(t('leadsList.takenToast'), { variant: 'success' });
     } catch {
-      showToast('Не удалось обновить лид', { variant: 'error' });
+      showToast(t('leadsList.updateError'), { variant: 'error' });
     }
-  }, []);
+  }, [t]);
 
   const openMoveSheet = useCallback((lead: Lead) => {
     setMoveTarget(lead);
@@ -242,14 +243,14 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const updated = await updateLead({ id: lead.id, status });
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? updated : l)));
-      showToast(`Перемещён в «${STATUS_LABEL[status]}»`, { variant: 'success' });
+      showToast(`${t('leadsList.movedTo')} «${STATUS_LABEL[status]}»`, { variant: 'success' });
     } catch {
-      showToast('Не удалось изменить статус', { variant: 'error' });
+      showToast(t('leadsList.statusError'), { variant: 'error' });
     }
-  }, [moveTarget]);
+  }, [moveTarget, t, STATUS_LABEL]);
 
   const renderListRow = (item: Lead) => {
-    const name = item.name || 'Без имени';
+    const name = item.name || t('common.noName');
     const isSelected = selectedIds.has(item.id);
     const inSelectionMode = selectedIds.size > 0;
 
@@ -279,7 +280,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.metaRow}>
             <Pill label={STATUS_LABEL[item.status]} tone={STATUS_TONE[item.status]} />
             <Text style={[styles.meta, { color: colors.textTertiary, fontFamily: fonts.mono }]} numberOfLines={1}>
-              {item.channel || '—'} · {relTime(item.createdAt)}
+              {item.channel || '—'} · {relTime(item.createdAt, t)}
             </Text>
           </View>
         </View>
@@ -291,8 +292,8 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
       <SwipeableRow
-        leftAction={{ icon: 'person-add-outline', label: 'В работу', color: colors.info, onPress: () => takeInProgress(item.id) }}
-        rightAction={{ icon: 'trash-outline', label: 'Удалить', color: colors.error, onPress: () => softDelete(item.id) }}
+        leftAction={{ icon: 'person-add-outline', label: t('leadsList.takeAction'), color: colors.info, onPress: () => takeInProgress(item.id) }}
+        rightAction={{ icon: 'trash-outline', label: t('common.delete'), color: colors.error, onPress: () => softDelete(item.id) }}
       >
         {row}
       </SwipeableRow>
@@ -307,8 +308,8 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerTop}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.text }]}>Лиды</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{openLeads.length} открытых · {fmt(openSum, undefined, { short: true })}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('tabs.leads')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{openLeads.length} {t('leadsList.open')} · {fmt(openSum, undefined, { short: true })}</Text>
           </View>
           <CurrencyChip />
           <ToolbarButton icon="options-outline" badge={statusFilter.size || undefined} active={statusFilter.size > 0} onPress={openFilterSheet} />
@@ -317,7 +318,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={{ marginTop: spacing.sm }}>
           <Segmented
-            options={[{ key: 'board', label: 'Канбан' }, { key: 'list', label: 'Список' }, { key: 'lost', label: 'Утраченные' }]}
+            options={[{ key: 'board', label: t('leadsList.tab.board') }, { key: 'list', label: t('leadsList.tab.list') }, { key: 'lost', label: t('leadsList.tab.lost') }]}
             activeKey={mode}
             onChange={(k) => setMode(k as Mode)}
           />
@@ -325,7 +326,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           <TouchableOpacity style={[styles.chip, { backgroundColor: manager === 'all' ? colors.ink : colors.surfaceVariant }]} onPress={() => setManager('all')}>
-            <Text style={[styles.chipTxt, { color: manager === 'all' ? colors.onInk : colors.text }]}>Все менеджеры</Text>
+            <Text style={[styles.chipTxt, { color: manager === 'all' ? colors.onInk : colors.text }]}>{t('leadsList.allManagers')}</Text>
             <Text style={[styles.chipCount, { color: manager === 'all' ? colors.onInk : colors.textTertiary }]}>{leads.length}</Text>
           </TouchableOpacity>
           {topManagers.map((name) => (
@@ -341,7 +342,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
             <TextInput
               style={[styles.searchInput, { color: colors.text, fontFamily: fonts.regular }]}
-              placeholder="Имя, телефон, email…"
+              placeholder={t('leadsList.searchPlaceholder')}
               placeholderTextColor={colors.textTertiary}
               value={search}
               onChangeText={setSearch}
@@ -381,7 +382,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
                     <Text style={[styles.colSum, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{fmt(sum, undefined, { short: true })}</Text>
                   </View>
                   {col.items.length === 0 ? (
-                    <EmptyState icon="flash-outline" title="Пусто" />
+                    <EmptyState icon="flash-outline" title={t('common.empty')} />
                   ) : (
                     <FlatList
                       data={col.items}
@@ -397,9 +398,9 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
                             delayLongPress={280}
                             activeOpacity={0.8}
                           >
-                            <AvatarInitials name={item.name || 'Без имени'} size={32} />
+                            <AvatarInitials name={item.name || t('common.noName')} size={32} />
                             <View style={{ flex: 1, minWidth: 0 }}>
-                              <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.name || 'Без имени'}</Text>
+                              <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.name || t('common.noName')}</Text>
                               <Text style={[styles.cardMeta, { color: colors.textTertiary }]} numberOfLines={1}>{item.channel || '—'} · {fmt(item.amount, item.currency, { short: true })}</Text>
                             </View>
                             <TouchableOpacity style={[styles.advanceBtn, { backgroundColor: colors.surfaceVariant }]} onPress={() => openMoveSheet(item)} hitSlop={8}>
@@ -425,8 +426,8 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
           <EmptyState
             icon="flash-outline"
             lottieSource={require('../../../assets/lottie/empty-pulse.json')}
-            title="Нет лидов"
-            subtitle={search || statusFilter.size > 0 ? 'Попробуйте изменить фильтры или запрос' : 'Здесь появятся новые лиды'}
+            title={t('leadsList.empty.title')}
+            subtitle={search || statusFilter.size > 0 ? t('leadsList.empty.subtitleFiltered') : t('leadsList.empty.subtitleDefault')}
           />
         ) : (
           <GlassCard variant="g2" style={styles.listCard} contentStyle={{ flex: 1 }}>
@@ -444,7 +445,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
           <GlassCard variant="g" style={styles.lostCard} contentStyle={styles.lostCardContent}>
             <View style={styles.rowHead}>
-              <Text style={[styles.kicker, { color: colors.textTertiary }]}>УТРАЧЕНО</Text>
+              <Text style={[styles.kicker, { color: colors.textTertiary }]}>{t('leadsList.lostKicker')}</Text>
               <View style={{ flex: 1 }} />
               <View style={[styles.pill, { backgroundColor: colors.errorBg }]}><Text style={{ color: colors.error, fontSize: 11, fontFamily: fonts.medium }}>{lostLeads.length}</Text></View>
             </View>
@@ -456,14 +457,14 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
             )}
           </GlassCard>
           {lostLeads.length === 0 ? (
-            <EmptyState icon="flag-outline" title="Нет утраченных лидов" />
+            <EmptyState icon="flag-outline" title={t('leadsList.noLostLeads')} />
           ) : (
             <GlassCard variant="g2" style={styles.listCard}>
               {lostLeads.map((l, i) => (
                 <TouchableOpacity key={l.id} style={[styles.row, { borderBottomColor: colors.line3, borderBottomWidth: i < lostLeads.length - 1 ? 1 : 0 }]} onPress={() => navigation.navigate('LeadDetail', { id: l.id })}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{l.name || 'Без имени'}</Text>
-                    <Text style={[styles.meta, { color: colors.textTertiary }]} numberOfLines={1}>{(l.meta?.lostReason as string) || 'причина не указана'}</Text>
+                    <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{l.name || t('common.noName')}</Text>
+                    <Text style={[styles.meta, { color: colors.textTertiary }]} numberOfLines={1}>{(l.meta?.lostReason as string) || t('leadsList.noReason')}</Text>
                   </View>
                   <Text style={[styles.amount, { color: colors.text, fontFamily: fonts.monoSemibold }]}>{fmt(l.amount, l.currency, { short: true })}</Text>
                 </TouchableOpacity>
@@ -479,13 +480,13 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
           bottomOffset={insets.bottom + 16}
           onClose={() => setSelectedIds(new Set())}
           actions={[
-            { icon: 'trash-outline', label: 'Удалить', danger: true, onPress: () => softDeleteMany(Array.from(selectedIds)) },
+            { icon: 'trash-outline', label: t('common.delete'), danger: true, onPress: () => softDeleteMany(Array.from(selectedIds)) },
           ]}
         />
       )}
 
       <AppBottomSheet ref={filterSheetRef}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Статус лида</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('leadsList.filterTitle')}</Text>
         <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           {STATUS_ORDER.map((s) => {
             const checked = draftFilter.has(s);
@@ -510,13 +511,13 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
             );
           })}
         </View>
-        <Button label={`Показать ${leads.filter((l) => draftFilter.size === 0 || draftFilter.has(l.status)).length} результатов`} variant="primary" fullWidth onPress={applyFilter} style={{ marginTop: spacing.xl }} />
+        <Button label={`${t('leadsList.show')} ${leads.filter((l) => draftFilter.size === 0 || draftFilter.has(l.status)).length} ${t('leadsList.results')}`} variant="primary" fullWidth onPress={applyFilter} style={{ marginTop: spacing.xl }} />
       </AppBottomSheet>
 
       <AppBottomSheet ref={moveSheetRef} snapPoints={['42%']}>
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>Переместить лид</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>{t('leadsList.moveTitle')}</Text>
         {moveTarget && (
-          <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>{moveTarget.name || 'Без имени'}</Text>
+          <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>{moveTarget.name || t('common.noName')}</Text>
         )}
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
           {STATUS_ORDER.map((s) => {
@@ -530,7 +531,7 @@ export const LeadsListScreen: React.FC<Props> = ({ navigation }) => {
                 activeOpacity={0.7}
               >
                 <Pill label={STATUS_LABEL[s]} tone={STATUS_TONE[s]} />
-                {isCurrent && <Text style={[styles.sheetCurrentLabel, { color: colors.textTertiary }]}>текущий</Text>}
+                {isCurrent && <Text style={[styles.sheetCurrentLabel, { color: colors.textTertiary }]}>{t('leadsList.current')}</Text>}
                 {!isCurrent && <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 'auto' }} />}
               </TouchableOpacity>
             );

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line as SvgLine } from 'react-native-svg';
 import { useTheme, fonts, spacing } from '../../theme/ThemeContext';
+import { appLocale } from '../../i18n/format';
 
 export interface TapChartSeries {
   key: string;
@@ -40,7 +41,7 @@ export const TapChart: React.FC<Props> = ({ dates, series, height = 160, formatV
   }, [series, dates, n, height, w]);
 
   const idx = selected ?? n - 1;
-  const fmtV = formatValue || ((v: number) => v.toLocaleString('ru-RU'));
+  const fmtV = formatValue || ((v: number) => v.toLocaleString(appLocale()));
   const fmtD = formatDate || ((d: string) => d);
 
   if (n < 2) {

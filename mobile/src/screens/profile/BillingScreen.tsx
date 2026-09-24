@@ -7,10 +7,11 @@ import { fetchTenantSettings, planLabel, TenantSettings } from '../../api/tenant
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonCard, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 export const BillingScreen: React.FC = () => {

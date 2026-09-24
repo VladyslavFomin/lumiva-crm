@@ -13,6 +13,10 @@ export interface SaleDto {
   status: string;
   saleDate: string | null;
   guestName: string | null;
+  agentName: string | null;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  externalId: string | null;
   market: string | null;
   managerName: string | null;
   notes: string | null;
@@ -34,6 +38,10 @@ export interface Sale {
   status: string;
   saleDate: string | null;
   guestName: string | null;
+  agentName: string | null;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  externalId: string | null;
   market: string | null;
   managerName: string | null;
   notes: string | null;
@@ -62,6 +70,10 @@ function mapSale(dto: SaleDto): Sale {
     status: dto.status,
     saleDate: dto.saleDate,
     guestName: dto.guestName,
+    agentName: dto.agentName ?? null,
+    checkInAt: dto.checkInAt ?? null,
+    checkOutAt: dto.checkOutAt ?? null,
+    externalId: dto.externalId ?? null,
     market: dto.market,
     managerName: dto.managerName,
     notes: dto.notes,
@@ -78,10 +90,22 @@ export async function fetchSalesChannels(): Promise<SalesChannel[]> {
   return res.data;
 }
 
+const SALES_PAGE_SIZE = 200;
+const SALES_MAX_PAGES = 25; // safety net: 5000 sales — beyond that a single mobile list isn't the right tool anyway
+
+/** `/sales` is paginated server-side (default pageSize 25). Calling it bare silently truncated the list, its count
+ *  chips and its turnover total to the newest 25 orders — so walk every page. */
 export async function fetchSales() {
-  const res = await api.get<SaleDto[] | { items?: SaleDto[] }>('/sales');
-  const data = Array.isArray(res.data) ? res.data : res.data?.items || [];
-  return data.map(mapSale);
+  const all: SaleDto[] = [];
+  for (let page = 1; page <= SALES_MAX_PAGES; page++) {
+    const res = await api.get<SaleDto[] | { items?: SaleDto[]; total?: number }>('/sales', { params: { page, pageSize: SALES_PAGE_SIZE } });
+    if (Array.isArray(res.data)) { all.push(...res.data); break; } // legacy un-paginated shape
+    const items = res.data?.items || [];
+    all.push(...items);
+    const total = res.data?.total ?? all.length;
+    if (items.length < SALES_PAGE_SIZE || all.length >= total) break;
+  }
+  return all.map(mapSale);
 }
 
 export async function fetchSale(id: string): Promise<Sale> {
@@ -92,6 +116,9 @@ export async function fetchSale(id: string): Promise<Sale> {
 export interface UpdateSaleDto {
   id: string;
   status?: string;
+  managerName?: string | null;
+  notes?: string | null;
+  leadId?: string | null;
   customFields?: Record<string, any>;
   comments?: EntityComment[];
 }

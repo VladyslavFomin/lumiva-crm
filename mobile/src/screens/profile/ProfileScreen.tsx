@@ -18,13 +18,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../auth/AuthContext';
 import { useTheme, fonts } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { AuraBackground, GlassCard } from '../../components/glass';
 
 const APP_VERSION = Constants.expoConfig?.version || '—';
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'Владелец', manager: 'Менеджер', viewer: 'Наблюдатель', finance: 'Финансы', sales: 'Продажи', developer: 'Разработчик', support: 'Поддержка',
-};
 
 function colorWithAlpha(hex: string, alpha: number): string {
   // handle rgba strings by just returning with low opacity background color
@@ -45,8 +42,8 @@ function initials(profile: UserProfile | null): string {
   return profile.email[0].toUpperCase();
 }
 
-function fullName(profile: UserProfile | null): string {
-  if (!profile) return 'Пользователь';
+function fullName(profile: UserProfile | null, t: (key: string) => string): string {
+  if (!profile) return t('profile.fallbackUser');
   return profile.name?.trim() || profile.email;
 }
 
@@ -83,6 +80,11 @@ function MRow({ icon, iconColor, label, value, onPress, showChevron = true, last
 
 export const ProfileScreen: React.FC = () => {
   const { colors, isDark, toggleTheme } = useTheme();
+  const { t } = useLanguage();
+  const ROLE_LABELS: Record<string, string> = {
+    owner: t('profile.role.owner'), manager: t('profile.role.manager'), viewer: t('profile.role.viewer'),
+    finance: t('profile.role.finance'), sales: t('profile.role.sales'), developer: t('profile.role.developer'), support: t('profile.role.support'),
+  };
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -98,18 +100,18 @@ export const ProfileScreen: React.FC = () => {
   const { logout } = useAuth();
 
   const handleLogout = useCallback(() => {
-    Alert.alert('Выход', 'Вы уверены, что хотите выйти?', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('profile.logout.title'), t('profile.logout.confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Выйти',
+        text: t('profile.logout.action'),
         style: 'destructive',
         onPress: () => logout(),
       },
     ]);
-  }, [logout]);
+  }, [logout, t]);
 
   const ava = initials(profile);
-  const name = fullName(profile);
+  const name = fullName(profile, t);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -122,13 +124,13 @@ export const ProfileScreen: React.FC = () => {
       >
         {/* Large title */}
         <View style={[styles.headerWrap, { paddingTop: insets.top + 8 }]}>
-          <Text style={[styles.largeTitle, { color: colors.text }]}>Аккаунт</Text>
-          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>Профиль и компания</Text>
+          <Text style={[styles.largeTitle, { color: colors.text }]}>{t('profile.title')}</Text>
+          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>{t('profile.subtitle')}</Text>
         </View>
 
         {/* Identity card */}
         <GlassCard variant="g" style={styles.card}>
-          <Text style={[styles.cardKicker, { color: colors.textSecondary }]}>КАРТОЧКА · ИДЕНТИФИКАЦИЯ</Text>
+          <Text style={[styles.cardKicker, { color: colors.textSecondary }]}>{t('profile.card.identity')}</Text>
           <View style={styles.idRow}>
             <View style={[styles.avatar, { backgroundColor: colors.ink }]}>
               <Text style={[styles.avatarTxt, { color: colors.onInk }]}>{ava}</Text>
@@ -144,7 +146,7 @@ export const ProfileScreen: React.FC = () => {
                 )}
                 <View style={styles.badgeActive}>
                   <View style={styles.badgeActiveDot} />
-                  <Text style={styles.badgeActiveTxt}>Активен</Text>
+                  <Text style={styles.badgeActiveTxt}>{t('profile.active')}</Text>
                 </View>
               </View>
             </View>
@@ -156,7 +158,7 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Company card */}
         <GlassCard variant="g" style={styles.card}>
-          <Text style={[styles.cardKicker, { color: colors.textSecondary }]}>КОМПАНИЯ</Text>
+          <Text style={[styles.cardKicker, { color: colors.textSecondary }]}>{t('profile.card.company')}</Text>
           <Text style={[styles.companyName, { color: colors.text }]}>
             {tenant?.name || '…'}
           </Text>
@@ -175,9 +177,9 @@ export const ProfileScreen: React.FC = () => {
         {/* Quick links */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickLinks}>
           {[
-            { label: 'Личные данные →', action: () => navigation.navigate('EditProfile') },
-            { label: 'Безопасность →', action: () => navigation.navigate('ChangePassword') },
-            { label: 'Тариф →', action: () => navigation.navigate('Billing') },
+            { label: t('profile.quick.personal'), action: () => navigation.navigate('EditProfile') },
+            { label: t('profile.quick.security'), action: () => navigation.navigate('ChangePassword') },
+            { label: t('profile.quick.plan'), action: () => navigation.navigate('Billing') },
           ].map((q) => (
             <GlassCard key={q.label} variant="flat" style={styles.quickChip}>
               <TouchableOpacity onPress={q.action}>
@@ -188,29 +190,29 @@ export const ProfileScreen: React.FC = () => {
         </ScrollView>
 
         {/* Group: АККАУНТ */}
-        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>АККАУНТ</Text>
+        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{t('profile.group.account')}</Text>
         <GlassCard variant="g2" style={styles.listCard}>
-          <MRow icon="person-outline" iconColor="#1769d1" label="Личные данные" onPress={() => navigation.navigate('EditProfile')} colors={colors} />
-          <MRow icon="card-outline" iconColor="#1f8a5e" label="Тариф и оплата" value={planLabel(tenant?.plan)} onPress={() => navigation.navigate('Billing')} colors={colors} />
-          <MRow icon="settings-outline" iconColor="#3b6cb6" label="Настройки компании" onPress={() => navigation.navigate('CompanySettings')} colors={colors} />
-          <MRow icon="link-outline" iconColor="#888" label="API ключи" onPress={() => navigation.navigate('ApiSettings')} last colors={colors} />
+          <MRow icon="person-outline" iconColor="#1769d1" label={t('profile.item.personal')} onPress={() => navigation.navigate('EditProfile')} colors={colors} />
+          <MRow icon="card-outline" iconColor="#1f8a5e" label={t('profile.item.billing')} value={planLabel(tenant?.plan)} onPress={() => navigation.navigate('Billing')} colors={colors} />
+          <MRow icon="settings-outline" iconColor="#3b6cb6" label={t('profile.item.companySettings')} onPress={() => navigation.navigate('CompanySettings')} colors={colors} />
+          <MRow icon="link-outline" iconColor="#888" label={t('profile.item.apiKeys')} onPress={() => navigation.navigate('ApiSettings')} last colors={colors} />
         </GlassCard>
 
         {/* Group: БЕЗОПАСНОСТЬ */}
-        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>БЕЗОПАСНОСТЬ</Text>
+        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{t('profile.group.security')}</Text>
         <GlassCard variant="g2" style={styles.listCard}>
-          <MRow icon="lock-closed-outline" iconColor="#cc2f47" label="Сменить пароль" onPress={() => navigation.navigate('ChangePassword')} last colors={colors} />
+          <MRow icon="lock-closed-outline" iconColor="#cc2f47" label={t('profile.item.changePassword')} onPress={() => navigation.navigate('ChangePassword')} last colors={colors} />
         </GlassCard>
 
         {/* Group: ПРИЛОЖЕНИЕ */}
-        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>ПРИЛОЖЕНИЕ</Text>
+        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{t('profile.group.app')}</Text>
         <GlassCard variant="g2" style={styles.listCard}>
           {/* Dark theme Switch row */}
           <View style={[styles.row, { borderBottomColor: colors.separator, borderBottomWidth: 0.5 }]}>
             <View style={[styles.icoWrap, { backgroundColor: colors.surfaceVariant }]}>
               <Ionicons name="moon-outline" size={16} color={colors.text} />
             </View>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>Тёмная тема</Text>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{t('profile.item.darkTheme')}</Text>
             <Switch
               value={isDark}
               onValueChange={toggleTheme}
@@ -218,14 +220,14 @@ export const ProfileScreen: React.FC = () => {
               thumbColor={colors.onInk}
             />
           </View>
-          <MRow icon="notifications-outline" iconColor="#c08319" label="Уведомления" onPress={() => navigation.navigate('Settings')} colors={colors} />
-          <MRow icon="language-outline" iconColor="#3b6cb6" label="Язык" value={tenant?.uiLanguage?.toUpperCase() || '—'} onPress={() => navigation.navigate('CompanySettings')} last colors={colors} />
+          <MRow icon="notifications-outline" iconColor="#c08319" label={t('profile.item.notifications')} onPress={() => navigation.navigate('Settings')} colors={colors} />
+          <MRow icon="language-outline" iconColor="#3b6cb6" label={t('profile.item.language')} value={tenant?.uiLanguage?.toUpperCase() || '—'} onPress={() => navigation.navigate('CompanySettings')} last colors={colors} />
         </GlassCard>
 
         {/* Group: О ПРИЛОЖЕНИИ */}
-        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>О ПРИЛОЖЕНИИ</Text>
+        <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{t('profile.group.about')}</Text>
         <GlassCard variant="g2" style={styles.listCard}>
-          <MRow icon="information-circle-outline" iconColor="#888" label="Версия" value={APP_VERSION} showChevron={false} last colors={colors} />
+          <MRow icon="information-circle-outline" iconColor="#888" label={t('profile.item.version')} value={APP_VERSION} showChevron={false} last colors={colors} />
         </GlassCard>
 
         {/* Logout */}
@@ -233,7 +235,7 @@ export const ProfileScreen: React.FC = () => {
           <GlassCard variant="g2" style={styles.logoutCard}>
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={18} color="#cc2f47" />
-              <Text style={styles.logoutTxt}>Выйти из аккаунта</Text>
+              <Text style={styles.logoutTxt}>{t('profile.logoutButton')}</Text>
             </TouchableOpacity>
           </GlassCard>
         </View>

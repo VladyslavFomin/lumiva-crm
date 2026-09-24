@@ -366,12 +366,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    // Android's `elevation` always draws a flat, unthemeable dark ring, which on this
-    // translucent glass card reads as a harsh black outline — keep only a faint hint of depth
-    // there; iOS gets the real soft shadow via shadow* below.
+    // Android's `elevation` always draws a flat, unthemeable dark ring, no matter how low the
+    // value — on this translucent glass card that reads as an unwanted outline; iOS gets the
+    // real soft shadow via shadow* below, Android gets none rather than a visible compromise.
     ...Platform.select({
       ios: { shadowOpacity: 0.1, shadowOffset: { width: 0, height: 6 }, shadowRadius: 16, elevation: 6 },
-      android: { elevation: 2 },
     }),
   },
   statCardHeader: {

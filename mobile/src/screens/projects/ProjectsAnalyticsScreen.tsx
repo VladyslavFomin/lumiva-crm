@@ -10,6 +10,7 @@ import { SkeletonCard, showToast } from '../../components/ui';
 import { Segmented, StatGrid2, FunnelBars, Sparkline } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
+import { appLocale } from '../../i18n/format';
 
 const STATUS_ORDER: ProjectStatus[] = ['Новый', 'В работе', 'На проверке', 'Заморожен', 'Закрыт'];
 const TASK_STATUS_ORDER = ['К выполнению', 'В работе', 'На проверке', 'Заблокировано', 'Отложено'] as const;
@@ -191,7 +192,7 @@ export const ProjectsAnalyticsScreen: React.FC = () => {
                   {overdueTasks.slice(0, 8).map((t, i) => (
                     <View key={t.id} style={[styles.taskRow, { borderTopColor: colors.line3, borderTopWidth: i ? 1 : 0 }]}>
                       <Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>{t.title}</Text>
-                      <Text style={[styles.taskMeta, { color: colors.textTertiary }]} numberOfLines={1}>{t.projectName} · срок {new Date(t.deadline!).toLocaleDateString('ru-RU')}</Text>
+                      <Text style={[styles.taskMeta, { color: colors.textTertiary }]} numberOfLines={1}>{t.projectName} · срок {new Date(t.deadline!).toLocaleDateString(appLocale())}</Text>
                       <Text style={[styles.overdueBadge, { color: colors.error }]}>+{daysOverdue(t.deadline!)} дн</Text>
                     </View>
                   ))}

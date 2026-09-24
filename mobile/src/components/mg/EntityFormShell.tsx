@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, Keyboar
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { GlassCard, AuraBackground } from '../glass';
 import { Button } from '../ui';
 
@@ -23,6 +24,7 @@ interface Props {
  * card naming exactly which required fields are still missing. */
 export const EntityFormShell: React.FC<Props> = ({ title, kicker, sub, missing, entityLabel, saving, onCancel, onSave, children }) => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const ok = missing.length === 0;
 
@@ -43,7 +45,7 @@ export const EntityFormShell: React.FC<Props> = ({ title, kicker, sub, missing, 
             onPress={() => ok && onSave()}
             disabled={!ok || saving}
           >
-            <Text style={[styles.saveBtnTxt, { color: colors.onInk }]}>{saving ? '…' : 'Сохранить'}</Text>
+            <Text style={[styles.saveBtnTxt, { color: colors.onInk }]}>{saving ? '…' : t('common.save')}</Text>
           </TouchableOpacity>
         </View>
         <Text style={[styles.sub, { color: colors.textSecondary }]}>{sub}</Text>
@@ -54,14 +56,14 @@ export const EntityFormShell: React.FC<Props> = ({ title, kicker, sub, missing, 
           <GlassCard variant="g" contentStyle={styles.summaryCard}>
             <View style={styles.summaryHead}>
               <Ionicons name={ok ? 'checkmark-circle' : 'alert-circle-outline'} size={18} color={ok ? colors.success : colors.warning} />
-              <Text style={[styles.summaryTitle, { color: colors.text }]}>{ok ? 'Готово к сохранению' : 'Не заполнено'}</Text>
+              <Text style={[styles.summaryTitle, { color: colors.text }]}>{ok ? t('formShell.ready') : t('formShell.notReady')}</Text>
             </View>
             <Text style={[styles.summarySub, { color: colors.textSecondary }]}>
-              {ok ? 'Все обязательные поля заполнены.' : `Обязательные поля: ${missing.join(', ')}.`}
+              {ok ? t('formShell.allFilled') : `${t('formShell.missingFields')} ${missing.join(', ')}.`}
             </Text>
             <View style={styles.actionsRow}>
-              <Button label="Отменить" variant="secondary" size="sm" style={{ flex: 1 }} onPress={onCancel} />
-              <Button label={`Сохранить ${entityLabel}`} variant="accent" size="sm" style={{ flex: 1 }} loading={saving} disabled={!ok} onPress={onSave} />
+              <Button label={t('common.cancel')} variant="secondary" size="sm" style={{ flex: 1 }} onPress={onCancel} />
+              <Button label={`${t('common.save')} ${entityLabel}`} variant="accent" size="sm" style={{ flex: 1 }} loading={saving} disabled={!ok} onPress={onSave} />
             </View>
           </GlassCard>
         </ScrollView>

@@ -8,7 +8,7 @@ interface Props {
   onChangeText: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'decimal-pad' | 'numbers-and-punctuation';
   secureTextEntry?: boolean;
 }
 

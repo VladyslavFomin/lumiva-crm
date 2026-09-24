@@ -8,6 +8,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, AppBottomSheet, AppBottomSheetRef, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 interface AnyTask extends ProjectTask {
   projectId: string;
@@ -138,8 +139,16 @@ export const AllTasksScreen: React.FC = () => {
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
                             <Text style={[styles.cardProject, { color: colors.textTertiary }]} numberOfLines={1}>{item.projectName}</Text>
+                            {item.checklist.length > 0 && (
+                              <View style={styles.checklistRow}>
+                                <View style={[styles.checklistTrack, { backgroundColor: colors.surfaceVariant }]}>
+                                  <View style={[styles.checklistFill, { width: `${Math.round((item.checklist.filter((c) => c.done).length / item.checklist.length) * 100)}%`, backgroundColor: colors.accent }]} />
+                                </View>
+                                <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{item.checklist.filter((c) => c.done).length}/{item.checklist.length}</Text>
+                              </View>
+                            )}
                             <View style={styles.cardMetaRow}>
-                              {item.deadline && <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{new Date(item.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}</Text>}
+                              {item.deadline && <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: fonts.mono }]}>{new Date(item.deadline).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' })}</Text>}
                               {item.priority === 'Высокий' && <Text style={[styles.cardMeta, { color: colors.error, fontFamily: fonts.semibold }]}>Высокий</Text>}
                               {item.assignees.length > 0 && <Text style={[styles.cardMeta, { color: colors.textTertiary }]} numberOfLines={1}>{item.assignees.join(', ')}</Text>}
                             </View>
@@ -204,6 +213,9 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontFamily: fonts.medium },
   cardProject: { fontSize: 11, marginTop: 2 },
   cardMetaRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 6, flexWrap: 'wrap' },
+  checklistRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 6 },
+  checklistTrack: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
+  checklistFill: { height: 4, borderRadius: 2 },
   cardMeta: { fontSize: 11 },
   moveBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: spacing.sm },

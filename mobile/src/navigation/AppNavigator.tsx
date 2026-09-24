@@ -8,9 +8,11 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import { GlobalTabBar, GlobalTabItem } from './GlobalTabBar';
 import { AuthProvider } from '../auth/AuthContext';
 import { CurrencyModeProvider } from '../context/CurrencyModeContext';
+import { AccessProvider, useAccess, AccessRule } from '../context/AccessContext';
 import { clearAuth } from '../api/client';
 import { AuthStack } from '../screens/auth/AuthStack';
 import { OfflineScreen } from '../screens/OfflineScreen';
@@ -210,8 +212,15 @@ function resolveTabBarState(state: NavigationState | undefined): { activeKey: st
   return { activeKey: 'more', hidden: false };
 }
 
+/** Tab bar filtered by the same tenant-module + RBAC rules as the website's sidebar (needs to live inside AccessProvider). */
+const AccessGatedTabBar: React.FC<{ items: (GlobalTabItem & AccessRule)[]; activeKey: string; onPress: (key: string) => void }> = ({ items, activeKey, onPress }) => {
+  const { allowed } = useAccess();
+  return <GlobalTabBar items={items.filter((i) => allowed(i))} activeKey={activeKey} onPress={onPress} />;
+};
+
 export const AppNavigator = () => {
   const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
   const [isOnline, setIsOnline] = useState(true);
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
   const [newLeadsCount, setNewLeadsCount] = useState(0);
@@ -272,12 +281,12 @@ export const AppNavigator = () => {
     },
   };
 
-  const tabItems: GlobalTabItem[] = [
-    { key: 'dashboard', label: 'Главная', icon: 'home-outline', iconFocused: 'home' },
-    { key: 'leads', label: 'Лиды', icon: 'podium-outline', iconFocused: 'podium', badge: newLeadsCount > 0 ? newLeadsCount : undefined },
-    { key: 'projects', label: 'Проекты', icon: 'folder-outline', iconFocused: 'folder' },
-    { key: 'analytics', label: 'Аналитика', icon: 'bar-chart-outline', iconFocused: 'bar-chart' },
-    { key: 'more', label: 'Ещё', icon: 'apps-outline', iconFocused: 'apps' },
+  const tabItems: (GlobalTabItem & AccessRule)[] = [
+    { key: 'dashboard', label: t('tabs.dashboard'), icon: 'home-outline', iconFocused: 'home' },
+    { key: 'leads', component: 'leads', perm: 'leads', label: t('tabs.leads'), icon: 'podium-outline', iconFocused: 'podium', badge: newLeadsCount > 0 ? newLeadsCount : undefined },
+    { key: 'projects', component: 'projects', perm: 'projects', label: t('tabs.projects'), icon: 'folder-outline', iconFocused: 'folder' },
+    { key: 'analytics', perm: 'analytics', label: t('tabs.analytics'), icon: 'bar-chart-outline', iconFocused: 'bar-chart' },
+    { key: 'more', label: t('tabs.more'), icon: 'apps-outline', iconFocused: 'apps' },
   ];
 
   const handleTabPress = (key: string) => {
@@ -291,8 +300,15 @@ export const AppNavigator = () => {
 
   return (
     <AuthProvider logout={logout}>
-      <CurrencyModeProvider>
-      <View style={{ flex: 1 }}>
+      {/* Both providers fetch tenant data — `enabled` makes them (re)load when the user actually logs in (a fetch at first
+          mount, before login, fails and would otherwise stay failed until an app restart). */}
+      <CurrencyModeProvider enabled={isAuthed}>
+      <AccessProvider enabled={isAuthed}>
+      {/* Neither of these had an explicit background before — fully transparent, so the gaps
+          around the floating tab bar pill (its own horizontal/vertical padding) exposed
+          Android's default window background, which is black, instead of the app's theme
+          background. Read as a black outline hugging the pill. */}
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1 }}>
       <NavigationContainer
         ref={navigationRef}
@@ -342,9 +358,10 @@ export const AppNavigator = () => {
       </NavigationContainer>
       </View>
       {isAuthed && isOnline && !tabBarState.hidden && (
-        <GlobalTabBar items={tabItems} activeKey={tabBarState.activeKey || 'dashboard'} onPress={handleTabPress} />
+        <AccessGatedTabBar items={tabItems} activeKey={tabBarState.activeKey || 'dashboard'} onPress={handleTabPress} />
       )}
       </View>
+      </AccessProvider>
       </CurrencyModeProvider>
     </AuthProvider>
   );

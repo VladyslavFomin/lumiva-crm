@@ -53,3 +53,16 @@ export async function deleteProjectCurrencyDef(id: string): Promise<void> {
 export async function reorderProjectCurrencyDefs(orderedIds: string[]): Promise<void> {
   await api.patch('/project-currencies/reorder', { orderedIds });
 }
+
+export interface ProjectTagDef {
+  id: string;
+  value: string;
+  color: string;
+  order: number;
+}
+
+/** Tenant-defined project tags (`GET /project-tags`) — the same list the website offers when tagging a project. */
+export async function fetchProjectTagDefs(): Promise<ProjectTagDef[]> {
+  const res = await api.get<ProjectTagDef[]>('/project-tags');
+  return res.data;
+}

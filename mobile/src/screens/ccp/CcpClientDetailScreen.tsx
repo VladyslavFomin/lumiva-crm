@@ -8,16 +8,17 @@ import { ccpApi, CcpClientAnalytics } from '../../api/ccp';
 import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { AvatarInitials, SkeletonList, showToast } from '../../components/ui';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<CcpStackParamList, 'CcpClientDetail'>;
 
 function fmt(n: number | null | undefined, suffix = '') {
   if (n == null) return '—';
-  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + suffix;
+  return n.toLocaleString(appLocale(), { maximumFractionDigits: 2 }) + suffix;
 }
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(d).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export const CcpClientDetailScreen: React.FC<Props> = ({ route, navigation }) => {

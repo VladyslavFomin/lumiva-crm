@@ -11,6 +11,7 @@ import { useTheme, fonts, spacing, radius } from '../../theme/ThemeContext';
 import { SkeletonList, EmptyState, showToast } from '../../components/ui';
 import { Pill } from '../../components/mg';
 import { AuraBackground, GlassCard } from '../../components/glass';
+import { appLocale } from '../../i18n/format';
 
 type Props = NativeStackScreenProps<HotelsStackParamList, 'HotelReservations'>;
 
@@ -23,7 +24,7 @@ const STATUS_TONE: Record<HotelReservationStatus, 'acc' | 'default' | 'warn' | '
 const STATUS_ORDER: HotelReservationStatus[] = ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled'];
 
 function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+  return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' });
 }
 
 export const HotelReservationsScreen: React.FC<Props> = ({ route, navigation }) => {

@@ -9,7 +9,8 @@ import { fetchContacts, Contact } from '../../api/contacts';
 import { useCurrencyMode } from '../../context/CurrencyModeContext';
 import { useTheme, fonts } from '../../theme/ThemeContext';
 import { showToast } from '../../components/ui';
-import { EntityFormShell, FieldCard, EntityField, ChipPicker } from '../../components/mg';
+import { EntityFormShell, FieldCard, EntityField, ChipPicker, LinkPicker } from '../../components/mg';
+import { appLocale } from '../../i18n/format';
 
 const PickLabel: React.FC<{ label: string; marginTop?: number }> = ({ label, marginTop }) => {
   const { colors } = useTheme();
@@ -17,7 +18,7 @@ const PickLabel: React.FC<{ label: string; marginTop?: number }> = ({ label, mar
 };
 
 function todayStr() {
-  return new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date().toLocaleDateString(appLocale(), { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 export const EsignDocumentCreateScreen: React.FC = () => {
@@ -91,8 +92,7 @@ export const EsignDocumentCreateScreen: React.FC = () => {
       onCancel={() => navigation.goBack()} onSave={submit}
     >
       <FieldCard icon="person-outline" title="Клиент и шаблон">
-        <PickLabel label="Клиент" />
-        <ChipPicker options={contacts.slice(0, 30).map((c) => ({ key: c.id, label: c.fullName }))} value={contactId} onChange={setContactId} />
+        <LinkPicker label="Клиент" value={contactId || null} options={contacts.map((c) => ({ id: c.id, label: c.fullName, sub: c.email || c.phone }))} onChange={(v) => setContactId(v || '')} />
         <PickLabel label="Шаблон документа" marginTop={12} />
         <ChipPicker options={templates.map((t) => ({ key: t.id, label: `${t.kind}: ${t.name}` }))} value={templateId} onChange={setTemplateId} />
         {selectedTemplate?.description ? (
