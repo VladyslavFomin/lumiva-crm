@@ -91,6 +91,17 @@ export class PlatformSettings {
   @Column({ type: 'varchar', length: 32, nullable: true })
   aiPriceOutputPerMtokUsd: string | null;
 
+  /** Отдельная модель для ИИ-SEO-ассистента (еженедельный отчёт); пусто — общая openAiModel. */
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  seoAiModel: string | null;
+
+  /** Цены этой модели, USD за 1M токенов; пусто — общие aiPrice*. */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  seoAiPriceInputPerMtokUsd: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  seoAiPriceOutputPerMtokUsd: string | null;
+
   /** Фикс. списание в центах за одно изображение (внутренняя «стоимость») */
   @Column({ type: 'int', nullable: true })
   aiImageCostCents: number | null;

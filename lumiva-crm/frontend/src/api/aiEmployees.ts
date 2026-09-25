@@ -8,6 +8,8 @@ export type AiEmployeeRoleKey =
   | 'support_manager'
   | 'project_manager'
   | 'smm_manager'
+  | 'seo_manager'
+  | 'reviews_manager'
   | 'email_assistant'
   | 'crm_analyst'
   | 'reservation_assistant';
@@ -34,6 +36,12 @@ export interface AiEmployeeRole {
   badge: string;
   defaultTriggers?: Array<{ event: string; scope: AiTriggerScope }>;
   assignableEntityTypes?: AiAssignableEntityType[];
+  /** Зона отдела: права вне списка роль включить не может (проверяется и на бэкенде). */
+  allowedPermissions?: string[];
+  /** События, на которые роль может реагировать. */
+  allowedTriggers?: string[];
+  /** Только отчёты (CRM-аналитик): ничего не делает сам. */
+  reportOnly?: boolean;
 }
 
 export interface AiAgent {
@@ -609,3 +617,41 @@ export async function askAiEmployee(
 ): Promise<{ ok: boolean; answer: string }> {
   return api.post(`/ai-agents/${encodeURIComponent(id)}/ask`, input);
 }
+
+// ---------------------------------------------------------------- CRM-аналитик: отчёт «за вчера»
+
+export type AnalystBlock = 'sales' | 'payments' | 'discounts' | 'leads' | 'bookings' | 'hotels' | 'tasks' | 'helpdesk' | 'marketing';
+export interface AnalystReportConfig {
+  enabled: boolean;
+  blocks: AnalystBlock[];
+  /** HH:MM в часовом поясе сотрудника */
+  time: string;
+  /** 0 = вс … 6 = сб */
+  weekdays: number[];
+  recipients: string[];
+  inApp: boolean;
+  lastSentDate?: string | null;
+  timezone?: string;
+  blocksAll?: AnalystBlock[];
+}
+export const fetchAnalystConfig = (id: string) => api.get<AnalystReportConfig>(`/ai-agents/${encodeURIComponent(id)}/analyst-report`);
+export const updateAnalystConfig = (id: string, patch: Partial<AnalystReportConfig>) =>
+  api.patch<AnalystReportConfig>(`/ai-agents/${encodeURIComponent(id)}/analyst-report`, patch);
+export const runAnalystReport = (id: string, deliver: boolean) =>
+  api.post<{ ok: boolean; reportId: string; day: string; sentTo: string[]; contentMd: string }>(
+    `/ai-agents/${encodeURIComponent(id)}/analyst-report/run`,
+    { deliver },
+  );
+
+/** «Упущенная работа»: события CRM и передачи задач для ролей, которых нет в команде. */
+export interface AiMissedWork {
+  days: number;
+  total: number;
+  items: Array<{
+    roleKey: AiEmployeeRoleKey;
+    count: number;
+    byEvent: Record<string, number>;
+    samples: Array<{ event: string; entityType?: string | null; entityId?: string | null; text?: string | null; at: string }>;
+  }>;
+}
+export const fetchAiMissedWork = (days = 7) => api.get<AiMissedWork>(`/ai-missed-work?days=${days}`);

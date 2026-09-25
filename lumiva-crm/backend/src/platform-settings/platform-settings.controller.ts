@@ -39,6 +39,9 @@ export class PlatformSettingsController {
         openAiImageModel: null,
         aiPriceInputPerMtokUsd: null,
         aiPriceOutputPerMtokUsd: null,
+        seoAiModel: null,
+        seoAiPriceInputPerMtokUsd: null,
+        seoAiPriceOutputPerMtokUsd: null,
         aiImageCostCents: null,
         stripePriceAiCredits: null,
         stripePriceStoragePack: null,
@@ -80,6 +83,9 @@ export class PlatformSettingsController {
       openAiImageModel?: string | null;
       aiPriceInputPerMtokUsd?: string | null;
       aiPriceOutputPerMtokUsd?: string | null;
+      seoAiModel?: string | null;
+      seoAiPriceInputPerMtokUsd?: string | null;
+      seoAiPriceOutputPerMtokUsd?: string | null;
       aiImageCostCents?: number | null;
       stripePriceAiCredits?: string | null;
       stripePriceStoragePack?: string | null;

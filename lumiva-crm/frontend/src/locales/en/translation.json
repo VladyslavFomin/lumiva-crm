@@ -1225,7 +1225,8 @@
       "aiEmployeesReports": "Reports",
       "marketingUtmLinks": "Tagged links",
       "aiEmployeesKnowledge": "Knowledge base",
-      "aiEmployeesInsights": "Impact"
+      "aiEmployeesInsights": "Impact",
+      "marketingReviews": "Reviews"
     },
     "aiEmployees": {
       "badge": {
@@ -1239,7 +1240,7 @@
         "body": "Connect your own OpenAI or Anthropic (Claude) key — AI employees will run on it, and token usage is billed to your account, not the platform's quota.",
         "button": "Connect your own AI agent"
       },
-            "recordChat": {
+      "recordChat": {
         "title": "Ask an AI employee",
         "placeholder": "Ask about this record or assign something…",
         "ask": "Ask",
@@ -1251,7 +1252,11 @@
         "taskSent": "Task handed to {{name}}. The result will appear in the record's comments."
       },
       "quick": {
-        "lang": {"Russian": "Russian", "English": "English", "Turkish": "Turkish"},
+        "lang": {
+          "Russian": "Russian",
+          "English": "English",
+          "Turkish": "Turkish"
+        },
         "title": "Quick start — 3 questions",
         "hint": "We'll pick the rest based on the role. You can change everything later in the employee's profile.",
         "q1": "Which language for clients?",
@@ -1813,13 +1818,13 @@
           "shortTitle": "CRM Analyst",
           "department": "Management",
           "jobTitle": "AI CRM Analyst",
-          "description": "Analyzes CRM activity, sales, leads, tasks and process bottlenecks for leadership.",
+          "description": "Every day collects the numbers you choose — revenue, discounts, deals, bookings, leads, tasks — and sends a report on schedule. Never changes anything in the CRM.",
           "functions": [
-            "CRM health review",
-            "Bottleneck detection",
-            "Management reports",
-            "Team activity analysis",
-            "Process recommendations"
+            "Yesterday's report",
+            "Revenue and discounts",
+            "Bookings and occupancy",
+            "Leads and deals",
+            "Scheduled email report"
           ]
         },
         "reservation_assistant": {
@@ -1834,6 +1839,34 @@
             "Date and room checks",
             "Agency communication",
             "Daily reservation report"
+          ]
+        },
+        "seo_manager": {
+          "title": "AI SEO Manager",
+          "shortTitle": "SEO Manager",
+          "department": "Marketing",
+          "jobTitle": "AI SEO Manager",
+          "description": "Monitors your website every week: Search Console rankings, PageSpeed, on-page audit, and emails a report with a score and concrete fixes.",
+          "functions": [
+            "Weekly SEO report",
+            "Ranking tracking",
+            "On-page audit",
+            "Speed checks",
+            "Content ideas"
+          ]
+        },
+        "reviews_manager": {
+          "title": "AI Reviews Manager",
+          "shortTitle": "Reviews Manager",
+          "department": "Customer Service",
+          "jobTitle": "AI Reviews Manager",
+          "description": "Watches your Google reviews, drafts replies in the reviewer’s language (RU/TR/EN and more) and alerts you about negative reviews right away.",
+          "functions": [
+            "Google review monitoring",
+            "Replies in RU/TR/EN",
+            "Negative review alerts",
+            "Review topics and trends",
+            "Tasks for bad reviews"
           ]
         }
       },
@@ -2227,6 +2260,109 @@
         "noLessons": "No rejected actions yet.",
         "unitMin": "min",
         "unitHour": "h"
+      },
+      "zones": {
+        "otherDept": "Handled by:",
+        "notForRole": "Not available for this role",
+        "noTriggers": "This role does not react to CRM events — it works on schedule and on your requests."
+      },
+      "analyst": {
+        "tab": "Report",
+        "dataTitle": "What data to collect",
+        "dataHint": "Tick what the analyst looks at every day. It sees only what is ticked — in reports and in chat answers.",
+        "scheduleTitle": "When and to whom",
+        "enabled": "Send yesterday's report automatically",
+        "time": "Send time ({{tz}})",
+        "days": "Days",
+        "recipients": "Email to (comma-separated)",
+        "inApp": "CRM notification to owners",
+        "save": "Save",
+        "saving": "Saving…",
+        "preview": "Build report now",
+        "sendNow": "Send now",
+        "running": "Building…",
+        "saved": "Settings saved.",
+        "saveError": "Could not save.",
+        "loadError": "Could not load settings.",
+        "runError": "Could not build the report.",
+        "noBlocks": "Tick at least one data block.",
+        "previewReady": "Report for {{day}} is ready — saved in Reports.",
+        "sent": "Report sent: {{list}}",
+        "inAppShort": "CRM notification",
+        "previewTitle": "Latest report",
+        "reportOnlyNote": "The analyst only collects data and reports — it never changes anything in the CRM or takes actions.",
+        "blocks": {
+          "sales": {
+            "t": "Sales",
+            "d": "Count and revenue per currency, cancellations"
+          },
+          "payments": {
+            "t": "Payments",
+            "d": "Received and failed payments"
+          },
+          "discounts": {
+            "t": "Discounts",
+            "d": "Hotel bookings with a discount and the discount total"
+          },
+          "leads": {
+            "t": "Leads",
+            "d": "New leads and sources"
+          },
+          "bookings": {
+            "t": "Appointments",
+            "d": "New appointments, total, visits that day"
+          },
+          "hotels": {
+            "t": "Hotels",
+            "d": "Reservations, revenue, arrivals/departures, in-house"
+          },
+          "tasks": {
+            "t": "Tasks",
+            "d": "Overdue, completed, due tomorrow"
+          },
+          "helpdesk": {
+            "t": "Support",
+            "d": "New and open tickets"
+          },
+          "marketing": {
+            "t": "Marketing",
+            "d": "Sessions, clicks, leads from ads, spend"
+          }
+        }
+      },
+      "team": {
+        "title": "Team by department",
+        "seats": "seats filled: {{hired}} of {{total}}",
+        "emptySeat": "Open seat",
+        "missedTitle": "In {{days}} days {{count}} events had no AI employee",
+        "missedHint": "This is work for roles your team doesn't have: CRM events and tasks your AI colleagues wanted to hand over. Details are on the open seats below.",
+        "missedFor": "Unhandled in {{days}} days: {{count}}",
+        "departments": {
+          "sales": "Sales",
+          "marketing": "Marketing",
+          "service": "Customer service",
+          "projects": "Projects",
+          "management": "Management"
+        },
+        "events": {
+          "lead_created": "new leads",
+          "lead_assigned": "lead assignments",
+          "contact_created": "new contacts",
+          "lead_status_changed": "lead status changes",
+          "sale_created": "new sales",
+          "sale_status_changed": "sale status changes",
+          "project_created": "new projects",
+          "project_status_changed": "project status changes",
+          "task_created": "new tasks",
+          "task_status_changed": "task status changes",
+          "booking_reservation_created": "new appointments",
+          "booking_reservation_status_changed": "appointment changes",
+          "hotel_reservation_created": "new reservations",
+          "hotel_reservation_status_changed": "reservation changes",
+          "email_received": "incoming emails",
+          "telegram_message_received": "Telegram messages",
+          "handoff": "handed over by colleagues"
+        }
       }
     },
     "settings": {
@@ -6416,6 +6552,271 @@
           "loading": "Loading sites…",
           "notChecked": "not checked yet",
           "add": "Add another site"
+        }
+      },
+      "ai": {
+        "tabs": {
+          "overview": "Overview",
+          "ai": "AI assistant"
+        },
+        "title": "AI SEO specialist",
+        "sub": "Every week it reviews the selected site, rankings and speed, finds page issues and emails you a report with a score and concrete recommendations.",
+        "statusOn": "Weekly report on",
+        "statusOff": "Weekly report off",
+        "watching": "Watching",
+        "noSiteShort": "No site assigned",
+        "noSite": "Choose a site in the “Resource” switcher at the top of the page first.",
+        "nextRun": "Next report: {{date}}",
+        "enabledNow": "Weekly report enabled. The first one arrives {{date}}.",
+        "disabledNow": "Weekly report disabled.",
+        "run": "Analyze now",
+        "running": "Analyzing…",
+        "runEmail": "and email it",
+        "retry": "Run again",
+        "enable": "Enable weekly report",
+        "disable": "Disable report",
+        "empty": "No reports yet. Run the first analysis — it takes 1–3 minutes.",
+        "progressTitle": "Analyzing {{site}}",
+        "progressHint": "Usually 1–3 minutes. You can leave the page — the report will be saved in the history.",
+        "stages": {
+          "gsc": "Breaking down Search Console queries and pages",
+          "crawl": "Checking the site’s pages",
+          "psi": "Reviewing Lighthouse audits",
+          "ai": "AI is preparing findings and recommendations"
+        },
+        "errors": {
+          "AI_QUOTA_EXCEEDED": "Your plan’s AI quota is used up. Top it up in billing or connect your own OpenAI/Anthropic key in integrations.",
+          "AI_NOT_CONFIGURED": "AI is not configured on the platform. Connect your own OpenAI/Anthropic key in integrations.",
+          "interrupted": "The analysis was interrupted (server restart). Please run it again.",
+          "ai_parse_failed": "The AI returned an invalid response — please try again.",
+          "generic": "Could not prepare the report: {{msg}}",
+          "SEO_AI_NO_SITE": "Set the site first.",
+          "SEO_AI_BAD_SITE": "Invalid site address.",
+          "SEO_AI_NO_RECIPIENTS": "Add at least one recipient email.",
+          "SEO_AI_BAD_TZ": "Unknown time zone.",
+          "SEO_AI_REPORT_NOT_READY": "The report is not ready yet.",
+          "load": "Could not load the assistant.",
+          "save": "Could not save settings.",
+          "run": "Could not start the analysis.",
+          "email": "Could not send the report.",
+          "delete": "Could not delete the report.",
+          "SEO_AI_NO_EMPLOYEE": "An active “SEO Manager” AI employee is required."
+        },
+        "report": {
+          "score": "SEO score",
+          "generated": "Report from {{date}}",
+          "trigger": {
+            "manual": "manual",
+            "schedule": "scheduled"
+          },
+          "emailed": "sent to: {{list}}",
+          "email": "Email report",
+          "sending": "Sending…",
+          "sent": "Report sent to: {{list}}",
+          "delete": "Delete report",
+          "confirmDelete": "Delete this report?",
+          "kpiWeek": "7 days vs previous 7",
+          "kpiMonth": "28 days vs previous 28",
+          "flat": "no change",
+          "focus": "Focus for this week",
+          "wins": "What is going well",
+          "risks": "Needs attention",
+          "why": "Why:",
+          "how": "How:",
+          "effort": "Effort: {{v}}",
+          "ideas": "Content ideas",
+          "noGsc": {
+            "notConnected": "Search Console is not connected — no query or ranking data. Connect it on the Overview tab.",
+            "otherProperty": "The connected Google account has no Search Console property for this site — no query or ranking data."
+          }
+        },
+        "sections": {
+          "recs": "Recommendations",
+          "queries": "Queries & rankings",
+          "pages": "Pages",
+          "speed": "Speed"
+        },
+        "prio": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "effort": {
+          "low": "low",
+          "medium": "medium",
+          "high": "high"
+        },
+        "area": {
+          "technical": "Technical",
+          "content": "Content",
+          "keywords": "Keywords",
+          "performance": "Speed",
+          "links": "Links",
+          "ux": "UX"
+        },
+        "q": {
+          "opportunities": "Growth opportunities",
+          "tracked": "Target keywords",
+          "striking": "Almost on top (positions 4–20)",
+          "strikingHint": "Queries with impressions that are close to the top spots — the fastest way to grow traffic.",
+          "lowCtr": "High rankings, low CTR",
+          "lowCtrHint": "The site ranks well but gets few clicks — rewrite the title and description.",
+          "movers": "Ranking changes over 28 days",
+          "top": "Top queries",
+          "newQ": "New queries",
+          "empty": "No data",
+          "notRanking": "not ranking",
+          "posShort": "position {{n}}",
+          "imprShort": "{{n}} impressions",
+          "cols": {
+            "query": "Query",
+            "clicks": "Clicks",
+            "impr": "Impressions",
+            "ctr": "CTR",
+            "pos": "Position",
+            "change": "Change"
+          }
+        },
+        "pages": {
+          "techScore": "Technical score",
+          "missing": "missing",
+          "disallowAll": "site blocked",
+          "urls": "{{n}} URLs",
+          "noIssues": "No issues found",
+          "words": "{{n}} words",
+          "sec": "s",
+          "source": {
+            "home": "home",
+            "custom": "added by you",
+            "gsc": "from Search Console",
+            "sitemap": "from sitemap"
+          }
+        },
+        "speed": {
+          "noPsi": "No speed measurement for this site yet — press “Refresh” on the Overview tab.",
+          "audits": "Failed Lighthouse audits (mobile)",
+          "noAudits": "Lighthouse audits unavailable — a PageSpeed key or a connected Google account is required.",
+          "savings": "saves ≈{{s}} s"
+        },
+        "settings": {
+          "title": "Assistant settings",
+          "unsaved": "unsaved changes",
+          "site": "Site",
+          "siteHint": "The assistant works on the site selected in the “Resource” switcher above. Each site has its own settings, schedule and history. The home page and most visited pages are checked automatically.",
+          "keywords": "Target keywords",
+          "keywordsPh": "e.g. dentist antalya",
+          "keywordsHint": "One per line — the assistant tracks their rankings.",
+          "pages": "Additional pages",
+          "pagesHint": "Important pages to check every week (one per line, up to 10).",
+          "focus": "About the business",
+          "focusPh": "Niche, city/region, audience, main services, competitors…",
+          "recipients": "Send the report to",
+          "schedule": "Schedule and report language",
+          "weekday": "Weekday",
+          "hour": "Time",
+          "timezone": "Time zone",
+          "language": "Report language",
+          "langs": {
+            "ru": "Русский",
+            "en": "English",
+            "tr": "Türkçe"
+          },
+          "save": "Save",
+          "saving": "Saving…",
+          "saved": "Assistant settings saved."
+        },
+        "history": {
+          "title": "Report history",
+          "empty": "All assistant reports will appear here."
+        },
+        "issues": {
+          "unreachable": "Page unreachable",
+          "http_error": "HTTP error",
+          "not_html": "Not an HTML page",
+          "no_title": "No title",
+          "title_short": "Title too short",
+          "title_long": "Title too long (>65)",
+          "no_description": "No meta description",
+          "description_short": "Description too short",
+          "description_long": "Description too long",
+          "no_h1": "No H1",
+          "multiple_h1": "Multiple H1",
+          "noindex": "Blocked by noindex",
+          "no_canonical": "No canonical",
+          "canonical_other": "Canonical points elsewhere",
+          "no_viewport": "No viewport (mobile)",
+          "no_lang": "No lang attribute",
+          "thin_content": "Thin content",
+          "images_no_alt": "{{n}} images without alt",
+          "no_open_graph": "No Open Graph",
+          "no_schema": "No structured data",
+          "slow_response": "Slow response",
+          "duplicate_title": "Duplicate title",
+          "duplicate_description": "Duplicate description",
+          "no_https": "No HTTPS",
+          "no_robots": "No robots.txt",
+          "robots_disallow_all": "Site blocked in robots.txt",
+          "no_sitemap": "No sitemap.xml"
+        },
+        "gate": {
+          "title": "AI SEO works through the “SEO Manager” AI employee",
+          "sub": "Hire an SEO Manager in AI Employees and activate it — then weekly reports, page audits, ranking tracking and recommendations open here.",
+          "hire": "Hire an SEO Manager",
+          "open": "Open employee",
+          "allEmployees": "AI Employees",
+          "upgrade": "Plans",
+          "slots": "Free AI employee seats: {{free}} of {{limit}}",
+          "slotsUnlimited": "Your plan has unlimited AI employees",
+          "noSlots": "All AI employee seats on your plan are taken ({{used}} of {{limit}}). Free a seat or upgrade your plan.",
+          "planLocked": "The “SEO Manager” role is not available on your current plan.",
+          "inactive": "{{name}} is hired but not active ({{status}}). Activate the employee to open AI SEO.",
+          "disabledNoSlots": "To re-enable {{name}} you need a free AI employee seat ({{used}} of {{limit}} taken).",
+          "status": {
+            "paused": "paused",
+            "disabled": "disabled",
+            "setup_required": "setup required"
+          },
+          "role": "AI SEO Manager"
+        },
+        "tasks": {
+          "title": "What {{name}} did",
+          "alert": "alert",
+          "open": "open project",
+          "approve": "to approvals",
+          "status": {
+            "executed": "created",
+            "pending": "awaiting approval",
+            "failed": "failed"
+          },
+          "skipped": {
+            "suggest_mode": "{{name}} is in Suggestion mode — no tasks, recommendations only.",
+            "inactive": "{{name}} is not active — no tasks created.",
+            "no_project": "Could not prepare a project for tasks.",
+            "blocked": "Task not created: no “Create tasks” permission, or it is a duplicate."
+          },
+          "settingsTitle": "Tasks and alerts",
+          "enable": "Create tasks from important recommendations",
+          "project": "Project for tasks",
+          "projectAuto": "New project “SEO · {{site}}”",
+          "assignee": "Assignee",
+          "noAssignee": "No assignee",
+          "suggestMode": "{{name}} is in Suggestion mode — no tasks will be created.",
+          "changeMode": "Change mode",
+          "assistedMode": "Assistant mode: every task comes to you for approval first.",
+          "autoMode": "Auto mode: tasks are created right away."
+        },
+        "alerts": {
+          "enable": "Problem alerts (daily check)",
+          "hint": "Alerts: site down, blocked from indexing, broken pages, drops in target keyword rankings or clicks — notification, email and an urgent task.",
+          "active": "active alerts: {{count}}",
+          "codes": {
+            "site_down": "The site does not open",
+            "robots_block": "Site blocked from indexing in robots.txt",
+            "noindex": "Page excluded by noindex: {{url}}",
+            "page_broken": "A page Google shows returns an error: {{url}}",
+            "kw_drop": "Query “{{keyword}}” dropped: {{from}} → {{to}}",
+            "clicks_drop": "Google clicks fell {{pct}}% this week"
+          }
         }
       }
     },
@@ -17967,6 +18368,117 @@
         "copy": "Copy link",
         "download": "Download PNG",
         "close": "Close"
+      }
+    },
+    "reviewsAi": {
+      "kicker": "Google · reviews",
+      "title": "Reviews",
+      "subtitle": "The AI Reviews Manager watches your Google reviews, prepares replies in the guest’s language and alerts you about negative ones right away.",
+      "reviewsCount": "{{count}} reviews",
+      "addPlace": "Add place",
+      "synced": "Checked: {{count}} new reviews.",
+      "syncNow": "Check now",
+      "syncing": "Checking…",
+      "lastSync": "checked {{date}}",
+      "lastError": "Last check failed: {{msg}}",
+      "kpi": {
+        "rating": "Google rating",
+        "new30": "New in 30 days",
+        "avg": "average {{v}} ★",
+        "negative": "Negative in 30 days",
+        "openNegative": "unanswered: {{count}}",
+        "replied": "Replied",
+        "of": "of {{count}}"
+      },
+      "topics": "What people write about",
+      "filters": {
+        "open": "Need a reply",
+        "negative": "Negative",
+        "replied": "Replied",
+        "all": "All"
+      },
+      "empty": {
+        "open": "All reviews handled 👌",
+        "negative": "No negative reviews",
+        "replied": "Nothing marked as replied yet",
+        "all": "No reviews yet — they appear after a check"
+      },
+      "manualNote": "Replies are published in Google manually: “Copy and open Google” copies the text and opens the place page — paste it under the review and mark it as replied. Auto-publishing from the CRM comes with the Google Business Profile connection.",
+      "guest": "Guest",
+      "noText": "Rating only, no text",
+      "draft": "AI reply draft",
+      "noDraft": "Draft is being prepared…",
+      "copyOpen": "Copy and open Google",
+      "copied": "Copied ✓",
+      "markReplied": "Mark as replied",
+      "regenerate": "Rewrite…",
+      "regenerating": "Rewriting…",
+      "tones": {
+        "same": "Another version",
+        "shorter": "Shorter",
+        "warmer": "Warmer",
+        "formal": "More formal"
+      },
+      "ignore": "Don't reply",
+      "restore": "Restore",
+      "status": {
+        "replied": "replied"
+      },
+      "sentiment": {
+        "positive": "positive",
+        "neutral": "neutral",
+        "negative": "negative"
+      },
+      "add": {
+        "title": "Which place should we watch?",
+        "placeholder": "Name and city, e.g. Akra Hotel Antalya",
+        "hint": "We’ll find the place on Google Maps. Up to 10 places.",
+        "search": "Search",
+        "searching": "Searching…",
+        "nothing": "Nothing found — refine the name or add the city",
+        "add": "Watch",
+        "adding": "Connecting…"
+      },
+      "settings": {
+        "title": "Settings",
+        "enabled": "Watch reviews",
+        "every": "Check every",
+        "hours": "{{count}} h",
+        "threshold": "Negative = rating",
+        "thresholdOpt": "{{n}}★ and below",
+        "recipients": "Who gets negative review alerts",
+        "recipientsHint": "Emails, comma-separated — the review plus a ready reply.",
+        "context": "About the business (for replies)",
+        "contextPh": "Who you are, what you can promise guests, how to contact you, what not to write…",
+        "signature": "Reply signature",
+        "save": "Save",
+        "saving": "Saving…",
+        "openMaps": "Open in Google Maps",
+        "remove": "Stop watching this place",
+        "removeConfirm": "Stop watching “{{name}}”? Loaded reviews and drafts will be deleted."
+      },
+      "gate": {
+        "title": "Reviews are handled by the “Reviews Manager” AI employee",
+        "sub": "Hire and activate a Reviews Manager — it will watch the Google reviews of your places, prepare replies in the guest’s language and alert you about negative ones right away.",
+        "hire": "Hire a Reviews Manager",
+        "open": "Open employee",
+        "allEmployees": "AI Employees",
+        "upgrade": "Plans",
+        "slots": "Free AI employee seats: {{free}} of {{limit}}",
+        "slotsUnlimited": "Your plan has unlimited AI employees",
+        "noSlots": "All AI employee seats are taken ({{used}} of {{limit}}). Free a seat or upgrade.",
+        "planLocked": "The “Reviews Manager” role is available from the Pro plan.",
+        "inactive": "{{name}} is hired but not active. Activate the employee in their profile."
+      },
+      "errors": {
+        "load": "Could not load reviews.",
+        "sync": "Could not check reviews.",
+        "add": "Could not add the place.",
+        "save": "Could not save.",
+        "REVIEWS_NO_PLACES_KEY": "Google Places key is not configured on the platform — contact support.",
+        "REVIEWS_GOOGLE_ERROR": "Google returned an error — try again later.",
+        "REVIEWS_PLACES_LIMIT": "Up to 10 places can be watched.",
+        "REVIEWS_NO_EMPLOYEE": "An active “Reviews Manager” AI employee is required."
       }
     }
   },

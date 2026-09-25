@@ -248,6 +248,9 @@ const PlatformSettingsPage: React.FC = () => {
     openAiImageModel: "dall-e-3",
     aiPriceInputPerMtokUsd: "0.15",
     aiPriceOutputPerMtokUsd: "0.60",
+    seoAiModel: "",
+    seoAiPriceInputPerMtokUsd: "",
+    seoAiPriceOutputPerMtokUsd: "",
     aiImageCostCents: "8",
     stripePriceAiCredits: "",
     stripePriceStoragePack: "",
@@ -315,6 +318,9 @@ const PlatformSettingsPage: React.FC = () => {
         openAiImageModel: data.openAiImageModel || "dall-e-3",
         aiPriceInputPerMtokUsd: data.aiPriceInputPerMtokUsd || "0.15",
         aiPriceOutputPerMtokUsd: data.aiPriceOutputPerMtokUsd || "0.60",
+        seoAiModel: data.seoAiModel || "",
+        seoAiPriceInputPerMtokUsd: data.seoAiPriceInputPerMtokUsd || "",
+        seoAiPriceOutputPerMtokUsd: data.seoAiPriceOutputPerMtokUsd || "",
         aiImageCostCents:
           data.aiImageCostCents != null ? String(data.aiImageCostCents) : "8",
         stripePriceAiCredits: data.stripePriceAiCredits || "",
@@ -394,6 +400,9 @@ const PlatformSettingsPage: React.FC = () => {
         openAiImageModel: form.openAiImageModel.trim() || null,
         aiPriceInputPerMtokUsd: form.aiPriceInputPerMtokUsd.trim() || null,
         aiPriceOutputPerMtokUsd: form.aiPriceOutputPerMtokUsd.trim() || null,
+        seoAiModel: form.seoAiModel.trim() || null,
+        seoAiPriceInputPerMtokUsd: form.seoAiPriceInputPerMtokUsd.trim() || null,
+        seoAiPriceOutputPerMtokUsd: form.seoAiPriceOutputPerMtokUsd.trim() || null,
         aiImageCostCents: parseInt(form.aiImageCostCents, 10) || null,
         stripePriceAiCredits: form.stripePriceAiCredits.trim() || null,
         stripePriceStoragePack: form.stripePriceStoragePack.trim() || null,
@@ -1123,6 +1132,49 @@ const PlatformSettingsPage: React.FC = () => {
               className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
             />
           </label>
+          <div className="md:col-span-2 mt-2 rounded-2xl border border-slate-800/80 p-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-slate-500">ИИ-SEO-ассистент (еженедельный отчёт)</div>
+            <p className="text-sm text-slate-400 mt-1">
+              Отдельная модель только для SEO-отчётов в CRM (Маркетинг → SEO → ИИ-ассистент). Пусто — используется модель чата выше.
+              Укажите цены этой модели: по ним списывается AI-квота клиента; если цены пустые — берутся общие.
+              Клиенты со своим ключом OpenAI/Anthropic используют свою модель.
+            </p>
+            <div className="grid gap-4 md:grid-cols-3 mt-4">
+              <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                Модель SEO-отчёта
+                <input
+                  value={form.seoAiModel}
+                  onChange={(e) => setForm((s) => ({ ...s, seoAiModel: e.target.value }))}
+                  className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                  placeholder={form.openAiModel || "как у чата"}
+                  autoComplete="off"
+                />
+              </label>
+              <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                $ / 1M input tokens
+                <input
+                  value={form.seoAiPriceInputPerMtokUsd}
+                  onChange={(e) => setForm((s) => ({ ...s, seoAiPriceInputPerMtokUsd: e.target.value }))}
+                  className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                  placeholder={form.aiPriceInputPerMtokUsd}
+                />
+              </label>
+              <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                $ / 1M output tokens
+                <input
+                  value={form.seoAiPriceOutputPerMtokUsd}
+                  onChange={(e) => setForm((s) => ({ ...s, seoAiPriceOutputPerMtokUsd: e.target.value }))}
+                  className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                  placeholder={form.aiPriceOutputPerMtokUsd}
+                />
+              </label>
+            </div>
+            {form.seoAiModel.trim() && (!form.seoAiPriceInputPerMtokUsd.trim() || !form.seoAiPriceOutputPerMtokUsd.trim()) && (
+              <p className="text-xs text-amber-400 mt-3">
+                Цены для SEO-модели не заданы — списание будет по общим ценам чата. Если модель дороже, клиенты заплатят меньше, чем стоит запрос.
+              </p>
+            )}
+          </div>
           <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
             Списание за 1 изображение (центы)
             <input

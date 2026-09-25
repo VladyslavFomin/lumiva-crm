@@ -397,6 +397,9 @@ export class PlatformSettingsService {
     openAiImageModel?: string | null;
     aiPriceInputPerMtokUsd?: string | null;
     aiPriceOutputPerMtokUsd?: string | null;
+    seoAiModel?: string | null;
+    seoAiPriceInputPerMtokUsd?: string | null;
+    seoAiPriceOutputPerMtokUsd?: string | null;
     aiImageCostCents?: number | null;
     stripePriceAiCredits?: string | null;
     stripePriceStoragePack?: string | null;
@@ -438,6 +441,9 @@ export class PlatformSettingsService {
         openAiImageModel: payload.openAiImageModel ?? null,
         aiPriceInputPerMtokUsd: payload.aiPriceInputPerMtokUsd ?? null,
         aiPriceOutputPerMtokUsd: payload.aiPriceOutputPerMtokUsd ?? null,
+        seoAiModel: payload.seoAiModel ?? null,
+        seoAiPriceInputPerMtokUsd: payload.seoAiPriceInputPerMtokUsd ?? null,
+        seoAiPriceOutputPerMtokUsd: payload.seoAiPriceOutputPerMtokUsd ?? null,
         aiImageCostCents: payload.aiImageCostCents ?? null,
         stripePriceAiCredits: payload.stripePriceAiCredits ?? null,
         stripePriceStoragePack: payload.stripePriceStoragePack ?? null,
@@ -509,6 +515,13 @@ export class PlatformSettingsService {
       }
       if (payload.aiPriceOutputPerMtokUsd !== undefined) {
         current.aiPriceOutputPerMtokUsd = payload.aiPriceOutputPerMtokUsd;
+      }
+      if (payload.seoAiModel !== undefined) current.seoAiModel = payload.seoAiModel;
+      if (payload.seoAiPriceInputPerMtokUsd !== undefined) {
+        current.seoAiPriceInputPerMtokUsd = payload.seoAiPriceInputPerMtokUsd;
+      }
+      if (payload.seoAiPriceOutputPerMtokUsd !== undefined) {
+        current.seoAiPriceOutputPerMtokUsd = payload.seoAiPriceOutputPerMtokUsd;
       }
       if (payload.aiImageCostCents !== undefined) current.aiImageCostCents = payload.aiImageCostCents;
       if (payload.stripePriceAiCredits !== undefined) {

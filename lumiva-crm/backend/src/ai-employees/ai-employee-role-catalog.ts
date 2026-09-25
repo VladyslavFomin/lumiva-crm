@@ -12,6 +12,8 @@ export type AiEmployeeRoleKey =
   | 'support_manager'
   | 'project_manager'
   | 'smm_manager'
+  | 'seo_manager'
+  | 'reviews_manager'
   | 'email_assistant'
   | 'crm_analyst'
   | 'reservation_assistant';
@@ -66,6 +68,17 @@ export type AiEmployeeRoleConfig = {
    */
   assignableEntityTypes: AiAssignableEntityType[];
   systemPrompt: string;
+  /**
+   * Зона отдела — жёсткий потолок (решение владельца 2026-09-25): права вне списка нельзя включить
+   * ни в мастере, ни в «Доступах», и они не срабатывают в рантайме. Задаётся в ROLE_ZONES ниже.
+   */
+  allowedPermissions: string[];
+  /** События-триггеры, на которые роль может реагировать (тоже потолок). */
+  allowedTriggers: string[];
+  /** Устав отдела для промпта: что входит в работу роли и что — нет (англ., для модели). */
+  charter: { does: string; doesNot: string };
+  /** Только читает и отчитывается (CRM-аналитик): никаких действий, триггеров, записей. */
+  reportOnly?: boolean;
 };
 
 /**
@@ -143,6 +156,7 @@ export const AI_EMPLOYEE_PERMISSION_KEYS = [
 
 /** Action types where the system can perform real execution (not just "mark done"). */
 export const AI_REAL_EXECUTABLE_ACTIONS = [
+  'handoff_to_colleague',
   'send_email',
   'send_bulk_email',
   'send_telegram',
@@ -189,7 +203,9 @@ const DEFAULT_APPROVAL_RULES = [
   'assign_lead',
 ];
 
-export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
+type AiEmployeeRoleBase = Omit<AiEmployeeRoleConfig, 'allowedPermissions' | 'allowedTriggers' | 'charter' | 'reportOnly'>;
+
+const ROLE_BASE: AiEmployeeRoleBase[] = [
   {
     key: 'lead_manager',
     title: 'AI Lead Manager',
@@ -470,6 +486,63 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'You are an AI SMM Manager inside Lumiva CRM. Prepare social content drafts and calendars, keeping brand tone consistent.',
   },
   {
+    // Открывает ИИ-SEO на странице «Маркетинг → SEO»: без активного сотрудника этой роли вкладка закрыта
+    // (seo-ai/seo-ai.service.ts → getAccess). Сам еженедельный разбор сайта делает модуль seo-ai.
+    key: 'seo_manager',
+    title: 'AI SEO Manager',
+    shortTitle: 'SEO Manager',
+    defaultName: 'Sam AI',
+    department: 'Marketing',
+    jobTitle: 'AI SEO Manager',
+    minPlan: 'professional',
+    accent: '#0b3b2e',
+    description:
+      'Monitors your website every week: Search Console rankings, PageSpeed, on-page audit, and emails a report with a score and concrete fixes.',
+    functions: [
+      'Weekly SEO report',
+      'Ranking tracking',
+      'On-page audit',
+      'Speed checks',
+      'Content ideas',
+    ],
+    defaultPermissions: [
+      'read_marketing',
+      'read_projects',
+      'read_tasks',
+      'read_reports',
+      ...ALWAYS_ON_EXTRAS,
+      'create_task',
+      'create_report',
+    ],
+    defaultTriggers: [],
+    defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
+    systemPrompt:
+      'You are an AI SEO Manager inside Lumiva CRM. snapshot.seo holds the latest weekly SEO reports per website (Search Console traffic week/month, tracked keyword positions, striking-distance queries, page issues, PageSpeed, recommendations, tasks already created, active alerts) — base every SEO answer on it and say so when data is missing. ' +
+      'Analyze organic search performance, site health and content opportunities based only on real Search Console, PageSpeed and site data; give concrete, prioritized fixes.',
+  },
+  {
+    // Открывает «Отзывы» (Маркетинг → Отзывы): без активного сотрудника этой роли страница закрыта
+    // (reviews-ai/reviews-ai.service.ts → getAccess). Мониторинг Google-отзывов, черновики ответов, сигналы о негативе.
+    key: 'reviews_manager',
+    title: 'AI Reviews Manager',
+    shortTitle: 'Reviews Manager',
+    defaultName: 'Ece AI',
+    department: 'Customer Service',
+    jobTitle: 'AI Reviews Manager',
+    minPlan: 'professional',
+    accent: '#7c2d12',
+    description:
+      'Watches your Google reviews, drafts replies in the reviewer’s language (RU/TR/EN and more) and alerts you about negative reviews right away.',
+    functions: ['Google review monitoring', 'Reply drafts in RU/TR/EN', 'Negative review alerts', 'Review topics and trends', 'Tasks for bad reviews'],
+    defaultPermissions: ['read_reports', 'create_task', 'create_report', 'escalate_to_human'],
+    defaultTriggers: [],
+    defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
+    systemPrompt:
+      'You are an AI Reviews Manager inside Lumiva CRM. snapshot.reviews holds the monitored Google places with rating, recent reviews, sentiment and open negatives — base answers on it. Replies to reviews must be polite, specific to what the guest wrote, in the reviewer’s language, never argue or disclose private data, and invite unhappy guests to contact the business directly.',
+  },
+  {
     key: 'email_assistant',
     title: 'AI Email Assistant',
     shortTitle: 'Email Assistant',
@@ -515,14 +588,15 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
     minPlan: 'professional',
     accent: '#111111',
     description:
-      'Analyzes CRM activity, sales, leads, tasks and process bottlenecks for leadership.',
+      'Every day collects the numbers you choose — revenue, discounts, deals, bookings, leads, tasks — and sends a report on schedule. Never changes anything in the CRM.',
     functions: [
-      'CRM health review',
-      'Bottleneck detection',
-      'Management reports',
-      'Team activity analysis',
-      'Process recommendations',
+      "Yesterday's report",
+      'Revenue and discounts',
+      'Bookings and occupancy',
+      'Leads and deals',
+      'Scheduled email report',
     ],
+
     defaultPermissions: [
       // Единственная роль, оставленная на полном read-доступе: её работа буквально —
       // межфункциональный анализ CRM целиком («Оценка состояния CRM», «Обнаружение узких мест»,
@@ -618,3 +692,170 @@ export function getPlanUpgradeLabel(minPlan: NormalizedTenantPlan): string {
   if (minPlan === 'ultimate') return 'Available on Enterprise';
   return 'Included';
 }
+
+// ───────────────────────── Зоны отделов (жёсткие границы ролей) ─────────────────────────
+
+const WS = ['custom_object.record_created', 'custom_object.record_updated', 'custom_object.status_changed'];
+
+/**
+ * Каждая роль работает только на свой отдел. Решение владельца 2026-09-25: иначе клиент нанимает
+ * одного сотрудника, и тот делает всё. Чтение чужих отделов закрыто так же, как действия:
+ * маркетинг видит лиды только агрегатами в блоке marketing (источники/конверсия), без карточек.
+ */
+const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedPermissions' | 'allowedTriggers' | 'charter' | 'reportOnly'>> = {
+  lead_manager: {
+    allowedPermissions: ['read_leads', 'read_contacts', 'read_companies', 'read_tasks', 'read_messages', 'read_notes', 'read_reports',
+      'create_task', 'update_task', 'create_note', 'assign_lead', 'update_lead_status', 'draft_email', 'send_email', 'draft_whatsapp',
+      'send_telegram', 'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
+    allowedTriggers: ['ai.assigned', 'lead.created', 'lead.status_changed', 'lead.assigned', 'contact.created', 'telegram.message_received', 'email.received', ...WS],
+    charter: {
+      does: 'incoming leads: first response, qualification, routing to the right manager, lead statuses, follow-ups until the lead is qualified',
+      doesNot: 'closing deals and sales pipeline (Sales Manager), marketing channels/campaigns/content (Marketing), projects (Project Manager), support tickets (Support), bookings (Reservation Assistant), SEO (SEO Manager)',
+    },
+  },
+  sales_manager: {
+    allowedPermissions: ['read_leads', 'read_contacts', 'read_companies', 'read_sales', 'read_tasks', 'read_messages', 'read_notes', 'read_reports',
+      'create_task', 'update_task', 'create_note', 'update_lead_status', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram',
+      'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
+    allowedTriggers: ['ai.assigned', 'lead.status_changed', 'sale.created', 'sale.status_changed', 'telegram.message_received', 'email.received', ...WS],
+    charter: {
+      does: 'qualified leads and deals: offers, follow-ups, negotiations, deal statuses, stuck deals, sales reports',
+      doesNot: 'raw incoming leads and their distribution (Lead Manager), marketing (Marketing), projects after the sale (Project Manager), support (Support), SEO (SEO Manager)',
+    },
+  },
+  marketing_manager: {
+    allowedPermissions: ['read_marketing', 'read_reports', 'draft_email', 'send_bulk_email', 'create_report', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned'],
+    charter: {
+      does: 'marketing channels, campaign performance, budgets/ROI, attribution, newsletters to segments, growth ideas — leads only as aggregates (sources, conversion)',
+      doesNot: 'individual leads, their qualification, statuses or advice on how to work a specific lead (Lead Manager / Sales Manager), social content (SMM), website SEO (SEO Manager), projects, support',
+    },
+  },
+  marketing_analyst: {
+    allowedPermissions: ['read_marketing', 'read_reports', 'create_report', 'escalate_to_human'],
+    allowedTriggers: [],
+    charter: {
+      does: 'analysis of marketing performance: channels, costs, ROI, attribution, trends — as reports',
+      doesNot: 'any actions, individual leads, sales, content, SEO work',
+    },
+  },
+  smm_manager: {
+    allowedPermissions: ['read_marketing', 'read_reports', 'read_projects', 'read_tasks', 'draft_email', 'create_task', 'create_report', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned'],
+    charter: {
+      does: 'social media content: post ideas, captions, Reels/Shorts scripts, hashtags, content calendars',
+      doesNot: 'leads and sales, paid campaigns analytics (Marketing), website SEO (SEO Manager), support, projects outside content',
+    },
+  },
+  seo_manager: {
+    allowedPermissions: ['read_marketing', 'read_projects', 'read_tasks', 'read_reports', 'create_task', 'update_task', 'create_report', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned'],
+    charter: {
+      does: 'website SEO: Search Console rankings and traffic, PageSpeed, on-page issues, content for search, SEO tasks',
+      doesNot: 'leads and sales, social media content (SMM), ads and campaigns (Marketing), support, bookings',
+    },
+  },
+  reviews_manager: {
+    allowedPermissions: ['read_reports', 'read_projects', 'read_tasks', 'create_task', 'update_task', 'create_report', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned'],
+    charter: {
+      does: 'public reviews about the business (Google): monitoring, reply drafts in the reviewer’s language, negative review alerts, review topics and trends',
+      doesNot: 'leads and sales (Lead/Sales Manager), support tickets (Support), marketing campaigns (Marketing), SEO (SEO Manager), bookings (Reservation Assistant)',
+    },
+  },
+  support_manager: {
+    allowedPermissions: ['read_helpdesk', 'read_contacts', 'read_companies', 'read_messages', 'read_tasks', 'read_notes', 'read_reports',
+      'create_task', 'update_task', 'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'create_meeting',
+      'create_report', 'escalate_to_human', 'manage_workspace_data'],
+    allowedTriggers: ['ai.assigned', 'telegram.message_received', 'email.received', 'task.created', 'task.status_changed', ...WS],
+    charter: {
+      does: 'customer support: tickets, client questions and complaints, FAQ answers, escalation of hard cases',
+      doesNot: 'selling and new leads (Lead/Sales Manager), marketing, projects delivery (Project Manager), bookings (Reservation Assistant), SEO',
+    },
+  },
+  project_manager: {
+    allowedPermissions: ['read_projects', 'read_tasks', 'read_contacts', 'read_companies', 'read_messages', 'read_notes', 'read_reports',
+      'create_task', 'update_task', 'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'create_meeting',
+      'create_report', 'create_project', 'create_workspace_table', 'manage_workspace_data', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned', 'project.created', 'project.status_changed', 'task.created', 'task.status_changed', 'telegram.message_received', ...WS],
+    charter: {
+      does: 'projects and their tasks: plans, deadlines, statuses, blockers, client updates on project progress, workspace tables for projects',
+      doesNot: 'leads and their distribution (Lead Manager), deals (Sales), marketing, support tickets, SEO',
+    },
+  },
+  email_assistant: {
+    allowedPermissions: ['read_leads', 'read_contacts', 'read_messages', 'read_notes', 'read_reports', 'create_note', 'draft_email',
+      'send_email', 'create_meeting', 'create_report', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned', 'email.received'],
+    charter: {
+      does: 'email correspondence: reply drafts, follow-up emails, thread summaries, unanswered emails',
+      doesNot: 'lead qualification and statuses (Lead Manager), deals (Sales), marketing newsletters (Marketing), Telegram/WhatsApp chats, projects, SEO',
+    },
+  },
+  crm_analyst: {
+    allowedPermissions: [...ALL_READS, 'create_report'],
+    allowedTriggers: [],
+    reportOnly: true,
+    charter: {
+      does: 'reading all CRM data the owner enabled and reporting on it: yesterday/period numbers (revenue, discounts, deals, leads, bookings, tasks, support), trends, bottlenecks — reports and notifications only',
+      doesNot: 'ANY action: no tasks, notes, statuses, assignments, messages to clients or staff; no advice on how to work a specific record — say which employee role handles it',
+    },
+  },
+  reservation_assistant: {
+    allowedPermissions: ['read_bookings', 'read_leads', 'read_contacts', 'read_messages', 'read_notes', 'read_reports', 'create_task',
+      'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
+    allowedTriggers: ['ai.assigned', 'booking.reservation_created', 'booking.reservation_status_changed', 'hotel.reservation_created',
+      'hotel.reservation_status_changed', 'telegram.message_received', 'email.received', ...WS],
+    charter: {
+      does: 'reservations: booking requests, guest replies in RU/TR/EN, date/room checks, agency communication, reservation reports',
+      doesNot: 'general leads outside reservations (Lead Manager), deals (Sales), marketing, projects, SEO',
+    },
+  },
+};
+
+export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = ROLE_BASE.map((base) => {
+  const zone = ROLE_ZONES[base.key];
+  return {
+    ...base,
+    ...zone,
+    // умолчания обязаны лежать внутри зоны
+    defaultPermissions: base.defaultPermissions.filter((k) => zone.allowedPermissions.includes(k)),
+    defaultTriggers: base.defaultTriggers.filter((t) => zone.allowedTriggers.includes(t.event)),
+  };
+});
+
+export function roleAllowsPermission(role: AiEmployeeRoleConfig | null | undefined, key: string): boolean {
+  return !!role && role.allowedPermissions.includes(key);
+}
+
+export function roleAllowsTrigger(role: AiEmployeeRoleConfig | null | undefined, event: string): boolean {
+  return !!role && role.allowedTriggers.includes(event);
+}
+
+/** Роли, в чью зону входит право (для подсказки «это работа …» и кнопки «Нанять»); аналитика не предлагаем. */
+export function rolesForPermission(key: string): AiEmployeeRoleKey[] {
+  return AI_EMPLOYEE_ROLES.filter((r) => !r.reportOnly && r.allowedPermissions.includes(key)).map((r) => r.key);
+}
+
+/**
+ * Чья это работа: событие CRM → роль, которая его обрабатывает. Если такой роли нет в команде,
+ * событие попадает в «упущенную работу» (AiEmployeesService.noteMissedWorkForEvent).
+ */
+export const EVENT_OWNER_ROLE: Record<string, AiEmployeeRoleKey> = {
+  'lead.created': 'lead_manager',
+  'lead.assigned': 'lead_manager',
+  'contact.created': 'lead_manager',
+  'lead.status_changed': 'sales_manager',
+  'sale.created': 'sales_manager',
+  'sale.status_changed': 'sales_manager',
+  'project.created': 'project_manager',
+  'project.status_changed': 'project_manager',
+  'task.created': 'project_manager',
+  'task.status_changed': 'project_manager',
+  'booking.reservation_created': 'reservation_assistant',
+  'booking.reservation_status_changed': 'reservation_assistant',
+  'hotel.reservation_created': 'reservation_assistant',
+  'hotel.reservation_status_changed': 'reservation_assistant',
+  'email.received': 'email_assistant',
+  'telegram.message_received': 'support_manager',
+};

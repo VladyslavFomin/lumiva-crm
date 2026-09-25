@@ -1240,6 +1240,33 @@ export class EmailService {
   }
 
   /**
+   * Готовое HTML-содержимое → письмо в дизайне компании (та же обёртка, что у шаблонов и писем
+   * ИИ-ассистента: шаблон-обёртка из настроек компании или встроенный дизайн с логотипом).
+   * Для системных писем модулей (например, еженедельный SEO-отчёт), которые шлются не из ящика тенанта.
+   */
+  async wrapHtmlInCompanyDesign(
+    tenantId: string,
+    params: { headline: string; innerHtml: string },
+  ): Promise<{ htmlBody: string; textBody: string } | null> {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) return null;
+    const innerText = this.stripHtmlTags(params.innerHtml);
+    return this.wrapWithCompanyDesign(tenantId, tenant, {
+      headline: params.headline,
+      innerHtml: params.innerHtml,
+      innerText,
+      baseData: {
+        contentHtml: params.innerHtml,
+        contentText: innerText,
+        headline: params.headline,
+        tenantName: tenant.name,
+        companyName: tenant.name,
+        logoUrl: this.resolveTenantLogoUrl(tenant),
+      },
+    });
+  }
+
+  /**
    * Оборачивает готовое содержимое (contentHtml/contentText уже должны быть в baseData) в дизайн
    * компании: tenant.aiWrapperEmailTemplateId, если задан, иначе встроенный дизайн. Используется
    * и для писем ИИ-ассистента (composeStyledTransactionalMail), и для обычных шаблонов с

@@ -30,6 +30,7 @@ import {
 } from './AiAgentConfigEditors';
 import { InsightsView, KnowledgeView } from './AiKnowledgeInsightsViews';
 import { AiAgentWorkPanel } from './AiAgentWorkPanel';
+import { AiAnalystReportPanel } from './AiAnalystReportPanel';
 import {
   approveAiAction,
   createAiEmployee,
@@ -49,6 +50,8 @@ import {
   fetchAiPlanLimits,
   fetchAiReports,
   fetchAiRoles,
+  fetchAiMissedWork,
+  type AiMissedWork,
   generateAiEmployeeReport,
   pauseAiEmployee,
   rejectAiAction,
@@ -142,7 +145,17 @@ const approvalKeys = [
   'create_workspace_table',
 ];
 
+/** Команда по отделам: пустые места видны сразу (решение владельца 2026-09-25 — зоны отделов). */
+const TEAM_DEPARTMENTS: Array<{ key: string; roles: AiEmployeeRoleKey[] }> = [
+  { key: 'sales', roles: ['lead_manager', 'sales_manager', 'email_assistant'] },
+  { key: 'marketing', roles: ['marketing_manager', 'marketing_analyst', 'smm_manager', 'seo_manager'] },
+  { key: 'service', roles: ['support_manager', 'reviews_manager', 'reservation_assistant'] },
+  { key: 'projects', roles: ['project_manager'] },
+  { key: 'management', roles: ['crm_analyst'] },
+];
+
 const REAL_EXECUTABLE_ACTIONS = new Set([
+  'handoff_to_colleague',
   'send_email',
   'send_bulk_email',
   'send_telegram',
@@ -241,6 +254,12 @@ const ICON = {
     </>
   ),
   shield: <path d="M12 2l8 3v7c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" />,
+  lock: (
+    <>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 018 0v4" />
+    </>
+  ),
   bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />,
   play: <path d="M6 4l14 8-14 8z" />,
   pause: (
@@ -911,12 +930,40 @@ function ReportBrowser({ reports, onChanged }: { reports: AiAgentReport[]; onCha
   );
 }
 
+/**
+ * Право вне зоны отдела роли: включить нельзя — показываем, чья это работа, и даём нанять.
+ * Решение владельца 2026-09-25: каждый ИИ-сотрудник работает только на свой отдел.
+ */
+function ZoneLock({ permKey, roles }: { permKey: string; roles: AiEmployeeRole[] }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const owners = roles.filter((r) => !r.reportOnly && r.allowedPermissions?.includes(permKey)).slice(0, 2);
+  return (
+    <div className="ai-zone-lock">
+      <I d={ICON.lock} size={12} />
+      <span>{owners.length ? t('crm.aiEmployees.zones.otherDept') : t('crm.aiEmployees.zones.notForRole')}</span>
+      {owners.map((o) => (
+        <button key={o.key} type="button" className="lnk" onClick={() => navigate(`/ai-employees/new?role=${o.key}`)}>
+          {t(`crm.aiEmployees.roleCatalog.${o.key}.shortTitle`, { defaultValue: o.shortTitle })}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const outOfZone = (role: AiEmployeeRole | null | undefined, key: string) =>
+  !!role?.allowedPermissions && !role.allowedPermissions.includes(key);
+
 function PermissionEditor({
   permissions,
   setPermissions,
+  role,
+  roles = [],
 }: {
   permissions: Record<string, boolean>;
   setPermissions: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  role?: AiEmployeeRole | null;
+  roles?: AiEmployeeRole[];
 }) {
   const { t } = useTranslation();
   return (
@@ -932,8 +979,9 @@ function PermissionEditor({
           <div className="ai-panel-body flush ai-perm-grid">
             {group.keys.map((key) => {
               const badge = PERMISSION_BADGE[key];
+              const locked = outOfZone(role, key);
               return (
-                <div className="ai-perm" key={key}>
+                <div className={cn('ai-perm', locked && 'locked')} key={key}>
                   <div className="pi">
                     <I d={ICON.shield} size={15} />
                   </div>
@@ -944,11 +992,15 @@ function PermissionEditor({
                     </div>
                     <div className="pd">{t(`crm.aiEmployees.permissions.${key}.hint`, { defaultValue: '' })}</div>
                   </div>
-                  <button
-                    type="button"
-                    className={cn('ai-toggle', permissions[key] ? 'on' : 'off')}
-                    onClick={() => setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))}
-                  />
+                  {locked ? (
+                    <ZoneLock permKey={key} roles={roles} />
+                  ) : (
+                    <button
+                      type="button"
+                      className={cn('ai-toggle', permissions[key] ? 'on' : 'off')}
+                      onClick={() => setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -1080,18 +1132,21 @@ function DashboardView() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [ownKeyModalOpen, setOwnKeyModalOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'setup_required' | 'pending'>('all');
+  const [missed, setMissed] = useState<AiMissedWork | null>(null);
 
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const [employees, ins, logsRes] = await Promise.all([
+      const [employees, ins, logsRes, missedRes] = await Promise.all([
         fetchAiEmployees(),
         fetchAiInsights(30).catch(() => null),
         fetchAiLogs({ limit: 60 }).catch(() => ({ items: [] as AiAgentLog[] })),
+        fetchAiMissedWork(7).catch(() => null),
       ]);
       setData(employees);
       setInsights(ins);
+      setMissed(missedRes);
       // «Лента дня»: только содержательные события (что сделано / пропущено / сломалось), без служебного шума.
       const keep = new Set(['action_created', 'action_executed', 'action_blocked', 'action_rejected', 'agent_auto_paused', 'daily_digest', 'escalated']);
       setDayLogs((logsRes.items || []).filter((l) => keep.has(l.eventType)).slice(0, 12));
@@ -1112,7 +1167,6 @@ function DashboardView() {
     else navigate('/ai-employees/choose');
   };
   const savedHours = insights ? Math.round(insights.totals.minutesSaved / 60) : null;
-  const freeRoles = data ? data.roles.filter((r) => !data.items.some((a) => a.role === r.key)) : [];
   const list = data
     ? data.items.filter((a) => {
         if (filter === 'all') return true;
@@ -1311,46 +1365,87 @@ function DashboardView() {
                 </>
               ) : null}
 
-              {freeRoles.length > 0 ? (
+              {data ? (
                 <>
                   <div className="e2-sec">
-                    <div className="h">{t('crm.aiEmployees.v2.freeRoles')}</div>
+                    <div className="h">{t('crm.aiEmployees.team.title')}</div>
                     <div className="line" />
-                    <span className="kick">{freeRoles.length}</span>
+                    <span className="kick">
+                      {t('crm.aiEmployees.team.seats', { hired: data.items.length, total: data.roles.length })}
+                    </span>
                   </div>
-                  <div className="e2-roles">
-                    {freeRoles.map((r) => (
-                      <div key={r.key} className={cn('e2-role', r.locked && 'lock')}>
-                        <div className="rt">
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="h">{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</div>
-                            <div className="dp">
-                              {trDepartment(r.department, t)} · {r.jobTitle}
-                            </div>
-                          </div>
-                          {r.locked ? <span className="plan">{trPlanBadge(r.badge, t)}</span> : null}
-                        </div>
-                        <div className="ds">{trRole(r.key, 'description', r.description, t, i18n)}</div>
-                        <div className="fn">
-                          {trRoleFunctions(r.key, r.functions, t, i18n)
-                            .slice(0, 3)
-                            .map((f) => (
-                              <span key={f}>{f}</span>
-                            ))}
-                        </div>
-                        <div>
-                          {!r.locked ? (
-                            <button className="e2b gh sm" onClick={() => navigate(`/ai-employees/new?role=${r.key}`)}>
-                              <I d={ICON.plus} size={12} />
-                              {t('crm.aiEmployees.v2.hire')}
-                            </button>
-                          ) : (
-                            <span className="e2-hint">{trPlanBadge(r.badge, t)}</span>
-                          )}
+                  {missed && missed.total > 0 ? (
+                    <div className="e2-missed">
+                      <b>{t('crm.aiEmployees.team.missedTitle', { count: missed.total, days: missed.days })}</b>
+                      <span>{t('crm.aiEmployees.team.missedHint')}</span>
+                    </div>
+                  ) : null}
+                  {TEAM_DEPARTMENTS.map((dep) => {
+                    const deptRoles = dep.roles.map((k) => data.roles.find((r) => r.key === k)).filter(Boolean) as AiEmployeeRole[];
+                    if (!deptRoles.length) return null;
+                    return (
+                      <div key={dep.key} className="e2-dept">
+                        <div className="e2-dept-h">{t(`crm.aiEmployees.team.departments.${dep.key}`)}</div>
+                        <div className="e2-roles">
+                          {deptRoles.map((r) => {
+                            const hired = data.items.filter((a) => a.role === r.key);
+                            const miss = missed?.items.find((m) => m.roleKey === r.key);
+                            if (hired.length) {
+                              return hired.map((a) => (
+                                <div key={a.id} className="e2-role hired" onClick={() => navigate(`/ai-employees/${a.id}`)} role="button">
+                                  <div className="rt">
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div className="h">{a.name}</div>
+                                      <div className="dp">{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</div>
+                                    </div>
+                                    <span className={cn('e2-seat-st', a.status)}>{t(`crm.aiEmployees.status.${a.status}`, { defaultValue: a.status })}</span>
+                                  </div>
+                                  <div className="ds">{trRole(r.key, 'description', r.description, t, i18n)}</div>
+                                </div>
+                              ));
+                            }
+                            return (
+                              <div key={r.key} className={cn('e2-role', 'empty', r.locked && 'lock')}>
+                                <div className="rt">
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div className="h">{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</div>
+                                    <div className="dp">{t('crm.aiEmployees.team.emptySeat')}</div>
+                                  </div>
+                                  {r.locked ? <span className="plan">{trPlanBadge(r.badge, t)}</span> : null}
+                                </div>
+                                {miss ? (
+                                  <div className="e2-miss">
+                                    <b>{t('crm.aiEmployees.team.missedFor', { count: miss.count, days: missed?.days ?? 7 })}</b>
+                                    <span>
+                                      {Object.entries(miss.byEvent)
+                                        .sort((x, y) => y[1] - x[1])
+                                        .slice(0, 3)
+                                        .map(([ev, n]) => `${t(`crm.aiEmployees.team.events.${ev.replace(/\./g, '_')}`, { defaultValue: ev })}: ${n}`)
+                                        .join(' · ')}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="ds">{trRole(r.key, 'description', r.description, t, i18n)}</div>
+                                )}
+                                <div>
+                                  {!r.locked ? (
+                                    <button className="e2b gh sm" onClick={() => navigate(`/ai-employees/new?role=${r.key}`)}>
+                                      <I d={ICON.plus} size={12} />
+                                      {t('crm.aiEmployees.v2.hire')}
+                                    </button>
+                                  ) : (
+                                    <button className="e2b gh sm" onClick={() => setUpgradeOpen(true)}>
+                                      {trPlanBadge(r.badge, t)}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </>
               ) : null}
             </>
@@ -1746,7 +1841,12 @@ function CreateView() {
 
           {step === 1 ? (
             <div className="flex flex-col gap-3.5">
-              <PermissionEditor permissions={permissions} setPermissions={setPermissions} />
+              <PermissionEditor
+                permissions={permissions}
+                setPermissions={setPermissions}
+                role={roles.find((r) => r.key === roleKey) ?? null}
+                roles={roles}
+              />
               <TableAccessEditor value={tableAccess} onChange={setTableAccess} />
             </div>
           ) : null}
@@ -1792,7 +1892,7 @@ function CreateView() {
 
           {step === 3 ? (
             <div className="flex flex-col gap-3.5">
-              <TriggersEditor triggers={triggers} onChange={setTriggers} />
+              <TriggersEditor triggers={triggers} onChange={setTriggers} allowedEvents={roles.find((r) => r.key === roleKey)?.allowedTriggers} />
               <EmailInboxAccessEditor value={emailInboxAccess} onChange={setEmailInboxAccess} />
               <ControlEditor sla={sla} dailyPlan={dailyPlan} onSla={setSla} onDailyPlan={setDailyPlan} />
             </div>
@@ -2178,6 +2278,8 @@ export function AiEmployeeProfilePage() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const [detail, setDetail] = useState<AiAgentDetailResponse | null>(null);
+  /** Все роли каталога — для подсказки «это работа такой-то роли» у прав вне зоны отдела. */
+  const [allRoles, setAllRoles] = useState<AiEmployeeRole[]>([]);
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [approvalRules, setApprovalRules] = useState<Record<string, boolean>>({});
   const [autonomyMode, setAutonomyMode] = useState<AiAgentAutonomyMode>('suggest');
@@ -2207,7 +2309,12 @@ export function AiEmployeeProfilePage() {
     setLoading(true);
     setError('');
     try {
-      const [res, assignRes] = await Promise.all([fetchAiEmployee(id), fetchAiAgentAssignments(id).catch(() => ({ items: [] }))]);
+      const [res, assignRes, rolesRes] = await Promise.all([
+        fetchAiEmployee(id),
+        fetchAiAgentAssignments(id).catch(() => ({ items: [] })),
+        fetchAiRoles().catch(() => [] as AiEmployeeRole[]),
+      ]);
+      setAllRoles(rolesRes);
       setDetail(res);
       setPermissions(res.permissions);
       setApprovalRules(res.approvalRules);
@@ -2289,7 +2396,13 @@ export function AiEmployeeProfilePage() {
   const tabs = agent
     ? [
         { key: 'overview' as const, label: t('crm.aiEmployees.profile.tabs.overview'), icon: ICON.eye, badge: 0 },
-        { key: 'access' as const, label: t('crm.aiEmployees.profile.tabs.access'), icon: ICON.shield, badge: 0 },
+        {
+          key: 'access' as const,
+          // у аналитика вместо «Доступов» — настройка отчёта (какие данные и когда)
+          label: detail?.role?.reportOnly ? t('crm.aiEmployees.analyst.tab') : t('crm.aiEmployees.profile.tabs.access'),
+          icon: ICON.shield,
+          badge: 0,
+        },
         { key: 'work' as const, label: t('crm.aiEmployees.profile.tabs.work'), icon: ICON.wand, badge: cfg?.triggers.filter((x) => x.enabled).length || 0 },
         {
           key: 'journal' as const,
@@ -2512,7 +2625,8 @@ export function AiEmployeeProfilePage() {
               </div>
             ) : null}
 
-            {tab === 'access' ? (
+            {tab === 'access' && detail?.role?.reportOnly && agent ? <AiAnalystReportPanel agentId={agent.id} /> : null}
+            {tab === 'access' && !detail?.role?.reportOnly ? (
               <>
                 <div className="e2-grid2">
                   <div className="e2-col">
@@ -2577,6 +2691,17 @@ export function AiEmployeeProfilePage() {
                               {mod.acts.map((key) => {
                                 const cur = accessStateWithRules(autonomyMode, permissions, approvalRules, key);
                                 const allowed = statesFor(autonomyMode, key);
+                                if (outOfZone(detail?.role, key)) {
+                                  return (
+                                    <div className="e2-act locked" key={key}>
+                                      <div className="ab">
+                                        <div className="an">{t(`crm.aiEmployees.permissions.${key}.title`, { defaultValue: labelize(key) })}</div>
+                                        <div className="ad">{t(`crm.aiEmployees.permissions.${key}.hint`, { defaultValue: '' })}</div>
+                                      </div>
+                                      <ZoneLock permKey={key} roles={allRoles} />
+                                    </div>
+                                  );
+                                }
                                 return (
                                   <div className="e2-act" key={key}>
                                     <div className="ab">
@@ -2636,8 +2761,8 @@ export function AiEmployeeProfilePage() {
                     {cfg ? (
                       <>
                         <div>
-                          <div className="e2-sec" style={{ margin: '4px 0 -6px' }}>
-                            <span className="h" style={{ fontSize: 15 }}>
+                          <div className="e2-sec e2-sec-sm">
+                            <span className="h">
                               {t('crm.aiEmployees.v2.access.tablesTitle')}
                             </span>
                             <span className="line" />
@@ -2645,8 +2770,8 @@ export function AiEmployeeProfilePage() {
                           <TableAccessEditor value={cfg.tableAccess} onChange={(v) => setCfg({ ...cfg, tableAccess: v })} />
                         </div>
                         <div>
-                          <div className="e2-sec" style={{ margin: '4px 0 -6px' }}>
-                            <span className="h" style={{ fontSize: 15 }}>
+                          <div className="e2-sec e2-sec-sm">
+                            <span className="h">
                               {t('crm.aiEmployees.v2.access.mailboxesTitle')}
                             </span>
                             <span className="line" />
@@ -2823,8 +2948,8 @@ export function AiEmployeeProfilePage() {
                     <LessonsPanel agentId={agent.id} />
 
                     <div>
-                      <div className="e2-sec" style={{ margin: '4px 0 -6px' }}>
-                        <span className="h" style={{ fontSize: 15 }}>
+                      <div className="e2-sec e2-sec-sm">
+                        <span className="h">
                           {t('crm.aiEmployees.v2.work.taskPanelTitle')}
                         </span>
                         <span className="line" />
@@ -2833,7 +2958,13 @@ export function AiEmployeeProfilePage() {
                     </div>
                   </div>
                   <div className="e2-col">
-                    {cfg ? <TriggersEditor triggers={cfg.triggers} onChange={(next) => setCfg({ ...cfg, triggers: next })} /> : null}
+                    {cfg ? (
+                      <TriggersEditor
+                        triggers={cfg.triggers}
+                        onChange={(next) => setCfg({ ...cfg, triggers: next })}
+                        allowedEvents={detail?.role?.allowedTriggers}
+                      />
+                    ) : null}
                     {cfg ? (
                       <ClientDialogueEditor
                         value={cfg.clientDialogue}

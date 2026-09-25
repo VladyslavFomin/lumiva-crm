@@ -28,6 +28,9 @@ export interface PlatformSettings {
   openAiImageModel: string | null;
   aiPriceInputPerMtokUsd: string | null;
   aiPriceOutputPerMtokUsd: string | null;
+  seoAiModel?: string | null;
+  seoAiPriceInputPerMtokUsd?: string | null;
+  seoAiPriceOutputPerMtokUsd?: string | null;
   aiImageCostCents: number | null;
   stripePriceAiCredits: string | null;
   stripePriceStoragePack: string | null;

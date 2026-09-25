@@ -5269,6 +5269,165 @@ export class MarketingService {
     }
   }
 
+  /**
+   * Ресурс Search Console для произвольного сайта (не обязательно выбранного на странице SEO):
+   * выбранный ресурс, если домен совпадает, иначе подходящий из списка аккаунта. null — нет доступа.
+   */
+  async resolveGscProperty(tenantId: string, siteUrl: string): Promise<string | null> {
+    const settings = await this.getOrCreateSeoSettings(tenantId);
+    if (!settings.gscRefreshToken) return null;
+    const host = (v: string) =>
+      v.replace(/^sc-domain:/, '').replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').replace(/^www\./, '').toLowerCase();
+    if (settings.gscPropertyUrl && host(settings.gscPropertyUrl) === host(siteUrl)) return settings.gscPropertyUrl;
+    try {
+      const access = await this.googleOAuthAccessToken(settings.gscRefreshToken);
+      return this.matchGscSite(siteUrl, await this.listGscSites(access));
+    } catch (e: any) {
+      this.log.warn(`GSC property lookup failed (tenant ${tenantId}): ${e?.message || e}`);
+      return null;
+    }
+  }
+
+  /**
+   * Запрос к Search Console по любому ресурсу аккаунта — без записи в базу (для ИИ-SEO-ассистента).
+   * dimension 'date' — дневной ряд, 'query' / 'page' — разбивка. null — нет доступа или ошибка Google.
+   */
+  async fetchGscBreakdown(
+    tenantId: string,
+    start: string,
+    end: string,
+    dimension: 'query' | 'page' | 'date',
+    rowLimit = 100,
+    property?: string | null,
+  ): Promise<Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }> | null> {
+    const settings = await this.getOrCreateSeoSettings(tenantId);
+    const prop = property || settings.gscPropertyUrl;
+    if (!settings.gscRefreshToken || !prop) return null;
+    try {
+      const access = await this.googleOAuthAccessToken(settings.gscRefreshToken);
+      const res = await axios.post(
+        `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(prop)}/searchAnalytics/query`,
+        { startDate: start, endDate: end, dimensions: [dimension], rowLimit },
+        { headers: { Authorization: `Bearer ${access}` }, timeout: 60_000 },
+      );
+      return ((res.data?.rows || []) as any[])
+        .filter((r) => r?.keys?.[0])
+        .map((r) => ({
+          key: String(r.keys[0]),
+          clicks: Number(r.clicks || 0),
+          impressions: Number(r.impressions || 0),
+          ctr: Number(r.ctr || 0),
+          position: Number(r.position || 0),
+        }));
+    } catch (e: any) {
+      this.log.warn(
+        `GSC ${dimension} breakdown error (tenant ${tenantId}): ${e?.response?.status || ''} ${e?.response?.data?.error?.message || e?.message || e}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Полный замер PageSpeed для любой страницы без записи в базу: оценки, Core Web Vitals
+   * (LCP/FCP/Speed Index в секундах, TBT в мс — как в getSeoMetrics) и непройденные проверки Lighthouse.
+   * Авторизация та же, что у замера скорости: ключ клиента/платформы или Google-аккаунт.
+   */
+  async runPageSpeedFull(
+    tenantId: string,
+    pageUrl: string,
+    strategy: 'mobile' | 'desktop' = 'mobile',
+    locale?: string,
+  ): Promise<{
+    psi: {
+      pageUrl: string;
+      strategy: string;
+      performance: number;
+      accessibility: number;
+      bestPractices: number;
+      seo: number;
+      lcp: number;
+      cls: number;
+      fcp: number;
+      tbt: number;
+      speedIndex: number;
+      updatedAt: string;
+    };
+    audits: Array<{ id: string; category: string; title: string; displayValue: string | null; score: number; savingsMs: number | null }>;
+  } | null> {
+    const settings = await this.getOrCreateSeoSettings(tenantId);
+    const key = this.resolvePageSpeedKey(settings);
+    let auth: { key: string } | { bearer: string } | null = key ? { key } : null;
+    if (!auth && settings.gscRefreshToken) {
+      try {
+        auth = { bearer: await this.googleOAuthAccessToken(settings.gscRefreshToken) };
+      } catch {
+        auth = null;
+      }
+    }
+    if (!auth) return null;
+    try {
+      const res = await axios.get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed', {
+        params: {
+          url: pageUrl,
+          ...('key' in auth ? { key: auth.key } : {}),
+          strategy,
+          ...(locale ? { locale } : {}),
+          category: ['performance', 'accessibility', 'best-practices', 'seo'],
+        },
+        paramsSerializer: { indexes: null },
+        headers: 'bearer' in auth ? { Authorization: `Bearer ${auth.bearer}` } : undefined,
+        timeout: 120_000,
+      });
+      const lh = res.data?.lighthouseResult;
+      const cats = lh?.categories || {};
+      const audits = lh?.audits || {};
+      const pct = (id: string) => Math.round((cats[id]?.score || 0) * 100);
+      const num = (id: string) => Number(audits[id]?.numericValue ?? 0) || 0;
+      const out: Array<{ id: string; category: string; title: string; displayValue: string | null; score: number; savingsMs: number | null }> = [];
+      const seen = new Set<string>();
+      for (const [catId, cat] of Object.entries<any>(cats)) {
+        // доступность в «что чинить» не берём — это не SEO; её оценка остаётся в кольцах
+        if (catId === 'accessibility') continue;
+        for (const ref of cat?.auditRefs || []) {
+          // сами метрики (LCP, TBT…) уже есть в замере — здесь только конкретные проверки
+          if (ref.group === 'metrics' || seen.has(ref.id)) continue;
+          const a = audits[ref.id];
+          if (!a || a.score == null || a.score >= 0.9) continue;
+          if (!['binary', 'numeric', 'metricSavings'].includes(a.scoreDisplayMode)) continue;
+          seen.add(ref.id);
+          out.push({
+            id: ref.id,
+            category: catId,
+            title: String(a.title || ref.id),
+            displayValue: a.displayValue ? String(a.displayValue) : null,
+            score: Number(a.score),
+            savingsMs: a.details?.overallSavingsMs != null ? Math.round(Number(a.details.overallSavingsMs)) : null,
+          });
+        }
+      }
+      return {
+        psi: {
+          pageUrl,
+          strategy,
+          performance: pct('performance'),
+          accessibility: pct('accessibility'),
+          bestPractices: pct('best-practices'),
+          seo: pct('seo'),
+          lcp: num('largest-contentful-paint') / 1000,
+          cls: num('cumulative-layout-shift'),
+          fcp: num('first-contentful-paint') / 1000,
+          tbt: num('total-blocking-time'),
+          speedIndex: num('speed-index') / 1000,
+          updatedAt: new Date().toISOString(),
+        },
+        audits: out.sort((x, y) => x.score - y.score || (y.savingsMs || 0) - (x.savingsMs || 0)).slice(0, 25),
+      };
+    } catch (e: any) {
+      this.log.warn(`PageSpeed (${strategy}) error: ${e?.response?.status || ''} ${e?.response?.data?.error?.message || e?.message || e}`);
+      return null;
+    }
+  }
+
   async syncSeo(
     tenantId: string,
     dateFrom?: string,

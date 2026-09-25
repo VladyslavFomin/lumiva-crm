@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AiEmployeesService } from './ai-employees.service';
+import { AiAnalystReportService } from './ai-analyst-report.service';
 
 /**
  * Background cycles for AI Employees when schedule_mode is not manual-only:
@@ -10,7 +11,20 @@ import { AiEmployeesService } from './ai-employees.service';
 export class AiEmployeesSchedulerService {
   private readonly log = new Logger(AiEmployeesSchedulerService.name);
 
-  constructor(private readonly aiEmployees: AiEmployeesService) {}
+  constructor(
+    private readonly aiEmployees: AiEmployeesService,
+    private readonly analyst: AiAnalystReportService,
+  ) {}
+
+  /** Отчёт CRM-аналитика «за вчера» — в выбранное время и дни по часовому поясу сотрудника. */
+  @Cron('*/5 * * * *')
+  async handleAnalystReports(): Promise<void> {
+    try {
+      await this.analyst.tick();
+    } catch (e) {
+      this.log.warn(`analyst tick: ${(e as Error).message}`);
+    }
+  }
 
   @Cron('*/10 * * * *')
   async handleProactiveAssistants(): Promise<void> {

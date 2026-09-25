@@ -23,6 +23,10 @@ import { TelegramCrmModule } from '../telegram-crm/telegram-crm.module';
 import { LeadsModule } from '../leads/leads.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { AiAgent } from './ai-agent.entity';
+import { SeoAiAgent } from '../seo-ai/seo-ai-agent.entity';
+import { SeoAiReport } from '../seo-ai/seo-ai-report.entity';
+import { ReviewPlace } from '../reviews-ai/review-place.entity';
+import { ReviewItem } from '../reviews-ai/review-item.entity';
 import { AiAgentPermission } from './ai-agent-permission.entity';
 import { AiAgentApprovalRule } from './ai-agent-approval-rule.entity';
 import { AiAgentAction } from './ai-agent-action.entity';
@@ -48,14 +52,27 @@ import {
   AiPlanLimitsController,
   AiReportsController,
   AiRolesController,
+  AiMissedWorkController,
 } from './ai-employees.controller';
 import { AiEmployeesSchemaService } from './ai-employees-schema.service';
 import { AiEmployeesService } from './ai-employees.service';
 import { AiEmployeesSchedulerService } from './ai-employees.scheduler';
+import { AiAnalystReportService } from './ai-analyst-report.service';
+import { AiMissedWorkDaily } from './ai-missed-work.entity';
+import { Payment } from '../payments/payment.entity';
+import { Hotel } from '../hotels/hotel.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      AiMissedWorkDaily,
+      SeoAiAgent, // снапшот ИИ SEO-менеджера (последние SEO-отчёты)
+      SeoAiReport,
+      ReviewPlace, // снапшот ИИ-менеджера отзывов
+      ReviewItem,
+      Payment, // отчёт CRM-аналитика: оплаты
+      Hotel, // отчёт CRM-аналитика: валюта отелей для скидок/выручки
       Tenant,
       Lead,
       Project,
@@ -87,6 +104,7 @@ import { AiEmployeesSchedulerService } from './ai-employees.scheduler';
     ]),
     forwardRef(() => AiModule),
     MarketingModule,
+    MailModule, // рассылка отчёта CRM-аналитика
     forwardRef(() => EmailModule),
     forwardRef(() => TelegramCrmModule),
     forwardRef(() => LeadsModule),
@@ -105,9 +123,8 @@ import { AiEmployeesSchedulerService } from './ai-employees.scheduler';
     AiActivityController,
     AiActionsController,
     AiLogsController,
-    AiReportsController,
-  ],
-  providers: [AiEmployeesSchemaService, AiEmployeesService, AiEmployeesSchedulerService],
+    AiReportsController, AiMissedWorkController],
+  providers: [AiEmployeesSchemaService, AiEmployeesService, AiEmployeesSchedulerService, AiAnalystReportService],
   exports: [AiEmployeesService],
 })
 export class AiEmployeesModule {}

@@ -1245,6 +1245,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.marketingSegments'), path: '/app/marketing/segments' },
           { label: t('crm.nav.marketingChannels'), path: '/app/marketing/channels' },
           { label: t('crm.nav.marketingSeo'), path: '/app/marketing/seo' },
+          { label: t('crm.nav.marketingReviews'), path: '/app/marketing/reviews' },
           { label: t('crm.nav.marketingSmm'), path: '/app/marketing/smm' },
           { label: t('crm.nav.marketingIntegrations'), path: '/app/integrations-hub?tab=marketing' },
         ],

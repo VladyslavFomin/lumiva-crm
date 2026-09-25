@@ -3415,7 +3415,8 @@
       "telephonySettings": "Ayarlar",
       "marketingUtmLinks": "Etiketli bağlantılar",
       "aiEmployeesKnowledge": "Bilgi tabanı",
-      "aiEmployeesInsights": "Fayda"
+      "aiEmployeesInsights": "Fayda",
+      "marketingReviews": "Yorumlar"
     },
     "aiEmployees": {
       "badge": {
@@ -3429,7 +3430,7 @@
         "body": "Connect your own OpenAI or Anthropic (Claude) key — AI employees will run on it, and token usage is billed to your account, not the platform's quota.",
         "button": "Connect your own AI agent"
       },
-            "recordChat": {
+      "recordChat": {
         "title": "Yapay zekâ çalışana sor",
         "placeholder": "Bu kayıt hakkında sorun veya bir iş verin…",
         "ask": "Sor",
@@ -3441,7 +3442,11 @@
         "taskSent": "Görev {{name}} çalışanına verildi. Sonuç kaydın yorumlarında görünecek."
       },
       "quick": {
-        "lang": {"Russian": "Rusça", "English": "İngilizce", "Turkish": "Türkçe"},
+        "lang": {
+          "Russian": "Rusça",
+          "English": "İngilizce",
+          "Turkish": "Türkçe"
+        },
         "title": "Hızlı başlangıç — 3 soru",
         "hint": "Gerisini role göre seçeriz. Sonra çalışan profilinden değiştirebilirsiniz.",
         "q1": "Müşterilerle hangi dilde konuşsun?",
@@ -4003,13 +4008,13 @@
           "shortTitle": "CRM Analisti",
           "department": "Yönetim",
           "jobTitle": "YZ CRM Analisti",
-          "description": "Yönetim için CRM etkinliğini, satışları, lead'leri, görevleri ve süreç darboğazlarını analiz eder.",
+          "description": "Her gün seçtiğiniz verileri — gelir, indirimler, satışlar, rezervasyonlar, lead'ler, görevler — toplar ve takvime göre rapor gönderir. CRM'de hiçbir şeyi değiştirmez.",
           "functions": [
-            "CRM sağlık incelemesi",
-            "Darboğaz tespiti",
-            "Yönetim raporları",
-            "Ekip etkinlik analizi",
-            "Süreç önerileri"
+            "Dünün raporu",
+            "Gelir ve indirimler",
+            "Rezervasyonlar ve doluluk",
+            "Lead'ler ve satışlar",
+            "Planlı e-posta raporu"
           ]
         },
         "reservation_assistant": {
@@ -4024,6 +4029,34 @@
             "Tarih ve oda kontrolleri",
             "Acente iletişimi",
             "Günlük rezervasyon raporu"
+          ]
+        },
+        "seo_manager": {
+          "title": "YZ SEO Yöneticisi",
+          "shortTitle": "SEO Yöneticisi",
+          "department": "Pazarlama",
+          "jobTitle": "YZ SEO Yöneticisi",
+          "description": "Sitenizi her hafta inceler: Search Console sıralamaları, hız, sayfa denetimi — ve puan ile somut düzeltmeler içeren bir rapor gönderir.",
+          "functions": [
+            "Haftalık SEO raporu",
+            "Sıralama takibi",
+            "Sayfa denetimi",
+            "Hız kontrolleri",
+            "İçerik fikirleri"
+          ]
+        },
+        "reviews_manager": {
+          "title": "YZ Yorum Yöneticisi",
+          "shortTitle": "Yorum Yöneticisi",
+          "department": "Müşteri Hizmetleri",
+          "jobTitle": "YZ Yorum Yöneticisi",
+          "description": "Google yorumlarınızı takip eder, misafirin dilinde (RU/TR/EN ve diğerleri) yanıt taslakları yazar ve olumsuz yorumları anında bildirir.",
+          "functions": [
+            "Google yorum takibi",
+            "RU/TR/EN yanıtlar",
+            "Olumsuz yorum uyarıları",
+            "Yorum konuları ve eğilimler",
+            "Kötü yorumlar için görevler"
           ]
         }
       },
@@ -4417,6 +4450,109 @@
         "noLessons": "Henüz reddedilen eylem yok.",
         "unitMin": "dk",
         "unitHour": "sa"
+      },
+      "zones": {
+        "otherDept": "İlgili bölüm:",
+        "notForRole": "Bu rol için kullanılamaz",
+        "noTriggers": "Bu rol CRM olaylarına tepki vermez — takvime göre ve talebiniz üzerine çalışır."
+      },
+      "analyst": {
+        "tab": "Rapor",
+        "dataTitle": "Hangi veriler toplansın",
+        "dataHint": "Analistin her gün baktığı verileri işaretleyin. Yalnızca işaretlileri görür — raporlarda ve sohbet yanıtlarında.",
+        "scheduleTitle": "Ne zaman ve kime",
+        "enabled": "Dünün raporunu otomatik gönder",
+        "time": "Gönderim saati ({{tz}})",
+        "days": "Günler",
+        "recipients": "E-posta alıcıları (virgülle)",
+        "inApp": "Sahiplere CRM bildirimi",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "preview": "Raporu şimdi oluştur",
+        "sendNow": "Şimdi gönder",
+        "running": "Oluşturuluyor…",
+        "saved": "Ayarlar kaydedildi.",
+        "saveError": "Kaydedilemedi.",
+        "loadError": "Ayarlar yüklenemedi.",
+        "runError": "Rapor oluşturulamadı.",
+        "noBlocks": "En az bir veri bloğu işaretleyin.",
+        "previewReady": "{{day}} raporu hazır — Raporlar'a kaydedildi.",
+        "sent": "Rapor gönderildi: {{list}}",
+        "inAppShort": "CRM bildirimi",
+        "previewTitle": "Son rapor",
+        "reportOnlyNote": "Analist yalnızca veri toplar ve raporlar — CRM'de hiçbir şeyi değiştirmez, eylem yapmaz.",
+        "blocks": {
+          "sales": {
+            "t": "Satışlar",
+            "d": "Adet ve para birimine göre gelir, iptaller"
+          },
+          "payments": {
+            "t": "Ödemeler",
+            "d": "Alınan ve başarısız ödemeler"
+          },
+          "discounts": {
+            "t": "İndirimler",
+            "d": "İndirimli otel rezervasyonları ve indirim toplamı"
+          },
+          "leads": {
+            "t": "Lead'ler",
+            "d": "Yeni lead'ler ve kaynaklar"
+          },
+          "bookings": {
+            "t": "Randevular",
+            "d": "Yeni randevular, toplam, günün ziyaretleri"
+          },
+          "hotels": {
+            "t": "Oteller",
+            "d": "Rezervasyonlar, gelir, giriş/çıkış, konaklayanlar"
+          },
+          "tasks": {
+            "t": "Görevler",
+            "d": "Geciken, tamamlanan, yarın teslim"
+          },
+          "helpdesk": {
+            "t": "Destek",
+            "d": "Yeni ve açık talepler"
+          },
+          "marketing": {
+            "t": "Pazarlama",
+            "d": "Oturumlar, tıklamalar, reklam lead'leri, harcama"
+          }
+        }
+      },
+      "team": {
+        "title": "Bölümlere göre ekip",
+        "seats": "dolu yer: {{hired}} / {{total}}",
+        "emptySeat": "Boş yer",
+        "missedTitle": "{{days}} günde {{count}} olay YZ çalışanı olmadan kaldı",
+        "missedHint": "Bu, ekibinizde olmayan rollerin işi: CRM olayları ve YZ meslektaşlarınızın devretmek istediği görevler. Ayrıntılar aşağıdaki boş yerlerde.",
+        "missedFor": "{{days}} günde işlenmeyen: {{count}}",
+        "departments": {
+          "sales": "Satış",
+          "marketing": "Pazarlama",
+          "service": "Müşteri hizmetleri",
+          "projects": "Projeler",
+          "management": "Yönetim"
+        },
+        "events": {
+          "lead_created": "yeni lead'ler",
+          "lead_assigned": "lead atamaları",
+          "contact_created": "yeni kişiler",
+          "lead_status_changed": "lead durum değişiklikleri",
+          "sale_created": "yeni satışlar",
+          "sale_status_changed": "satış durum değişiklikleri",
+          "project_created": "yeni projeler",
+          "project_status_changed": "proje durum değişiklikleri",
+          "task_created": "yeni görevler",
+          "task_status_changed": "görev durum değişiklikleri",
+          "booking_reservation_created": "yeni randevular",
+          "booking_reservation_status_changed": "randevu değişiklikleri",
+          "hotel_reservation_created": "yeni rezervasyonlar",
+          "hotel_reservation_status_changed": "rezervasyon değişiklikleri",
+          "email_received": "gelen e-postalar",
+          "telegram_message_received": "Telegram mesajları",
+          "handoff": "meslektaşlardan devredilen"
+        }
       }
     },
     "settings": {
@@ -8859,6 +8995,271 @@
           "loading": "Siteler yükleniyor…",
           "notChecked": "henüz kontrol edilmedi",
           "add": "Başka site ekle"
+        }
+      },
+      "ai": {
+        "tabs": {
+          "overview": "Genel bakış",
+          "ai": "YZ asistanı"
+        },
+        "title": "YZ SEO uzmanı",
+        "sub": "Her hafta seçili siteyi, sıralamaları ve hızı inceler, sayfalardaki sorunları bulur ve puan ile somut öneriler içeren bir raporu e-postanıza gönderir.",
+        "statusOn": "Haftalık rapor açık",
+        "statusOff": "Haftalık rapor kapalı",
+        "watching": "Takip edilen site",
+        "noSiteShort": "Site atanmadı",
+        "noSite": "Önce sayfanın üstündeki “Kaynak” seçicisinden bir site seçin.",
+        "nextRun": "Sonraki rapor: {{date}}",
+        "enabledNow": "Haftalık rapor açıldı. İlki {{date}} tarihinde gelecek.",
+        "disabledNow": "Haftalık rapor kapatıldı.",
+        "run": "Şimdi analiz et",
+        "running": "Analiz ediliyor…",
+        "runEmail": "ve e-postayla gönder",
+        "retry": "Tekrar başlat",
+        "enable": "Haftalık raporu aç",
+        "disable": "Raporu kapat",
+        "empty": "Henüz rapor yok. İlk analizi başlatın — 1–3 dakika sürer.",
+        "progressTitle": "{{site}} analiz ediliyor",
+        "progressHint": "Genellikle 1–3 dakika. Sayfadan ayrılabilirsiniz — rapor geçmişe kaydedilir.",
+        "stages": {
+          "gsc": "Search Console sorguları ve sayfaları inceleniyor",
+          "crawl": "Site sayfaları kontrol ediliyor",
+          "psi": "Lighthouse denetimleri inceleniyor",
+          "ai": "YZ bulguları ve önerileri hazırlıyor"
+        },
+        "errors": {
+          "AI_QUOTA_EXCEEDED": "Planınızın YZ kotası doldu. Ödeme bölümünden artırın veya entegrasyonlarda kendi OpenAI/Anthropic anahtarınızı bağlayın.",
+          "AI_NOT_CONFIGURED": "Platformda YZ yapılandırılmamış. Entegrasyonlarda kendi OpenAI/Anthropic anahtarınızı bağlayın.",
+          "interrupted": "Analiz yarıda kesildi (sunucu yeniden başlatıldı). Lütfen tekrar başlatın.",
+          "ai_parse_failed": "YZ geçersiz bir yanıt döndürdü — lütfen tekrar deneyin.",
+          "generic": "Rapor hazırlanamadı: {{msg}}",
+          "SEO_AI_NO_SITE": "Önce siteyi belirtin.",
+          "SEO_AI_BAD_SITE": "Geçersiz site adresi.",
+          "SEO_AI_NO_RECIPIENTS": "En az bir alıcı e-postası ekleyin.",
+          "SEO_AI_BAD_TZ": "Bilinmeyen saat dilimi.",
+          "SEO_AI_REPORT_NOT_READY": "Rapor henüz hazır değil.",
+          "load": "Asistan verileri yüklenemedi.",
+          "save": "Ayarlar kaydedilemedi.",
+          "run": "Analiz başlatılamadı.",
+          "email": "Rapor gönderilemedi.",
+          "delete": "Rapor silinemedi.",
+          "SEO_AI_NO_EMPLOYEE": "Etkin bir “SEO Yöneticisi” YZ çalışanı gerekli."
+        },
+        "report": {
+          "score": "SEO puanı",
+          "generated": "{{date}} tarihli rapor",
+          "trigger": {
+            "manual": "manuel",
+            "schedule": "planlı"
+          },
+          "emailed": "gönderildi: {{list}}",
+          "email": "E-postayla gönder",
+          "sending": "Gönderiliyor…",
+          "sent": "Rapor gönderildi: {{list}}",
+          "delete": "Raporu sil",
+          "confirmDelete": "Bu rapor silinsin mi?",
+          "kpiWeek": "7 gün / önceki 7 gün",
+          "kpiMonth": "28 gün / önceki 28 gün",
+          "flat": "değişiklik yok",
+          "focus": "Bu haftanın odağı",
+          "wins": "İyi gidenler",
+          "risks": "Dikkat gerektirenler",
+          "why": "Neden:",
+          "how": "Nasıl:",
+          "effort": "Efor: {{v}}",
+          "ideas": "İçerik fikirleri",
+          "noGsc": {
+            "notConnected": "Search Console bağlı değil — sorgu ve sıralama verisi yok. Genel bakış sekmesinden bağlayın.",
+            "otherProperty": "Bağlı Google hesabında bu site için Search Console kaynağı yok — sorgu ve sıralama verisi yok."
+          }
+        },
+        "sections": {
+          "recs": "Öneriler",
+          "queries": "Sorgular ve sıralamalar",
+          "pages": "Sayfalar",
+          "speed": "Hız"
+        },
+        "prio": {
+          "high": "Yüksek",
+          "medium": "Orta",
+          "low": "Düşük"
+        },
+        "effort": {
+          "low": "düşük",
+          "medium": "orta",
+          "high": "yüksek"
+        },
+        "area": {
+          "technical": "Teknik",
+          "content": "İçerik",
+          "keywords": "Sorgular",
+          "performance": "Hız",
+          "links": "Bağlantılar",
+          "ux": "UX"
+        },
+        "q": {
+          "opportunities": "Büyüme fırsatları",
+          "tracked": "Hedef anahtar kelimeler",
+          "striking": "Zirveye yakın (4–20. sıra)",
+          "strikingHint": "Gösterimi olan ve ilk sıralara az kalan sorgular — trafiği büyütmenin en hızlı yolu.",
+          "lowCtr": "Yüksek sıralama, düşük TO",
+          "lowCtrHint": "Site üst sıralarda ama az tıklanıyor — title ve description yeniden yazılmalı.",
+          "movers": "28 gündeki sıralama değişimleri",
+          "top": "En iyi sorgular",
+          "newQ": "Yeni sorgular",
+          "empty": "Veri yok",
+          "notRanking": "sıralamada yok",
+          "posShort": "{{n}}. sıra",
+          "imprShort": "{{n}} gösterim",
+          "cols": {
+            "query": "Sorgu",
+            "clicks": "Tıklama",
+            "impr": "Gösterim",
+            "ctr": "TO",
+            "pos": "Konum",
+            "change": "Değişim"
+          }
+        },
+        "pages": {
+          "techScore": "Teknik puan",
+          "missing": "yok",
+          "disallowAll": "site kapalı",
+          "urls": "{{n}} URL",
+          "noIssues": "Sorun bulunamadı",
+          "words": "{{n}} kelime",
+          "sec": "sn",
+          "source": {
+            "home": "ana sayfa",
+            "custom": "sizin eklediğiniz",
+            "gsc": "Search Console’dan",
+            "sitemap": "sitemap’ten"
+          }
+        },
+        "speed": {
+          "noPsi": "Bu site için henüz hız ölçümü yok — Genel bakış sekmesinde “Yenile”ye basın.",
+          "audits": "Başarısız Lighthouse denetimleri (mobil)",
+          "noAudits": "Lighthouse denetimleri kullanılamıyor — PageSpeed anahtarı veya bağlı Google hesabı gerekli.",
+          "savings": "≈{{s}} sn kazanç"
+        },
+        "settings": {
+          "title": "Asistan ayarları",
+          "unsaved": "kaydedilmemiş değişiklik",
+          "site": "Site",
+          "siteHint": "Asistan, yukarıdaki “Kaynak” seçicisinde seçili site üzerinde çalışır. Her sitenin kendi ayarları, takvimi ve geçmişi vardır. Ana sayfa ve en çok ziyaret edilen sayfalar otomatik kontrol edilir.",
+          "keywords": "Hedef anahtar kelimeler",
+          "keywordsPh": "ör. antalya diş hekimi",
+          "keywordsHint": "Her satıra bir tane — asistan sıralamalarını takip eder.",
+          "pages": "Ek sayfalar",
+          "pagesHint": "Her hafta kontrol edilecek önemli sayfalar (her satıra bir tane, en fazla 10).",
+          "focus": "İşletme hakkında",
+          "focusPh": "Sektör, şehir/bölge, hedef kitle, ana hizmetler, rakipler…",
+          "recipients": "Raporun gönderileceği adresler",
+          "schedule": "Takvim ve rapor dili",
+          "weekday": "Gün",
+          "hour": "Saat",
+          "timezone": "Saat dilimi",
+          "language": "Rapor dili",
+          "langs": {
+            "ru": "Русский",
+            "en": "English",
+            "tr": "Türkçe"
+          },
+          "save": "Kaydet",
+          "saving": "Kaydediliyor…",
+          "saved": "Asistan ayarları kaydedildi."
+        },
+        "history": {
+          "title": "Rapor geçmişi",
+          "empty": "Asistanın tüm raporları burada görünecek."
+        },
+        "issues": {
+          "unreachable": "Sayfaya erişilemiyor",
+          "http_error": "HTTP hatası",
+          "not_html": "HTML sayfası değil",
+          "no_title": "Title yok",
+          "title_short": "Title çok kısa",
+          "title_long": "Title çok uzun (>65)",
+          "no_description": "Meta description yok",
+          "description_short": "Description çok kısa",
+          "description_long": "Description çok uzun",
+          "no_h1": "H1 yok",
+          "multiple_h1": "Birden fazla H1",
+          "noindex": "noindex ile engelli",
+          "no_canonical": "Canonical yok",
+          "canonical_other": "Canonical başka URL’ye işaret ediyor",
+          "no_viewport": "Viewport yok (mobil)",
+          "no_lang": "lang özniteliği yok",
+          "thin_content": "İçerik az",
+          "images_no_alt": "alt metni olmayan {{n}} görsel",
+          "no_open_graph": "Open Graph yok",
+          "no_schema": "Yapılandırılmış veri yok",
+          "slow_response": "Yavaş yanıt",
+          "duplicate_title": "Tekrarlanan title",
+          "duplicate_description": "Tekrarlanan description",
+          "no_https": "HTTPS yok",
+          "no_robots": "robots.txt yok",
+          "robots_disallow_all": "Site robots.txt ile kapalı",
+          "no_sitemap": "sitemap.xml yok"
+        },
+        "gate": {
+          "title": "YZ SEO, “SEO Yöneticisi” YZ çalışanı ile çalışır",
+          "sub": "YZ Çalışanları bölümünden bir SEO Yöneticisi işe alın ve etkinleştirin — ardından haftalık raporlar, sayfa denetimleri, sıralama takibi ve öneriler burada açılır.",
+          "hire": "SEO Yöneticisi işe al",
+          "open": "Çalışanı aç",
+          "allEmployees": "YZ Çalışanları",
+          "upgrade": "Planlar",
+          "slots": "Boş YZ çalışanı yeri: {{free}} / {{limit}}",
+          "slotsUnlimited": "Planınızda YZ çalışanı sayısı sınırsız",
+          "noSlots": "Planınızdaki tüm YZ çalışanı yerleri dolu ({{used}} / {{limit}}). Bir yer boşaltın veya planınızı yükseltin.",
+          "planLocked": "“SEO Yöneticisi” rolü mevcut planınızda kullanılamaz.",
+          "inactive": "{{name}} işe alındı ancak etkin değil ({{status}}). YZ SEO’yu açmak için çalışanı etkinleştirin.",
+          "disabledNoSlots": "{{name}} çalışanını yeniden açmak için boş bir YZ çalışanı yeri gerekir ({{used}} / {{limit}} dolu).",
+          "status": {
+            "paused": "duraklatıldı",
+            "disabled": "devre dışı",
+            "setup_required": "kurulum gerekli"
+          },
+          "role": "YZ SEO Yöneticisi"
+        },
+        "tasks": {
+          "title": "{{name}} neler yaptı",
+          "alert": "uyarı",
+          "open": "projeye git",
+          "approve": "onaya git",
+          "status": {
+            "executed": "oluşturuldu",
+            "pending": "onay bekliyor",
+            "failed": "hata"
+          },
+          "skipped": {
+            "suggest_mode": "{{name}} Öneri modunda — görev oluşturulmaz, yalnızca öneriler.",
+            "inactive": "{{name}} etkin değil — görev oluşturulmadı.",
+            "no_project": "Görevler için proje hazırlanamadı.",
+            "blocked": "Görev oluşturulmadı: “Görev oluşturma” izni yok veya tekrar."
+          },
+          "settingsTitle": "Görevler ve uyarılar",
+          "enable": "Önemli önerilerden görev oluştur",
+          "project": "Görev projesi",
+          "projectAuto": "Yeni proje “SEO · {{site}}”",
+          "assignee": "Sorumlu",
+          "noAssignee": "Sorumlu yok",
+          "suggestMode": "{{name}} şu anda Öneri modunda — görev oluşturulmayacak.",
+          "changeMode": "Modu değiştir",
+          "assistedMode": "Asistan modu: her görev önce onayınıza gelir.",
+          "autoMode": "Otomatik mod: görevler hemen oluşturulur."
+        },
+        "alerts": {
+          "enable": "Sorun uyarıları (günlük kontrol)",
+          "hint": "Uyarılar: site kapalı, dizinlemeye kapalı, bozuk sayfalar, hedef sorgu sıralamasında veya tıklamalarda düşüş — bildirim, e-posta ve acil görev.",
+          "active": "etkin uyarı: {{count}}",
+          "codes": {
+            "site_down": "Site açılmıyor",
+            "robots_block": "Site robots.txt ile dizinlemeye kapalı",
+            "noindex": "Sayfa noindex ile hariç: {{url}}",
+            "page_broken": "Google’da görünen sayfa hata veriyor: {{url}}",
+            "kw_drop": "“{{keyword}}” sorgusu geriledi: {{from}} → {{to}}",
+            "clicks_drop": "Google tıklamaları bu hafta %{{pct}} düştü"
+          }
         }
       }
     },
@@ -17949,6 +18350,117 @@
         "copy": "Bağlantıyı kopyala",
         "download": "PNG indir",
         "close": "Kapat"
+      }
+    },
+    "reviewsAi": {
+      "kicker": "Google · yorumlar",
+      "title": "Yorumlar",
+      "subtitle": "YZ yorum yöneticisi Google yorumlarınızı takip eder, misafirin dilinde yanıt hazırlar ve olumsuz yorumları anında bildirir.",
+      "reviewsCount": "{{count}} yorum",
+      "addPlace": "İşletme ekle",
+      "synced": "Kontrol edildi: {{count}} yeni yorum.",
+      "syncNow": "Şimdi kontrol et",
+      "syncing": "Kontrol ediliyor…",
+      "lastSync": "kontrol: {{date}}",
+      "lastError": "Son kontrol başarısız: {{msg}}",
+      "kpi": {
+        "rating": "Google puanı",
+        "new30": "30 günde yeni",
+        "avg": "ortalama {{v}} ★",
+        "negative": "30 günde olumsuz",
+        "openNegative": "yanıtsız: {{count}}",
+        "replied": "Yanıtlanan",
+        "of": "{{count}} içinden"
+      },
+      "topics": "Nelerden bahsediliyor",
+      "filters": {
+        "open": "Yanıt bekleyen",
+        "negative": "Olumsuz",
+        "replied": "Yanıtlanan",
+        "all": "Tümü"
+      },
+      "empty": {
+        "open": "Tüm yorumlar işlendi 👌",
+        "negative": "Olumsuz yorum yok",
+        "replied": "Henüz yanıtlandı olarak işaretlenen yok",
+        "all": "Henüz yorum yok — kontrolden sonra görünür"
+      },
+      "manualNote": "Yanıtlar Google'da elle yayınlanır: “Kopyala ve Google'ı aç” metni kopyalar ve işletme sayfasını açar — yorumun altına yapıştırın ve yanıtlandı olarak işaretleyin. CRM'den otomatik yayın Google Business Profile bağlantısıyla gelecek.",
+      "guest": "Misafir",
+      "noText": "Yalnızca puan, metin yok",
+      "draft": "YZ yanıt taslağı",
+      "noDraft": "Taslak hazırlanıyor…",
+      "copyOpen": "Kopyala ve Google'ı aç",
+      "copied": "Kopyalandı ✓",
+      "markReplied": "Yanıtlandı olarak işaretle",
+      "regenerate": "Yeniden yaz…",
+      "regenerating": "Yazılıyor…",
+      "tones": {
+        "same": "Başka bir sürüm",
+        "shorter": "Daha kısa",
+        "warmer": "Daha sıcak",
+        "formal": "Daha resmi"
+      },
+      "ignore": "Yanıtlama",
+      "restore": "Geri al",
+      "status": {
+        "replied": "yanıtlandı"
+      },
+      "sentiment": {
+        "positive": "olumlu",
+        "neutral": "nötr",
+        "negative": "olumsuz"
+      },
+      "add": {
+        "title": "Hangi işletme takip edilsin?",
+        "placeholder": "Ad ve şehir, ör. Akra Hotel Antalya",
+        "hint": "İşletmeyi Google Haritalar'da bulacağız. En fazla 10 işletme.",
+        "search": "Ara",
+        "searching": "Aranıyor…",
+        "nothing": "Bulunamadı — adı netleştirin veya şehir ekleyin",
+        "add": "Takip et",
+        "adding": "Bağlanıyor…"
+      },
+      "settings": {
+        "title": "Ayarlar",
+        "enabled": "Yorumları takip et",
+        "every": "Kontrol sıklığı",
+        "hours": "{{count}} sa",
+        "threshold": "Olumsuz = puan",
+        "thresholdOpt": "{{n}}★ ve altı",
+        "recipients": "Olumsuz yorum uyarıları kime",
+        "recipientsHint": "Virgülle e-postalar — yorum ve hazır yanıt.",
+        "context": "İşletme hakkında (yanıtlar için)",
+        "contextPh": "Kim olduğunuz, misafirlere ne söz verilebilir, iletişim, yazılmaması gerekenler…",
+        "signature": "Yanıt imzası",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "openMaps": "Google Haritalar'da aç",
+        "remove": "Bu işletmeyi takibi bırak",
+        "removeConfirm": "“{{name}}” takibi bırakılsın mı? Yüklenen yorumlar ve taslaklar silinecek."
+      },
+      "gate": {
+        "title": "Yorumlarla “Yorum Yöneticisi” YZ çalışanı ilgilenir",
+        "sub": "Bir Yorum Yöneticisi işe alıp etkinleştirin — işletmelerinizin Google yorumlarını takip eder, misafirin dilinde yanıt hazırlar ve olumsuz yorumları anında bildirir.",
+        "hire": "Yorum Yöneticisi işe al",
+        "open": "Çalışanı aç",
+        "allEmployees": "YZ Çalışanları",
+        "upgrade": "Planlar",
+        "slots": "Boş YZ çalışanı yeri: {{free}} / {{limit}}",
+        "slotsUnlimited": "Planınızda YZ çalışanı sayısı sınırsız",
+        "noSlots": "Tüm YZ çalışanı yerleri dolu ({{used}} / {{limit}}). Bir yer boşaltın veya planı yükseltin.",
+        "planLocked": "“Yorum Yöneticisi” rolü Pro planından itibaren kullanılabilir.",
+        "inactive": "{{name}} işe alındı ancak etkin değil. Profilinden etkinleştirin."
+      },
+      "errors": {
+        "load": "Yorumlar yüklenemedi.",
+        "sync": "Yorumlar kontrol edilemedi.",
+        "add": "İşletme eklenemedi.",
+        "save": "Kaydedilemedi.",
+        "REVIEWS_NO_PLACES_KEY": "Platformda Google Places anahtarı yapılandırılmamış — destekle iletişime geçin.",
+        "REVIEWS_GOOGLE_ERROR": "Google hata döndürdü — daha sonra deneyin.",
+        "REVIEWS_PLACES_LIMIT": "En fazla 10 işletme takip edilebilir.",
+        "REVIEWS_NO_EMPLOYEE": "Etkin bir “Yorum Yöneticisi” YZ çalışanı gerekli."
       }
     }
   },

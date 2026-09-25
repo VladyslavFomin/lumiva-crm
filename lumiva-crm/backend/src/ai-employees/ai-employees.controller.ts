@@ -18,6 +18,7 @@ import {
 import { RbacGuard } from '../rbac/rbac.guard';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { AiEmployeesService } from './ai-employees.service';
+import { AiAnalystReportService } from './ai-analyst-report.service';
 
 function userId(user: CurrentUserPayload): string | null {
   return user.userId || user.id || user.sub || null;
@@ -67,11 +68,27 @@ export class AiEmployeesUsageController {
   }
 }
 
+/** «Упущенная работа»: события и передачи для ролей, которых нет в команде (панель ИИ-сотрудников). */
+@Controller('ai-missed-work')
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('ai_employees')
+export class AiMissedWorkController {
+  constructor(private readonly service: AiEmployeesService) {}
+
+  @Get()
+  async list(@CurrentUser() user: CurrentUserPayload, @Query('days') days?: string) {
+    return this.service.getMissedWorkForApi(user.tenantId, Number(days) || 7);
+  }
+}
+
 @Controller('ai-agents')
 @UseGuards(JwtAuthGuard, RbacGuard)
 @RequirePermission('ai_employees')
 export class AiAgentsController {
-  constructor(private readonly service: AiEmployeesService) {}
+  constructor(
+    private readonly service: AiEmployeesService,
+    private readonly analyst: AiAnalystReportService,
+  ) {}
 
   @Get()
   async list(@CurrentUser() user: CurrentUserPayload) {
@@ -137,6 +154,23 @@ export class AiAgentsController {
   @Delete(':id/lessons/:lessonId')
   async removeLesson(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Param('lessonId') lessonId: string) {
     return this.service.removeLesson(user.tenantId, id, lessonId);
+  }
+
+  /** CRM-аналитик: какие данные собирать, когда и кому отправлять отчёт «за вчера». */
+  @Get(':id/analyst-report')
+  async analystConfig(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.analyst.getConfig(user.tenantId, id);
+  }
+
+  @Patch(':id/analyst-report')
+  async updateAnalystConfig(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: Record<string, any>) {
+    return this.analyst.updateConfig(user.tenantId, id, body || {});
+  }
+
+  /** Собрать отчёт за вчера сейчас; deliver — сразу разослать получателям. */
+  @Post(':id/analyst-report/run')
+  async runAnalystReport(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: { deliver?: boolean }) {
+    return this.analyst.runReport(user.tenantId, id, { deliver: !!body?.deliver });
   }
 
   @Get(':id/config')

@@ -120,6 +120,7 @@ import { SegmentsPage } from '../pages/marketing/SegmentsPage';
 import { SmmPage } from '../pages/marketing/SmmPage';
 import { ChannelsPage } from '../pages/marketing/ChannelsPage';
 import { SeoPage } from '../pages/marketing/SeoPage';
+import { ReviewsPage } from '../pages/marketing/ReviewsPage';
 import { EmailTemplatesPage } from '../pages/marketing/EmailTemplatesPage';
 import { EmailTemplateFormPage } from '../pages/marketing/EmailTemplateFormPage';
 import  OnlineChatPage  from '../pages/online-chat/OnlineChatPage'; // или default export
@@ -202,6 +203,7 @@ import { WorkspaceTableViewPage } from '../pages/workspace/WorkspaceTableViewPag
 import { WorkspaceKanbanViewPage } from '../pages/workspace/WorkspaceKanbanViewPage';
 import { WorkspaceCalendarViewPage } from '../pages/workspace/WorkspaceCalendarViewPage';
 import { WorkspaceAnalyticsPage } from '../pages/workspace/WorkspaceAnalyticsPage';
+import { PublicWorkspaceAnalyticsPage } from '../pages/workspace/PublicWorkspaceAnalyticsPage';
 import { WorkspaceSettingsPage } from '../pages/workspace/WorkspaceSettingsPage';
 import { WorkspaceImportPage } from '../pages/workspace/WorkspaceImportPage';
 import { WorkspaceAreaHomePage } from '../pages/workspace/WorkspaceAreaHomePage';
@@ -917,6 +919,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <SeoPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketing/reviews"
+          element={
+            <ProtectedRoute>
+              <ReviewsPage />
             </ProtectedRoute>
           }
         />
@@ -1751,6 +1761,8 @@ export const AppRouter: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Публичная ссылка «только аналитика» — без авторизации и без меню CRM */}
+        <Route path="/workspace/:clientKey/:objectId/analytics" element={<PublicWorkspaceAnalyticsPage />} />
         <Route
           path="/workspace/:objectId/analytics"
           element={

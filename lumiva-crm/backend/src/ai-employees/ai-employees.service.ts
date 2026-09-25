@@ -67,12 +67,19 @@ import { AiAgentApprovalRule } from './ai-agent-approval-rule.entity';
 import { AiAgentAction } from './ai-agent-action.entity';
 import { AiAgentLog } from './ai-agent-log.entity';
 import { AiAgentReport } from './ai-agent-report.entity';
+import { SeoAiAgent } from '../seo-ai/seo-ai-agent.entity';
+import { SeoAiReport } from '../seo-ai/seo-ai-report.entity';
+import { ReviewPlace } from '../reviews-ai/review-place.entity';
+import { ReviewItem } from '../reviews-ai/review-item.entity';
 import {
   AI_EMPLOYEE_APPROVAL_ACTIONS,
   AI_EMPLOYEE_PERMISSION_KEYS,
   AI_EMPLOYEE_ROLES,
   AI_REAL_EXECUTABLE_ACTIONS,
   getAiEmployeeLimitForPlan,
+  roleAllowsPermission,
+  roleAllowsTrigger,
+  EVENT_OWNER_ROLE,
   getAiEmployeeRole,
   getPlanUpgradeLabel,
   planAllowsAiEmployeeRole,
@@ -153,6 +160,8 @@ const ACTION_PERMISSION: Record<string, string> = {
   create_note: 'create_note',
   add_comment: 'create_note',
   escalate_to_human: 'escalate_to_human',
+  // передача задачи коллеге из другого отдела — есть у всех, кроме аналитика (как и позвать человека)
+  handoff_to_colleague: 'escalate_to_human',
   assign_self: 'assign_lead',
   update_lead_status: 'update_lead_status',
   assign_lead: 'assign_lead',
@@ -213,6 +222,8 @@ const ROLE_SHORT_TITLE_LOCALIZED: Partial<Record<AiEmployeeRoleKey, { ru: string
   project_manager: { ru: 'Проджект-менеджер', tr: 'Proje Yöneticisi' },
   marketing_analyst: { ru: 'Маркетинг-аналитик', tr: 'Pazarlama Analisti' },
   smm_manager: { ru: 'SMM-менеджер', tr: 'SMM Yöneticisi' },
+  seo_manager: { ru: 'SEO-менеджер', tr: 'SEO Yöneticisi' },
+  reviews_manager: { ru: 'Менеджер отзывов', tr: 'Yorum Yöneticisi' },
   email_assistant: { ru: 'Email-ассистент', tr: 'E-posta Asistanı' },
   crm_analyst: { ru: 'CRM-аналитик', tr: 'CRM Analisti' },
   reservation_assistant: { ru: 'Ассистент по бронированию', tr: 'Rezervasyon Asistanı' },
@@ -231,6 +242,14 @@ export class AiEmployeesService {
     private readonly permissions: Repository<AiAgentPermission>,
     @InjectRepository(AiAgentApprovalRule)
     private readonly approvalRules: Repository<AiAgentApprovalRule>,
+    @InjectRepository(SeoAiAgent)
+    private readonly seoAgents: Repository<SeoAiAgent>,
+    @InjectRepository(SeoAiReport)
+    private readonly seoReports: Repository<SeoAiReport>,
+    @InjectRepository(ReviewPlace)
+    private readonly reviewPlaces: Repository<ReviewPlace>,
+    @InjectRepository(ReviewItem)
+    private readonly reviewItems: Repository<ReviewItem>,
     @InjectRepository(AiAgentAction)
     private readonly actions: Repository<AiAgentAction>,
     @InjectRepository(AiAgentLog)
@@ -307,8 +326,11 @@ export class AiEmployeesService {
     return (raw || fallback).slice(0, max);
   }
 
-  private normalizePermissions(input?: PermissionMap | string[]): PermissionMap {
-    const allowed = new Set<string>(AI_EMPLOYEE_PERMISSION_KEYS as readonly string[]);
+  /** role передан — права вне зоны отдела отбрасываются (жёсткая граница роли). */
+  private normalizePermissions(input?: PermissionMap | string[], role?: AiEmployeeRoleConfig | null): PermissionMap {
+    const allowed = new Set<string>(
+      (AI_EMPLOYEE_PERMISSION_KEYS as readonly string[]).filter((k) => !role || roleAllowsPermission(role, k)),
+    );
     if (Array.isArray(input)) {
       return input.reduce<PermissionMap>((acc, key) => {
         const k = String(key || '').trim();
@@ -352,12 +374,14 @@ export class AiEmployeesService {
     tenantId: string,
     agent: AiAgent,
   ): Promise<PermissionMap> {
-    const current = await this.loadPermissions(agent.id, tenantId);
     const role = this.roleForAgent(agent);
+    const zone = (map: PermissionMap): PermissionMap =>
+      Object.fromEntries(Object.entries(map).filter(([k]) => roleAllowsPermission(role, k)));
+    const current = await this.loadPermissions(agent.id, tenantId);
     const missing = role.defaultPermissions.filter(
       (key) => !Object.prototype.hasOwnProperty.call(current, key),
     );
-    if (!missing.length) return current;
+    if (!missing.length) return zone(current);
     await this.permissions.save(
       missing.map((permissionKey) =>
         this.permissions.create({
@@ -368,7 +392,7 @@ export class AiEmployeesService {
         }),
       ),
     );
-    return this.loadPermissions(agent.id, tenantId);
+    return zone(await this.loadPermissions(agent.id, tenantId));
   }
 
   private async activeAgentCount(tenantId: string) {
@@ -1090,11 +1114,12 @@ export class AiEmployeesService {
         scheduleMode: input.scheduleMode ?? 'manual',
         createdBy: userId,
         // Новые агенты по умолчанию НЕ видят таблицы рабочей области, пока владелец не выдаст доступ.
-        settings: this.mergeAgentSettings({ tableAccess: { mode: 'selected', tables: [] } }, input.settings ?? {}),
+        settings: this.mergeAgentSettings({ tableAccess: { mode: 'selected', tables: [] } }, input.settings ?? {}, role),
       });
       return manager.save(created);
     });
 
+    this.hiredRolesCache.delete(tenantId);
     const defaultPermissions = role.defaultPermissions.reduce<PermissionMap>(
       (acc, key) => {
         acc[key] = true;
@@ -1103,7 +1128,7 @@ export class AiEmployeesService {
       {},
     );
     const permissionInput = input.permissions
-      ? this.normalizePermissions(input.permissions)
+      ? this.normalizePermissions(input.permissions, role)
       : defaultPermissions;
     await this.replacePermissions(tenantId, agent.id, permissionInput);
 
@@ -1165,7 +1190,7 @@ export class AiEmployeesService {
       if (!(key in input)) continue;
       if (key === 'settings') {
         // Сливаем, а не заменяем: в settings лежат и серверные ключи (proactive), которые фронтенд не знает.
-        agent.settings = this.mergeAgentSettings(agent.settings, (input.settings ?? {}) as Record<string, unknown>);
+        agent.settings = this.mergeAgentSettings(agent.settings, (input.settings ?? {}) as Record<string, unknown>, this.roleForAgent(agent));
         continue;
       }
       (agent as any)[key] = input[key] as any;
@@ -1191,6 +1216,7 @@ export class AiEmployeesService {
   }
 
   async removeAgent(tenantId: string, id: string, userId: string | null) {
+    this.hiredRolesCache.delete(tenantId);
     const agent = await this.getAgentEntity(tenantId, id);
     agent.status = 'disabled';
     await this.agents.save(agent);
@@ -1220,8 +1246,30 @@ export class AiEmployeesService {
     userId: string | null,
   ) {
     const agent = await this.getAgentEntity(tenantId, id);
-    agent.status = status;
-    await this.agents.save(agent);
+    if (status === 'active' && agent.status === 'disabled') {
+      // отключённый сотрудник не занимает место в лимите тарифа — вернуть его можно только в свободное место
+      // (иначе «Продолжить» обходил лимит, который проверяет createAgent)
+      const tenant = await this.tenantOrFail(tenantId);
+      const limit = getAiEmployeeLimitForPlan(tenant.plan);
+      await this.agents.manager.transaction(async (manager) => {
+        await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [tenantId]);
+        const used = await manager.count(AiAgent, { where: { tenantId, status: Not('disabled') } as any });
+        if (limit != null && used >= limit) {
+          throw new BadRequestException({
+            code: 'AI_EMPLOYEE_PLAN_LIMIT',
+            message: `Your current plan allows ${limit} AI Employee${limit === 1 ? '' : 's'}. Upgrade your plan to add more AI team members.`,
+            limit,
+            used,
+          });
+        }
+        await manager.update(AiAgent, { id: agent.id, tenantId }, { status });
+      });
+      agent.status = status;
+    } else {
+      agent.status = status;
+      await this.agents.save(agent);
+    }
+    this.hiredRolesCache.delete(tenantId);
     await this.logEvent({
       tenantId,
       agentId: agent.id,
@@ -1251,7 +1299,7 @@ export class AiEmployeesService {
     const permissions = await this.replacePermissions(
       tenantId,
       agentId,
-      this.normalizePermissions(input.permissions),
+      this.normalizePermissions(input.permissions, this.roleForAgent(agent)),
     );
     await this.logEvent({
       tenantId,
@@ -1302,6 +1350,9 @@ export class AiEmployeesService {
   ) {
     const permissionKey = ACTION_PERMISSION[actionType];
     if (!permissionKey) return false;
+    // жёсткая граница отдела: даже включённое когда-то право вне зоны роли не срабатывает
+    const owner = await this.agents.findOne({ where: { id: agentId, tenantId }, select: ['id', 'role'] });
+    if (!owner || !roleAllowsPermission(this.roleForAgent(owner), permissionKey)) return false;
     const permissions = await this.loadPermissions(agentId, tenantId);
     return permissions[permissionKey] === true;
   }
@@ -1359,8 +1410,8 @@ export class AiEmployeesService {
       };
     }
     const since = (ms: number) => new Date(Date.now() - ms);
-    if (['create_task', 'create_note', 'add_comment'].includes(actionType)) {
-      const wanted = this.normTitle(p.title ?? draft.title ?? p.text ?? p.content);
+    if (['create_task', 'create_note', 'add_comment', 'handoff_to_colleague'].includes(actionType)) {
+      const wanted = this.normTitle(p.title ?? draft.title ?? p.text ?? p.content ?? p.task);
       if (wanted) {
         const recent = await this.actions.find({
           where: { tenantId, agentId: agent.id, actionType, createdAt: MoreThan(since(24 * 3600_000)) } as any,
@@ -1557,6 +1608,201 @@ export class AiEmployeesService {
       status: requiresApproval ? 'pending' : dispatchError ? 'error' : 'success',
     });
     return action;
+  }
+
+  // ───────────── передача коллеге и «упущенная работа» (этап 2 зон отделов) ─────────────
+
+  private hiredRolesCache = new Map<string, { roles: Set<string>; at: number }>();
+
+  /** Роли, которые есть в команде (активные и на паузе); кэш на минуту — вызывается на каждое событие CRM. */
+  private async hiredRoles(tenantId: string): Promise<Set<string>> {
+    const hit = this.hiredRolesCache.get(tenantId);
+    if (hit && Date.now() - hit.at < 60_000) return hit.roles;
+    const rows = await this.agents.find({ where: { tenantId, status: In(['active', 'paused']) as any }, select: ['id', 'role'] });
+    const roles = new Set(rows.map((r) => r.role as string));
+    this.hiredRolesCache.set(tenantId, { roles, at: Date.now() });
+    return roles;
+  }
+
+  /** +1 к «упущенной работе» роли за сегодня (UTC-сутки), с разбивкой по событию и парой примеров. */
+  async recordMissedWork(
+    tenantId: string,
+    roleKey: string,
+    event: string,
+    sample: { entityType?: string | null; entityId?: string | null; text?: string | null },
+  ): Promise<void> {
+    const day = new Date().toISOString().slice(0, 10);
+    const s = JSON.stringify({ event, ...sample, at: new Date().toISOString() });
+    await this.agents.manager.query(
+      `INSERT INTO ai_missed_work_daily (tenant_id, role_key, day, count, by_event, samples)
+       VALUES ($1, $2, $3, 1, jsonb_build_object($4::text, 1), jsonb_build_array($5::jsonb))
+       ON CONFLICT (tenant_id, role_key, day) DO UPDATE SET
+         count = ai_missed_work_daily.count + 1,
+         by_event = ai_missed_work_daily.by_event || jsonb_build_object($4::text, COALESCE((ai_missed_work_daily.by_event->>$4)::int, 0) + 1),
+         samples = (SELECT COALESCE(jsonb_agg(e ORDER BY i), '[]'::jsonb) FROM jsonb_array_elements(jsonb_build_array($5::jsonb) || ai_missed_work_daily.samples) WITH ORDINALITY AS t(e, i) WHERE i <= 5),
+         updated_at = now()`,
+      [tenantId, roleKey, day, event, s],
+    );
+  }
+
+  /** Событие CRM, чья роль-владелец не нанята, — в «упущенную работу». */
+  private async noteMissedWorkForEvent(tenantId: string, event: string, data: any): Promise<void> {
+    const owner = EVENT_OWNER_ROLE[event];
+    if (!owner) return;
+    if ((await this.hiredRoles(tenantId)).has(owner)) return;
+    const ref = this.extractEventRef(data);
+    await this.recordMissedWork(tenantId, owner, event, {
+      entityType: ref?.assignRef?.entityType ?? null,
+      entityId: ref?.assignRef?.entityId ?? null,
+    });
+  }
+
+  /** «Упущенная работа» за N дней по ролям (для панели ИИ-сотрудников). */
+  async getMissedWork(tenantId: string, daysRaw?: number) {
+    const days = Math.min(90, Math.max(1, Math.round(Number(daysRaw) || 7)));
+    const since = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
+    const rows: Array<{ role_key: string; count: number; by_event: Record<string, number>; samples: any[] }> =
+      await this.agents.manager.query(
+        `SELECT role_key, count, by_event, samples FROM ai_missed_work_daily WHERE tenant_id = $1 AND day >= $2 ORDER BY day DESC`,
+        [tenantId, since],
+      );
+    const hired = await this.hiredRoles(tenantId);
+    const byRole = new Map<string, { roleKey: string; count: number; byEvent: Record<string, number>; samples: any[] }>();
+    for (const r of rows) {
+      // роль уже наняли — старые «упущенные» больше не показываем
+      if (hired.has(r.role_key)) continue;
+      const cur = byRole.get(r.role_key) || { roleKey: r.role_key, count: 0, byEvent: {}, samples: [] };
+      cur.count += Number(r.count) || 0;
+      for (const [k, v] of Object.entries(r.by_event || {})) cur.byEvent[k] = (cur.byEvent[k] || 0) + Number(v || 0);
+      if (cur.samples.length < 3) cur.samples.push(...(r.samples || []).slice(0, 3 - cur.samples.length));
+      byRole.set(r.role_key, cur);
+    }
+    const items = [...byRole.values()].sort((a, b) => b.count - a.count);
+    return { days, total: items.reduce((a, x) => a + x.count, 0), items };
+  }
+
+  /**
+   * handoff_to_colleague: задача не своего отдела уходит нанятому коллеге нужной роли (как задача от
+   * человека, но с пометкой «от ИИ-коллеги»); если такой роли в команде нет — в «упущенную работу».
+   * Защита от пинг-понга: нельзя вернуть задачу той роли, от которой она пришла по той же записи за сутки.
+   */
+  private async dispatchHandoff(tenantId: string, action: AiAgentAction, p: Record<string, any>): Promise<void> {
+    const source = await this.getAgentEntity(tenantId, action.agentId);
+    const raw = String(p.toRole ?? p.role ?? '').trim();
+    const target = getAiEmployeeRole(raw) ?? AI_EMPLOYEE_ROLES.find((r) => r.title.toLowerCase() === raw.toLowerCase() || r.shortTitle.toLowerCase() === raw.toLowerCase()) ?? null;
+    if (!target || target.reportOnly) throw new BadRequestException('handoff_to_colleague: unknown toRole');
+    if (target.key === source.role) throw new BadRequestException('handoff_to_colleague: cannot hand off to your own role');
+    const task = this.cleanString(p.task ?? p.title ?? action.reason, '', 3000);
+    if (!task) throw new BadRequestException('handoff_to_colleague: task is required');
+    const entityType = p.entityType ? String(p.entityType) : action.targetType;
+    const entityId = p.entityId ? String(p.entityId) : action.targetId;
+
+    const since = new Date(Date.now() - 24 * 3600_000);
+    const recentBack = await this.actions.find({
+      where: { tenantId, actionType: 'handoff_to_colleague', createdAt: MoreThan(since) } as any,
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+    const colleague = await this.agents.findOne({ where: { tenantId, role: target.key as any, status: 'active' as any }, order: { createdAt: 'ASC' } });
+    if (colleague) {
+      const pingPong = recentBack.some(
+        (a) => a.agentId === colleague.id && (a.payload as any)?.toRole === source.role && (a.targetId || null) === (entityId || null),
+      );
+      if (pingPong) throw new BadRequestException('handoff_to_colleague: this task already came from that colleague — handle it or escalate to a human');
+      const canEntity = entityType && entityId && (AI_ASSIGNABLE_ENTITY_TYPES as readonly string[]).includes(entityType);
+      await this.assignTask(tenantId, colleague.id, null, {
+        task,
+        ...(canEntity ? { entityType, entityId } : {}),
+        runNow: true,
+        fromAgent: { id: source.id, name: source.name, role: source.role },
+      });
+      action.payload = { ...p, toRole: target.key, result: { ok: true, target: 'agent', agentId: colleague.id, agentName: colleague.name } };
+      return;
+    }
+    // коллега нанят, но на паузе — задача не должна пропасть молча: сообщаем владельцу
+    const paused = await this.agents.findOne({ where: { tenantId, role: target.key as any, status: 'paused' as any } });
+    if (paused) {
+      await this.notifyStaff(
+        tenantId,
+        undefined,
+        this.tx(source, { ru: `${paused.name} на паузе`, en: `${paused.name} is paused`, tr: `${paused.name} duraklatıldı` }),
+        this.tx(source, {
+          ru: `${source.name} хотел передать задачу: «${task.slice(0, 160)}». Включите ${paused.name}, чтобы такие задачи доходили.`,
+          en: `${source.name} wanted to hand over: "${task.slice(0, 160)}". Resume ${paused.name} so these tasks get through.`,
+          tr: `${source.name} şu görevi devretmek istedi: "${task.slice(0, 160)}". Bu görevlerin ulaşması için ${paused.name} çalışanını devam ettirin.`,
+        }),
+        { link: `/ai-employees/${paused.id}`, kind: 'ai_handoff_paused' },
+      ).catch(() => undefined);
+      action.payload = { ...p, toRole: target.key, result: { ok: true, target: 'colleague_paused', agentId: paused.id, agentName: paused.name } };
+      return;
+    }
+    await this.recordMissedWork(tenantId, target.key, 'handoff', { entityType: entityType || null, entityId: entityId || null, text: task.slice(0, 200) });
+    action.payload = { ...p, toRole: target.key, result: { ok: true, target: 'missing_role', role: target.key } };
+  }
+
+  async getMissedWorkForApi(tenantId: string, days?: number) {
+    return this.getMissedWork(tenantId, days);
+  }
+
+  // ───────────── публичные обёртки для AiAnalystReportService (отчёт CRM-аналитика) ─────────────
+
+  agentEntity(tenantId: string, id: string) {
+    return this.getAgentEntity(tenantId, id);
+  }
+
+  /** Тот же вызов модели, что у отчётов сотрудника (BYOK/квота/модель агента). */
+  completeForAgent(tenantId: string, agent: AiAgent, system: string, prompt: string) {
+    return this.employeeCompletion(tenantId, null, system, prompt, agent);
+  }
+
+  /** Галочки данных аналитика = его read_*-права (в пределах зоны роли). */
+  async setReadPermissions(tenantId: string, agent: AiAgent, readKeys: string[]) {
+    const role = this.roleForAgent(agent);
+    const current = await this.loadPermissions(agent.id, tenantId);
+    const next: PermissionMap = { ...current };
+    for (const k of AI_EMPLOYEE_PERMISSION_KEYS as readonly string[]) {
+      if (k.startsWith('read_') && k !== 'read_reports') next[k] = readKeys.includes(k);
+    }
+    return this.replacePermissions(tenantId, agent.id, this.normalizePermissions(next, role));
+  }
+
+  logAgentEvent(input: {
+    tenantId: string;
+    agentId?: string | null;
+    eventType: string;
+    targetType?: string | null;
+    targetId?: string | null;
+    inputSummary?: string | null;
+    outputSummary?: string | null;
+    status?: string;
+    errorMessage?: string | null;
+    tokensUsed?: number;
+  }) {
+    return this.logEvent(input);
+  }
+
+  notifyOwners(tenantId: string, title: string, body: string, meta: Record<string, unknown>) {
+    return this.notifyStaff(tenantId, undefined, title, body, meta);
+  }
+
+  /**
+   * Действие от имени сотрудника, инициированное другим модулем (ИИ-SEO: задачи из рекомендаций и
+   * сигналов). Проходит те же права, согласования, защиту от дублей и журнал, что и его собственные
+   * запуски. «Режим предложений» действий не создаёт — как и в обычных запусках.
+   */
+  async proposeModuleAction(
+    tenantId: string,
+    agentId: string,
+    draft: ActionDraft,
+  ): Promise<{ id: string; status: string; skipped?: undefined } | { skipped: 'inactive' | 'suggest_mode' | 'blocked' }> {
+    const agent = await this.getAgentEntity(tenantId, agentId);
+    if (agent.status !== 'active') return { skipped: 'inactive' };
+    if (agent.autonomyMode === 'suggest') return { skipped: 'suggest_mode' };
+    // права, добавленные в роль после найма (например create_task у SEO-менеджера), подтягиваем так же,
+    // как это делает снапшот; явно выключенные владельцем не трогаются
+    await this.ensureRoleDefaultPermissions(tenantId, agent);
+    const action = await this.createAiAction(tenantId, agent, draft, { hasTask: true });
+    return action ? { id: action.id, status: action.status } : { skipped: 'blocked' };
   }
 
   /** Публичная обёртка: тот же снапшот, что видят запуски/отчёты агента (используется «спросить ИИ-сотрудника» из основного чата). */
@@ -1989,6 +2235,67 @@ export class AiEmployeesService {
       };
     });
 
+    // ИИ SEO-менеджер: последние недельные SEO-отчёты по сайтам тенанта (модуль seo-ai) —
+    // чтобы его запуски, ежедневный отчёт и ответы в чате опирались на реальные данные GSC/PageSpeed.
+    const seoPromise = safe('seo', agent?.role === 'seo_manager' && canReadMarketing, async () => {
+      const sites = await this.seoAgents.find({ where: { tenantId }, order: { updatedAt: 'DESC' }, take: 5 });
+      const out: Array<Record<string, unknown>> = [];
+      for (const site of sites) {
+        const last = await this.seoReports.findOne({
+          where: { tenantId, siteHost: site.siteHost, status: 'done' },
+          order: { createdAt: 'DESC' },
+        });
+        const f = (last?.facts || {}) as Record<string, any>;
+        const r = (last?.report || {}) as Record<string, any>;
+        const g = f.gsc as Record<string, any> | null | undefined;
+        out.push({
+          site: site.siteHost,
+          weeklyReportEnabled: site.enabled,
+          trackedKeywords: site.keywords,
+          activeAlerts: Object.keys(site.alertState || {}),
+          lastReport: last
+            ? {
+                id: last.id,
+                date: (last.finishedAt || last.createdAt).toISOString(),
+                score: last.score,
+                techScore: f.techScore ?? null,
+                summary: r.summary ?? null,
+                traffic: g ? { week: g.week, prevWeek: g.prevWeek, month: g.month, prevMonth: g.prevMonth } : null,
+                trackedKeywords: g?.trackedKeywords ?? [],
+                strikingDistance: (g?.strikingDistance || []).slice(0, 8),
+                lowCtr: (g?.lowCtr || []).slice(0, 5),
+                topPages: (g?.topPages || []).slice(0, 6),
+                speedMobile: f.psi?.mobile
+                  ? { performance: f.psi.mobile.performance, seo: f.psi.mobile.seo, lcp: f.psi.mobile.lcp }
+                  : null,
+                pageIssues: (f.pages || []).slice(0, 8).map((p: any) => ({ url: p.url, status: p.status, issues: (p.issues || []).map((i: any) => i.code) })),
+                recommendations: (r.recommendations || []).slice(0, 8).map((x: any) => ({ priority: x.priority, title: x.title, page: x.page })),
+                tasks: r.tasks ?? [],
+              }
+            : null,
+        });
+      }
+      return out;
+    });
+
+    // ИИ-менеджер отзывов: объекты Google, рейтинг, свежие отзывы и неотвеченный негатив (модуль reviews-ai)
+    const reviewsPromise = safe('reviews', agent?.role === 'reviews_manager', async () => {
+      const places = await this.reviewPlaces.find({ where: { tenantId }, take: 10 });
+      const out: Array<Record<string, unknown>> = [];
+      for (const p of places) {
+        const recent = await this.reviewItems.find({ where: { tenantId, placeRowId: p.id }, order: { publishedAt: 'DESC' }, take: 15 });
+        out.push({
+          place: p.name,
+          rating: p.rating != null ? Number(p.rating) : null,
+          totalReviews: p.totalReviews,
+          lastSyncAt: p.lastSyncAt,
+          recent: recent.map((r) => ({ rating: r.rating, date: r.publishedAt, sentiment: r.sentiment, topics: r.topics, summary: r.summary, status: r.status })),
+          openNegative: recent.filter((r) => r.sentiment === 'negative' && ['new', 'drafted'].includes(r.status)).length,
+        });
+      }
+      return out;
+    });
+
     const reportsPromise = safe('reports', canRead('read_reports') && !!agent, async () => {
       const rows = await this.reports.find({
         where: { tenantId, agentId: agent!.id },
@@ -2080,6 +2387,8 @@ export class AiEmployeesService {
       reportsBlock,
       channelsBlock,
       assignmentsBlock,
+      seoBlock,
+      reviewsBlock,
     ] = await Promise.all([
       canReadLeads
         ? baseLeadsQb.clone().andWhere('l.createdAt > :today', { today }).getCount()
@@ -2148,6 +2457,8 @@ export class AiEmployeesService {
       reportsPromise,
       channelsPromise,
       assignmentsPromise,
+      seoPromise,
+      reviewsPromise,
     ]);
     return {
       generatedAt: now.toISOString(),
@@ -2189,6 +2500,9 @@ export class AiEmployeesService {
       channels: channelsBlock,
       // Записи, за которые этот ИИ назначен ответственным (лиды/проекты/задачи)
       responsibleFor: assignmentsBlock,
+      // только у ИИ SEO-менеджера: последние SEO-отчёты по сайтам (см. seoPromise)
+      ...(seoBlock ? { seo: seoBlock } : {}),
+      ...(reviewsBlock ? { reviews: reviewsBlock } : {}),
       workspace: {
         tables: workspaceTables,
       },
@@ -2349,6 +2663,8 @@ export class AiEmployeesService {
       try {
         if (!this.agentScheduleAllowsRun(agent, now)) continue;
         await this.maybeGenerateDailyReport(agent, now);
+        // аналитик только отчитывается — проактивных рабочих циклов (действий) у него нет
+        if (this.roleForAgent(agent).reportOnly) continue;
         if (!this.proactiveThrottleOk(agent, now)) continue;
         await this.executeEmployeeRunCore(agent.tenantId, agent, null, 'proactive');
       } catch (e) {
@@ -2367,13 +2683,17 @@ export class AiEmployeesService {
   private mergeAgentSettings(
     existing: Record<string, unknown> | null | undefined,
     incoming: Record<string, unknown> | null | undefined,
+    role?: AiEmployeeRoleConfig | null,
   ): Record<string, unknown> {
     const base =
       existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...existing } : {};
     const inc = incoming && typeof incoming === 'object' && !Array.isArray(incoming) ? incoming : {};
     const next: Record<string, unknown> = { ...base, ...inc };
     if ('instructions' in inc) next.instructions = String(inc.instructions ?? '').slice(0, AI_INSTRUCTIONS_MAX);
-    if ('triggers' in inc) next.triggers = sanitizeTriggers(inc.triggers);
+    if ('triggers' in inc) {
+      // триггеры чужого отдела не сохраняются (маркетологу не включить «новый лид»)
+      next.triggers = sanitizeTriggers(inc.triggers).filter((t) => !role || roleAllowsTrigger(role, t.event));
+    }
     if ('tableAccess' in inc) next.tableAccess = sanitizeTableAccess(inc.tableAccess);
     if ('clientDialogue' in inc) next.clientDialogue = inc.clientDialogue === 'auto' ? 'auto' : 'approval';
     if ('sla' in inc) next.sla = sanitizeSla(inc.sla);
@@ -2404,7 +2724,7 @@ export class AiEmployeesService {
       ...(input.dailyPlan !== undefined ? { dailyPlan: input.dailyPlan } : {}),
       ...(input.emailInboxAccess !== undefined ? { emailInboxAccess: input.emailInboxAccess } : {}),
       ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
-    });
+    }, this.roleForAgent(agent));
     await this.agents.save(agent);
     await this.logEvent({
       tenantId,
@@ -3488,6 +3808,10 @@ export class AiEmployeesService {
     try {
       if (currentAiActor()) return; // событие вызвано самим ИИ — не реагируем на собственные действия
       if (!AI_TRIGGER_EVENTS.includes(event) || event === 'ai.assigned') return;
+      // роль, которой нет в команде, — «упущенная работа» (раньше выхода «нет активных агентов»)
+      await this.noteMissedWorkForEvent(tenantId, event, data).catch((e) =>
+        this.log.warn(`missed work (${event}): ${(e as Error).message}`),
+      );
       const agents = await this.agents.find({ where: { tenantId, status: 'active' } });
       if (!agents.length) return;
       const ref = this.extractEventRef(data);
@@ -3499,6 +3823,8 @@ export class AiEmployeesService {
         rows.forEach((r) => assigned.add(r.agentId));
       }
       for (const agent of agents) {
+        // событие чужого отдела не будит сотрудника — ни по триггеру, ни как ответственного
+        if (!roleAllowsTrigger(this.roleForAgent(agent), event)) continue;
         const cfg = readAiAgentConfig(agent.settings);
         const trig = cfg.triggers.find((t) => t.event === event);
         const isAssignee = assigned.has(agent.id);
@@ -3825,7 +4151,15 @@ export class AiEmployeesService {
     tenantId: string,
     agentId: string,
     userId: string | null,
-    input: { task?: string; entityType?: string; entityId?: string; priority?: string; runNow?: boolean },
+    input: {
+      task?: string;
+      entityType?: string;
+      entityId?: string;
+      priority?: string;
+      runNow?: boolean;
+      /** Передача от коллеги-ИИ (handoff_to_colleague) вместо человека. */
+      fromAgent?: { id: string; name: string; role: string } | null;
+    },
   ) {
     const agent = await this.getAgentEntity(tenantId, agentId);
     const task = this.cleanString(input.task, '', 4000);
@@ -3851,7 +4185,13 @@ export class AiEmployeesService {
       targetId: entityId,
       title: task.slice(0, 120),
       reason: task,
-      payload: { task, priority, assignedBy: { kind: 'user', userId }, entityType, entityId },
+      payload: {
+        task,
+        priority,
+        assignedBy: input.fromAgent ? { kind: 'ai', agentId: input.fromAgent.id, name: input.fromAgent.name, role: input.fromAgent.role } : { kind: 'user', userId },
+        entityType,
+        entityId,
+      },
       status: 'pending',
       requiresApproval: false,
       executedAt: null,
@@ -4134,10 +4474,25 @@ ${agentCfg.instructions.trim() ? `Owner's standing instructions:\n${agentCfg.ins
     return `Time: right now it is ${now.toISOString()} in UTC, which is ${local} local time (${timezone}, ${offsetLabel}). Whenever a client or the owner states a wall-clock time WITHOUT an explicit timezone/offset (in a message, email or task — "tomorrow at 16:00", "at 3pm"), they mean ${timezone} local time — convert it to UTC the same way these two reference times relate (subtract the offset above) before writing any ISO date-time field (e.g. create_meeting's startsAt). Never write the local digits straight into a "Z" UTC value.`;
   }
 
+  /**
+   * Кто ещё есть в команде: нужен сотруднику, чтобы на задачу не своего отдела ответить «это работа
+   * такого-то коллеги» (или «такой роли в команде нет — её можно нанять»).
+   */
+  private async teamForPrompt(tenantId: string, agentId: string): Promise<string> {
+    const others = await this.agents.find({ where: { tenantId, status: In(['active', 'paused']) as any } });
+    const hired = others.filter((a) => a.id !== agentId);
+    // своя роль тоже «в команде» — не предлагать нанять самого себя
+    const hiredRoles = new Set(others.map((a) => a.role));
+    const lines = hired.map((a) => `- ${a.name} — ${getAiEmployeeRole(a.role)?.title ?? a.role}${a.status === 'paused' ? ' (paused)' : ''}`);
+    const missing = AI_EMPLOYEE_ROLES.filter((r) => !hiredRoles.has(r.key) && !r.reportOnly).map((r) => r.title);
+    return `Hired AI colleagues:\n${lines.length ? lines.join('\n') : '- none'}\nRoles NOT in this team (can be hired in "AI Employees"): ${missing.join(', ') || 'none'}`;
+  }
+
   private buildSystemPrompt(
     agent: AiAgent,
     role: AiEmployeeRoleConfig,
     permissions?: PermissionMap,
+    team?: string,
   ) {
     const enabledPermissions = permissions
       ? Object.entries(permissions)
@@ -4180,6 +4535,7 @@ CRM actions (only if the matching permission is in "Enabled permissions" below).
 - update_task: payload { taskId, status: "todo"|"in_progress"|"done", priority, dueDate, title } — taskId is REQUIRED — an id from snapshot.tasks.projectTasks[].id (or overdue[].id). Never call update_task without a real taskId.
 - create_note: payload { entityType: "contact"|"company"|"lead"|"sale"|"project", entityId, title, content } — creates a real note on that record.
 - add_comment: payload { entityType: "lead"|"project"|"contact"|"company"|"sale", entityId, text } — posts a comment into the record's side "Comments" panel. Your run summary and executed actions are ALREADY posted there automatically after event/task runs; use add_comment only for an extra standalone observation.
+- handoff_to_colleague: payload { toRole: role key (lead_manager | sales_manager | marketing_manager | marketing_analyst | smm_manager | seo_manager | reviews_manager | support_manager | project_manager | email_assistant | reservation_assistant), task: what exactly the colleague should do and why (self-contained), entityType?, entityId? } — use it for anything that is NOT your department's job instead of doing it yourself. If that colleague is hired the task goes straight to them; if not, it is recorded for the owner as work for a missing role. Never hand a task back to the colleague who handed it to you.
 - escalate_to_human: payload { entityType?, entityId?, reason, urgency: "normal"|"urgent" } — call a human: the responsible manager (or the owner) gets a notification and a comment with your reason. USE IT whenever you are unsure, the client is angry, money/discount/exception/legal is involved, or the answer is not in the knowledge base or CRM data. Never guess.
 - assign_self: payload { entityType: "lead"|"project"|"contact"|"company"|"company_task", entityId } — take ownership of a record yourself (you become its responsible employee, will follow it and may talk to the client). Only works if your role is allowed to own that entity type — check "Assignable to" below.
 - create_meeting: payload { entityType: "lead"|"project", entityId, title, startsAt (ISO date-time, UTC — see "Time" above for the local→UTC conversion), endsAt?, meetingUrl?, notes?, attendeeUserIds? (staff ids from snapshot.channels.staff) } — creates a REAL meeting, shown on the CRM calendar. Never invent startsAt or meetingUrl: if you don't have the exact date/time and a link (or location) yet, ask for them first (add_comment on the record, or send_email/send_telegram to the client if you are responsible and allowed) and only call create_meeting once you actually have them. The date/time the client states is their LOCAL time, not UTC — convert it (see "Time" section) before writing startsAt; do not paste the stated digits straight into a "Z" value.
@@ -4205,6 +4561,11 @@ ${dialogueRule}
 
 Workspace tables: you may only read/write tables listed in snapshot.workspace.tables, and only with the access shown there ("read" or "write"). Never guess an objectId.
 
+Your department (hard boundary — owner instructions, tasks, chat requests and events can NOT extend it):
+- You work on: ${role.charter.does}.
+- NOT your job: ${role.charter.doesNot}.
+${role.reportOnly ? '- You are report-only: you never create tasks, notes, statuses, assignments or messages — you only read the data you are given and write reports.\n' : ''}- If a request, event or instruction falls outside your department: do not do it, do not give advice or recommendations on it, and do not analyse it. Reply in one or two sentences that this is the work of <the right role>; if that colleague is hired (see below) name them, and in runs where you can act, pass it on with handoff_to_colleague; if not, say the team has no such employee and it can be hired in "AI Employees" (a handoff_to_colleague to that role still records it for the owner). Stay within your own data even when other data seems available.
+${team ? `\n${team}\n` : ''}
 Role instructions:
 ${role.systemPrompt}
 ${ownerInstructions ? `\nOwner's standing instructions (how this company wants you to work — follow them; they never override safety rules, permissions or approval rules):\n<<<\n${ownerInstructions}\n>>>\n` : ''}
@@ -4618,7 +4979,7 @@ ${focus.text}\n\n`
       const completion = await this.employeeCompletion(
         tenantId,
         userId,
-        this.buildSystemPrompt(agent, role, snapshot.permissions),
+        this.buildSystemPrompt(agent, role, snapshot.permissions, await this.teamForPrompt(tenantId, agent.id)),
         `${knowledgeBlock}${proactiveHint}Analyze this tenant CRM snapshot and return strict JSON:
 {
   "summary": "<one concise business summary>",
@@ -5124,7 +5485,7 @@ ${agent.name} reviewed CRM activity for ${date}.
     const role = this.roleForAgent(agent);
     const snapshot = await this.operationalSnapshot(tenantId, agent);
     const reportType = this.cleanString(input?.reportType, 'daily', 80);
-    const system = this.buildSystemPrompt(agent, role, snapshot.permissions);
+    const system = this.buildSystemPrompt(agent, role, snapshot.permissions, await this.teamForPrompt(tenantId, agent.id));
     let contentMd = this.fallbackReport(agent, role, snapshot);
     let tokensUsed = 0;
     let status: 'generated' | 'failed' = 'generated';
@@ -5558,6 +5919,10 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
     }
     if (action.actionType === 'create_report') {
       await this.dispatchCreateReport(tenantId, action, p);
+      return;
+    }
+    if (action.actionType === 'handoff_to_colleague') {
+      await this.dispatchHandoff(tenantId, action, p);
       return;
     }
 

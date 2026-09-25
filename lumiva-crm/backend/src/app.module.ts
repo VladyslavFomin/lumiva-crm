@@ -45,6 +45,8 @@ import { ShopifyInboundModule } from './integrations/shopify/shopify-inbound.mod
 import { WooCommerceInboundModule } from './integrations/woocommerce/woocommerce-inbound.module';
 import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { SeoAiModule } from './seo-ai/seo-ai.module';
+import { ReviewsAiModule } from './reviews-ai/reviews-ai.module';
 import { MarketingBroadcastsModule } from './marketing-broadcasts/marketing-broadcasts.module';
 import { SmmModule } from './smm/smm.module';
 import { CustomObjectsModule } from './custom-objects/custom-objects.module';
@@ -336,6 +338,8 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     HotelsModule,
     WorkspaceAreasModule,
     MarketingModule,
+    SeoAiModule,
+    ReviewsAiModule,
     MarketingBroadcastsModule,
     ApiTokensModule,
     SmmModule,

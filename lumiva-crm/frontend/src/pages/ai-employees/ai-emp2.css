@@ -55,6 +55,9 @@
 .e2-sec { display: flex; align-items: center; gap: 12px; margin: 30px 0 12px; }
 .e2-sec .h { font-size: 20px; }
 .e2-sec .line { flex: 1; height: 1px; background: var(--line-2); }
+/* подзаголовок внутри колонки (Доступы → «Таблицы рабочих областей», «Почтовые ящики») */
+.e2-sec.e2-sec-sm { margin: 14px 0 12px; }
+.e2-sec.e2-sec-sm .h { font-size: 15px; }
 
 /* roster rows */
 .e2-tbl { border: 1px solid var(--line-2); border-radius: 14px; background: #fff; overflow: hidden; }
@@ -237,3 +240,43 @@
 .e2-wiz-step.on { color: var(--ink); background: var(--bg-muted); }
 .e2-wiz-step.done { color: var(--ink); }
 .e2-wiz-ft { display: flex; justify-content: space-between; gap: 8px; margin-top: 22px; }
+
+/* право вне зоны отдела роли (ZoneLock): вместо переключателя — «это работа …» + нанять */
+.ai-zone-lock { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; font-size: 11.5px; color: var(--fg-3, #8a8a8a); max-width: 260px; text-align: right; }
+.ai-zone-lock .lnk { border: 0; background: none; padding: 0; font: inherit; font-size: 11.5px; color: var(--ink, #111); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.ai-perm.locked .pn, .ai-perm.locked .pd, .e2-act.locked .an, .e2-act.locked .ad { opacity: 0.55; }
+
+/* CRM-аналитик: галочки данных и расписание отчёта (AiAnalystReportPanel) */
+.ai-analyst-blocks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; padding: 12px 18px 18px; }
+.ai-analyst-blocks label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-2, #e5e5e5); border-radius: 10px; cursor: pointer; }
+.ai-analyst-blocks label.on { border-color: var(--ink, #111); background: var(--bg-muted, #fafafa); }
+.ai-analyst-blocks input { margin-top: 3px; accent-color: var(--ink, #111); }
+.ai-analyst-blocks b { display: block; font-size: 13px; font-weight: 600; }
+.ai-analyst-blocks small { display: block; font-size: 11.5px; color: var(--fg-3, #8a8a8a); line-height: 1.4; margin-top: 2px; }
+.ai-analyst-form { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px 18px; }
+.ai-analyst-form .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-3, #8a8a8a); margin-bottom: 6px; }
+.ai-analyst-form .ai-input { width: 100%; }
+.ai-analyst-row { display: flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+.ai-analyst-row input { accent-color: var(--ink, #111); }
+.ai-analyst-days { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-analyst-days button { border: 1px solid var(--line-2, #e5e5e5); background: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; text-transform: capitalize; cursor: pointer; }
+.ai-analyst-days button.on { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
+.ai-analyst-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-analyst-ok { font-size: 12.5px; color: #17704b; }
+.ai-analyst-err { font-size: 12.5px; color: #9a1f31; }
+.ai-analyst-preview { margin: 0; padding: 14px 18px 18px; font-family: var(--ff-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-x: auto; }
+
+/* Команда по отделам: занятые и пустые места + «упущенная работа» (этап 2 зон отделов) */
+.e2-missed { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; margin: 0 0 14px; border: 1px solid color-mix(in srgb, #c08319 35%, var(--line-2, #e5e5e5)); background: color-mix(in srgb, #c08319 6%, #fff); border-radius: 12px; font-size: 13px; color: #7a5411; }
+.e2-missed b { font-weight: 600; }
+.e2-dept { margin: 0 0 16px; }
+.e2-dept-h { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-3, #8a8a8a); margin: 0 0 8px; }
+.e2-role.hired { cursor: pointer; box-shadow: inset 3px 0 0 var(--ink, #111); }
+.e2-role.hired:hover { background: var(--bg-muted, #fafafa); }
+.e2-role.empty { background: var(--bg-muted, #fafafa); }
+.e2-seat-st { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; padding: 3px 7px; border-radius: 6px; background: var(--bg-soft, #f4f4f5); color: var(--fg-2, #555); align-self: flex-start; }
+.e2-seat-st.active { background: color-mix(in srgb, #1f8a5e 12%, #fff); color: #17704b; }
+.e2-seat-st.paused { background: color-mix(in srgb, #c08319 12%, #fff); color: #7a5411; }
+.e2-miss { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: #9a1f31; line-height: 1.45; }
+.e2-miss b { font-weight: 600; }
+.e2-miss span { color: var(--fg-2, #555); }

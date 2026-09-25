@@ -23,6 +23,8 @@ import { getLocale } from '../../i18n/utils';
 import { cl, Ic } from '../contacts/CrmListShared';
 import '../contacts/crm-lists-design.css';
 import './seo-design.css';
+import './seo-ai.css';
+import { SeoAiSection } from './SeoAiPanel';
 
 type MetricKey = 'clicks' | 'impressions' | 'ctr' | 'position';
 type Preset = '7' | '30' | '90' | 'custom';
@@ -37,6 +39,12 @@ const S = {
     </>
   ),
   chev: <path d="M6 9l6 6 6-6" />,
+  spark: (
+    <>
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+      <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" />
+    </>
+  ),
   check: <path d="M5 12l4 4 10-10" />,
   ext: (
     <>
@@ -414,6 +422,16 @@ export const SeoPage: React.FC = () => {
   const [psiReconnect, setPsiReconnect] = useState(false);
   /** PageSpeed API выключен в Google Cloud проекте платформы — ссылка на включение. */
   const [psiDisabledUrl, setPsiDisabledUrl] = useState<string | null>(null);
+  const view: 'overview' | 'ai' = searchParams.get('tab') === 'ai' ? 'ai' : 'overview';
+  const setView = (v: 'overview' | 'ai') => {
+    const next = new URLSearchParams(searchParams);
+    if (v === 'ai') next.set('tab', 'ai');
+    else {
+      next.delete('tab');
+      next.delete('report');
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const rangeDays = (from: string, to: string) => Math.round((parseDay(to) - parseDay(from)) / dayMs) + 1;
   const presetFor = (from: string, to: string): Preset => {
@@ -889,6 +907,21 @@ export const SeoPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="seo-views" role="tablist">
+            <button type="button" role="tab" aria-selected={view === 'overview'} className={cl(view === 'overview' && 'on')} onClick={() => setView('overview')}>
+              {t('crm.marketingSeo.ai.tabs.overview')}
+            </button>
+            <button type="button" role="tab" aria-selected={view === 'ai'} className={cl(view === 'ai' && 'on')} onClick={() => setView('ai')}>
+              <Ic d={S.spark} size={14} />
+              {t('crm.marketingSeo.ai.tabs.ai')}
+            </button>
+          </div>
+
+          {view === 'ai' ? (
+            // ассистент привязан к ресурсу из переключателя вверху; key — чтобы при смене сайта всё перезагрузилось
+            <SeoAiSection key={settings?.gscPropertyUrl || settings?.pageSpeedUrl || 'none'} site={settings?.gscPropertyUrl || settings?.pageSpeedUrl || null} />
+          ) : (
+          <>
           <div className="seo-bar">
             <div className="seo-seg">
               {(['7', '30', '90', 'custom'] as const).map((p) => (
@@ -1212,6 +1245,8 @@ export const SeoPage: React.FC = () => {
               </ol>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
       {keyHelpOpen && createPortal(<KeyHelpModal onClose={() => setKeyHelpOpen(false)} />, document.body)}

@@ -71,8 +71,11 @@ export class AiOpenAiService {
       /** Overrides just the model name while still using the resolved (platform or tenant) apiKey/base — e.g. a
        * per-feature model preference (Telegram AI connector) that doesn't have its own API key to hand. */
       modelOverride?: string;
-      /** Overrides the fixed 0.6 default sampling temperature — same "use resolved key, override one field" case. */
-      temperatureOverride?: number;
+      /** Overrides the fixed 0.6 default sampling temperature — same "use resolved key, override one field" case.
+       * null omits the parameter entirely: reasoning models (o-series, gpt-5…) reject any value except the default. */
+      temperatureOverride?: number | null;
+      /** Long prompts on slower (reasoning) models need more than the default 120s. */
+      timeoutMs?: number;
     },
     overrideConfig?: { apiKey: string; baseUrl?: string; model?: string; provider?: 'openai' | 'anthropic' },
   ): Promise<{
@@ -100,8 +103,8 @@ export class AiOpenAiService {
     const body: Record<string, unknown> = {
       model,
       messages: input.messages,
-      temperature: input.temperatureOverride ?? 0.6,
     };
+    if (input.temperatureOverride !== null) body.temperature = input.temperatureOverride ?? 0.6;
     if (input.tools?.length) {
       body.tools = input.tools;
       body.tool_choice = input.toolChoice ?? 'auto';
@@ -112,7 +115,7 @@ export class AiOpenAiService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        timeout: 120_000,
+        timeout: input.timeoutMs ?? 120_000,
       });
       const choice = res.data?.choices?.[0];
       const msg = choice?.message;

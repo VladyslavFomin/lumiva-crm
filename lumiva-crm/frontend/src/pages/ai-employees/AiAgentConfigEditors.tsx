@@ -138,11 +138,17 @@ export function InstructionsEditor({
 export function TriggersEditor({
   triggers,
   onChange,
+  allowedEvents,
 }: {
   triggers: AiTriggerConfig[];
   onChange: (next: AiTriggerConfig[]) => void;
+  /** Зона отдела роли: события чужих отделов не показываем (бэкенд их всё равно не сохранит). */
+  allowedEvents?: string[];
 }) {
   const { t } = useTranslation();
+  const groups = allowedEvents
+    ? TRIGGER_GROUPS.map((g) => ({ ...g, events: g.events.filter((e) => allowedEvents.includes(e)) })).filter((g) => g.events.length)
+    : TRIGGER_GROUPS;
   const byEvent = new Map(triggers.map((tr) => [tr.event, tr]));
 
   const patch = (event: string, change: Partial<AiTriggerConfig>) => {
@@ -164,7 +170,12 @@ export function TriggersEditor({
           <div style={{ marginTop: 8, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.triggers.assignedNote')}</div>
         </div>
       </div>
-      {TRIGGER_GROUPS.map((g) => (
+      {!groups.length ? (
+        <div className="ai-panel">
+          <div className="ai-panel-body" style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.zones.noTriggers')}</div>
+        </div>
+      ) : null}
+      {groups.map((g) => (
         <div key={g.group} className="ai-panel">
           <div className="ai-panel-head">
             <div className="pt">{t(`crm.aiEmployees.triggers.groups.${g.group}`)}</div>
