@@ -115,10 +115,17 @@ export class ContactsController {
   @Get('birthdays')
   @RequirePermission('contacts', 'read')
   async birthdays(
-    @CurrentUser() _user: CurrentUserPayload,
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('days') days?: string,
   ) {
-    // birthday field is not yet on the Contact entity — return empty list
-    return { contacts: [] };
+    // Те же правила видимости, что у списка контактов: «только свои» — по ответственному.
+    const visibility = await this.resolveVisibility(user);
+    const contacts = await this.contactsService.findUpcomingBirthdays(
+      user.tenantId,
+      days ? parseInt(days, 10) : 7,
+      visibility.forceOwnOnly,
+    );
+    return { contacts };
   }
 
   @Get(':id')

@@ -424,5 +424,40 @@ export class ContactsService {
       updated: contacts.length,
     };
   }
+
+  /**
+   * Контакты с днём рождения в ближайшие `days` дней (включая сегодня), по ближайшей дате.
+   * Ближайшая дата = дата рождения + (полных лет на вчера + 1) лет: сегодняшний день рождения
+   * попадает в список, переход через Новый год работает, 29 февраля → 28-е в невисокосный год.
+   */
+  async findUpcomingBirthdays(
+    tenantId: string,
+    days = 7,
+    ownStaffId: string | null = null,
+  ): Promise<Array<{ id: string; firstName: string | null; lastName: string | null; email: string | null; birthday: string | null; nextBirthday: string; turningAge: number }>> {
+    const span = Math.min(Math.max(Number.isFinite(days) ? days : 7, 1), 60);
+    const next = `(contact.birthday + ((date_part('year', age(CURRENT_DATE - 1, contact.birthday)) + 1) * interval '1 year'))::date`;
+    const qb = this.repo
+      .createQueryBuilder('contact')
+      .select(['contact.id', 'contact.firstName', 'contact.lastName', 'contact.email', 'contact.birthday'])
+      .addSelect(`to_char(${next}, 'YYYY-MM-DD')`, 'next_birthday')
+      .addSelect(`date_part('year', age(${next}, contact.birthday))::int`, 'turning_age')
+      .where('contact.tenantId = :tenantId', { tenantId })
+      .andWhere('contact.birthday IS NOT NULL')
+      .andWhere(`${next} <= CURRENT_DATE + (:span::int - 1)`, { span })
+      .orderBy(next, 'ASC')
+      .take(50);
+    if (ownStaffId) qb.andWhere('contact.assignedUserId = :ownStaffId', { ownStaffId });
+    const { entities, raw } = await qb.getRawAndEntities();
+    return entities.map((c, i) => ({
+      id: c.id,
+      firstName: c.firstName ?? null,
+      lastName: c.lastName ?? null,
+      email: c.email ?? null,
+      birthday: c.birthday ?? null,
+      nextBirthday: raw[i]?.next_birthday,
+      turningAge: Number(raw[i]?.turning_age) || 0,
+    }));
+  }
 }
 

@@ -6372,7 +6372,12 @@
           "confirm": "Сбросить"
         },
         "resetDone": "Расстановка сброшена",
-        "aiUpdated": "Дашборд обновлён ИИ-ассистентом"
+        "aiUpdated": "Дашборд обновлён ИИ-ассистентом",
+        "birthdaysToday": "Сегодня",
+        "birthdaysTurning_one": "исполняется {{count}} год",
+        "birthdaysTurning_few": "исполняется {{count}} года",
+        "birthdaysTurning_many": "исполняется {{count}} лет",
+        "birthdaysTurning_other": "исполняется {{count}} лет"
       },
       "detailModal": {
         "open": "Подробнее"
@@ -8679,7 +8684,8 @@
           "country": "Страна",
           "address": "Адрес",
           "passport": "Паспорт / ID",
-          "passportHint": "Нужен для договоров с физлицами. Хранится в дополнительных полях контакта."
+          "passportHint": "Нужен для договоров с физлицами. Хранится в дополнительных полях контакта.",
+          "birthday": "Дата рождения"
         },
         "companyCard": {
           "title": "Компания контакта",
@@ -11898,7 +11904,9 @@
           "calendar": "Календарь (копия)"
         },
         "confirm": {
-          "deleteCurrentView": "Удалить текущий вид?"
+          "deleteCurrentView": "Удалить текущий вид?",
+          "deleteTable": "Удалить таблицу «{{name}}»? Проекты будут перенесены в основную таблицу.",
+          "deleteTableTitle": "Удаление"
         },
         "menu": {
           "tabMenu": "Меню вкладки",

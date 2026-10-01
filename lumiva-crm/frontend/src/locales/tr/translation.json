@@ -226,7 +226,8 @@
       "sectionSales": "Satışlar",
       "sectionMarketing": "Pazarlama",
       "sectionTools": "Araçlar",
-      "sectionManagement": "Yönetim"
+      "sectionManagement": "Yönetim",
+      "deleteWorkspaceFailed": "Tablo silinemedi."
     },
     "help": {
       "buttonLabel": "Talimatlar",
@@ -5109,6 +5110,24 @@
           "documentManagerNamePlaceholder": "Belgeleri varsayılan olarak kim imzalıyor",
           "documentManagerNameHint": "Belgelerdeki {MANAGER} anahtarı — belirtilmezse, belgeyi düzenleyen kişinin adı kullanılır."
         }
+      },
+      "app": {
+        "errors": {
+          "load": "Şirket ayarları yüklenemedi",
+          "save": "Ayarlar kaydedilemedi"
+        },
+        "fields": {
+          "clientKey": "İstemci anahtarı",
+          "clientKeyHint": "Entegrasyonlar ve hesabınızın tanımlanması için kullanılır.",
+          "name": "Şirket adı",
+          "namePlaceholder": "Örneğin Lumiva Agency"
+        },
+        "loading": "Ayarlar yükleniyor…",
+        "save": "Değişiklikleri kaydet",
+        "saving": "Kaydediliyor…",
+        "sectionLabel": "Genel hesap ayarları",
+        "success": "Ayarlar kaydedildi",
+        "title": "Şirket ayarları"
       }
     },
     "embedForms": {
@@ -5684,7 +5703,31 @@
         "autoRefreshLabel": "Otomatik güncelle",
         "autoRefreshHint": "Bu içe aktarma mevcut sütun eşlemesiyle kendiliğinden tekrarlanır (Woo 3 saatte bir, Meta Ads ve GA4 günde bir).",
         "autoRefreshSaved": "İçe aktarma tamamlandı, otomatik güncelleme açık.",
-        "autoRefreshFailed": "İçe aktarma tamamlandı ancak otomatik güncelleme açılamadı"
+        "autoRefreshFailed": "İçe aktarma tamamlandı ancak otomatik güncelleme açılamadı",
+        "apiSectionHint": "API anahtarları, JSON şablonları ve senkronizasyon geçmişi planlanıyor.",
+        "apply": "İçe aktarmayı uygula",
+        "applyFailed": "İçe aktarma uygulanamadı",
+        "applying": "İçe aktarılıyor...",
+        "columnsRows": "Sütun: {{cols}}, satır: {{rows}}",
+        "createField": "Alan oluştur",
+        "createFieldError": "“{{column}}” sütunu için alan oluşturulamadı",
+        "creatingField": "Oluşturuluyor...",
+        "fieldCreated": "“{{label}}” alanı oluşturuldu, “{{column}}” sütunu eşlendi",
+        "groupExisting": "Mevcut gruba ekle",
+        "groupKeep": "Dosyadaki grupları koru",
+        "groupNew": "Yeni grup oluştur / belirt",
+        "headerRow": "Başlık satırı: {{n}}",
+        "importTargetGroup": "İçe aktarma grubu",
+        "importViaApi": "API ile içe aktarma",
+        "importViaApiHint": "Harici sistemlerden bağlantı. Bu bölüm geliştirme aşamasında.",
+        "importedSummary": "İçe aktarma: {{created}} oluşturuldu, {{updated}} güncellendi, {{skipped}} atlandı",
+        "mapRequired": "İçe aktarmadan önce zorunlu alanları eşleyin: {{fields}}",
+        "mapped": "Eşlenen sütunlar: {{mapped}} / {{total}}",
+        "newGroupName": "Yeni grup adı",
+        "notMapped": "Eşlenmedi",
+        "previewError": "Önizleme hazırlanamadı",
+        "rowErrors": "Satır hataları ({{count}})",
+        "soon": "Yakında"
       },
       "settings": {
         "title": "Tablo ayarları",
@@ -5933,7 +5976,133 @@
         "columnBindingPreviewLoading": "Önizleme yükleniyor…",
         "columnBindingPreviewEmpty": "Bu ayarlar için eşleşen veri yok.",
         "columnBindingPreviewTitleRollup": "Toplam önizlemesi · grup: {{count}}",
-        "columnBindingPreviewTitlePick": "Seçenek önizlemesi · değer: {{count}}"
+        "columnBindingPreviewTitlePick": "Seçenek önizlemesi · değer: {{count}}",
+        "activityUpdated": "Güncellendi: {{field}}",
+        "addField": "Alan ekle",
+        "addFieldEmptyLabel": "Sütun adı ekleyin",
+        "addFieldHint": "Hazır ön ayarlar: sahip, öncelik, son tarih.",
+        "addFieldInvalidKey": "Geçerli bir sütun anahtarı ekleyin",
+        "addFieldTitle": "Yeni alan",
+        "addFileShort": "+ dosya",
+        "addGroup": "Grup ekle",
+        "addItem": "+ Satır ekle",
+        "addItemOnlyDefault": "Satır ekleme yalnızca varsayılan gruplamada kullanılabilir",
+        "addSubitem": "+ Alt görev ekle",
+        "adding": "Ekleniyor...",
+        "addingRow": "Ekleniyor...",
+        "ascending": "Artan",
+        "boardOpenDrawer": "Kartı aç",
+        "boardToolbarNew": "Yeni kayıt",
+        "bulkDelete": "Sil",
+        "cancel": "İptal",
+        "clearFilter": "Filtreyi sıfırla",
+        "columnLabelPlaceholder": "Sütun etiketi",
+        "creatingGroup": "Oluşturuluyor...",
+        "dataSourceLink": "Veri",
+        "dataSourceLinkTitle": "Kaynak veri tablosunu aç",
+        "datePlaceholder": "YYYY-AA-GG",
+        "datetimePlaceholder": "YYYY-AA-GGTSS:dd",
+        "defaultGroupField": "Varsayılan grup alanı",
+        "deleteConfirm": "Silmeyi onayla",
+        "deleteGroupConfirm": "“{{title}}” grubu ve {{count}} kayıt silinsin mi?",
+        "deleteGroupDisabledPaged": "Sayfalı modda tüm grubu silmek kullanılamaz",
+        "deleteGroupTitle": "Grubu sil",
+        "deleteIrreversible": "Bu işlem geri alınamaz. İlgili veriler kalıcı olarak silinecek.",
+        "deleteRow": "Satırı sil",
+        "deleting": "Siliniyor...",
+        "descending": "Azalan",
+        "duplicateColumn": "Sütunu çoğalt",
+        "duplicateRow": "Satırı çoğalt",
+        "editColumn": "Sütunu düzenle",
+        "editColumnTitle": "Sütunu düzenle",
+        "editTags": "düzenle",
+        "fieldCopySuffix": " (kopya)",
+        "fieldLabelPlaceholder": "Alan etiketi",
+        "fieldPlaceholder": "Alan...",
+        "fileMaxLine": "en fazla {{label}}",
+        "filePickTitle": "En fazla {{label}}",
+        "filterButton": "Filtre",
+        "filterOnlyCurrentPage": "Sütun filtresi yalnızca geçerli sayfadaki satırlara uygulanır. Tüm tabloda aramak için yukarıdaki arama alanını kullanın.",
+        "filterRows": "Satırları filtrele",
+        "footerItemsCount": "{{count}} kayıt",
+        "footerItemsPage": "{{total}} kayıttan {{from}}–{{to}} gösteriliyor",
+        "groupByButton": "Grupla",
+        "groupCreationOnlyDefault": "Grup yalnızca varsayılan gruplama alanı için oluşturulabilir.",
+        "groupFirstRowTitle": "{{name}} — kayıt",
+        "groupHeaderItems": "{{count}} kayıt",
+        "groupHeaderItemsPage": "Bu sayfada: {{count}} · toplam {{total}}",
+        "groupRows": "Gruplama",
+        "groupTitle": "Grup",
+        "groupsCountLabel": "Grup: {{count}}",
+        "hide": "Gizle",
+        "hideColumn": "Sütunu gizle",
+        "hideRow": "Satırı gizle",
+        "importButton": "İçe aktar",
+        "loadingData": "Veriler yükleniyor...",
+        "move": "Taşı",
+        "moveToGroup": "Gruba taşı...",
+        "newGroupNameRequired": "Grup adını girin",
+        "newGroupTitle": "Grup adı",
+        "newItem": "Yeni kayıt",
+        "nextPage": "İleri",
+        "noSorting": "Sıralama yok",
+        "openRow": "Aç",
+        "pageSize": "Sayfa başına",
+        "paginationRange": "{{total}} satırdan {{from}}–{{to}}",
+        "presetDueDate": "Son tarih",
+        "presetOwner": "Sorumlu",
+        "presetPriHigh": "Yüksek",
+        "presetPriLow": "Düşük",
+        "presetPriMedium": "Orta",
+        "presetPriUrgent": "Acil",
+        "presetPriority": "Öncelik",
+        "presetStDone": "Tamamlandı",
+        "presetStReview": "İncelemede",
+        "presetStStuck": "Durdu",
+        "presetStWorking": "Devam ediyor",
+        "presetStatus": "Durum",
+        "prevPage": "Geri",
+        "pushToBoardBulk": "Ana tabloya",
+        "pushToBoardRow": "Ana tabloya…",
+        "saveChanges": "Değişiklikleri kaydet",
+        "saveRecordFailed": "Kayıt kaydedilemedi",
+        "saving": "Kaydediliyor...",
+        "searchRecords": "Kayıtlarda ara...",
+        "selectOptionsPlaceholder": "Seçenekler: Düşük, Normal, Yüksek",
+        "selectOwner": "Seç",
+        "selectedCount": "Seçilen: {{count}}",
+        "showHiddenColumns": "Gizlileri göster ({{count}})",
+        "showHiddenRows": "Gizli satırları göster ({{count}})",
+        "sortButton": "Sırala",
+        "sortRows": "Sıralama",
+        "startFromScratch": "Sıfırdan",
+        "statusOptionsPlaceholder": "Seçenekler: Devam ediyor, Tamamlandı, Durdu",
+        "subitemColDue": "Son tarih",
+        "subitemColOwner": "Sorumlu",
+        "subitemColPriority": "Öncelik",
+        "subitemColStatus": "Durum",
+        "subitemColTask": "Görev",
+        "subitemDefaultName": "Yeni görev",
+        "subitemPriority": {
+          "high": "Yüksek",
+          "low": "Düşük",
+          "normal": "Normal"
+        },
+        "subitemStatus": {
+          "blocked": "Engellendi",
+          "done": "Tamamlandı",
+          "in_progress": "Devam ediyor",
+          "review": "İncelemede",
+          "todo": "Yapılacak"
+        },
+        "subitemTitlePlaceholder": "Görev adı",
+        "subitemsTitle": "Alt görevler",
+        "sumLabel": "{{label}} toplamı:",
+        "sumOnPageSuffix": "(bu sayfa)",
+        "summary": "Toplam",
+        "unassigned": "Atanmadı",
+        "valuePlaceholder": "Değer...",
+        "withoutDepartment": "Departman yok"
       },
       "kanban": {
         "title": "Kanban",
@@ -6014,7 +6183,22 @@
         "aiColumnErrorNoAccess": "Bu YZ çalışanının bu tabloya erişimi yok — profilinden erişim verin (Erişimler → Çalışma alanı tabloları)",
         "aiColumnErrorNoPrompt": "Bu sütun için bir prompt tanımlanmamış",
         "aiColumnErrorNoStaff": "Atanabilecek aktif bir personel yok",
-        "aiColumnErrorNoConfidentMatch": "YZ, listeden emin bir şekilde personel seçemedi — talimatı netleştirin"
+        "aiColumnErrorNoConfidentMatch": "YZ, listeden emin bir şekilde personel seçemedi — talimatı netleştirin",
+        "activity": "Etkinlik",
+        "addField": "Alan ekle",
+        "addedComment": "Yorum eklendi",
+        "allSynced": "Tüm değişiklikler kaydedildi",
+        "chooseFile": "Dosya seçin",
+        "close": "Kapat",
+        "comments": "Yorumlar",
+        "maxFileSize": "Maksimum dosya boyutu: {{label}}",
+        "recordFallback": "Kayıt",
+        "removeFile": "Sil",
+        "savingChanges": "Kaydediliyor...",
+        "send": "Gönder",
+        "sourceRow": "Kaynak: veri satırı",
+        "updatedAtLabel": "Güncellendi",
+        "uploadFailed": "Dosya yüklenemedi"
       },
       "analytics": {
         "kicker": "Çalışma alanı analitiği",
@@ -6060,6 +6244,13 @@
         "needEmail": "En az bir e-posta girin",
         "failed": "Rapor gönderilemedi",
         "defaultSubject": "Rapor: {{name}} · {{period}}"
+      },
+      "fileViewer": {
+        "close": "Kapat",
+        "download": "İndir",
+        "downloadToOpen": "Açmak için dosyayı indirin",
+        "previewUnavailable": "Bu dosya türü için tarayıcı önizlemesi kullanılamıyor.",
+        "remove": "Sil"
       }
     },
     "marketingTraffic": {
@@ -6182,7 +6373,8 @@
         "none": "(none)",
         "noCampaign": "(utm_campaign yok)",
         "noData": "Veri yok."
-      }
+      },
+      "channelsCount": "KANAL"
     },
     "marketingChannelBlocks": {
       "thImpressions": "Gösterimler",
@@ -8078,7 +8270,14 @@
           "pickerSearchPlaceholder": "Eylem veya tetikleyici ara…",
           "pickerTabTriggerSingular": "Tetikleyici",
           "pickerKbdNavigate": "gezinme",
-          "pickerKbdClose": "kapat"
+          "pickerKbdClose": "kapat",
+          "cancel": "İptal",
+          "jiraConnectionLabel": "Jira bağlantısı",
+          "jiraDescriptionLabel": "Açıklama",
+          "jiraIssueTypeLabel": "Görev türü",
+          "jiraProjectKeyLabel": "Proje anahtarı (isteğe bağlı)",
+          "jiraTitleLabel": "Görev başlığı",
+          "selectConnection": "— bir bağlantı seçin —"
         },
         "triggerGroups": {
           "contacts": "Kişiler",
@@ -10143,7 +10342,9 @@
       "subtitle": "Sık kullanılan lead seçimlerini kaydedin: durumlar, kanallar, ülkeler, yöneticiler. Sonra: e-posta, n8n görevleri.",
       "errors": {
         "load": "Segmentler yüklenemedi",
-        "save": "Segment kaydedilemedi"
+        "save": "Segment kaydedilemedi",
+        "loadPresets": "Reklam kampanyaları yüklenemedi",
+        "needFilters": "En az bir Google/Meta kampanyası seçin veya ek potansiyel müşteri filtrelerini doldurun (durumlar, tarihler vb.)."
       },
       "form": {
         "name": "Segment adı",
@@ -10172,7 +10373,8 @@
         "create": "Segment oluştur",
         "creating": "Kaydediliyor…",
         "run": "Çalıştır",
-        "running": "Çalışıyor…"
+        "running": "Çalışıyor…",
+        "refresh": "Yenile"
       },
       "list": {
         "title": "Kayıtlı segmentler",
@@ -10180,9 +10382,22 @@
         "total": "Toplam: {{count}}",
         "empty": "Henüz segment yok. Yukarıdan ilkini oluşturun.",
         "meta": "varlık: {{entity}} · oluşturulma: {{date}}",
-        "found": "Bulundu: {{count}}"
+        "found": "Bulundu: {{count}}",
+        "lastRun": "son çalıştırmada: {{count}}"
       },
-      "loading": "Segmentler yükleniyor…"
+      "loading": "Segmentler yükleniyor…",
+      "adsBlock": {
+        "empty": "Henüz reklam kampanyası verisi yok. Pazarlama entegrasyonlarında Google Ads veya Meta'yı bağlayıp senkronizasyon başlatın (ya da arka plan içe aktarımını bekleyin).",
+        "loading": "Kampanyalar yükleniyor…",
+        "openIntegrations": "Pazarlama entegrasyonlarını aç",
+        "rowMeta": "Tıklama: {{clicks}} · Gösterim: {{imps}} · Son tarih: {{date}}",
+        "subtitle": "Liste, CRM'in entegrasyon senkronizasyonlarında aldığı satırlardan oluşur. Bir veya daha fazla kampanya seçin — segment eşleşen UTM etiketli potansiyel müşterileri arayacak.",
+        "title": "Google Ads ve Meta Ads kampanyaları"
+      },
+      "advanced": {
+        "hint": "Bu koşullar seçilen kampanyalarla birlikte uygulanır (mantıksal VE): potansiyel müşteri seçilen kampanyalardan birinin UTM'siyle eşleşmeli ve ayarlanmışsa aşağıdaki filtreleri karşılamalıdır.",
+        "title": "Ek potansiyel müşteri filtreleri"
+      }
     },
     "common": {
       "delete": "Sil",
@@ -10216,7 +10431,12 @@
       "all": "Tümü",
       "done": "Tamam",
       "template": "Şablon",
-      "copy": "Kopyala"
+      "copy": "Kopyala",
+      "add": "Ekle",
+      "create": "Oluştur",
+      "loadError": "Yüklenemedi",
+      "refresh": "Yenile",
+      "remove": "Kaldır"
     },
     "marketingCurrency": {
       "fxError": "Döviz kurları yüklenemedi",
@@ -10333,12 +10553,18 @@
         "preview": "Önizleme",
         "errors": {
           "loadFailed": "Şablonlar yüklenemedi",
-          "deleteFailed": "Şablon silinemedi"
+          "deleteFailed": "Şablon silinemedi",
+          "previewFailed": "Önizleme oluşturulamadı"
         },
         "myTemplatesTitle": "Your templates",
         "presetsSubtitle": "Ready subject + HTML: open in the editor, add your logo, links, and button colors",
         "presetsTitle": "Starter presets",
-        "usePreset": "Use preset"
+        "usePreset": "Use preset",
+        "wrapperBadge": "Şirket şablonu",
+        "wrapperHint": "Tüm e-postalar için ortak tasarım: logo, renkler ve şirket alt bilgisi. Burada yapılandırılır, Şirket ayarları → “E-posta şablonu” bölümünden seçilir.",
+        "wrapperPreviewBody": "Burada belirli bir e-postanın metni yer alır — örneğin yapay zekâ asistanının müşteriye yanıtı veya bir otomasyon bildirimi. Üstteki ve alttaki logo, renkler ve alt bilgi şirket şablonunuzdan gelir.",
+        "wrapperPreviewHeadline": "Örnek e-posta",
+        "wrapperPreviewSubject": "Örnek e-posta"
       },
       "form": {
         "titleNew": "E-posta şablonu oluştur",
@@ -11642,7 +11868,10 @@
           "confirm": "Sıfırla"
         },
         "resetDone": "Yerleşim sıfırlandı",
-        "aiUpdated": "Panel AI asistanı tarafından güncellendi"
+        "aiUpdated": "Panel AI asistanı tarafından güncellendi",
+        "birthdaysToday": "Bugün",
+        "birthdaysTurning_one": "{{count}} yaşına giriyor",
+        "birthdaysTurning_other": "{{count}} yaşına giriyor"
       },
       "quickAccess": {
         "sectionTitle": "Hızlı erişim",
@@ -11957,7 +12186,16 @@
         "amountNotSet": "tutar belirtilmedi",
         "ageToday": "bugün",
         "ageDays": "{{count}} gün",
-        "overdue": "gecikmiş"
+        "overdue": "gecikmiş",
+        "boolean": {
+          "no": "Hayır",
+          "yes": "Evet"
+        },
+        "deleteViewConfirm": "Bu görünüm silinsin mi? Bu işlem geri alınamaz.",
+        "errors": {
+          "loadFailed": "Potansiyel müşteriler yüklenemedi"
+        },
+        "loading": "Potansiyel müşteriler yükleniyor..."
       },
       "statusValues": {
         "new": "Yeni müşteri",
@@ -12149,7 +12387,8 @@
           "meetingsNotified": "bildirim gönderildi {{date}}",
           "meetingsPast": "Geçti",
           "meetingsTitle": "TOPLANTILAR",
-          "meetingsUpcoming": "Yaklaşan"
+          "meetingsUpcoming": "Yaklaşan",
+          "emailsFromUs": "Siz"
         },
         "journey": {
           "title": "Müşteri yolculuğu",
@@ -12304,10 +12543,69 @@
           "closeMeeting": "Toplantıyı kapat",
           "delete": "Sil",
           "edit": "Düzenle",
-          "link": "Bağlantı"
+          "link": "Bağlantı",
+          "editShort": "Düzenle",
+          "notify": "Bildir",
+          "openLink": "Bağlantıyı aç",
+          "planMeeting": "Toplantı planla",
+          "resend": "Tekrar gönder",
+          "saveMeeting": "Toplantıyı kaydet",
+          "saving": "Kaydediliyor...",
+          "sendInvite": "Davet gönder",
+          "today": "Bugün"
         },
         "labels": {
           "team": "Ekip:"
+        },
+        "email": {
+          "bodyInvite": "Bir toplantıya davet edildiniz.",
+          "bodyReminder1h": "Hatırlatma: toplantı 1 saat sonra başlıyor.",
+          "bodyReminder24h": "Hatırlatma: toplantı 24 saat sonra başlıyor.",
+          "endLabel": "Bitiş:",
+          "greeting": "Merhaba {{name}}",
+          "linkLabel": "Bağlantı:",
+          "meetingLabel": "Toplantı:",
+          "notesLabel": "Yorum:",
+          "startLabel": "Başlangıç:",
+          "subjectInvite": "Toplantı daveti: {{title}}",
+          "subjectReminder1h": "Hatırlatma (1 sa): {{title}}",
+          "subjectReminder24h": "Hatırlatma (24 sa): {{title}}"
+        },
+        "errors": {
+          "closeMeetingFailed": "Toplantı kapatılamadı",
+          "leadNoEmail": "Potansiyel müşterinin e-postası yok",
+          "leadNotFound": "Potansiyel müşteri bulunamadı",
+          "loadFailed": "Potansiyel müşteriler yüklenemedi",
+          "meetingDateRequired": "Tarih ve saati belirtin",
+          "noEmailAccount": "Bağlı e-posta hesabı yok",
+          "saveMeetingFailed": "Toplantı kaydedilemedi",
+          "sendInviteFailed": "Davet gönderilemedi"
+        },
+        "fallbacks": {
+          "lead": "Potansiyel müşteri"
+        },
+        "filters": {
+          "providerAny": "Tüm sağlayıcılar",
+          "providerOther": "Diğer bağlantı",
+          "rangeAll": "Tümü",
+          "rangeMonth": "30 gün",
+          "rangeWeek": "7 gün",
+          "search": "Potansiyel müşteri/toplantı ara",
+          "showArchived": "Arşivi göster"
+        },
+        "meeting": {
+          "defaultTitle": "Potansiyel müşteriyle toplantı"
+        },
+        "messages": {
+          "inviteSent": "Davet gönderildi",
+          "meetingClosed": "Toplantı kapatıldı",
+          "meetingSaved": "Toplantı kaydedildi",
+          "reminderSent": "Hatırlatma gönderildi"
+        },
+        "upcoming": {
+          "autoReminderHint": "Otomatik hatırlatmalar toplantıdan 24 saat ve 1 saat önce gönderilir",
+          "empty": "Yaklaşan toplantı yok",
+          "title": "Yaklaşan toplantılar"
         }
       },
       "access": {
@@ -12465,6 +12763,64 @@
         "title": "Potansiyel müşteri arşivi",
         "loading": "Arşiv yükleniyor...",
         "empty": "Arşiv boş"
+      },
+      "lost": {
+        "chart": {
+          "shown": "Gösterilen: {{count}}",
+          "subtitle": "Kaybedilen potansiyel müşteri sayısı ve bağlı projelerin toplamı.",
+          "title": "Yöneticiye göre kayıplar"
+        },
+        "errors": {
+          "loadFailed": "Kaybedilen potansiyel müşteri istatistikleri yüklenemedi"
+        },
+        "kpi": {
+          "amountHint": "Kaybedilen potansiyel müşterilere bağlı projelerin toplamı.",
+          "amountTitle": "Kaçırılan tutar",
+          "lostHint": "Seçilen dönemde “lost” durumundaki potansiyel müşteriler.",
+          "lostTitle": "Kaybedilen potansiyel müşteri",
+          "managersHint": "Kaybedilen potansiyel müşterisi olan yönetici sayısı.",
+          "managersTitle": "Kaybı olan yöneticiler"
+        },
+        "loading": "Kaybedilen potansiyel müşteriler yükleniyor…",
+        "sectionLabel": "Potansiyel müşteriler · Kayıplar",
+        "subtitle": "Kaybedilen potansiyel müşteri sayısı, bağlı projelerin toplamı ve yöneticilere göre dağılım.",
+        "tableLeads": {
+          "empty": "Seçilen dönemde henüz kaybedilen potansiyel müşteri yok.",
+          "headers": {
+            "amount": "Tutar",
+            "created": "Oluşturulma",
+            "lead": "Potansiyel müşteri",
+            "manager": "Yönetici"
+          },
+          "leadFallback": "Adsız",
+          "managerFallback": "—",
+          "subtitle": "Seçilen dönemde “lost” durumundaki potansiyel müşteriler ve bağlı projelerin toplamı.",
+          "title": "Kaybedilen potansiyel müşteriler",
+          "total": "Toplam: {{count}}"
+        },
+        "tableManagers": {
+          "empty": "Bu dönemde henüz kaybedilen potansiyel müşteri yok.",
+          "headers": {
+            "amount": "Tutar",
+            "lost": "Kaybedilen",
+            "manager": "Yönetici"
+          },
+          "title": "Yöneticiye göre",
+          "total": "Toplam: {{count}}"
+        },
+        "title": "Kaybedilen potansiyel müşteriler ve kaçırılan gelir",
+        "tooltip": {
+          "amount": "Proje toplamı: {{amount}} {{currency}}",
+          "lost": "Kaybedilen: {{count}}"
+        }
+      },
+      "roi": {
+        "errors": {
+          "loadFailed": "Potansiyel müşteri ROI'si yüklenemedi"
+        },
+        "table": {
+          "unnamed": "Adsız"
+        }
       }
     },
     "companies": {
@@ -13083,7 +13439,30 @@
           "label": "Sütunlar",
           "hide": "Sütunu gizle",
           "add": "Sütun ekle",
-          "search": "Sütun ara…"
+          "search": "Sütun ara…",
+          "chooseType": "Yeni sütun türü",
+          "createFailed": "Sütun oluşturulamadı",
+          "labelPlaceholder": "Örneğin: Öncelik",
+          "labelRequired": "Sütun adını girin",
+          "linkPickClear": "Temizle",
+          "linkPickEmpty": "Projede henüz ekli bağlantı yok — bunları “Dosyalar” sekmesinden ekleyin veya aşağıya adresi elle yapıştırın.",
+          "linkPickManual": "Ya da bağlantıyı elle yapıştırın",
+          "linkPickTitle": "Proje bağlantıları",
+          "manageAll": "Tüm alanlar…",
+          "nameColumn": "Sütun adı",
+          "optionsPlaceholder": "Seçenekler, virgülle ayrılmış",
+          "optionsRequired": "Seçenekleri virgülle ayırarak ekleyin",
+          "searchType": "Sütun türü ara...",
+          "sourceCompany": "Şirketten",
+          "sourceCompanyAuto": "Otomatik olarak şirketten",
+          "sourceEntityCompany": "şirketten",
+          "sourceEntityLead": "potansiyel müşteriden",
+          "sourceFilesAuto": "Otomatik olarak proje dosyalarından",
+          "sourceHint": "Hücre salt okunur olur ve bağlı {{entity}} değeri otomatik gösterir — proje hiçbir şeye bağlı değilse boş kalır.",
+          "sourceLabel": "Değer nereden alınsın",
+          "sourceLead": "Potansiyel müşteriden",
+          "sourceLeadAuto": "Otomatik olarak potansiyel müşteriden",
+          "sourceManual": "Elle giriş"
         },
         "groupByStatus": "Duruma göre grupla",
         "groupSummary": "{{count}} proje • {{amount}}",
@@ -13136,7 +13515,22 @@
           "empty": "Lead bulunamadı"
         },
         "search": "Proje ara…",
-        "export": "Dışa aktar"
+        "export": "Dışa aktar",
+        "datePicker": {
+          "clear": "Temizle",
+          "empty": "—",
+          "from": "başlangıç",
+          "time": "Saat",
+          "to": "bitiş",
+          "today": "Bugün"
+        },
+        "linkChip": {
+          "label": "Bağlantı",
+          "open": "Bağlantıyı aç"
+        },
+        "templates": {
+          "tableTitle": "Tablo sütun şablonu"
+        }
       },
       "archive": {
         "title": "Proje arşivi",
@@ -13258,6 +13652,28 @@
         },
         "errors": {
           "loadFailed": "Proje görevleri yüklenemedi"
+        },
+        "ai": {
+          "add": "Ekle",
+          "button": "YZ",
+          "changeProject": "← projeyi değiştir",
+          "createNewColumn": "+ Yeni sütun",
+          "emptyColumn": "değer yok — yalnızca sütunu oluştur",
+          "error": "Yapay zekâ isteği başarısız oldu",
+          "fieldsTitle": "Tablo sütunları",
+          "generate": "Oluştur",
+          "generating": "Oluşturuluyor…",
+          "noResult": "İstekte hiçbir şey tanınamadı. Farklı ifade etmeyi deneyin.",
+          "nothingToAdd": "Eklenecek bir şey yok — bu alan tabloda zaten var.",
+          "pickProjectSearch": "Bir proje seçin...",
+          "placeholder": "Hangi görevlere ihtiyacınız olduğunu açıklayın, örneğin: açılış sayfası hazırla, gereksinimleri topla ve bir tasarımcı ata",
+          "retry": "Yeniden başla",
+          "title": "Yapay zekâ ile görev oluştur",
+          "useExistingColumn": "Kullan"
+        },
+        "templates": {
+          "needProject": "Görev sütunlarını ayarlamak için bir projeyi genişletin",
+          "title": "Görev sütun şablonu"
         }
       },
       "overdue": {
@@ -13317,7 +13733,10 @@
       },
       "viewsBar": {
         "prompts": {
-          "viewName": "Görünüm adı"
+          "viewName": "Görünüm adı",
+          "renameTableTitle": "Tabloyu yeniden adlandır",
+          "tableName": "Ad",
+          "tableNameTitle": "Yeni tablo"
         },
         "copyNames": {
           "table": "Tablo (kopya)",
@@ -13325,7 +13744,9 @@
           "calendar": "Takvim (kopya)"
         },
         "confirm": {
-          "deleteCurrentView": "Geçerli görünümü sil?"
+          "deleteCurrentView": "Geçerli görünümü sil?",
+          "deleteTable": "“{{name}}” tablosu silinsin mi? Projeler ana tabloya taşınacak.",
+          "deleteTableTitle": "Silme"
         },
         "menu": {
           "tabMenu": "Sekme menüsü",
@@ -13336,7 +13757,10 @@
           "moveRight": "Sağa taşı",
           "copyTab": "Sekmeyi kopyala",
           "deleteTab": "Sekmeyi sil",
-          "settings": "Ayarlar"
+          "settings": "Ayarlar",
+          "deleteTable": "Sil",
+          "newTableTab": "Yeni tablo",
+          "renameTable": "Yeniden adlandır"
         },
         "settings": {
           "close": "Ayarları kapat",
@@ -13350,7 +13774,16 @@
           "enabled": "Açık",
           "disabled": "Kapalı",
           "tableTitle": "Tablo ayarları",
-          "tableHint": "Sonraki adımda bu pencerede sütun, yoğunluk ve gruplama ayarlarını ekleyeceğiz."
+          "tableHint": "Sonraki adımda bu pencerede sütun, yoğunluk ve gruplama ayarlarını ekleyeceğiz.",
+          "currenciesHint": "Proje oluştururken kullanılabilen para birimleri. Varsayılan olarak işaretli para birimi kullanılır.",
+          "currenciesTitle": "Para birimleri",
+          "densityComfortable": "Normal",
+          "densityCompact": "Sıkışık",
+          "densityHint": "Tablo satır yüksekliği. Ayar bu tarayıcıda saklanır.",
+          "densitySpacious": "Geniş",
+          "densityTitle": "Satır yoğunluğu",
+          "tagsHint": "Projeye atanabilecek etiket seçenekleri.",
+          "tagsTitle": "Proje etiketleri"
         },
         "fields": {
           "owner": "Sorumlu",
@@ -13369,6 +13802,16 @@
           "priority": "Yüksek",
           "tags": "#crm #retail",
           "deadline": "20.03.2026"
+        },
+        "share": {
+          "addBtn": "Ekle",
+          "addTitle": "Çalışan ekle",
+          "allStaffAdded": "Tüm çalışanlar zaten eklendi",
+          "hint": "Bu tablo özeldir — içindeki projeleri yalnızca sahibi ve buraya eklenen çalışanlar görür.",
+          "lastOwnerHint": "En az bir sahip gerekli",
+          "noMembers": "Henüz kimseyle paylaşılmadı",
+          "pickStaff": "Bir çalışan seçin",
+          "title": "Tablo erişimi"
         }
       },
       "actions": {
@@ -13450,7 +13893,8 @@
           "contactCreateName": "Kişi adı",
           "contactCreating": "Oluşturuluyor...",
           "contactCreateFailed": "Kişi oluşturulamadı",
-          "updatedAt": "Güncellendi"
+          "updatedAt": "Güncellendi",
+          "contactEmpty": "Kişi yok"
         },
         "owner": {
           "byDepartment": "Departmana göre sorumlular",
@@ -13467,11 +13911,13 @@
           "title": "Maliyet ve ilerleme",
           "budget": "Bütçe",
           "taskProgress": "Görev ilerlemesi",
-          "urgency": "Aciliyet:"
+          "urgency": "Aciliyet:",
+          "nearestDeadline": "En yakın son tarih"
         },
         "notes": {
           "title": "Proje notları",
-          "placeholder": "Bağlam, anlaşmalar, riskler, unutulmaması gerekenler…"
+          "placeholder": "Bağlam, anlaşmalar, riskler, unutulmaması gerekenler…",
+          "hint": "yalnızca ekip görür"
         },
         "customFields": {
           "title": "Özel alanlar",
@@ -13514,7 +13960,8 @@
         "files": {
           "title": "Dosyalar (şartname, keşif, sözleşme vb.)",
           "namePlaceholder": "Dosya adı / belge türü (ör. site şartnamesi)",
-          "urlPlaceholder": "Dosya bağlantısı (Google Drive / Dropbox / WP medya)"
+          "urlPlaceholder": "Dosya bağlantısı (Google Drive / Dropbox / WP medya)",
+          "addLink": "Bağlantı ekle"
         },
         "tasks": {
           "title": "Proje görevleri",
@@ -13562,7 +14009,8 @@
           "delete": "Projeyi sil",
           "add": "Ekle",
           "remove": "Sil",
-          "send": "Gönder"
+          "send": "Gönder",
+          "toBoard": "Kanban'a"
         },
         "errors": {
           "loadFailed": "Proje yüklenemedi",
@@ -13576,6 +14024,9 @@
         "meetings": {
           "title": "Toplantılar",
           "empty": "Henüz toplantı yok. Sorumlu YZ çalışanı veya ekip üyeleri tarafından oluşturulur."
+        },
+        "relations": {
+          "title": "İlişkiler"
         }
       },
       "analytics": {
@@ -14031,7 +14482,112 @@
       "profile": {
         "common": {
           "empty": "—"
-        }
+        },
+        "access": {
+          "createReset": "Şifre oluştur / sıfırla",
+          "creating": "Oluşturuluyor…",
+          "error": "Şifre oluşturulamadı/sıfırlanamadı",
+          "message": "Kullanıcı adı: {{email}}\nŞifre: {{password}}\nBunu çalışana iletin ve ilk girişten sonra değiştirmesini isteyin.",
+          "onlyOwner": "Çalışan girişlerini yalnızca sahip yönetebilir",
+          "title": "CRM erişimi"
+        },
+        "activity": {
+          "last": "Son etkinlik: {{date}}",
+          "never": "Hiç giriş yapmadı",
+          "since": "{{date}} tarihinden beri sistemde",
+          "title": "Etkinlik"
+        },
+        "back": "Çalışanlara dön",
+        "contacts": {
+          "title": "İletişim"
+        },
+        "delete": "Sil",
+        "deleteConfirm": "Bu çalışan kalıcı olarak silinsin mi?",
+        "department": "Departman",
+        "departmentPlaceholder": "belirtilmedi",
+        "departmentUnsaved": "Değişiklikler kaydedilmedi — “Departmanı kaydet”e tıklayın.",
+        "errors": {
+          "delete": "Çalışan silinemedi",
+          "department": "Departman değiştirilemedi",
+          "load": "Çalışan profili yüklenemedi",
+          "role": "Çalışan rolü değiştirilemedi",
+          "status": "Çalışan durumu değiştirilemedi"
+        },
+        "fallbackName": "Çalışan",
+        "idShort": "ID {{id}}",
+        "invalidId": "Geçersiz çalışan kimliği",
+        "kpis": {
+          "leadsHint": "{{name}} adlı kişiye atanan",
+          "leadsTitle": "Yöneticinin potansiyel müşterileri",
+          "managerFallback": "yönetici",
+          "projectsHint": "sorumlu olarak atandığı",
+          "projectsTitle": "Devam eden projeler",
+          "tasksHint": "proje kontrol listelerinde",
+          "tasksTitle": "Görevler"
+        },
+        "leads": {
+          "all": "Tüm potansiyel müşteriler →",
+          "empty": "Bu yöneticiye henüz potansiyel müşteri atanmadı.",
+          "fallbackContact": "iletişim bilgisi yok",
+          "fallbackName": "Adsız",
+          "recentTitle": "Son potansiyel müşteriler ({{count}})",
+          "table": {
+            "empty": "Henüz potansiyel müşteri yok.",
+            "headers": {
+              "channel": "Kanal",
+              "contacts": "İletişim",
+              "created": "Oluşturulma",
+              "name": "Ad",
+              "status": "Durum"
+            }
+          },
+          "title": "{{name}} adlı kişiye atanan potansiyel müşteriler"
+        },
+        "loading": "Çalışan profili yükleniyor…",
+        "projects": {
+          "all": "Tüm projeler →",
+          "empty": "Çalışan henüz hiçbir projeden sorumlu değil.",
+          "recentTitle": "Son projeler ({{count}})",
+          "table": {
+            "empty": "Henüz proje yok.",
+            "headers": {
+              "amount": "Tutar",
+              "created": "Oluşturulma",
+              "lead": "Potansiyel müşteri",
+              "project": "Proje",
+              "status": "Durum"
+            }
+          },
+          "title": "Sorumlu olduğu projeler"
+        },
+        "roleAndDepartment": "Rol ve departman",
+        "saveDepartment": "Departmanı kaydet",
+        "selfProfile": "Profilime git",
+        "statusChanging": "Değiştiriliyor…",
+        "statusDisable": "Devre dışı bırak",
+        "statusEnable": "Etkinleştir",
+        "statusTitle": "Çalışan durumu",
+        "tabs": {
+          "leads": "Potansiyel müşteriler",
+          "overview": "Genel bakış",
+          "projects": "Projeler",
+          "tasks": "Görevler"
+        },
+        "tasks": {
+          "fallbackTitle": "Adsız",
+          "table": {
+            "empty": "Bu çalışan için henüz proje görevi yok.",
+            "headers": {
+              "deadline": "Son tarih",
+              "priority": "Öncelik",
+              "project": "Proje",
+              "status": "Durum",
+              "task": "Görev"
+            }
+          },
+          "title": "Adının geçtiği proje görevleri (kontrol listelerinden)"
+        },
+        "title": "Çalışan profili"
       },
       "permissions": {
         "title": "İzinler",
@@ -14290,7 +14846,85 @@
           }
         },
         "ai_employees": "YZ Çalışanlar"
-      }
+      },
+      "actions": {
+        "activate": "Etkinleştir",
+        "deactivate": "Devre dışı bırak",
+        "resetPassword": "Şifreyi sıfırla"
+      },
+      "common": {
+        "empty": "—",
+        "initialsFallback": "Çalışan",
+        "notSpecified": "Belirtilmedi"
+      },
+      "create": {
+        "creating": "Davet gönderiliyor…",
+        "departmentPlaceholder": "Departman yok",
+        "email": "E-posta",
+        "fullName": "Ad soyad",
+        "ownerOnly": "Yeni çalışanları yalnızca şirket sahibi davet edebilir.",
+        "submit": "Oluştur",
+        "title": "Yeni çalışan"
+      },
+      "detail": {
+        "back": "Geri",
+        "department": "Departman",
+        "errors": {
+          "load": "Çalışan verileri yüklenemedi"
+        },
+        "external": "Harici",
+        "id": "Çalışan kimliği",
+        "loading": "Profil yükleniyor…",
+        "role": "Rol",
+        "status": "Durum"
+      },
+      "dialogs": {
+        "cancel": "İptal",
+        "deactivate": {
+          "message": "Çalışan, yeniden etkinleştirilene kadar CRM erişimini kaybeder.",
+          "title": "Erişim devre dışı bırakılsın mı?"
+        },
+        "error": {
+          "message": "Lütfen tekrar deneyin.",
+          "title": "Hata"
+        },
+        "inviteSent": {
+          "message": "Şifre belirleme bağlantısı içeren bir e-posta {{email}} adresine gönderildi.",
+          "title": "Davet gönderildi"
+        },
+        "ok": "Tamam",
+        "resetPassword": {
+          "message": "{{email}} için yeni erişim:\n\nKullanıcı adı: {{login}}\nŞifre: {{password}}\n\nBu bilgileri çalışana iletin ve ilk girişten sonra şifresini değiştirmesini isteyin.",
+          "title": "Şifre sıfırlama"
+        }
+      },
+      "empty": "Henüz çalışan yok.",
+      "errors": {
+        "activate": "Çalışan etkinleştirilemedi",
+        "create": "Çalışan oluşturulamadı",
+        "deactivate": "Çalışan devre dışı bırakılamadı",
+        "department": "Departman güncellenemedi",
+        "load": "Çalışanlar yüklenemedi",
+        "role": "Rol güncellenemedi"
+      },
+      "loading": "Çalışanlar yükleniyor…",
+      "status": {
+        "active": "Aktif",
+        "disabled": "Devre dışı"
+      },
+      "subtitle": "Ekip, roller ve kullanıcı erişimleri.",
+      "table": {
+        "footerTotal": "Toplam",
+        "headers": {
+          "actions": "İşlemler",
+          "department": "Departman",
+          "email": "E-posta",
+          "name": "Çalışan",
+          "role": "Rol",
+          "status": "Durum"
+        }
+      },
+      "title": "Çalışanlar"
     },
     "products": {
       "list": {
@@ -14401,7 +15035,8 @@
           "weight": "Ağırlık, kg",
           "length": "Uzunluk, cm",
           "width": "Genişlik, cm",
-          "height": "Yükseklik, cm"
+          "height": "Yükseklik, cm",
+          "salePrice": "İndirimli fiyat"
         },
         "variable": {
           "label": "Varyasyonlu ürün",
@@ -19001,7 +19636,8 @@
           "country": "Ülke",
           "address": "Adres",
           "passport": "Pasaport / Kimlik",
-          "passportHint": "Bireylerle yapılan sözleşmeler için gereklidir. Kişinin ek alanlarında saklanır."
+          "passportHint": "Bireylerle yapılan sözleşmeler için gereklidir. Kişinin ek alanlarında saklanır.",
+          "birthday": "Doğum tarihi"
         },
         "companyCard": {
           "title": "Kişinin şirketi",
@@ -19734,6 +20370,139 @@
       "prevMonth": "Geçen ay",
       "ytd": "Yılbaşından beri",
       "custom": "Özel dönem"
+    },
+    "inactive": {
+      "badge": "Abonelik askıya alındı",
+      "contact": {
+        "home": "Ana sayfaya dön",
+        "subject": "CRM erişiminin açılması",
+        "text": "Erişimi yeniden açmanıza yardımcı olmamız için {{email}} adresine veya sohbete yazın. Yenilemeden sonra tekrar giriş yapın.",
+        "write": "Destek ekibine yaz"
+      },
+      "defaultReason": "CRM erişimi geçici olarak kapatıldı.",
+      "description": "Aboneliğinizi yenilemek veya erişimin kilidini açmak için lütfen destek ekibimizle iletişime geçin. Sorun çözülene kadar CRM'deki çalışma durduruldu.",
+      "empty": "—",
+      "fields": {
+        "activeUntil": "Geçerlilik bitişi",
+        "lastCheck": "Son kontrol",
+        "reason": "Neden"
+      },
+      "reasonBlocked": "Hesap yönetici tarafından engellendi.",
+      "reasonExpired": "Aboneliğin süresi doldu.",
+      "title": "CRM erişimi şu anda kullanılamıyor"
+    },
+    "integrationsCatalog": {
+      "items": {
+        "shopify": {
+          "name": "Shopify"
+        }
+      }
+    },
+    "notifications": {
+      "assign": "Ata",
+      "commentMention": "Yorumda bahsedildi",
+      "dismiss": "Gizle",
+      "empty": "Henüz size atanmış görev yok.",
+      "filters": {
+        "project": "Proje",
+        "status": "Durum"
+      },
+      "loading": "Bildirimler yükleniyor…",
+      "openTasks": "Tüm görevleri aç",
+      "overdue": "Gecikmiş",
+      "sort": {
+        "overdue": "Önce gecikmişler"
+      },
+      "tabs": {
+        "all": "Tümü",
+        "assigned": "Atananlar",
+        "mentioned": "Bahsedilenler"
+      },
+      "title": "Görev bildirimleri"
+    },
+    "salesImport": {
+      "actions": {
+        "apply": "Satışları içe aktar",
+        "applying": "İçe aktarılıyor...",
+        "newChannel": "Yeni kanal bağla",
+        "preview": "Dosyayı önizle",
+        "previewing": "Önizleniyor..."
+      },
+      "apply": {
+        "summary": "İçe aktarma tamamlandı: {{created}} oluşturuldu, {{skipped}} atlandı."
+      },
+      "channelHint": "Kanal seçilmezse CRM, içe aktarma ayarlarına göre yeni bir kanal oluşturabilir.",
+      "channelLabel": "Satış kanalı",
+      "channelPlaceholder": "Otomatik belirle / yeni kanal oluştur",
+      "errors": {
+        "apply": "İçe aktarma uygulanamadı.",
+        "missingFile": "İçe aktarmak için bir CSV veya XML dosyası seçin.",
+        "preview": "İçe aktarma önizlemesi alınamadı.",
+        "previewRequired": "Önce dosyayı önizleyin."
+      },
+      "fileHint": "UTF-8 önerilir; ilk satırda sütun adları olmalıdır.",
+      "fileInputLabel": "İçe aktarılacak dosya (CSV veya XML)",
+      "fileLabel": "Dosya: {{name}}",
+      "fileNone": "seçilmedi",
+      "kicker": "Satış içe aktarma",
+      "mapping": {
+        "count": "Eşlenen alanlar: {{mapped}} / {{total}}",
+        "headers": {
+          "crmField": "CRM alanı",
+          "fileColumn": "Dosya sütunu"
+        },
+        "manageFields": "Alanları yapılandır",
+        "manageFieldsTitle": "Satış alanları",
+        "skip": "— İçe aktarma —",
+        "subtitle": "Dosya sütunlarını CRM alanlarıyla eşleyin. Yalnızca satın alma tarihi zorunludur.",
+        "title": "Alan eşleme"
+      },
+      "preview": {
+        "summary": "Önizleme: {{rows}} satır, {{columns}} sütun."
+      },
+      "previewMeta": "Satır: {{rows}} · Sütun: {{columns}}",
+      "sample": {
+        "empty": "Örnek veri yok.",
+        "title": "Örnek veri (ilk satırlar)"
+      },
+      "subtitle": "Bir dosya yükleyin, sütunları eşleyin ve seçilen kanala aktarın.",
+      "title": "CSV / XML'den satış içe aktarma"
+    },
+    "salesIntegrationNew": {
+      "actions": {
+        "create": "Bağlantı oluştur",
+        "saving": "Kaydediliyor..."
+      },
+      "back": "Entegrasyonlara dön",
+      "errors": {
+        "create": "Entegrasyon oluşturulamadı",
+        "load": "Entegrasyon verileri yüklenemedi",
+        "missingName": "Bağlantı adını girin",
+        "missingType": "Entegrasyon türünü seçin",
+        "missingWoo": "WooCommerce için URL, Consumer Key ve Secret gerekli"
+      },
+      "fields": {
+        "channel": "Satış kanalına bağla",
+        "channelPlaceholder": "Bağlı değil",
+        "description": "Açıklama",
+        "name": "Bağlantı adı",
+        "namePlaceholder": "WooCommerce · ana mağaza",
+        "type": "Entegrasyon türü",
+        "typeFallback": "Harici bir satış kaynağıyla entegrasyon.",
+        "typePlaceholder": "Bir entegrasyon seçin",
+        "descriptionPlaceholder": "İsteğe bağlı: bu bağlantının amacı"
+      },
+      "kicker": "Entegrasyonlar",
+      "loading": "Veriler yükleniyor...",
+      "subtitle": "Entegrasyon türünü seçin, bağlantı ayarlarını doldurun ve bir kanala bağlayın.",
+      "title": "Yeni satış kanalı bağlantısı",
+      "woocommerce": {
+        "consumerKey": "Consumer Key",
+        "hint": "Anahtarlar WooCommerce → Settings → Advanced → REST API bölümünde oluşturulur. En az Read erişimi gerekir.",
+        "title": "WooCommerce ayarları",
+        "url": "Mağaza URL'si (REST API)",
+        "consumerSecret": "Consumer Secret"
+      }
     }
   },
   "landing": {
@@ -19751,6 +20520,43 @@
       "metricClients": "MÜŞTERİ",
       "metricLeads": "İŞLENEN MÜŞTERİ ADAYI",
       "metricCountries": "ÜLKE"
+    },
+    "cookies": {
+      "accept": "Kabul ediyorum",
+      "decline": "Reddet",
+      "link": "çerez politikası (PDF)",
+      "text": "Analiz ve hizmet iyileştirme için. Ayrıntılar:",
+      "title": "Çerez kullanıyoruz"
+    },
+    "form": {
+      "close": "Formu kapat",
+      "consent": "Kişisel verilerimin işlenmesini kabul ediyorum.",
+      "contact": "Size nasıl ulaşalım",
+      "email": "E-posta",
+      "errors": {
+        "consent": "Veri işleme onayı gereklidir.",
+        "contact": "Bir iletişim yöntemi seçin.",
+        "failed": "Gönderilemedi. Lütfen tekrar deneyin.",
+        "required": "Adınızı, e-postanızı ve telefonunuzu doldurun.",
+        "submit": "Gönderim hatası"
+      },
+      "headline": "Bize\nprojenizden\nbahsedin",
+      "name": "Ad",
+      "orders": "Aylık sipariş sayısı",
+      "phone": "Telefon",
+      "placeholders": {
+        "email": "E-posta",
+        "name": "Adınızı girin",
+        "orders": "Örneğin 1200",
+        "phone": "XXX XXX XX XX",
+        "surname": "Soyadınızı girin"
+      },
+      "policy": "Politika (PDF)",
+      "send": "Gönder",
+      "sending": "Gönderiliyor...",
+      "sub": "Görevinizi anlatın — kısa süre içinde sizinle iletişime geçip kişisel bir demo hazırlayacağız.",
+      "success": "Teşekkürler! En kısa sürede sizinle iletişime geçeceğiz.",
+      "surname": "Soyad"
     }
   },
   "publicPages": {
@@ -20500,6 +21306,71 @@
         "item1": "Kişiler, satışlar ve anlaşmalar için henüz genel okuma erişimi yok — yalnızca aday oluşturma ve ürünler/rezervasyonlarla çalışma mevcut.",
         "item2": "Bir OpenAPI/Swagger şeması mevcuttur ancak varsayılan olarak üretimde etkin değildir — bu sayfa istekler ve yanıt gövdeleri için birincil doğruluk kaynağıdır."
       }
+    },
+    "api": {
+      "subtitle": "Potansiyel müşterileri, anlaşmaları, durumları, görevleri ve raporları harici sistemlerle senkronize etmek için açık API.",
+      "title": "API ve entegrasyonlar"
+    },
+    "development": {
+      "subtitle": "CRM mimarisini gerçek satış, hizmet ve pazarlama aşamalarınıza göre, KPI'lar ve net sorumluluklarla tasarlıyoruz.",
+      "timelineTitle": "Uygulama aşamaları",
+      "title": "Sürecinize özel CRM geliştirme",
+      "cards": [
+        {
+          "title": "Süreç ve satış hunisi denetimi",
+          "text": "Mevcut müşteri yolculuğunu, kayıp noktalarını, ekip darboğazlarını ve uygulamanın hedef metriklerini belirliyoruz."
+        },
+        {
+          "title": "Rol ve kural modeli",
+          "text": "Erişim hakları sistemini, görev yönlendirmesini ve departman bazında SLA kontrolünü kuruyoruz."
+        },
+        {
+          "title": "Entegrasyon katmanı",
+          "text": "Telefoni, mesajlaşma, reklam, web sitesi, ERP ve webhook'ları veri kaybı olmadan bağlıyoruz."
+        }
+      ],
+      "timeline": [
+        "Keşif ve süreç haritası",
+        "Tasarım ve prototip",
+        "Entegrasyonlar ve veri taşıma",
+        "Lansman + ekip eğitimi"
+      ]
+    },
+    "scenarios": {
+      "subtitle": "Dağıtık ekiplere sahip B2B, e-ticaret ve hizmet şirketleri için uygulamalı senaryolar.",
+      "title": "Kullanım senaryoları",
+      "items": [
+        {
+          "title": "Lead puanlama ve otomatik atama",
+          "text": "Her potansiyel müşteri bir öncelik alır ve kurallara göre sorumlu yöneticiye otomatik yönlendirilir."
+        },
+        {
+          "title": "SLA ve iletişim kontrolü",
+          "text": "Sistem, huninin her aşamasında ilk yanıtı, takip temaslarını ve eskalasyonları izler."
+        },
+        {
+          "title": "Kaybedilen anlaşmaların yeniden kazanılması",
+          "text": "Otomatik akışlar, kişiye özel tekliflerle uykudaki segmentleri yeniden aktif çalışmaya döndürür."
+        },
+        {
+          "title": "Uçtan uca kanal analitiği",
+          "text": "UTM etiketleri, kaynaklar ve gelir, pazarlama ve satış için tek bir modelde birleşir."
+        }
+      ]
+    },
+    "solutions": {
+      "subtitle": "Satış döngünüze göre modül ve erişim setini seçiyoruz: ilk temastan elde tutma ve LTV'ye kadar.",
+      "title": "Sektörel çözümler",
+      "items": [
+        {
+          "title": "B2B ve uzun satış döngüleri",
+          "text": "Çoklu kişi mantığı dahil her hesap için aşamaların, görevlerin ve gelir tahmininin kontrolü."
+        },
+        {
+          "title": "Tek modelde pazarlama + satış",
+          "text": "CMO, satış direktörü ve işletme sahibi için UTM atıfı ve birleşik raporlama."
+        }
+      ]
     }
   },
   "lang": {

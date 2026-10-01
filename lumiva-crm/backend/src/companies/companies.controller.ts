@@ -167,8 +167,15 @@ export class CompaniesController {
 
   @Get('analytics/all')
   @RequirePermission('companies', 'read')
-  async getAllCompaniesAnalytics(@CurrentUser() user: CurrentUserPayload) {
-    return this.companiesService.getAllCompaniesAnalytics(user.tenantId);
+  async getAllCompaniesAnalytics(@CurrentUser() user: CurrentUserPayload, @Query('period') period?: string) {
+    const months: Record<string, number> = { month: 1, quarter: 3, halfYear: 6, year: 12 };
+    let since: Date | null = null;
+    if (period && months[period]) {
+      // Календарные месяцы, включая текущий: «квартал» = с 1-го числа два месяца назад.
+      const now = new Date();
+      since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months[period] - 1), 1));
+    }
+    return this.companiesService.getAllCompaniesAnalytics(user.tenantId, { since });
   }
 
   // ========== ЗАДАЧИ КОМПАНИЙ ==========

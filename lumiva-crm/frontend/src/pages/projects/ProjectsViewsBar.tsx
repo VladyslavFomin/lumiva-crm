@@ -485,11 +485,16 @@ export const ProjectsViewsBar: React.FC<Props> = ({
   const removeTable = async (table: ProjectTable) => {
     setTableMenuId(null);
     const ok = await showConfirm(
-      t(
-        'crm.projects.viewsBar.confirm.deleteTable',
-        `Удалить таблицу «${table.name}»? Проекты будут перенесены в основную таблицу.`,
-      ) as string,
-      { title: 'Удаление', confirmLabel: 'Удалить', cancelLabel: 'Отмена', danger: true },
+      t('crm.projects.viewsBar.confirm.deleteTable', {
+        name: table.name,
+        defaultValue: 'Удалить таблицу «{{name}}»? Проекты будут перенесены в основную таблицу.',
+      }) as string,
+      {
+        title: t('crm.projects.viewsBar.confirm.deleteTableTitle', { defaultValue: 'Удаление' }) as string,
+        confirmLabel: t('crm.common.delete') as string,
+        cancelLabel: t('crm.common.cancel') as string,
+        danger: true,
+      },
     );
     if (!ok) return;
     try {

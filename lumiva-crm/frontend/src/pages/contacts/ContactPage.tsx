@@ -79,6 +79,7 @@ export const ContactPage: React.FC = () => {
     companyId: presetCompanyId,
     position: '',
     city: '',
+    birthday: '',
     country: '',
     address: '',
     status: 'active',
@@ -113,6 +114,7 @@ export const ContactPage: React.FC = () => {
           companyId: c.companyId || '',
           position: c.position || '',
           city: c.city || '',
+          birthday: c.birthday ? String(c.birthday).slice(0, 10) : '',
           country: c.country || '',
           address: c.address || '',
           status: c.status || 'active',
@@ -186,6 +188,8 @@ export const ContactPage: React.FC = () => {
         companyId: form.companyId || undefined,
         position: form.position || undefined,
         city: form.city || undefined,
+        // null очищает дату (undefined backend просто пропустил бы)
+        birthday: form.birthday || null,
         country: form.country || undefined,
         address: form.address || undefined,
         status: form.status,
@@ -378,6 +382,9 @@ export const ContactPage: React.FC = () => {
                         </F>
                         <F label={t('crm.contacts.card.personal.city')}>
                           <In value={form.city} onChange={(e) => set('city', e.target.value)} placeholder={t('crm.contacts.card.personal.cityPlaceholder')} />
+                        </F>
+                        <F label={t('crm.contacts.card.personal.birthday')}>
+                          <In type="date" value={form.birthday || ''} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set('birthday', e.target.value)} />
                         </F>
                         <F label={t('crm.contacts.card.personal.country')}>
                           <Sel value={form.country || ''} onChange={(e) => set('country', e.target.value)} placeholder={t('crm.crmShared.selectPlaceholder')} options={COUNTRIES_F} />

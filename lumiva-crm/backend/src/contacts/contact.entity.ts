@@ -69,6 +69,10 @@ export class Contact {
   @Column({ type: 'varchar', length: 255, nullable: true })
   city: string | null;
 
+  /** Дата рождения (YYYY-MM-DD) — для виджета «Дни рождения» на дашборде. */
+  @Column({ type: 'date', nullable: true })
+  birthday: string | null;
+
   @Column({ type: 'text', nullable: true })
   address: string | null;
 

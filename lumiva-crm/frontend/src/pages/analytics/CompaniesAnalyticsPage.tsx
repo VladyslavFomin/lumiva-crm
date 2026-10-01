@@ -29,7 +29,7 @@ function roiSources(): string[] {
   }
   return [...ROI_SOURCE_KEYS];
 }
-/** Период страницы → диапазон месяцев для ROI (у остальных вкладок период пока не применяется). */
+/** Период страницы → диапазон месяцев для ROI (остальные вкладки фильтрует бэкенд по ?period=). */
 const PERIOD_MONTHS: Record<string, number> = { month: 1, quarter: 3, halfYear: 6, year: 12, allTime: 36 };
 function monthKey(offset: number): string {
   const d = new Date();
@@ -94,7 +94,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
     let alive = true;
     setLoading(true);
     setError(null);
-    Promise.all([fetchAllCompaniesAnalytics(), fetchCompanies({ limit: 2000 })])
+    Promise.all([fetchAllCompaniesAnalytics(period), fetchCompanies({ limit: 2000 })])
       .then(([a, c]) => {
         if (!alive) return;
         setAnalytics(a);
@@ -112,7 +112,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [period]);
 
   const currency = analytics?.summary.currency || 'EUR';
 
@@ -165,7 +165,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
     [analytics, companiesMap, t],
   );
 
-  if (loading) {
+  if (loading && !analytics) {
     return (
       <MainLayout>
         <div className="px-scope">

@@ -26,6 +26,9 @@ export interface BirthdayContactItem {
   lastName: string | null;
   email: string | null;
   birthday: string | null;
+  /** Ближайшая дата дня рождения (YYYY-MM-DD) */
+  nextBirthday?: string;
+  turningAge?: number;
 }
 
 export function getFunnelToday(): Promise<{ statuses: FunnelStatusItem[] }> {

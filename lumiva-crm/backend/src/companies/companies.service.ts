@@ -465,7 +465,13 @@ export class CompaniesService {
   /**
    * Получить аналитику по компании
    */
-  async getCompanyAnalytics(tenantId: string, companyId: string) {
+  /**
+   * @param opts.since — начало периода (страница «Аналитика компаний»). Без него — за всё время
+   * (карточка компании). Выручка = проекты, закрытые в периоде, + продажи с датой в периоде;
+   * лиды и число проектов — созданные в периоде; «Потенциал» — текущий срез открытых сделок.
+   */
+  async getCompanyAnalytics(tenantId: string, companyId: string, opts: { since?: Date | null } = {}) {
+    const since = opts.since ?? null;
     const company = await this.findOne(tenantId, companyId);
 
     // Получаем все контакты компании
@@ -521,17 +527,47 @@ export class CompaniesService {
           : 'project.company_id = :companyId',
         { companyId, leadIds },
       );
-    const projects = await projectsQb.getMany();
+    const allProjects = await projectsQb.getMany();
+
+    // Дата закрытия проекта = последний переход в «Закрыт»/«Выиграно» по истории изменений;
+    // если перехода в истории нет (создан сразу выигранным, импорт) — дата последнего изменения.
+    const closedAt = new Map<string, Date>();
+    if (since) {
+      const won = allProjects.filter((p) => PROJECT_WON_STATUSES.includes(p.status));
+      if (won.length) {
+        const rows: Array<{ project_id: string; closed_at: Date }> = await this.projectRepo.query(
+          `SELECT a.project_id, MAX(a.created_at) AS closed_at
+             FROM crm_project_activities a
+            WHERE a.project_id = ANY($1::uuid[])
+              AND (
+                (a.action = 'status_change' AND a.payload->>'to' = ANY($2::text[]))
+                OR EXISTS (
+                  SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(a.payload->'changes') = 'array' THEN a.payload->'changes' ELSE '[]'::jsonb END) c
+                   WHERE c->>'field' = 'status' AND c->>'to' = ANY($2::text[])
+                )
+              )
+            GROUP BY a.project_id`,
+          [won.map((p) => p.id), PROJECT_WON_STATUSES],
+        );
+        rows.forEach((r) => closedAt.set(r.project_id, new Date(r.closed_at)));
+      }
+    }
+    const inPeriod = (d: Date | string | null | undefined) => !since || (!!d && new Date(d) >= since);
+    const projects = allProjects.filter((p) => inPeriod(p.createdAt));
+    const wonProjects = allProjects.filter(
+      (p) => PROJECT_WON_STATUSES.includes(p.status) && inPeriod(closedAt.get(p.id) ?? p.updatedAt),
+    );
+    const periodLeads = allLeads.filter((l) => inPeriod(l.createdAt));
 
     // Статистика по лидам
     const leadsStats = {
-      total: allLeads.length,
+      total: periodLeads.length,
       byStatus: {
-        new: allLeads.filter((l) => l.status === 'new').length,
-        in_progress: allLeads.filter((l) => l.status === 'in_progress').length,
-        waiting: allLeads.filter((l) => l.status === 'waiting').length,
-        won: allLeads.filter((l) => l.status === 'won').length,
-        lost: allLeads.filter((l) => l.status === 'lost').length,
+        new: periodLeads.filter((l) => l.status === 'new').length,
+        in_progress: periodLeads.filter((l) => l.status === 'in_progress').length,
+        waiting: periodLeads.filter((l) => l.status === 'waiting').length,
+        won: periodLeads.filter((l) => l.status === 'won').length,
+        lost: periodLeads.filter((l) => l.status === 'lost').length,
       },
     };
 
@@ -551,8 +587,7 @@ export class CompaniesService {
         const amount = parseFloat(p.amount || '0');
         return sum + amount;
       }, 0),
-      closedAmount: projects
-        .filter((p) => PROJECT_WON_STATUSES.includes(p.status))
+      closedAmount: wonProjects
         .reduce((sum, p) => {
           const amount = parseFloat(p.amount || '0');
           return sum + amount;
@@ -562,16 +597,16 @@ export class CompaniesService {
       // совместимости (используется в кросс-компанийной BI-аналитике), а тут — честная
       // разбивка по валюте для отображения в карточке конкретной компании.
       totalAmountByCurrency: sumProjectsByCurrency(projects),
-      closedAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_WON_STATUSES.includes(p.status))),
+      closedAmountByCurrency: sumProjectsByCurrency(wonProjects),
       // "Потенциал"/"В работе" — сделки без финального исхода (не выиграны и не проиграны).
-      pipelineAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_OPEN_STATUSES.includes(p.status))),
-      lostAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_LOST_STATUSES.includes(p.status))),
+      pipelineAmountByCurrency: sumProjectsByCurrency(allProjects.filter((p) => PROJECT_OPEN_STATUSES.includes(p.status))),
+      lostAmountByCurrency: sumProjectsByCurrency(allProjects.filter((p) => PROJECT_LOST_STATUSES.includes(p.status) && inPeriod(p.updatedAt))),
     };
 
     // Продажи (модуль «Продажи») — тоже выручка компании: привязаны через контакт или лид
     // компании. Продажа, привязанная к проекту этой компании, пропускается — сумма проекта уже
     // учтена выше, иначе одна сделка посчиталась бы дважды.
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = allProjects.map((p) => p.id);
     let sales: Sale[] = [];
     if (contactIds.length > 0 || leadIds.length > 0) {
       const salesQb = this.saleRepo
@@ -592,7 +627,7 @@ export class CompaniesService {
       sales = await salesQb.getMany();
     }
     const saleStatus = (s: Sale) => String(s.status || '').toLowerCase();
-    const wonSales = sales.filter((s) => SALE_REVENUE_STATUSES.includes(saleStatus(s)));
+    const wonSales = sales.filter((s) => SALE_REVENUE_STATUSES.includes(saleStatus(s)) && inPeriod(s.saleDate ?? s.createdAt));
     const openSales = sales.filter((s) => SALE_OPEN_STATUSES.includes(saleStatus(s)));
     const salesStats = {
       total: sales.length,
@@ -603,8 +638,8 @@ export class CompaniesService {
     };
 
     // Конверсия лидов в проекты
-    const conversionRate = allLeads.length > 0
-      ? (projects.length / allLeads.length) * 100
+    const conversionRate = periodLeads.length > 0
+      ? (projects.length / periodLeads.length) * 100
       : 0;
 
     // ROI (если есть данные о затратах на лиды)
@@ -680,11 +715,11 @@ export class CompaniesService {
   /**
    * Получить общую аналитику по всем компаниям
    */
-  async getAllCompaniesAnalytics(tenantId: string) {
+  async getAllCompaniesAnalytics(tenantId: string, opts: { since?: Date | null } = {}) {
     const companies = await this.repo.find({ where: { tenantId } });
     
     const analytics = await Promise.all(
-      companies.map((company) => this.getCompanyAnalytics(tenantId, company.id)),
+      companies.map((company) => this.getCompanyAnalytics(tenantId, company.id, opts)),
     );
 
     // Агрегированная статистика — раньше складывались "сырые" totalRevenue/potentialRevenue

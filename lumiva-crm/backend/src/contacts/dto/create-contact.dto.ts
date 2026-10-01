@@ -7,6 +7,7 @@ import {
   MaxLength,
   IsUUID,
   ValidateNested,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EntityCommentDto } from '../../common/comment.types';
@@ -55,6 +56,10 @@ export class CreateContactDto {
   @IsString()
   @MaxLength(255)
   city?: string;
+
+  @IsOptional()
+  @IsDateString({ strict: true })
+  birthday?: string | null;
 
   @IsOptional()
   @IsString()

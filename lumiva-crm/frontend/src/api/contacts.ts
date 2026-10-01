@@ -14,6 +14,8 @@ export interface Contact {
   companyId: string | null;
   country: string | null;
   city: string | null;
+  /** YYYY-MM-DD */
+  birthday?: string | null;
   address: string | null;
   timezone: string | null;
   language: string | null;
@@ -41,6 +43,7 @@ export interface CreateContactDto {
   companyId?: string;
   country?: string;
   city?: string;
+  birthday?: string | null;
   address?: string;
   timezone?: string;
   language?: string;

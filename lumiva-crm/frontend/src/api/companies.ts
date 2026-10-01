@@ -194,8 +194,10 @@ export async function fetchCompanyAnalytics(id: string): Promise<CompanyAnalytic
   return res;
 }
 
-export async function fetchAllCompaniesAnalytics(): Promise<AllCompaniesAnalytics> {
-  const res = await api.get<AllCompaniesAnalytics>('/companies/analytics/all');
+/** period: month | quarter | halfYear | year; без него — за всё время. */
+export async function fetchAllCompaniesAnalytics(period?: string): Promise<AllCompaniesAnalytics> {
+  const qs = period && period !== 'allTime' ? `?period=${encodeURIComponent(period)}` : '';
+  const res = await api.get<AllCompaniesAnalytics>(`/companies/analytics/all${qs}`);
   return res;
 }
 

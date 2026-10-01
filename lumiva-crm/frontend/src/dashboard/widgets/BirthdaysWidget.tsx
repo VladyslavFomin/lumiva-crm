@@ -6,7 +6,9 @@ import { getBirthdayContacts, type BirthdayContactItem } from '../../api/dashboa
 
 function formatBirthday(birthday: string | null): string {
   if (!birthday) return '';
-  const d = new Date(birthday);
+  // 'YYYY-MM-DD' как локальная дата: new Date('2026-10-07') — полночь UTC, западнее Гринвича это уже 6-е.
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(birthday);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(birthday);
   if (isNaN(d.getTime())) return birthday;
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 }
@@ -85,9 +87,18 @@ export const BirthdaysWidget: React.FC = () => {
                 <div className="text-[10px] text-neutral-400 truncate">{contact.email}</div>
               )}
             </div>
-            {contact.birthday && (
-              <div className="text-[11px] text-neutral-500 shrink-0 font-medium">
-                {formatBirthday(contact.birthday)}
+            {(contact.nextBirthday || contact.birthday) && (
+              <div className="text-right shrink-0">
+                <div className="text-[11px] text-neutral-500 font-medium">
+                  {contact.nextBirthday === new Date().toISOString().slice(0, 10)
+                    ? t('crm.dashboard.widgets.birthdaysToday', { defaultValue: 'Today' })
+                    : formatBirthday(contact.nextBirthday || contact.birthday)}
+                </div>
+                {contact.turningAge ? (
+                  <div className="text-[10px] text-neutral-400">
+                    {t('crm.dashboard.widgets.birthdaysTurning', { count: contact.turningAge, defaultValue: 'turns {{count}}' })}
+                  </div>
+                ) : null}
               </div>
             )}
           </Link>
