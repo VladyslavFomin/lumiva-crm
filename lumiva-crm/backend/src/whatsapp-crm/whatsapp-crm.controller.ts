@@ -1,5 +1,8 @@
 // src/whatsapp-crm/whatsapp-crm.controller.ts
-import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseUUIDPipe, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import { CHAT_FILE_MAX_BYTES } from '../common/chat-file.util';
 import { WhatsappCrmService } from './whatsapp-crm.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, type CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -23,8 +26,9 @@ export class WhatsappCrmController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('search') search?: string,
     @Query('connectionId') connectionId?: string,
+    @Query('leadId') leadId?: string,
   ) {
-    return this.whatsappCrmService.findContacts(user.tenantId, { search, connectionId });
+    return this.whatsappCrmService.findContacts(user.tenantId, { search, connectionId, leadId });
   }
 
   @Post('contacts/:id/read')
@@ -64,5 +68,44 @@ export class WhatsappCrmController {
       body.contactId,
       body.text,
     );
+  }
+
+  @Post('send-file')
+  @RequirePermission('whatsapp', 'write')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: CHAT_FILE_MAX_BYTES } }))
+  async sendFile(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: any,
+    @Body() body: { connectionId: string; contactId: string; caption?: string },
+  ) {
+    return this.whatsappCrmService.sendFile(user.tenantId, body.connectionId, body.contactId, file, body.caption);
+  }
+
+  @Get('messages/:id/attachment')
+  @RequirePermission('whatsapp', 'read')
+  async getAttachment(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('index') index: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType, fileName } = await this.whatsappCrmService.fetchAttachmentFile(
+      user.tenantId,
+      id,
+      index ? parseInt(index, 10) : 0,
+    );
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    if (fileName) res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(buffer);
+  }
+
+  @Post('contacts/:id/create-lead')
+  @RequirePermission('whatsapp', 'write')
+  async createLead(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.whatsappCrmService.createLeadForContact(user.tenantId, id);
   }
 }

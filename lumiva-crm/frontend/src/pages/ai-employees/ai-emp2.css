@@ -280,3 +280,26 @@
 .e2-miss { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: #9a1f31; line-height: 1.45; }
 .e2-miss b { font-weight: 600; }
 .e2-miss span { color: var(--fg-2, #555); }
+
+/* ИИ-онлайн-консультант: бриф, режим, проверка ответа */
+.ai-chatop-brief { min-height: 360px; resize: vertical; font-family: inherit; line-height: 1.5; }
+.ai-chatop-count { align-self: flex-end; margin-top: -8px; font-size: 11px; color: var(--fg-3, #8a8a8a); }
+.ai-chatop-mode { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-2, #e5e5e5); font-size: 12.5px; color: var(--fg-2, #555); }
+.ai-chatop-mode b { font-size: 13px; color: var(--ink, #111); }
+.ai-chatop-mode.auto { border-color: color-mix(in srgb, #17704b 35%, #fff); background: color-mix(in srgb, #17704b 6%, #fff); }
+.ai-chatop-mode.draft { border-color: color-mix(in srgb, #c08319 35%, #fff); background: color-mix(in srgb, #c08319 6%, #fff); }
+.ai-chatop-answer { display: flex; flex-direction: column; gap: 8px; }
+.ai-chatop-answer .bubble { align-self: flex-start; max-width: 100%; padding: 10px 14px; border-radius: 16px 16px 16px 6px; background: var(--bg-muted, #f5f3ee); border: 1px solid var(--line-2, #e5e5e5); font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.ai-chatop-answer .handoff { font-size: 12px; color: #7a5411; }
+
+/* ИИ-консультант мессенджеров — аккордеон каналов */
+.ai-msgop-ch { border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; }
+.ai-msgop-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border: 0; background: #fff; cursor: pointer; font: inherit; text-align: left; }
+.ai-msgop-head:hover { background: var(--bg-muted, #fafafa); }
+.ai-msgop-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ch); flex-shrink: 0; }
+.ai-msgop-head b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.ai-msgop-head .chev { margin-left: auto; font-size: 16px; color: var(--fg-3); width: 16px; text-align: center; }
+.ai-msgop-state { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; border-radius: 5px; padding: 2px 7px; border: 1px solid var(--line-2); color: var(--fg-3); }
+.ai-msgop-state.auto { color: #0f6b3a; border-color: #bfe3cc; background: #f1faf4; }
+.ai-msgop-state.draft { color: #9a5a09; border-color: #ecd9b8; background: #fdf8ef; }
+.ai-msgop-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-top: 1px solid var(--line-2); background: #fff; }

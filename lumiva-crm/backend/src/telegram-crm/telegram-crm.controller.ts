@@ -11,8 +11,12 @@ import {
   UseGuards,
   ParseUUIDPipe,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { CHAT_FILE_MAX_BYTES } from '../common/chat-file.util';
 import { TelegramCrmService } from './telegram-crm.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
@@ -305,5 +309,28 @@ export class TelegramCrmController {
         saleId: body.saleId,
       },
     );
+  }
+
+  @Post('send-file')
+  @RequirePermission('telegram', 'write')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: CHAT_FILE_MAX_BYTES } }))
+  async sendFile(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: any,
+    @Body() body: { botId: string; telegramUserId: string; caption?: string; leadId?: string; contactId?: string },
+  ) {
+    return this.telegramCrmService.sendFile(user.tenantId, body.botId, body.telegramUserId, file, body.caption, {
+      leadId: body.leadId,
+      contactId: body.contactId,
+    });
+  }
+
+  @Post('contacts/:id/create-lead')
+  @RequirePermission('telegram', 'write')
+  async createLead(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.telegramCrmService.createLeadForContact(user.tenantId, id);
   }
 }

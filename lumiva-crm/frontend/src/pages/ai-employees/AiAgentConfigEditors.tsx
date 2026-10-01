@@ -22,7 +22,7 @@ export const TRIGGER_GROUPS: Array<{ group: string; events: string[] }> = [
   { group: 'projects', events: ['project.created', 'project.status_changed'] },
   { group: 'tasks', events: ['task.created', 'task.status_changed'] },
   { group: 'clients', events: ['contact.created', 'company.created'] },
-  { group: 'messages', events: ['telegram.message_received', 'email.received'] },
+  { group: 'messages', events: ['telegram.message_received', 'whatsapp.message_received', 'email.received'] },
   {
     group: 'bookings',
     events: [
@@ -45,6 +45,7 @@ const SCOPEABLE = new Set([
   'project.status_changed',
   'task.status_changed',
   'telegram.message_received',
+  'whatsapp.message_received',
   'email.received',
   'custom_object.record_updated',
   'custom_object.status_changed',
@@ -55,6 +56,7 @@ const DEFAULT_SCOPE: Record<string, AiTriggerScope> = {
   'project.status_changed': 'mine',
   'task.status_changed': 'mine',
   'telegram.message_received': 'mine',
+  'whatsapp.message_received': 'mine',
   'email.received': 'mine',
   'custom_object.record_updated': 'mine',
   'custom_object.status_changed': 'mine',

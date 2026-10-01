@@ -22,6 +22,9 @@ import {
 } from 'recharts';
 import type { Project } from '../pages/projects/projectTypes';
 import type { ProjectsAnalyticsWidgetConfig } from './analyticsStorage';
+import { AnalyticsGeoMap } from '../components/analytics/AnalyticsGeoMap';
+import type { MapScope } from '../components/analytics/geoCountries';
+import { geocodeWorkspaceValues } from '../api/workspaceShare';
 
 /** Та же палитровая система тем, что на странице аналитики (THEME_PRESETS/PALETTES в
  * ProjectsAnalyticsPage) — раньше этот файл рисовал донат/бар своим фиксированным набором цветов
@@ -566,6 +569,8 @@ function resolveOperandFormulaEmbed(
   key: string | undefined,
   sourceItems: Project[],
   t: TFunction,
+  /** Как на странице аналитики: 'count' | 'sum:<поле>' | 'avg:<поле>' для части «Поле = значение». */
+  measure?: string,
 ): number {
   if (!type) return 0;
   if (type.startsWith('summonths:')) {
@@ -587,7 +592,7 @@ function resolveOperandFormulaEmbed(
     const values = sourceItems
       .map((item) => parseNumericLoose(getCustomFieldValue(item, fieldKey)))
       .filter((value): value is number => value !== null);
-    return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+    return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
   }
   if (type.startsWith('filled:')) {
     const fieldKey = type.slice(7);
@@ -595,7 +600,12 @@ function resolveOperandFormulaEmbed(
   }
   if (type.startsWith('field:')) {
     const list = buildSeriesForWidget(type, sourceItems, 'count', undefined, t, true);
-    return list.find((x) => x.code === key)?.count ?? 0;
+    const cnt = list.find((x) => x.code === key)?.count ?? 0;
+    const m = /^(sum|avg):(.+)$/.exec(measure || '');
+    if (!m) return cnt;
+    const sumList = buildSeriesForWidget(type, sourceItems, 'sum', `field:${m[2]}`, t, true);
+    const sum = sumList.find((x) => x.code === key)?.count ?? 0;
+    return m[1] === 'avg' ? (cnt > 0 ? sum / cnt : 0) : sum;
   }
   if (type === 'total') return sourceItems.length;
   if (type === 'amount') return sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -655,23 +665,36 @@ function evaluateFormulaWidgetEmbed(
   const matchingItems = widgetItems.filter((item) =>
     filters.every((filter) => itemMatchesFilterRowEmbed(item, filter, t)),
   );
-  const baseTotal = widgetItems.length;
+  const leftMeasure = w.formulaLeftMeasure || 'count';
+  const rightMeasure = w.formulaRightMeasure || 'count';
+  const leftMeasureMatch = leftType.startsWith('field:') ? /^(sum|avg):(.+)$/.exec(leftMeasure) : null;
+  const baseTotal =
+    leftMeasureMatch && leftMeasureMatch[1] === 'sum'
+      ? widgetItems.reduce(
+          (acc, item) => acc + (parseNumericLoose(getCustomFieldValue(item, leftMeasureMatch[2])) ?? 0),
+          0,
+        )
+      : widgetItems.length;
+  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 10000) / 100 : 0);
 
-  const leftValue = resolveOperandFormulaEmbed(leftType, leftKey, widgetItems, t);
-  const rightValue = resolveOperandFormulaEmbed(rightType, rightKey, widgetItems, t);
+  const leftValue = resolveOperandFormulaEmbed(leftType, leftKey, widgetItems, t, leftMeasure);
+  const rightValue = resolveOperandFormulaEmbed(rightType, rightKey, widgetItems, t, rightMeasure);
   const filterValue = matchingItems.length;
 
   let primaryValue = leftValue;
   let secondaryValue: number | null = null;
   if (fn === 'count') {
     primaryValue = leftValue;
-    secondaryValue = baseTotal > 0 ? Math.round((leftValue / baseTotal) * 100) : 0;
+    secondaryValue = pct(leftValue, baseTotal);
   } else if (fn === 'percent') {
-    primaryValue = baseTotal > 0 ? Math.round((leftValue / baseTotal) * 100) : 0;
+    primaryValue = pct(leftValue, baseTotal);
     secondaryValue = leftValue;
   } else if (fn === 'ratio') {
-    primaryValue = rightValue > 0 ? Math.round((leftValue / rightValue) * 100) : 0;
+    primaryValue = pct(leftValue, rightValue);
     secondaryValue = rightValue;
+  } else if (fn === 'diff' && mode === 'percent') {
+    primaryValue = pct(leftValue - rightValue, rightValue);
+    secondaryValue = leftValue - rightValue;
   } else if (fn === 'diff') {
     primaryValue = leftValue - rightValue;
     secondaryValue = rightValue;
@@ -702,14 +725,14 @@ function evaluateFormulaWidgetEmbed(
     mode === 'sum'
       ? new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(primaryValue)
       : fn === 'percent' || fn === 'ratio' || mode === 'percent'
-        ? `${primaryValue}%`
+        ? `${primaryValue.toLocaleString(locale, { maximumFractionDigits: 2 })}%`
         : primaryValue.toLocaleString(locale, { maximumFractionDigits: 2 });
   const secondaryLabel =
     secondaryValue === null
       ? null
       : mode === 'percent' || fn === 'percent' || fn === 'ratio' || fn === 'diff'
         ? secondaryValue.toLocaleString(locale, { maximumFractionDigits: 2 })
-        : `${secondaryValue}%`;
+        : `${secondaryValue.toLocaleString(locale, { maximumFractionDigits: 2 })}%`;
 
   // Перенос "как показать сравнение" (bar/line/donut/table) со страницы аналитики — раньше этот
   // компонент рисовал только голое число, даже если на источнике был выбран график. Операнды тут
@@ -894,8 +917,8 @@ function buildTrendEmbed(
     .map((item) => ({ item, date: parseDateEmbed(item.createdAt) }))
     .filter((entry): entry is { item: Project; date: Date } => Boolean(entry.date));
   if (!dated.length) return [{ name: '—', value: 0, previous: 0 }];
-  const minTime = Math.min(...dated.map((e) => e.date.getTime()));
-  const maxTime = Math.max(...dated.map((e) => e.date.getTime()));
+  const minTime = dated.reduce((m, e) => Math.min(m, e.date.getTime()), Infinity);
+  const maxTime = dated.reduce((m, e) => Math.max(m, e.date.getTime()), -Infinity);
   const from = new Date(minTime);
   const days = Math.max(1, Math.ceil((maxTime - minTime) / 86_400_000) + 1);
   const pointCount = Math.max(2, Math.min(days, 12));
@@ -962,7 +985,9 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
    * веткой) показать ту же "умную" превью-таблицу с месячными колонками, что и на источнике,
    * а не молча падать в ветку tableKey==='projects' с чужой структурой (имя/статус/сумма). */
   isWorkspaceMode?: boolean;
-}> = ({ widget: w, items, locale, t, compact, isWorkspaceMode }) => {
+  /** Для «Карты» в режиме точек — геокодинг городов идёт через эту таблицу. */
+  workspaceObjectId?: string;
+}> = ({ widget: w, items, locale, t, compact, isWorkspaceMode, workspaceObjectId }) => {
   const [activeDonut, setActiveDonut] = useState<number | null>(null);
   const palette = resolveThemeEmbed(w.themeKey).palette;
 
@@ -1075,6 +1100,38 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
               })}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (w.type === 'map') {
+    const series = buildSeriesForWidget(
+      w.chartKey || 'status',
+      widgetItems,
+      w.chartValueMode || 'count',
+      w.chartValueField,
+      t,
+      isWorkspaceChart,
+    );
+    return (
+      <div className="space-y-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div style={{ height: chartH + 80 }}>
+          <AnalyticsGeoMap
+            rows={series.map((row) => ({ label: row.label, value: row.count }))}
+            scope={(w.mapScope || 'world') as MapScope}
+            mode={w.mapMode === 'points' ? 'points' : 'countries'}
+            geocode={
+              workspaceObjectId
+                ? (queries, country) => geocodeWorkspaceValues(workspaceObjectId, queries, country)
+                : undefined
+            }
+            height={chartH + 40}
+            color={resolveThemeEmbed(w.themeKey).primary}
+            valueLabel={w.chartValueMode === 'sum' ? t('crm.projects.analytics.tooltip.sum') : t('crm.projects.analytics.tooltip.count')}
+            formatValue={(n) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n)}
+          />
         </div>
       </div>
     );

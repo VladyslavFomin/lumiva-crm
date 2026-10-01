@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { postAiOutreachEmail, type AiOutreachEmailResult } from '../../api/ai';
 
 interface Props {
@@ -16,7 +17,8 @@ function saveCached(leadId: string, r: AiOutreachEmailResult) {
   try { localStorage.setItem(lsKey(leadId), JSON.stringify(r)); } catch {}
 }
 
-export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadName, onSend }) => {
+export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, onSend }) => {
+  const { t } = useTranslation();
   const [result, setResult] = useState<AiOutreachEmailResult | null>(() => loadCached(leadId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,19 +48,19 @@ export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadNa
     setError(null);
     try {
       const r = await postAiOutreachEmail(leadId);
-      if (!r.ok) { setError('Не удалось сгенерировать письмо'); return; }
+      if (!r.ok) { setError(r.error || t('crm.aiCards.outreach.failed')); return; }
       setResult(r);
       saveCached(leadId, r);
       setEditSubject(r.subject ?? '');
       setEditBody(r.body ?? '');
       setExpanded(true);
       setEditing(false);
-    } catch { setError('Ошибка запроса'); }
+    } catch { setError(t('crm.aiCards.requestError')); }
     finally { setLoading(false); }
   }
 
   function handleCopy() {
-    const text = `Тема: ${editSubject}\n\n${editBody}`;
+    const text = `${t('crm.aiCards.outreach.subject')}: ${editSubject}\n\n${editBody}`;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -70,20 +72,20 @@ export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadNa
 
   return (
     <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, fontFamily: FF }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result?.ok ? 10 : 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result?.ok ? 10 : 12, gap: 8 }}>
         <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3 }}>
-          ✉ Письмо клиенту
+          ✉ {t('crm.aiCards.outreach.title')}
         </span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {result?.ok && (
             <button type="button" onClick={() => setExpanded(v => !v)}
               style={{ fontFamily: FM, fontSize: 10, color: FG3, background: 'none', border: 'none', cursor: 'pointer' }}>
-              {expanded ? '▲ Свернуть' : '▼ Развернуть'}
+              {expanded ? `▲ ${t('crm.aiCards.outreach.collapse')}` : `▼ ${t('crm.aiCards.outreach.expand')}`}
             </button>
           )}
           <button type="button" onClick={generate} disabled={loading}
             style={{ fontFamily: FM, fontSize: 10, color: '#7c3aed', background: 'none', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: '0.06em' }}>
-            {loading ? 'Генерация...' : result ? '↻ Новый вариант' : 'Создать письмо'}
+            {loading ? t('crm.aiCards.outreach.generating') : result ? `↻ ${t('crm.aiCards.outreach.another')}` : t('crm.aiCards.outreach.create')}
           </button>
         </div>
       </div>
@@ -92,23 +94,22 @@ export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadNa
 
       {!result && !loading && (
         <div style={{ fontSize: 12, color: FG3, fontStyle: 'italic' }}>
-          AI напишет персональное первое письмо на основе данных лида
+          {t('crm.aiCards.outreach.empty')}
         </div>
       )}
 
       {loading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #e7e7e7', borderTopColor: '#7c3aed', animation: 'spin3 0.8s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: FG3 }}>AI пишет письмо…</span>
+          <span style={{ fontSize: 12, color: FG3 }}>{t('crm.aiCards.outreach.writing')}</span>
           <style>{`@keyframes spin3{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
 
       {result?.ok && !loading && expanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* Subject */}
           <div>
-            <div style={{ fontFamily: FM, fontSize: 9.5, color: FG3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Тема</div>
+            <div style={{ fontFamily: FM, fontSize: 9.5, color: FG3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{t('crm.aiCards.outreach.subject')}</div>
             {editing ? (
               <input
                 value={editSubject}
@@ -120,9 +121,8 @@ export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadNa
             )}
           </div>
 
-          {/* Body */}
           <div>
-            <div style={{ fontFamily: FM, fontSize: 9.5, color: FG3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Текст</div>
+            <div style={{ fontFamily: FM, fontSize: 9.5, color: FG3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{t('crm.aiCards.outreach.body')}</div>
             {editing ? (
               <textarea
                 value={editBody}
@@ -137,20 +137,19 @@ export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadNa
             )}
           </div>
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
             <button type="button" onClick={() => setEditing(v => !v)}
               style={{ fontSize: 11, padding: '5px 12px', borderRadius: 8, border: `1px solid ${LINE}`, background: editing ? '#7c3aed' : '#fff', color: editing ? '#fff' : '#555', cursor: 'pointer', fontFamily: FM }}>
-              {editing ? '✓ Готово' : '✏ Редактировать'}
+              {editing ? `✓ ${t('crm.aiCards.outreach.done')}` : `✏ ${t('crm.aiCards.outreach.edit')}`}
             </button>
             <button type="button" onClick={handleCopy}
               style={{ fontSize: 11, padding: '5px 12px', borderRadius: 8, border: `1px solid ${LINE}`, background: '#fff', color: copied ? '#16a34a' : '#555', cursor: 'pointer', fontFamily: FM }}>
-              {copied ? '✓ Скопировано' : '⎘ Копировать'}
+              {copied ? `✓ ${t('crm.aiCards.outreach.copied')}` : `⎘ ${t('crm.aiCards.outreach.copy')}`}
             </button>
             {canSend && (
               <button type="button" onClick={() => onSend!(editSubject, editBody, email)}
                 style={{ fontSize: 11, padding: '5px 14px', borderRadius: 8, border: '1px solid #111', background: '#111', color: '#fff', cursor: 'pointer', fontFamily: FM, fontWeight: 600 }}>
-                → Отправить {email}
+                → {t('crm.aiCards.outreach.toComposer')}
               </button>
             )}
           </div>
@@ -159,7 +158,7 @@ export const AiOutreachEmailCard: React.FC<Props> = ({ leadId, leadEmail, leadNa
 
       {result?.ok && !loading && !expanded && (
         <div style={{ fontSize: 11, color: FG3 }}>
-          Тема: <span style={{ color: '#333', fontWeight: 500 }}>{editSubject}</span>
+          {t('crm.aiCards.outreach.subject')}: <span style={{ color: '#333', fontWeight: 500 }}>{editSubject}</span>
         </div>
       )}
     </div>

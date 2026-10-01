@@ -79,6 +79,7 @@ export const WorkspaceAnalyticsPage: React.FC = () => {
       header={header}
       toolbarSlot={<WorkspaceViewTabs objectId={objectId} active="analytics" />}
       workspaceObjectId={objectId}
+      reportObjectName={displayName}
       dashboardPresetSource="workspace"
       dashboardPresetRef={objectId}
       beforeContentSlot={<WorkspaceAiAnalyticsPanel objectId={objectId} />}

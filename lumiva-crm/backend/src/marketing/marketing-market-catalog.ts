@@ -29,6 +29,7 @@ export const MARKET_CATALOG: MarketCatalogEntry[] = [
   { code: 'EE', label: 'Эстония', names: ['ee', 'estonia', 'estonya', 'эстония'] },
   { code: 'MK', label: 'Северная Македония', names: ['mk', 'macedonia', 'north macedonia', 'makedonya', 'македония', 'северная македония'] },
   { code: 'RO', label: 'Румыния', names: ['ro', 'romania', 'romanya', 'румыния'] },
+  { code: 'MD', label: 'Молдова', names: ['md', 'moldova', 'moldovya', 'молдова', 'молдавия'] },
   { code: 'XK', label: 'Косово', names: ['xk', 'kosovo', 'kosova', 'косово'] },
   { code: 'PL', label: 'Польша', names: ['pl', 'poland', 'polonya', 'польша'] },
   { code: 'DE', label: 'Германия', names: ['de', 'germany', 'almanya', 'германия'] },
@@ -186,7 +187,15 @@ function isGenericCampaignLabel(campaign: string | null | undefined): boolean {
 export function resolveRowMarket(
   campaign: string | null | undefined,
   country: string | null | undefined,
+  /** Источник строки: у Meta Ads country — реальная страна ПОКАЗА рекламы (breakdowns=country),
+   * т.е. именно тот рынок, на который потрачен бюджет, — она точнее догадки по названию кампании
+   * (мультистрановые кампании "…_PL_RO_MD_…" иначе целиком ушли бы в один рынок). */
+  dataSource?: string | null,
 ): string | null {
+  if ((dataSource || '').trim() === 'meta_ads') {
+    const c = (country || '').trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(c)) return c;
+  }
   const tag = extractCampaignMarketTag(campaign);
   if (tag) return tag;
   const text = (campaign || '').toLowerCase();

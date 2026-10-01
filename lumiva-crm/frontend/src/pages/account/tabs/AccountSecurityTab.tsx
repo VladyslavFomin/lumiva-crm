@@ -19,6 +19,7 @@ import {
   type ApiTokenSummary,
   type SecurityLogItem,
 } from '../../../api/account';
+import { useScrollAfterRows } from '../useScrollAfterRows';
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '—';
@@ -46,12 +47,15 @@ function Modal({ title, onClose, children, foot }: { title: string; onClose: () 
   );
 }
 
+const SESSIONS_VISIBLE = 5;
+
 export const AccountSecurityTab: React.FC = () => {
   const storedUser = getStoredUser();
   const isOwner = String(storedUser?.role || '').toLowerCase() === 'owner';
 
   const [me, setMe] = useState<MeDto | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
+  const sessionsScroll = useScrollAfterRows(SESSIONS_VISIBLE, sessions);
   const [tokens, setTokens] = useState<ApiTokenSummary[]>([]);
   const [log, setLog] = useState<SecurityLogItem[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
@@ -336,7 +340,7 @@ export const AccountSecurityTab: React.FC = () => {
               Завершить все, кроме этой
             </button>
           </div>
-          <div className="acc-body tight">
+          <div ref={sessionsScroll.ref} className="acc-body tight acc-sessions-list" style={sessionsScroll.style}>
             {sessions.map((s) => (
               <div key={s.id} className="acc-row">
                 <div className="ic">{s.os === 'iOS' || s.os === 'Android' ? '📱' : '💻'}</div>

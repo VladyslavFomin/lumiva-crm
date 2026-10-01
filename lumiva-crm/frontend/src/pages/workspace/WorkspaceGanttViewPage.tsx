@@ -131,7 +131,8 @@ export const WorkspaceGanttViewPage: React.FC = () => {
     const span = Math.max(1, range.endMs - range.startMs);
     const out: RowBar[] = [];
     const q = search.trim().toLowerCase();
-    records.forEach((rec, idx) => {
+    const uniqueRecords = Array.from(new Map(records.map((record) => [record.id, record])).values());
+    uniqueRecords.forEach((rec, idx) => {
       if (q && !resolveTitle(rec).toLowerCase().includes(q)) return;
       let startY = dateKeys[0] ? parseToLocalYMD(resolveFieldText(rec, dateKeys[0])) : null;
       let endY = dateKeys[1]

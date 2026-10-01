@@ -27,6 +27,7 @@ const linkBtn = 'text-[11px] text-neutral-500 underline-offset-2 hover:underline
 function sourceTitle(s: SyncSourceDto, t: (k: string) => string): string {
   if (s.label) return s.label;
   if (s.kind === 'marketing_monthly') return t('crm.workspace.syncSources.kinds.monthly');
+  if (s.kind === 'marketing_roi') return t('crm.workspace.syncSources.kinds.roi');
   if (s.kind === 'marketing_rows') {
     const names = ((s.params?.providers as string[]) || []).map((id) => PROVIDERS.find((p) => p.id === id)?.label || id);
     return names.join(' + ') || t('crm.workspace.syncSources.kinds.rows');

@@ -36,7 +36,7 @@ export class LeadActivity {
   @Column({ nullable: true })
   userId: string | null;
 
-  @ManyToOne(() => StaffUser, { nullable: true })
+  @ManyToOne(() => StaffUser, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'userId' })
   user: StaffUser | null;
 

@@ -5,7 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import App from './App.js';
 import './index.css';
 import { ErrorBoundary } from './ErrorBoundary';
-import './i18n';
+import { i18nReady } from './i18n';
 
 // A live deploy replaces every hashed chunk filename — a tab that's been open across a deploy
 // still references the OLD names and 404s the moment it tries to fetch one. Vite's documented
@@ -34,12 +34,15 @@ if (sentryDsn) {
   (window as any).__sentry__ = Sentry;
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <HelmetProvider>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </HelmetProvider>
-  </React.StrictMode>,
-);
+// Переводы грузятся отдельным файлом (см. i18n.ts) — рисуем, когда нужный язык готов.
+void i18nReady.finally(() => {
+  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+    <React.StrictMode>
+      <HelmetProvider>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      </HelmetProvider>
+    </React.StrictMode>,
+  );
+});

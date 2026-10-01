@@ -1,5 +1,21 @@
 import type { TFunction } from 'i18next';
 
+/**
+ * Название провайдера без номера аккаунта (google_ads_8009704244 → «Google Ads») — для подзаголовков
+ * вместо технического ключа: по номеру никто не поймёт, что это за кабинет.
+ */
+export function marketingProviderFamilyLabel(value: string): string {
+  const v = (value || '').trim();
+  if (v === 'google_ads' || v.startsWith('google_ads_')) return 'Google Ads';
+  if (v === 'meta_ads' || v.startsWith('meta_ads_')) return 'Meta Ads';
+  if (v.startsWith('ga4_') || v === 'ga4') return 'Google Analytics 4';
+  if (v.startsWith('yandex_direct')) return 'Яндекс.Директ';
+  if (v.startsWith('yandex_metrika')) return 'Яндекс.Метрика';
+  if (v.startsWith('vk_ads')) return 'VK Ads';
+  if (v === 'unknown') return '—';
+  return v;
+}
+
 /** Подпись для значения dataSource: кастомные ключи, затем провайдер интеграции, иначе как есть. */
 export function marketingDataSourceLabel(
   t: TFunction,

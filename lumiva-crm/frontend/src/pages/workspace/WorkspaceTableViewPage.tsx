@@ -388,10 +388,38 @@ export const WorkspaceTableViewPage: React.FC = () => {
     startX: number;
     startWidth: number;
   } | null>(null);
+  /** Меню «⋯» колонки. Позиция fixed от кнопки: absolute внутри <th> обрезалось контейнером
+   * таблицы с overflow (в пустой таблице меню было вообще не видно). */
   const [columnMenuState, setColumnMenuState] = useState<{
     key: string;
     groupTitle: string;
+    top: number;
+    left: number;
   } | null>(null);
+  useEffect(() => {
+    if (!columnMenuState) return;
+    const close = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('[data-column-menu]')) return;
+      setColumnMenuState(null);
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('mousedown', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('mousedown', close);
+    };
+  }, [columnMenuState]);
+  const columnMenuPosFrom = (el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    const menuWidth = 224;
+    return {
+      top: Math.min(rect.bottom + 6, window.innerHeight - 180),
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    };
+  }
 
   const [showAddField, setShowAddField] = useState(false);
   const [showManageFields, setShowManageFields] = useState(false);
@@ -2274,97 +2302,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
       .map((v) => v.trim())
       .filter(Boolean);
 
-  const getMobilePreviewFieldRank = (field: CustomObjectField) => {
-    const key = field.key.toLowerCase();
-    const label = field.label.toLowerCase();
-    if (field.type === 'status' || key.includes('status') || label.includes('статус')) return 0;
-    if (key.includes('priority') || label.includes('priority') || label.includes('приоритет')) return 1;
-    if (
-      key.includes('owner') ||
-      key.includes('assignee') ||
-      key.includes('person') ||
-      key.includes('responsible') ||
-      label.includes('owner') ||
-      label.includes('ответ')
-    ) {
-      return 2;
-    }
-    if (field.type === 'date' || field.type === 'datetime') return 3;
-    return 10;
-  };
-
-  const getMobilePreviewValue = (record: CustomObjectRecord, field: CustomObjectField) => {
-    const raw = record.values?.[getWorkspaceFieldValueStorageKey(field)];
-    if (raw === undefined || raw === null || raw === '') return '';
-
-    if (field.type === 'status') {
-      return getStatusLabel(String(raw));
-    }
-
-    if (field.type === 'date' || field.type === 'datetime') {
-      const date = new Date(String(raw));
-      if (Number.isNaN(date.getTime())) return String(raw);
-      if (field.type === 'datetime') {
-        return date.toLocaleString(i18n.language, {
-          day: '2-digit',
-          month: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-      }
-      return date.toLocaleDateString(i18n.language);
-    }
-
-    if (field.type === 'boolean') {
-      const on =
-        raw === true ||
-        raw === 1 ||
-        raw === '1' ||
-        raw === 'true' ||
-        raw === 'yes';
-      return on
-        ? t('crm.workspace.table.booleanYes')
-        : t('crm.workspace.table.booleanNo');
-    }
-
-    if (field.type === 'multiselect') {
-      const list = Array.isArray(raw)
-        ? (raw as string[])
-        : String(raw)
-            .split(/[,;/]+/)
-            .map((value) => value.trim())
-            .filter(Boolean);
-      if (!list.length) return '';
-      const compact = list.slice(0, 2).join(', ');
-      return list.length > 2 ? `${compact} +${list.length - 2}` : compact;
-    }
-
-    if (field.type === 'select') {
-      const value = String(raw);
-      const byOption = field.options?.find((opt) => String(opt.value) === value)?.label || value;
-      const key = field.key.toLowerCase();
-      const label = field.label.toLowerCase();
-      if (key.includes('priority') || label.includes('priority') || label.includes('приоритет')) {
-        return normalizePriorityLabel(byOption);
-      }
-      return byOption;
-    }
-
-    const maybePerson =
-      field.key.includes('person') ||
-      field.key.includes('assignee') ||
-      field.key.includes('owner') ||
-      field.key.includes('responsible');
-    if (maybePerson) {
-      const owners = parseOwnerValues(raw);
-      if (!owners.length) return '';
-      const compact = owners.slice(0, 2).map(getInitials).join(' ');
-      return owners.length > 2 ? `${compact} +${owners.length - 2}` : compact;
-    }
-
-    return String(raw);
-  };
-
   const renderDateInput = (
     record: CustomObjectRecord,
     field: CustomObjectField,
@@ -4011,13 +3948,15 @@ export const WorkspaceTableViewPage: React.FC = () => {
                               <div className="absolute right-0 top-0 flex items-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() =>
+                                  data-column-menu
+                                  onClick={(e) => {
+                                    const pos = columnMenuPosFrom(e.currentTarget);
                                     setColumnMenuState((prev) =>
                                       prev?.key === field.key && prev?.groupTitle === '__dt__'
                                         ? null
-                                        : { key: field.key, groupTitle: '__dt__' },
-                                    )
-                                  }
+                                        : { key: field.key, groupTitle: '__dt__', ...pos },
+                                    );
+                                  }}
                                   className="h-5 w-5 rounded-full hover:bg-slate-100 text-slate-400 opacity-0 group-hover/colmenu:opacity-100 transition-opacity"
                                 >
                                   ⋯
@@ -4025,7 +3964,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                               </div>
                             </div>
                             {columnMenuState?.key === field.key && columnMenuState?.groupTitle === '__dt__' && (
-                              <div className="absolute right-2 top-8 z-40 min-w-[13rem] w-max max-w-[min(92vw,22rem)] rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100">
+                              <div data-column-menu className="fixed z-[400] w-56 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100" style={{ top: columnMenuState.top, left: columnMenuState.left }}>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -4176,10 +4115,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
                               const recordPriorityValue = String(
                                 record.values?.[priorityField?.key || 'priority'] || 'normal',
                               );
-                              const mobilePreviewFields = orderedColumns
-                                .filter((f) => f.key !== titleField?.key)
-                                .sort((a, b) => getMobilePreviewFieldRank(a) - getMobilePreviewFieldRank(b))
-                                .slice(0, 3);
                               return (
                                 <React.Fragment key={record.id}>
                                   <tr
@@ -4327,25 +4262,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                             ⋯
                                           </button>
                                         </div>
-                                        </div>
-                                        <div className="mt-1 basis-full space-y-1 md:hidden">
-                                          {mobilePreviewFields.map((f) => {
-                                            const preview = getMobilePreviewValue(record, f);
-                                            if (!preview) return null;
-                                            return (
-                                              <div
-                                                key={`mobile-preview-${record.id}-${f.key}`}
-                                                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1"
-                                              >
-                                                <span className="min-w-0 truncate text-[10px] uppercase tracking-wide text-slate-500">
-                                                  {f.label}
-                                                </span>
-                                                <span className="min-w-0 truncate text-center text-[11px] text-slate-800">
-                                                  {preview}
-                                                </span>
-                                              </div>
-                                            );
-                                          })}
                                         </div>
                                       </div>
                                     </td>
@@ -4835,13 +4751,15 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                     <div className="absolute right-0 top-0 flex items-center gap-1">
                                       <button
                                         type="button"
-                                        onClick={() =>
+                                        data-column-menu
+                                        onClick={(e) => {
+                                          const pos = columnMenuPosFrom(e.currentTarget);
                                           setColumnMenuState((prev) =>
                                             prev?.key === field.key && prev?.groupTitle === group.title
                                               ? null
-                                              : { key: field.key, groupTitle: group.title },
-                                          )
-                                        }
+                                              : { key: field.key, groupTitle: group.title, ...pos },
+                                          );
+                                        }}
                                         className="h-5 w-5 rounded-full hover:bg-slate-100 text-slate-400 opacity-0 group-hover/colmenu:opacity-100 transition-opacity"
                                       >
                                         ⋯
@@ -4850,7 +4768,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                   </div>
                                   {columnMenuState?.key === field.key &&
                                     columnMenuState?.groupTitle === group.title && (
-                                    <div className="absolute right-2 top-8 z-40 min-w-[13rem] w-max max-w-[min(92vw,22rem)] rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100">
+                                    <div data-column-menu className="fixed z-[400] w-56 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100" style={{ top: columnMenuState.top, left: columnMenuState.left }}>
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -4985,10 +4903,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
                               const recordPriorityValue = String(
                                 record.values?.[priorityField?.key || 'priority'] || 'normal',
                               );
-                              const mobilePreviewFields = groupColumns
-                                .filter((field) => field.key !== titleField?.key)
-                                .sort((a, b) => getMobilePreviewFieldRank(a) - getMobilePreviewFieldRank(b))
-                                .slice(0, 3);
                               return (
                                 <React.Fragment key={record.id}>
                                   <tr
@@ -5153,25 +5067,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                             ⋯
                                           </button>
                                         </div>
-                                        </div>
-                                        <div className="mt-1 basis-full space-y-1 md:hidden">
-                                          {mobilePreviewFields.map((field) => {
-                                            const preview = getMobilePreviewValue(record, field);
-                                            if (!preview) return null;
-                                            return (
-                                              <div
-                                                key={`mobile-preview-${record.id}-${field.key}`}
-                                                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1"
-                                              >
-                                                <span className="min-w-0 truncate text-[10px] uppercase tracking-wide text-slate-500">
-                                                  {field.label}
-                                                </span>
-                                                <span className="min-w-0 truncate text-center text-[11px] text-slate-800">
-                                                  {preview}
-                                                </span>
-                                              </div>
-                                            );
-                                          })}
                                         </div>
                                       </div>
                                     </td>

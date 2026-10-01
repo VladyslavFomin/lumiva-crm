@@ -58,6 +58,10 @@ export class ChatSession {
   @Column({ type: 'timestamptz', nullable: true })
   lastMessageAt: Date | null;
 
+  /** ИИ-консультант молчит в этом диалоге: оператор ответил сам или выключил ИИ вручную. */
+  @Column({ type: 'boolean', default: false })
+  aiPaused: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

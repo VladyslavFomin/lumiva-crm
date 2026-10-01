@@ -33,6 +33,7 @@ import {
 import { Ic, NI } from './EmailInboxIcons';
 import './email-settings-design.css';
 import './email-inbox-design.css';
+import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../components/ui/DateRangePicker';
 
 const cx = (...a: Array<string | false | undefined | null>) => a.filter(Boolean).join(' ');
 
@@ -1103,8 +1104,17 @@ export const EmailInboxPage: React.FC = () => {
             <option value="leadless">Без лида</option>
           </select>
           <input className="em-in" style={{ width: 150 }} value={fromFilter} onChange={(e) => setFromFilter(e.target.value)} placeholder="Отправитель" />
-          <input className="em-in mono" style={{ width: 132 }} type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <input className="em-in mono" style={{ width: 132 }} type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <DateRangePicker
+            value={{ from: fromIsoDate(dateFrom), to: fromIsoDate(dateTo) }}
+            presets={[
+              ...([7, 30, 90] as const).map((n) => ({ id: `${n}d`, label: t(`crm.dateRange.last${n}`), range: lastDays(n) })),
+              { id: 'all', label: t('crm.dateRange.allTime'), range: { from: null, to: null } },
+            ]}
+            onChange={(v) => {
+              setDateFrom(v.from ? toIsoDate(v.from) : '');
+              setDateTo(v.to ? toIsoDate(v.to) : '');
+            }}
+          />
           {hasActiveFilters ? (
             <button
               type="button"

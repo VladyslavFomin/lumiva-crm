@@ -1,5 +1,6 @@
 // src/api/telegram-crm.ts
-import { api } from './client';
+import { api, API_BASE } from './client';
+import { getAccessToken } from '../auth/session';
 
 export type FlowNodeType = 'msg' | 'buttons' | 'ask' | 'ai' | 'cond' | 'crm' | 'human' | 'delay' | 'hook' | 'pay';
 
@@ -151,6 +152,7 @@ export interface TelegramMessage {
   direction: 'incoming' | 'outgoing';
   text: string | null;
   messageType: string | null;
+  attachments?: Array<{ type: string; fileId?: string; fileName?: string; fileSize?: number }> | null;
   date: string;
   isRead: boolean;
   meta?: {
@@ -164,6 +166,12 @@ export interface TelegramMessage {
 export interface TelegramContactWithPreview extends TelegramContact {
   lastMessage: TelegramMessage | null;
   unreadCount: number;
+  /** Данные карточки диалога (бэкенд: common/chat-contact-enrich.util.ts) */
+  lead?: { id: string; name: string | null; status: string | null; ownerName: string | null } | null;
+  crmContact?: { id: string; name: string | null } | null;
+  crmCompany?: { id: string; name: string | null } | null;
+  messageCount?: number;
+  firstMessageAt?: string | null;
 }
 
 export interface CreateTelegramBotDto {
@@ -347,4 +355,38 @@ export async function saveTelegramCommands(botId: string, commands: TelegramBotC
 
 export async function fetchTelegramLog(botId: string, kind?: string): Promise<Array<{ t: string; k: string; m: string }>> {
   return api.get(`/telegram-crm/bots/${botId}/log`, { params: kind ? { kind } : undefined });
+}
+
+/** Отправить клиенту файл (PDF/Word/Excel/JPEG/PNG, до 50 МБ) в Telegram-диалог. */
+export async function sendTelegramFile(dto: {
+  botId: string;
+  telegramUserId: string;
+  file: File;
+  caption?: string;
+  leadId?: string;
+  contactId?: string;
+}): Promise<TelegramMessage> {
+  const form = new FormData();
+  form.append('botId', dto.botId);
+  form.append('telegramUserId', dto.telegramUserId);
+  if (dto.caption) form.append('caption', dto.caption);
+  if (dto.leadId) form.append('leadId', dto.leadId);
+  if (dto.contactId) form.append('contactId', dto.contactId);
+  form.append('file', dto.file);
+  return api.postForm<TelegramMessage>('/telegram-crm/send-file', form);
+}
+
+/** Файл сообщения как blob-URL (прокси через API с токеном бота). Вызывающий освобождает URL. */
+export async function fetchTelegramAttachmentUrl(messageId: string, index = 0): Promise<string> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/telegram-crm/messages/${messageId}/attachment?index=${index}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
+/** Создать лид из диалога (или вернуть уже привязанный). */
+export async function createLeadFromTelegramContact(contactId: string): Promise<{ leadId: string }> {
+  return api.post<{ leadId: string }>(`/telegram-crm/contacts/${contactId}/create-lead`);
 }

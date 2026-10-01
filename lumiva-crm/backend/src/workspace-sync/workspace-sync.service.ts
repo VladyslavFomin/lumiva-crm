@@ -1,3 +1,4 @@
+import { MarketingRoiService } from '../marketing/marketing-roi.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CustomObjectsService } from '../custom-objects/custom-objects.service';
@@ -12,7 +13,7 @@ import { IntegrationsService } from '../integrations/integrations.service';
  * источников; каждая строка, записанная источником, помечена record.meta.syncSourceId, поэтому
  * пересборка одного источника не трогает строки других и ручные строки.
  */
-export type SyncSourceKind = 'marketing_monthly' | 'marketing_rows' | 'integration_import';
+export type SyncSourceKind = 'marketing_monthly' | 'marketing_rows' | 'integration_import' | 'marketing_roi';
 
 export type SyncSchedule = { type: 'nightly' } | { type: 'interval'; everyMinutes: number };
 
@@ -94,6 +95,7 @@ export class WorkspaceSyncService {
     private readonly customObjects: CustomObjectsService,
     private readonly marketing: MarketingService,
     private readonly integrations: IntegrationsService,
+    private readonly roi: MarketingRoiService,
   ) {}
 
   /* ───────────────────────── мета: чтение/запись источников ───────────────────────── */
@@ -167,8 +169,14 @@ export class WorkspaceSyncService {
     }
     const existing = getSyncSources(obj.meta);
     const kind = input.kind;
-    if (!['marketing_monthly', 'marketing_rows', 'integration_import'].includes(kind)) {
+    if (!['marketing_monthly', 'marketing_rows', 'integration_import', 'marketing_roi'].includes(kind)) {
       return { ok: false, error: 'invalid_kind' };
+    }
+    if (kind === 'marketing_roi' && existing.length) {
+      return { ok: false, error: 'roi_is_exclusive', hint: 'Таблица «ROI по клиентам» занимает всю таблицу — создай для неё отдельную таблицу.' };
+    }
+    if (existing.some((s) => s.kind === 'marketing_roi')) {
+      return { ok: false, error: 'table_has_roi_source', hint: 'В этой таблице уже есть источник «ROI по клиентам» — он не сочетается с другими источниками.' };
     }
     if (kind === 'marketing_monthly' && existing.length) {
       return { ok: false, error: 'monthly_is_exclusive', hint: 'Таблица «расходы по месяцам» (строка × колонка-месяц) занимает всю таблицу — её нельзя смешивать с другими источниками. Создай для неё отдельную таблицу.' };
@@ -357,6 +365,8 @@ export class WorkspaceSyncService {
         return this.runMarketingRows(tenantId, objectId, source, multi);
       case 'integration_import':
         return this.runIntegrationImport(tenantId, objectId, source);
+      case 'marketing_roi':
+        return this.runRoi(tenantId, objectId, source);
       default:
         return { ok: false, error: 'unknown_kind' };
     }
@@ -382,6 +392,83 @@ export class WorkspaceSyncService {
     }
   }
 
+  /* --- marketing_roi: «ROI по клиентам» (строка = клиент × месяц) --- */
+
+  private roiColumns(): Array<{ key: string; label: string; type: CustomObjectFieldType }> {
+    return [
+      { key: 'client', label: 'Клиент', type: 'text' },
+      { key: 'month', label: 'Месяц', type: 'date' },
+      { key: 'spend', label: 'Расход', type: 'number' },
+      { key: 'revenue', label: 'Выручка', type: 'number' },
+      { key: 'roi', label: 'ROI, %', type: 'number' },
+      { key: 'roas', label: 'ROAS', type: 'number' },
+      { key: 'conversions', label: 'Конверсии', type: 'number' },
+      { key: 'cpa', label: 'CPA', type: 'number' },
+      { key: 'cpc', label: 'CPC', type: 'number' },
+      { key: 'clicks', label: 'Клики', type: 'number' },
+      { key: 'revenue_manual', label: 'Выручка: ввод/импорт', type: 'number' },
+      { key: 'revenue_ads', label: 'Выручка: конверсии площадок', type: 'number' },
+      { key: 'revenue_ga4', label: 'Выручка: сайт (GA4)', type: 'number' },
+      { key: 'revenue_crm', label: 'Выручка: продажи CRM', type: 'number' },
+      { key: 'currency', label: 'Валюта', type: 'text' },
+    ];
+  }
+
+  private async runRoi(tenantId: string, objectId: string, source: SyncSource): Promise<RefreshOutcome> {
+    const p = source.params || {};
+    // Без явного периода — скользящие последние N месяцев (по умолчанию 12) до текущего.
+    const monthsBack = Math.min(Math.max(Number(p.monthsBack) || 12, 1), 36);
+    const now = new Date();
+    const toMonth = p.toMonth ? String(p.toMonth) : now.toISOString().slice(0, 7);
+    const fromMonth = p.fromMonth
+      ? String(p.fromMonth)
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (monthsBack - 1), 1)).toISOString().slice(0, 7);
+    const sources = (Array.isArray(p.sources) && p.sources.length ? p.sources : ['manual', 'ads', 'ga4', 'crm']) as any[];
+    const report = await this.roi.getRoi(tenantId, {
+      fromMonth,
+      toMonth,
+      displayCurrency: p.displayCurrency ? String(p.displayCurrency) : undefined,
+      sources,
+    });
+    const rows = [...report.clients, ...(report.unassigned ? [report.unassigned] : [])];
+    const records: Array<{ values: Record<string, unknown> }> = [];
+    for (const c of rows) {
+      for (const month of report.months) {
+        const m = c.months[month];
+        if (!m || (!m.spend && !m.revenue)) continue;
+        records.push({
+          values: {
+            client: c.name ?? 'Без клиента',
+            month: `${month}-01`,
+            spend: m.spend,
+            revenue: m.revenue,
+            roi: m.roi,
+            roas: m.roas,
+            conversions: m.conversions,
+            cpa: m.cpa,
+            cpc: m.cpc,
+            clicks: m.clicks,
+            revenue_manual: m.revenueBySource.manual ?? 0,
+            revenue_ads: m.revenueBySource.ads ?? 0,
+            revenue_ga4: m.revenueBySource.ga4 ?? 0,
+            revenue_crm: m.revenueBySource.crm ?? 0,
+            currency: report.displayCurrency,
+          },
+        });
+      }
+    }
+    if (!records.length) {
+      return { ok: false, error: 'no_rows', payload: { hint: 'Нет расходов и выручки за период — привяжите кабинеты к компаниям на странице «ROI по клиентам».' } };
+    }
+    await this.ensureFields(tenantId, objectId, this.roiColumns());
+    const res = await this.customObjects.replaceSyncedRecords(tenantId, objectId, source.id, records);
+    return {
+      ok: true,
+      recordCount: res.created,
+      extra: { months: report.months.length, clients: report.clients.length, currency: report.displayCurrency },
+    };
+  }
+
   /* --- marketing_rows: строки marketing_traffic (несколько провайдеров) --- */
 
   marketingRowsColumns(grain: 'daily' | 'campaign' | 'channel', withSourceLabel: boolean) {
@@ -389,6 +476,7 @@ export class WorkspaceSyncService {
     if (grain === 'daily') cols.push({ key: 'date', label: 'Дата', type: 'date' });
     cols.push(
       { key: 'provider', label: 'Провайдер', type: 'text' },
+      { key: 'account', label: 'Кабинет', type: 'text' },
       { key: 'source', label: 'Источник', type: 'text' },
       { key: 'medium', label: 'Канал', type: 'text' },
     );
@@ -442,12 +530,18 @@ export class WorkspaceSyncService {
     const columns = this.marketingRowsColumns(p.grain, multi);
     await this.ensureFields(tenantId, objectId, columns);
     const label = this.describeRowsSource(source);
+    const accountLabels = await this.marketing.getMarketingDataSourceLabels(tenantId).catch(() => ({} as Record<string, string>));
     const records = rows.map((r) => {
       const code = (r.currency || 'EUR').toUpperCase().slice(0, 3);
       const m = mult && display && code !== display ? mult[code] : undefined;
       const conv = (v: number) => (m != null && Number.isFinite(m) ? Math.round(v * m * 100) / 100 : v);
       const values: Record<string, unknown> = {
-        provider: providerLabel(r.dataSource),
+        // «Google Ads · Kremlin Palace 2026» вместо «Google Ads · 8009704244» — по номеру аккаунта
+        // в графиках никто не поймёт, какой это кабинет; без известного имени — как раньше.
+        provider: accountLabels[r.dataSource]
+          ? `${providerLabel(r.dataSource).split(' · ')[0]} · ${accountLabels[r.dataSource]}`
+          : providerLabel(r.dataSource),
+        account: accountLabels[r.dataSource] || (r.dataSource.includes('_') ? providerLabel(r.dataSource).split(' · ')[1] ?? '' : ''),
         source: r.source,
         medium: r.medium,
         sessions: r.sessions,
@@ -470,7 +564,15 @@ export class WorkspaceSyncService {
     return {
       ok: true,
       recordCount: res.created,
-      extra: { skippedRows: res.skipped || undefined, truncated: truncated || undefined },
+      extra: {
+        skippedRows: res.skipped || undefined,
+        truncated: truncated || undefined,
+        ...(truncated
+          ? {
+              truncatedHint: `Выгружено только ${res.created} строк — упёрлись в лимит, остальные данные в таблицу НЕ попали. Обязательно скажи об этом пользователю и предложи: grain "campaign" (итог по кампаниям), более короткий период или меньше провайдеров.`,
+            }
+          : {}),
+      },
     };
   }
 

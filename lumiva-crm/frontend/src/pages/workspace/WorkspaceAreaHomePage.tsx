@@ -9,6 +9,8 @@ import {
   fetchCustomObjectFields,
   fetchAllCustomObjectRecords,
   fetchCustomObjectRecordsPage,
+  getSyncSourcesFromMeta,
+  type SyncSourceDto,
   type CustomObject,
   type CustomObjectField,
 } from '../../api/customObjects';
@@ -238,6 +240,23 @@ export const WorkspaceAreaHomePage: React.FC = () => {
     () => readWorkspaceIntegrationBindings(area?.meta),
     [area?.meta],
   );
+  const tableSyncSources = useMemo(
+    () => objects.flatMap((object) =>
+      getSyncSourcesFromMeta(object.meta)
+        .filter((source) => source.autoRefresh || source.lastRefreshStatus === 'running' || source.lastRefreshStatus === 'ok')
+        .map((source) => ({ object, source })),
+    ),
+    [objects],
+  );
+  const syncSourceLabel = (source: SyncSourceDto) => {
+    if (source.label) return source.label;
+    const via = String(source.params?.via || '');
+    if (via === 'marketing_ga4' || String(source.params?.dataSource || '').startsWith('ga4')) return 'Google Analytics 4';
+    if (via === 'marketing_meta_ads') return 'Meta Ads';
+    if (via === 'hub_woo') return 'WooCommerce';
+    if (source.kind === 'marketing_monthly') return 'Маркетинговые расходы';
+    return 'Источник данных';
+  };
   const dataObjects = useMemo(
     () => objects.filter((o) => getWorkspaceTableKind(o.meta) === 'data'),
     [objects],
@@ -432,7 +451,7 @@ export const WorkspaceAreaHomePage: React.FC = () => {
             <div className="ws-lane-head">
               <span className="n">01</span>
               <span className="t">{t('crm.workspace.area.mapSources')}</span>
-              <span className="c">{bindings.length}</span>
+              <span className="c">{bindings.length + tableSyncSources.length}</span>
             </div>
             <div className="ws-lane-body">
               {bindings.map((b) => {
@@ -454,6 +473,21 @@ export const WorkspaceAreaHomePage: React.FC = () => {
                   </button>
                 );
               })}
+              {tableSyncSources.map(({ object, source }) => (
+                <button
+                  key={`sync-${object.id}-${source.id}`}
+                  type="button"
+                  className={nodeClass(`sync-source:${object.id}-${source.id}`)}
+                  onClick={() => openTable(object)}
+                >
+                  <span className="ico"><SourceIcon catalogKey="google_analytics" className="!h-[13px] !w-[13px]" /></span>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span className="nm">{syncSourceLabel(source)}</span>
+                    <span className="sub">{object.name}</span>
+                  </span>
+                  <span className={`st${source.lastRefreshStatus === 'error' ? ' warn' : ''}`} />
+                </button>
+              ))}
               <button type="button" className="ws-node add" onClick={() => setIntegrationsOpen(true)}>
                 <NavIconPlus className="!h-3.5 !w-3.5" /> {t('crm.workspace.area.mapAddSource')}
               </button>
@@ -704,7 +738,7 @@ export const WorkspaceAreaHomePage: React.FC = () => {
         {tab === 'sources' && (
           <div>
             <div className="ws-panel">
-              {bindings.length === 0 && (
+              {bindings.length === 0 && tableSyncSources.length === 0 && (
                 <div className="ws-row" style={{ gridTemplateColumns: '1fr' }}>
                   <span className="ws-note">{t('crm.workspace.area.sourcesEmpty')}</span>
                 </div>
@@ -736,6 +770,25 @@ export const WorkspaceAreaHomePage: React.FC = () => {
                   </div>
                 );
               })}
+              {tableSyncSources.map(({ object, source }) => (
+                <div className="ws-row" key={`sync-row-${object.id}-${source.id}`}>
+                  <div className="ws-cellmain">
+                    <span className="ico"><SourceIcon catalogKey="google_analytics" className="!h-[14px] !w-[14px]" /></span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="nm">{syncSourceLabel(source)}</span>
+                      <div className="sub">{t('crm.workspace.area.sourceTarget', { name: object.name })}</div>
+                    </span>
+                  </div>
+                  <span className={`ws-badge ${source.lastRefreshStatus === 'error' ? 'warn' : 'ok'}`}>
+                    <span className="d" />
+                    {source.lastRefreshStatus === 'error'
+                      ? t('crm.workspace.area.sourceNotConnected')
+                      : t('crm.workspace.area.sourceConnected')}
+                  </span>
+                  <span className="ws-v mono">{source.autoRefresh ? 'auto' : 'off'}</span>
+                  <div className="ws-acts" />
+                </div>
+              ))}
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" className="btn btn-sm" onClick={() => setIntegrationsOpen(true)}>

@@ -52,6 +52,10 @@ type ThirdPartyConfig = {
   provider?: 'openai' | 'anthropic';
   /** WhatsApp Cloud: verify_token для подтверждения вебхука в Meta */
   webhookVerifyToken?: string;
+  /** WhatsApp Cloud: App Secret приложения Meta — проверка подписи входящих вебхуков */
+  appSecret?: string;
+  /** WhatsApp Cloud: ID аккаунта WhatsApp Business — для автоподписки приложения на вебхуки */
+  wabaId?: string;
   /** amoCRM: опциональный секрет для входящего вебхука (?secret= или X-Lumiva-Secret) */
   amoWebhookSecret?: string;
   /** Bitrix24: опциональный секрет для входящего вебхука (?secret=) */
@@ -517,7 +521,20 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
           };
         }
         try {
-          await this.whatsappCloud.verifyPhoneNumberAccess(phoneNumberId, token);
+          const phone = await this.whatsappCloud.verifyPhoneNumberAccess(phoneNumberId, token);
+          const wabaId = typeof cfg.wabaId === 'string' ? cfg.wabaId.trim() : '';
+          let subscribeHint = ' Укажите «ID аккаунта WhatsApp Business» — тогда CRM сама подпишет приложение на входящие сообщения.';
+          if (wabaId) {
+            try {
+              await this.whatsappCloud.subscribeAppToWaba(wabaId, token);
+              subscribeHint = ' Приложение подписано на сообщения аккаунта WhatsApp Business.';
+            } catch (e) {
+              subscribeHint = ` Не удалось подписать приложение на аккаунт ${wabaId}: ${(e as Error).message}`;
+            }
+          }
+          const phoneHint = phone.displayPhoneNumber
+            ? ` Номер ${phone.displayPhoneNumber}${phone.status ? ` (${phone.status})` : ''}.`
+            : '';
           const verifyTok =
             typeof cfg.webhookVerifyToken === 'string' ? cfg.webhookVerifyToken.trim() : '';
           const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
@@ -528,12 +545,19 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
           const verifyHint = verifyTok
             ? ''
             : ' Добавьте «Verify token» при редактировании подключения — без него Meta не подтвердит вебхук.';
+          const secretHint =
+            typeof cfg.appSecret === 'string' && cfg.appSecret.trim()
+              ? ''
+              : ' Добавьте «App Secret» приложения Meta — без него входящие сообщения не принимаются (защита от поддельных запросов).';
           return {
             ok: true,
             message:
               'WhatsApp: токен и Phone number ID проверены через Graph API.' +
+              phoneHint +
+              subscribeHint +
               hookHint +
-              verifyHint,
+              verifyHint +
+              secretHint,
           };
         } catch (e) {
           return { ok: false, message: (e as Error).message };

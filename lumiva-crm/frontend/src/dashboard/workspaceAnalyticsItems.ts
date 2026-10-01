@@ -8,6 +8,7 @@ import {
 } from '../api/customObjects';
 import type { Project } from '../pages/projects/projectTypes';
 import { getWorkspaceTableKind } from '../workspace/workspaceTableKind';
+import { loadWorkspaceRecordsCached } from '../workspace/workspaceRecordsCache';
 
 const keyIncludes = (field: CustomObjectField, query: string) =>
   field.key.toLowerCase().includes(query) || field.label.toLowerCase().includes(query);
@@ -111,11 +112,14 @@ export async function loadWorkspaceAnalyticsItems(
   ]);
   const object = loadedObjects.find((item) => item.id === objectId);
   const enrich = getWorkspaceTableKind(object?.meta as Record<string, unknown> | null) === 'board';
-  const loadedRecords = await fetchCustomObjectRecords(objectId, undefined, {
-    enrichColumnBindings: enrich,
-  });
+  // Обычные таблицы — одним компактным запросом с кэшем по версии (см. workspaceRecordsCache).
+  // «Доски» со связанными колонками считаются на сервере по ДРУГИМ таблицам — их версия
+  // не отражает изменений в источниках, поэтому для них прежняя загрузка без кэша.
+  const loadedRecords = enrich
+    ? (await fetchCustomObjectRecords(objectId, undefined, { enrichColumnBindings: true })).items
+    : await loadWorkspaceRecordsCached(objectId);
   return {
-    items: mapWorkspaceRecordsToItems(loadedRecords.items, loadedFields),
+    items: mapWorkspaceRecordsToItems(loadedRecords, loadedFields),
     fields: loadedFields,
   };
 }

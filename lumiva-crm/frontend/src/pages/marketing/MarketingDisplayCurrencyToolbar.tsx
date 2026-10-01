@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchMarketingFxRates } from '../../api/marketing';
+import { fetchMarketingFxRates, type MarketingFxRatesResponse } from '../../api/marketing';
 import { resolveDefaultDisplayCurrency } from '../../dashboard/dashboardFx';
 import {
   MARKETING_ALLOWED_CURRENCIES,
@@ -9,6 +9,7 @@ import {
   loadMarketingDisplayCurrency,
   normalizeMarketingDisplayCurrency,
   saveMarketingDisplayCurrency,
+  saveMarketingDisplayCurrency as saveMarketingDisplayCurrencyToStorage,
 } from './marketingDisplayCurrencyStorage';
 import {
   marketingChipActive,
@@ -22,10 +23,29 @@ const btnPrimary =
 const btnGhost =
   'rounded-xl border border-[#222222]/14 bg-white px-3 py-2 text-[11px] font-medium text-[#222222] hover:bg-slate-50';
 
-export function useMarketingDisplayCurrencyPrefs(_currenciesPresent: string[]) {
-  const [state, setStateInternal] = useState<MarketingDisplayCurrencyState>(() =>
-    loadMarketingDisplayCurrency(),
-  );
+export type MarketingDisplayCurrencyPrefsOptions = {
+  /** Свой источник курсов (публичные ссылки — без авторизации). */
+  fetchRates?: (display: string) => Promise<MarketingFxRatesResponse>;
+  /** Валюта по умолчанию вместо запроса настроек компании (для анонимного зрителя). */
+  defaultCurrency?: string | null;
+  /** false — не читать/не писать настройку зрителя в localStorage. */
+  persist?: boolean;
+};
+
+export function useMarketingDisplayCurrencyPrefs(
+  _currenciesPresent: string[],
+  options?: MarketingDisplayCurrencyPrefsOptions,
+) {
+  const persist = options?.persist !== false;
+  const fetchRates = options?.fetchRates ?? fetchMarketingFxRates;
+  const fetchRatesRef = useRef(fetchRates);
+  fetchRatesRef.current = fetchRates;
+  const saveMarketingDisplayCurrency = persist ? saveMarketingDisplayCurrencyToStorage : () => {};
+  const [state, setStateInternal] = useState<MarketingDisplayCurrencyState>(() => {
+    if (persist) return loadMarketingDisplayCurrency();
+    const cur = normalizeMarketingDisplayCurrency(options?.defaultCurrency || 'EUR');
+    return { currencyMode: 'converted', displayCurrency: cur, rates: { [cur]: 1 } };
+  });
 
   useEffect(() => {
     setStateInternal((prev) => ({
@@ -36,6 +56,7 @@ export function useMarketingDisplayCurrencyPrefs(_currenciesPresent: string[]) {
 
   // Пока «Валюту отчёта» никто не выбирал — по умолчанию основная валюта компании, а не EUR.
   useEffect(() => {
+    if (!persist) return;
     let cancelled = false;
     resolveDefaultDisplayCurrency().then((cur) => {
       if (cancelled || !cur) return;
@@ -53,7 +74,7 @@ export function useMarketingDisplayCurrencyPrefs(_currenciesPresent: string[]) {
   useEffect(() => {
     if (state.currencyMode !== 'converted') return;
     let cancelled = false;
-    fetchMarketingFxRates(state.displayCurrency)
+    fetchRatesRef.current(state.displayCurrency)
       .then((fx) => {
         if (cancelled) return;
         setStateInternal((prev) => {

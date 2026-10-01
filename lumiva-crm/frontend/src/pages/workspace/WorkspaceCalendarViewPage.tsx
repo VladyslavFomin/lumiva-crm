@@ -15,7 +15,7 @@ import {
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
-import { dayKeysFromStartEndStrings, toLocalDateKey } from '../../utils/calendarLocalDates';
+import { dayKeysFromStartEndStrings, parseToLocalYMD, toLocalDateKey } from '../../utils/calendarLocalDates';
 
 export const WorkspaceCalendarViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -30,6 +30,9 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [anchorDate, setAnchorDate] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
+  const [dateFieldKey, setDateFieldKey] = useState('');
+  const [visibleFieldKeys, setVisibleFieldKeys] = useState<string[]>([]);
+  const [showTime, setShowTime] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [newRecordName, setNewRecordName] = useState('');
   const [creatingRecord, setCreatingRecord] = useState(false);
@@ -69,6 +72,10 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
         .map((field) => field.key),
     [fields],
   );
+  const activeDateFieldKeys = useMemo(
+    () => (dateFieldKey && customDateFieldKeys.includes(dateFieldKey) ? [dateFieldKey] : customDateFieldKeys),
+    [customDateFieldKeys, dateFieldKey],
+  );
   const resolveSystemValue = (record: CustomObjectRecord, key: string) => {
     if (key === '$record.id') return record.id;
     if (key === '$record.externalId') return record.externalId || '';
@@ -89,15 +96,15 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
     String(record.values?.name || record.values?.title || record.id);
   /** Ключи дней (локальные YYYY-MM-DD), в которые попадает запись. */
   const pickDayKeysForRecord = (record: CustomObjectRecord): string[] => {
-    if (customDateFieldKeys.length >= 2) {
-      const startRaw = resolveFieldText(record, customDateFieldKeys[0]);
-      const endRaw = resolveFieldText(record, customDateFieldKeys[1]);
+    if (activeDateFieldKeys.length >= 2) {
+      const startRaw = resolveFieldText(record, activeDateFieldKeys[0]);
+      const endRaw = resolveFieldText(record, activeDateFieldKeys[1]);
       if (startRaw || endRaw) {
         return dayKeysFromStartEndStrings(startRaw || endRaw, endRaw || startRaw);
       }
     }
-    if (customDateFieldKeys.length === 1) {
-      const startRaw = resolveFieldText(record, customDateFieldKeys[0]);
+    if (activeDateFieldKeys.length === 1) {
+      const startRaw = resolveFieldText(record, activeDateFieldKeys[0]);
       if (startRaw) {
         return dayKeysFromStartEndStrings(startRaw, null);
       }
@@ -113,6 +120,40 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
+
+  const displayFields = useMemo(
+    () => fields.filter((field) => !activeDateFieldKeys.includes(field.key) && field.key !== cardTitleField),
+    [fields, activeDateFieldKeys, cardTitleField],
+  );
+  const selectedDisplayFields = useMemo(
+    () => displayFields.filter((field) => visibleFieldKeys.includes(field.key)).slice(0, 4),
+    [displayFields, visibleFieldKeys],
+  );
+  const formatDateValue = (raw: unknown, includeTime = false) => {
+    const value = String(raw ?? '').trim();
+    if (!value) return '';
+    const parsed = parseToLocalYMD(value);
+    if (!parsed) return value;
+    const dateLabel = new Date(parsed.y, parsed.m - 1, parsed.d).toLocaleDateString(undefined, {
+      day: 'numeric', month: 'short', year: 'numeric',
+    });
+    if (!includeTime || !value.includes('T')) return dateLabel;
+    const time = value.match(/T(\d{2}):(\d{2})/);
+    if (!time || (time[1] === '00' && time[2] === '00')) return dateLabel;
+    return `${dateLabel}, ${time[1]}:${time[2]}`;
+  };
+  const formatRecordDate = (record: CustomObjectRecord) => {
+    const key = activeDateFieldKeys[0];
+    return key ? formatDateValue(record.values?.[key], showTime) : formatDateValue(record.createdAt, showTime);
+  };
+
+  const upcomingRecords = useMemo(
+    () => [...records]
+      .filter((record) => pickDayKeysForRecord(record).length > 0)
+      .sort((a, b) => formatRecordDate(a).localeCompare(formatRecordDate(b)))
+      .slice(0, 12),
+    [records, activeDateFieldKeys, showTime],
+  );
 
   const refreshAiField = async (record: CustomObjectRecord, field: CustomObjectField) => {
     const key = `${record.id}:${field.key}`;
@@ -151,7 +192,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
       });
       return acc;
     }, {});
-  }, [records, search, cardTitleField, customDateFieldKeys]);
+  }, [records, search, cardTitleField, activeDateFieldKeys]);
 
   const monthLabel = useMemo(
     () => anchorDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
@@ -192,6 +233,16 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
 
   const hasItems = records.length > 0;
 
+  const weekdayLabels = [
+    t('crm.calendar.weekdays.mon'),
+    t('crm.calendar.weekdays.tue'),
+    t('crm.calendar.weekdays.wed'),
+    t('crm.calendar.weekdays.thu'),
+    t('crm.calendar.weekdays.fri'),
+    t('crm.calendar.weekdays.sat'),
+    t('crm.calendar.weekdays.sun'),
+  ];
+
   const createRecord = async () => {
     const name = newRecordName.trim();
     if (!name || creatingRecord) return;
@@ -210,11 +261,14 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="max-w-[120rem] mx-auto space-y-4">
+      <div className="w-full pb-8 min-w-0 space-y-5">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">{t('crm.workspace.calendar.title')}</h1>
+          <div className="text-xs text-slate-500 mt-1">{t('crm.workspace.calendar.subtitle')}</div>
+        </div>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.calendar.title')}</h1>
-            <p className="text-sm text-slate-500">{t('crm.workspace.calendar.subtitle')}</p>
+            <WorkspaceViewTabs objectId={objectId} active="calendar" />
           </div>
           <button
             type="button"
@@ -224,8 +278,6 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
             + {t('crm.workspace.common.newRecord')}
           </button>
         </div>
-        <WorkspaceViewTabs objectId={objectId} active="calendar" />
-
         {showNewModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/30" onClick={() => setShowNewModal(false)} />
@@ -259,7 +311,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
             </div>
           </div>
         )}
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="text-sm text-slate-600">{monthLabel}</div>
             <div className="flex flex-wrap items-center gap-2">
@@ -320,7 +372,49 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
               placeholder={t('crm.workspace.calendar.searchEvents')}
               className="w-full md:w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            {customDateFieldKeys.length > 0 && (
+              <select
+                value={dateFieldKey}
+                onChange={(e) => setDateFieldKey(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                aria-label={t('crm.workspace.calendar.dateField')}
+              >
+                <option value="">{t('crm.workspace.calendar.dateFieldAuto')}</option>
+                {fields.filter((field) => customDateFieldKeys.includes(field.key)).map((field) => (
+                  <option key={field.key} value={field.key}>{field.label}</option>
+                ))}
+              </select>
+            )}
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-400">
+              <input
+                type="checkbox"
+                checked={showTime}
+                onChange={(e) => setShowTime(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-lumiva-accent accent-lumiva-accent focus:ring-2 focus:ring-lumiva-accent/30"
+              />
+              {t('crm.workspace.calendar.showTime')}
+            </label>
           </div>
+          {displayFields.length > 0 && (
+            <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                {t('crm.workspace.calendar.displayColumns')}
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {displayFields.map((field) => (
+                  <label key={field.key} className="inline-flex items-center gap-2 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={visibleFieldKeys.includes(field.key)}
+                      onChange={(e) => setVisibleFieldKeys((prev) => e.target.checked ? [...prev, field.key] : prev.filter((key) => key !== field.key))}
+                      className="h-4 w-4 rounded border-slate-300 text-lumiva-accent accent-lumiva-accent focus:ring-2 focus:ring-lumiva-accent/30"
+                    />
+                    {field.label}
+                  </label>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
 
         {loading ? (
@@ -330,7 +424,11 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
             {t('crm.workspace.calendar.noDatedRecords')}
           </div>
         ) : viewMode === 'month' ? (
-          <div className="grid grid-cols-7 gap-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+            <div className="grid grid-cols-7 gap-2 text-[11px] text-slate-500 mb-2">
+              {weekdayLabels.map((day) => <div key={day} className="px-2 py-1">{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
             {monthDays.map((d) => {
               const dayItems = grouped[d.iso] || [];
               return (
@@ -352,6 +450,11 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
                         className="w-full text-left text-[11px] rounded-md bg-slate-100 text-lumiva-accent px-1.5 py-0.5 truncate hover:bg-slate-200/80 transition-colors"
                       >
                         {resolveEventTitle(rec)}
+                        {showTime && formatRecordDate(rec) && <span className="ml-1 text-slate-500">{formatRecordDate(rec)}</span>}
+                        {selectedDisplayFields.map((field) => {
+                          const value = renderRecordValue(rec.values?.[field.key]);
+                          return value !== '—' ? <span key={field.key} className="block truncate text-slate-500">{field.label}: {value}</span> : null;
+                        })}
                       </button>
                     ))}
                     {dayItems.length > 3 && (
@@ -363,9 +466,11 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
                 </div>
               );
             })}
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
             {weekDays.map((d) => {
               const dayItems = grouped[d.iso] || [];
               return (
@@ -382,6 +487,11 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
                       className="w-full text-left rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs hover:bg-slate-100 transition-colors"
                     >
                       {resolveEventTitle(rec)}
+                      {showTime && formatRecordDate(rec) && <span className="block text-slate-500">{formatRecordDate(rec)}</span>}
+                      {selectedDisplayFields.map((field) => {
+                        const value = renderRecordValue(rec.values?.[field.key]);
+                        return value !== '—' ? <span key={field.key} className="block truncate text-slate-500">{field.label}: {value}</span> : null;
+                      })}
                     </button>
                   ))}
                   {dayItems.length === 0 && (
@@ -391,8 +501,44 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
               </div>
             );
             })}
+            </div>
           </div>
         )}
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+          <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('crm.workspace.calendar.upcomingTitle')}</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-[600px] w-full text-xs">
+              <thead className="text-slate-500">
+                <tr>
+                  <th className="text-left px-2 py-1">{t('crm.workspace.calendar.upcomingDate')}</th>
+                  <th className="text-left px-2 py-1">{t('crm.workspace.calendar.upcomingRecord')}</th>
+                  {selectedDisplayFields.map((field) => (
+                    <th key={field.key} className="text-left px-2 py-1">{field.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingRecords.map((record) => (
+                  <tr key={record.id} className="border-t border-slate-200">
+                    <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{formatRecordDate(record)}</td>
+                    <td className="px-2 py-1.5">
+                      <button type="button" onClick={() => setActiveRecord(record)} className="text-sky-600 hover:text-sky-700 hover:underline">
+                        {resolveEventTitle(record)}
+                      </button>
+                    </td>
+                    {selectedDisplayFields.map((field) => (
+                      <td key={field.key} className="px-2 py-1.5 text-slate-600">{renderRecordValue(record.values?.[field.key])}</td>
+                    ))}
+                  </tr>
+                ))}
+                {!upcomingRecords.length && !loading && (
+                  <tr><td colSpan={2 + selectedDisplayFields.length} className="px-2 py-3 text-center text-slate-500">{t('crm.workspace.calendar.upcomingEmpty')}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {activeRecord && (
           <div className="fixed inset-0 z-40">
@@ -415,7 +561,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
                   <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
                     {t('crm.workspace.common.created')}
                   </div>
-                  <div className="text-sm text-slate-800">{new Date(activeRecord.createdAt).toLocaleString()}</div>
+                  <div className="text-sm text-slate-800">{formatRecordDate(activeRecord)}</div>
                 </div>
                 {fields.map((field) => (
                   <div key={`calendar-field-${field.id}`} className="rounded-lg border border-slate-200 px-3 py-2">

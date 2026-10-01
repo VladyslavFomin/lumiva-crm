@@ -63,6 +63,8 @@ export class WhatsappMessage {
     id?: string; // media id из Meta (нужен отдельный GET /{media-id} для скачивания, не публичный URL)
     mimeType?: string;
     caption?: string;
+    fileName?: string;
+    fileSize?: number;
   }> | null;
 
   // ==== СВЯЗЬ С КОНТАКТАМИ/КОМПАНИЯМИ ====

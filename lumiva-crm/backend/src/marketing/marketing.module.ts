@@ -1,3 +1,6 @@
+import { MarketingRoiService } from './marketing-roi.service';
+import { MarketingAccountClient } from './marketing-account-client.entity';
+import { ClientRevenueMonthly } from './client-revenue-monthly.entity';
 // src/marketing/marketing.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -41,6 +44,8 @@ import { LeadsModule } from '../leads/leads.module';
   imports: [
     TypeOrmModule.forFeature([
       MarketingTraffic,
+        MarketingAccountClient,
+        ClientRevenueMonthly,
         MarketingUtmTemplate,
         MarketingUtmLink,
         MarketingOauthToken,
@@ -67,7 +72,7 @@ import { LeadsModule } from '../leads/leads.module';
     forwardRef(() => LeadsModule),
   ],
   controllers: [MarketingController],
-  providers: [MarketingService, MetaAdsOauthService, IntegrationTokenExpiryScheduler, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
-  exports: [MarketingService],
+  providers: [MarketingService, MarketingRoiService, MetaAdsOauthService, IntegrationTokenExpiryScheduler, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
+  exports: [MarketingService, MarketingRoiService],
 })
 export class MarketingModule {}

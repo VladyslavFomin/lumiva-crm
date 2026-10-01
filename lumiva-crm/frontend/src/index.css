@@ -420,3 +420,160 @@ select.bg-slate-950 {
   background-size: 11px 11px;
 }
 .lv-checkbox-input:disabled { opacity: .4; cursor: default; }
+
+/* ─── MODERN SELECT DROPDOWN ────────────────────────────────────────────
+   Native <select> popups are drawn by the OS — fine on macOS, very bare on
+   Windows. Where the browser supports customizable selects (Chrome/Edge 135+)
+   every single-value <select> gets a styled, animated popup instead. Other
+   browsers keep the native popup. Touch devices keep the native picker. */
+@supports (appearance: base-select) {
+  @media (hover: hover) and (pointer: fine) {
+    select:not([multiple]):not([size]:not([size="1"])),
+    select:not([multiple]):not([size]:not([size="1"]))::picker(select) {
+      appearance: base-select !important;
+    }
+
+    select:not([multiple]):not([size]:not([size="1"])) {
+      white-space: nowrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Selects that draw their own chevron (or intentionally none) */
+    select.appearance-none::picker-icon,
+    select[style*="appearance: none"]::picker-icon,
+    select.base-select::picker-icon,
+    select.ai-select::picker-icon,
+    select.e2-sel::picker-icon,
+    select.pd-select::picker-icon,
+    select.sl-sel::picker-icon,
+    select.em-in::picker-icon,
+    select.sd-field::picker-icon,
+    select.cfg-select::picker-icon,
+    .sd-stsel select::picker-icon,
+    .in-acc-sel select::picker-icon,
+    .sl-cur select::picker-icon,
+    .lv-tb-select select::picker-icon,
+    .lv-task-cell select::picker-icon,
+    select.lv-task-cell-select::picker-icon {
+      display: none;
+    }
+
+    select::picker-icon {
+      content: '';
+      width: 10px;
+      height: 10px;
+      margin-inline-start: auto;
+      flex-shrink: 0;
+      background: currentColor;
+      opacity: .55;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+      transition: rotate .18s ease;
+    }
+    select:open::picker-icon { rotate: 180deg; }
+
+    select::picker(select) {
+      margin: 6px 0;
+      padding: 5px;
+      min-inline-size: max(anchor-size(self-inline), 140px);
+      max-block-size: min(340px, 60vh);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border: 1px solid rgba(15, 23, 42, .08);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow:
+        0 1px 2px rgba(15, 23, 42, .04),
+        0 8px 24px -4px rgba(15, 23, 42, .12),
+        0 20px 48px -12px rgba(15, 23, 42, .16);
+      color: #111827;
+      font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: normal;
+      text-transform: none;
+      text-align: start;
+      position-try-fallbacks: flip-block;
+      scrollbar-width: thin;
+      scrollbar-color: #d4d7de transparent;
+
+      opacity: 0;
+      transform: translateY(-4px) scale(.98);
+      transition:
+        opacity .16s ease,
+        transform .18s cubic-bezier(.2, .8, .2, 1),
+        overlay .18s allow-discrete,
+        display .18s allow-discrete;
+    }
+    select:open::picker(select) {
+      opacity: 1;
+      transform: none;
+    }
+    @starting-style {
+      select:open::picker(select) {
+        opacity: 0;
+        transform: translateY(-4px) scale(.98);
+      }
+    }
+
+    select option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 32px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: transparent;
+      color: #111827;
+      font: inherit;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background-color .1s ease;
+    }
+    select option:hover,
+    select option:focus-visible {
+      background: #f3f4f6;
+      outline: none;
+    }
+    select option:checked {
+      background: #f1f2f6;
+      font-weight: 500;
+    }
+    select option:checked:hover { background: #e9ebf0; }
+    select option:disabled {
+      color: #9ca3af;
+      cursor: default;
+      background: transparent;
+    }
+    select option::checkmark {
+      order: 1;
+      margin-inline-start: auto;
+      content: '';
+      width: 14px;
+      height: 14px;
+      background: #111827;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    select optgroup {
+      padding: 4px 0 0;
+      font: inherit;
+    }
+    select optgroup + optgroup {
+      margin-top: 4px;
+      border-top: 1px solid #eef0f3;
+    }
+    select optgroup::before,
+    select legend {
+      display: block;
+      padding: 6px 10px 4px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+  }
+}

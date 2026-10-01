@@ -37,6 +37,7 @@ import {
 import { saleStorefrontProductName } from '../../utils/saleOrderDisplay';
 import { LottieIcon } from '../../components/LottieIcon';
 import { Ic, SL_ICON } from './SalesIcons';
+import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../components/ui/DateRangePicker';
 import './sales-design.css';
 
 const cxs = (...a: Array<string | false | undefined | null>) => a.filter(Boolean).join(' ');
@@ -62,7 +63,7 @@ type SalesListResponse = {
   pageSize: number;
 };
 
-type PeriodKey = '7' | '14' | '30' | 'all';
+type PeriodKey = '7' | '14' | '30' | '90' | 'all' | 'custom';
 
 const UUID_LIKE =
   /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -154,18 +155,13 @@ export const SalesPage: React.FC = () => {
   );
 
   const [channels, setChannels] = useState<SalesChannel[]>([]);
-  const [period, setPeriod] = useState<PeriodKey>('7');
+  // Стартовый фильтр ниже — 14 дней (раньше подсвечивалась кнопка «7», хотя грузились 14).
+  const [period, setPeriod] = useState<PeriodKey>('14');
   const [filters, setFilters] = useState<SalesFilters>(() => {
-    const today = new Date();
-    const from = new Date();
-    from.setDate(today.getDate() - 13);
-    const to = today;
-
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
-
+    const { from, to } = lastDays(14);
     return {
-      from: fmt(from),
-      to: fmt(to),
+      from: toIsoDate(from!),
+      to: toIsoDate(to!),
       status: 'all',
       page: 1,
       pageSize: 25,
@@ -286,27 +282,12 @@ export const SalesPage: React.FC = () => {
     return Math.max(1, Math.ceil(list.total / list.pageSize));
   }, [list]);
 
-  const handleQuickRange = (days: 7 | 14 | 30 | 'all') => {
-    setPeriod(String(days) as PeriodKey);
-    const now = new Date();
-
-    if (days === 'all') {
-      setFilters((f: SalesFilters) => ({
-        ...f,
-        from: undefined,
-        to: undefined,
-        page: 1,
-      }));
-      return;
-    }
-
-    const from = new Date();
-    from.setDate(now.getDate() - (days - 1));
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const applyPeriod = (key: PeriodKey, from: Date | null, to: Date | null) => {
+    setPeriod(key);
     setFilters((f: SalesFilters) => ({
       ...f,
-      from: fmt(from),
-      to: fmt(now),
+      from: from ? toIsoDate(from) : undefined,
+      to: to ? toIsoDate(to) : undefined,
       page: 1,
     }));
   };
@@ -799,13 +780,15 @@ export const SalesPage: React.FC = () => {
 
         <div className="sl-filters">
           <span className="sl-fl-l">{t('crm.sales.filters.period')}</span>
-          <div className="sl-seg">
-            {([['7', 7], ['14', 14], ['30', 30], ['all', 'all']] as [PeriodKey, 7 | 14 | 30 | 'all'][]).map(([k, v]) => (
-              <button key={k} className={period === k ? 'on' : ''} onClick={() => handleQuickRange(v)}>
-                {v === 'all' ? t('crm.sales.filters.allTime') : t('crm.sales.filters.lastDays', { count: v })}
-              </button>
-            ))}
-          </div>
+          <DateRangePicker
+            value={{ from: fromIsoDate(filters.from), to: fromIsoDate(filters.to) }}
+            presetId={period}
+            presets={[
+              ...([7, 14, 30, 90] as const).map((n) => ({ id: String(n), label: t(`crm.dateRange.last${n}`), range: lastDays(n) })),
+              { id: 'all', label: t('crm.dateRange.allTime'), range: { from: null, to: null } },
+            ]}
+            onChange={(v) => applyPeriod((v.presetId as PeriodKey) || 'custom', v.from, v.to)}
+          />
           <span className="sl-div" />
           <span className="sl-fl-l">{t('crm.sales.filters.status')}</span>
           <div className="sl-chips">

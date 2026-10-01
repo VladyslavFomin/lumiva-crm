@@ -1,5 +1,6 @@
 // src/whatsapp-crm/whatsapp-crm.service.ts
 import { Injectable, NotFoundException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WhatsappContact } from './whatsapp-contact.entity';
@@ -10,6 +11,10 @@ import { Lead } from '../leads/lead.entity';
 import { LeadsService } from '../leads/leads.service';
 import { NotesService } from '../notes/notes.service';
 import { EntityType, NoteType } from '../notes/dto/create-note.dto';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
+import { normalizeChatFile, type ChatUpload } from '../common/chat-file.util';
+import { enrichChatContacts } from '../common/chat-contact-enrich.util';
 
 export interface InboundWhatsappMessage {
   waMessageId: string;
@@ -40,6 +45,9 @@ export class WhatsappCrmService {
     private readonly leadsService: LeadsService,
     @Inject(forwardRef(() => NotesService))
     private readonly notesService: NotesService,
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   private normalizeDigits(phone: string): string {
@@ -116,6 +124,19 @@ export class WhatsappCrmService {
       await this.contactRepo.save(contact);
     }
 
+    // Входящий файл/фото/голосовое: Meta присылает только media id — сам файл скачивается по запросу
+    // (fetchAttachmentFile), пока ссылка у Meta жива (~30 дней).
+    const rawMedia = msg.type !== 'text' ? (msg.raw as any)?.[msg.type] : null;
+    const inboundMedia = rawMedia?.id
+      ? {
+          type: msg.type,
+          id: String(rawMedia.id),
+          mimeType: rawMedia.mime_type ? String(rawMedia.mime_type) : undefined,
+          fileName: rawMedia.filename ? String(rawMedia.filename) : undefined,
+          caption: rawMedia.caption ? String(rawMedia.caption) : undefined,
+        }
+      : null;
+
     let message: WhatsappMessage;
     try {
       message = await this.messageRepo.save(this.messageRepo.create({
@@ -124,8 +145,9 @@ export class WhatsappCrmService {
         connectionId,
         waMessageId: msg.waMessageId,
         direction: 'incoming',
-        text: msg.type === 'text' ? (msg.text || null) : null,
+        text: msg.type === 'text' ? (msg.text || null) : (inboundMedia?.caption ?? null),
         messageType: msg.type,
+        attachments: inboundMedia?.id ? [inboundMedia] : null,
         date: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date(),
         isRead: false,
         rawData: msg.raw,
@@ -144,7 +166,9 @@ export class WhatsappCrmService {
       msg.displayPhone ? `Линия: ${msg.displayPhone}` : null,
       msg.profileName ? `Имя в WhatsApp: ${msg.profileName}` : null,
       '',
-      msg.type === 'text' ? (msg.text || '(пустое тело)') : `[${msg.type}]`,
+      msg.type === 'text'
+        ? (msg.text || '(пустое тело)')
+        : `[${inboundMedia?.fileName || msg.type}]${inboundMedia?.caption ? ` ${inboundMedia.caption}` : ''}`,
     ].filter((x) => x != null).join('\n');
 
     await this.notesService.create(tenantId, {
@@ -156,16 +180,43 @@ export class WhatsappCrmService {
       metadata: { channel: 'whatsapp_inbound', waMessageId: msg.waMessageId, connectionId, contactId: contact.id },
     }, undefined, 'WhatsApp');
 
+    // Как у Telegram: входящее от клиента будит автоматизации и ответственного ИИ-сотрудника
+    // (AutomationsService → AiEmployeesService.handleAutomationEvent). Сбой здесь не должен терять сообщение.
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.WHATSAPP_MESSAGE_RECEIVED, {
+        entityType: 'whatsapp_message',
+        entityId: message.id,
+        message,
+        contact,
+        connectionId,
+        leadId: lead.id,
+      });
+    } catch (e) {
+      this.log.warn(`WhatsApp automation trigger failed: ${(e as Error).message}`);
+    }
+
+    // ИИ-консультант (тот же, что в онлайн-чате сайта) — если у него включён канал WhatsApp.
+    // Лениво: online-chat-ai.service транзитивно импортирует этот файл (цикл при статическом импорте).
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { OnlineChatAiService } = require('../online-chat/online-chat-ai.service');
+      this.moduleRef.get(OnlineChatAiService, { strict: false }).onWhatsappMessage(tenantId, contact.id);
+    } catch (e) {
+      this.log.warn(`WhatsApp consultant hook failed: ${(e as Error).message}`);
+    }
+
     return message;
   }
 
   async findContacts(
     tenantId: string,
-    options?: { search?: string; connectionId?: string },
-  ): Promise<Array<WhatsappContact & { lastMessage: WhatsappMessage | null; unreadCount: number }>> {
+    options?: { search?: string; connectionId?: string; leadId?: string },
+  ): Promise<Array<WhatsappContact & { lastMessage: WhatsappMessage | null; unreadCount: number } & Record<string, unknown>>> {
     const qb = this.contactRepo.createQueryBuilder('contact')
       .where('contact.tenantId = :tenantId', { tenantId });
     if (options?.connectionId) qb.andWhere('contact.connectionId = :connectionId', { connectionId: options.connectionId });
+    // Карточка лида: переписка WhatsApp этого лида (как у Telegram-блока)
+    if (options?.leadId) qb.andWhere('contact.leadId = :leadId', { leadId: options.leadId });
     if (options?.search) {
       qb.andWhere(
         '(contact.waProfileName ILIKE :s OR contact.waPhoneDigits ILIKE :s)',
@@ -196,7 +247,7 @@ export class WhatsappCrmService {
       .getRawMany<{ contactId: string; count: string }>();
     const unreadByContact = new Map(unreadRows.map((r) => [r.contactId, parseInt(r.count, 10)]));
 
-    return contacts
+    const rows = contacts
       .map((c) => ({
         ...c,
         lastMessage: lastByContact.get(c.id) ?? null,
@@ -207,6 +258,7 @@ export class WhatsappCrmService {
         const bd = b.lastMessage ? new Date(b.lastMessage.date).getTime() : new Date(b.createdAt).getTime();
         return bd - ad;
       });
+    return enrichChatContacts(this.contactRepo.manager, tenantId, rows, 'whatsapp_messages');
   }
 
   async findMessages(
@@ -272,6 +324,7 @@ export class WhatsappCrmService {
     connectionId: string,
     contactId: string,
     text: string,
+    opts?: { source?: 'ai'; agentId?: string },
   ): Promise<WhatsappMessage> {
     const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
     if (!contact) throw new NotFoundException('WhatsApp contact not found');
@@ -299,6 +352,92 @@ export class WhatsappCrmService {
       linkedCompanyId: contact.companyId || null,
       date: new Date(),
       isRead: true,
+      // Ответ ИИ помечаем: так консультант отличает «человек уже ответил» от своих ответов, а чат CRM — бейдж «ИИ-ответ»
+      rawData: opts?.source ? { source: opts.source, agentId: opts.agentId ?? null } : null,
     }));
+  }
+
+  /** Отправить клиенту файл (PDF/Word/Excel/JPEG/PNG) в существующий диалог. */
+  async sendFile(
+    tenantId: string,
+    connectionId: string,
+    contactId: string,
+    upload: ChatUpload | undefined,
+    caption?: string,
+  ): Promise<WhatsappMessage> {
+    const file = normalizeChatFile(upload);
+    const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
+    if (!contact) throw new NotFoundException('WhatsApp contact not found');
+    const { phoneNumberId, accessToken } = await this.getCredentials(tenantId, connectionId);
+    // Картинки у WhatsApp — до 5 МБ; крупнее отправляем документом, чтобы не получить отказ Meta
+    const kind = file.kind === 'image' && file.size <= 5 * 1024 * 1024 ? 'image' : 'document';
+    const text = (caption || '').trim();
+    let mediaId: string;
+    let messageId: string | undefined;
+    try {
+      mediaId = await this.whatsappCloud.uploadMedia({ phoneNumberId, accessToken, buffer: file.buffer, mime: file.mime, fileName: file.fileName });
+      ({ messageId } = await this.whatsappCloud.sendMediaMessage({
+        phoneNumberId, accessToken, to: contact.waPhoneDigits, kind, mediaId, fileName: file.fileName, caption: text || undefined,
+      }));
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    if (contact.connectionId !== connectionId) {
+      contact.connectionId = connectionId;
+      await this.contactRepo.save(contact);
+    }
+    return this.messageRepo.save(this.messageRepo.create({
+      tenantId,
+      contactId: contact.id,
+      connectionId,
+      waMessageId: messageId || null,
+      direction: 'outgoing',
+      text: text || null,
+      messageType: kind,
+      attachments: [{ type: kind, id: mediaId, mimeType: file.mime, fileName: file.fileName, fileSize: file.size, caption: text || undefined }],
+      linkedLeadId: contact.leadId || null,
+      linkedContactId: contact.contactId || null,
+      linkedCompanyId: contact.companyId || null,
+      date: new Date(),
+      isRead: true,
+    }));
+  }
+
+  /** Файл сообщения (входящего или отправленного) — через Meta по media id, с токеном подключения. */
+  async fetchAttachmentFile(
+    tenantId: string,
+    messageId: string,
+    index = 0,
+  ): Promise<{ buffer: Buffer; contentType: string; fileName: string | null }> {
+    const message = await this.messageRepo.findOne({ where: { id: messageId, tenantId } });
+    const att = message?.attachments?.[index];
+    if (!message || !att?.id) throw new NotFoundException('Attachment not found');
+    if (!message.connectionId) throw new BadRequestException('No WhatsApp connection for this message');
+    const { accessToken } = await this.getCredentials(tenantId, message.connectionId);
+    try {
+      const { buffer, contentType } = await this.whatsappCloud.downloadMedia(att.id, accessToken);
+      return { buffer, contentType: att.mimeType || contentType, fileName: att.fileName || null };
+    } catch (e) {
+      throw new BadRequestException(`Файл больше недоступен у Meta: ${(e as Error).message}`);
+    }
+  }
+
+  /** «Создать лид» из диалога: новый лид с источником whatsapp, диалог и его сообщения привязываются к нему. */
+  async createLeadForContact(tenantId: string, contactId: string): Promise<{ leadId: string }> {
+    const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
+    if (!contact) throw new NotFoundException('Contact not found');
+    if (contact.leadId) return { leadId: contact.leadId };
+    const phone = `+${contact.waPhoneDigits}`;
+    const lead = await this.leadsService.createForTenant(tenantId, {
+      name: contact.waProfileName || `WhatsApp +${contact.waPhoneDigits}`,
+      ...(phone ? { phone } : {}),
+      source: 'whatsapp',
+      status: 'new',
+      meta: { whatsappPhoneDigits: contact.waPhoneDigits, whatsappConnectionId: contact.connectionId || null },
+    } as any);
+    contact.leadId = lead.id;
+    await this.contactRepo.save(contact);
+    await this.messageRepo.update({ tenantId, contactId: contact.id }, { linkedLeadId: lead.id });
+    return { leadId: lead.id };
   }
 }

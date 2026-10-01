@@ -614,3 +614,53 @@ export async function deleteLeadAccessGrant(grantId: string): Promise<void> {
   await api.delete(`/leads/access-grants/${grantId}`);
 }
 
+
+// ===== Итоги лидов по менеджерам (/leads/roi) =====
+
+export interface ManagerRoiCell {
+  leads: number;
+  won: number;
+  lost: number;
+  revenue: number;
+  deals: number;
+  repeatRevenue: number;
+  repeatDeals: number;
+}
+
+export interface ManagerRoiRow {
+  key: string;
+  userId: string | null;
+  name: string | null;
+  department: string | null;
+  avatarUrl: string | null;
+  inactive: boolean;
+  months: Record<string, ManagerRoiCell>;
+  topLeads: Array<{ leadId: string; name: string | null; status: string | null; revenue: number; deals: number; repeatDeals: number }>;
+  leadsWithRevenue: number;
+  repeatLeads: number;
+  total: ManagerRoiCell;
+}
+
+export interface ManagerRoiReport {
+  fromMonth: string;
+  toMonth: string;
+  months: string[];
+  source: LeadRoiMode;
+  displayCurrency: string;
+  fxAsOf: string | null;
+  missingRates: string[];
+  managers: ManagerRoiRow[];
+  total: ManagerRoiCell;
+  repeatLeads: number;
+  leadsWithRevenue: number;
+}
+
+export async function fetchManagerRoi(params: {
+  from: string; // YYYY-MM
+  to: string; // YYYY-MM
+  source: LeadRoiMode;
+  currency: string;
+}): Promise<ManagerRoiReport> {
+  const qs = new URLSearchParams(params as Record<string, string>).toString();
+  return api.get<ManagerRoiReport>(`/leads/roi/managers?${qs}`);
+}

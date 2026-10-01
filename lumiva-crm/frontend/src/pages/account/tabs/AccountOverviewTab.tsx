@@ -9,6 +9,7 @@ import {
   type AccountSession,
   type SecurityLogItem,
 } from '../../../api/account';
+import { useScrollAfterRows } from '../useScrollAfterRows';
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '—';
@@ -28,12 +29,15 @@ const LINKS: Array<{ t: string; d: string; href: string }> = [
   { t: 'Отделы', d: 'Структура компании', href: '/app/departments' },
 ];
 
+const SESSIONS_VISIBLE = 6;
+
 export const AccountOverviewTab: React.FC = () => {
   const navigate = useNavigate();
   const [me, setMe] = useState<MeDto | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
   const [log, setLog] = useState<SecurityLogItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const sessionsScroll = useScrollAfterRows(SESSIONS_VISIBLE, sessions);
 
   useEffect(() => {
     fetchMe().then(setMe).catch((e) => setErr(e?.message || 'Не удалось загрузить профиль'));
@@ -130,10 +134,16 @@ export const AccountOverviewTab: React.FC = () => {
           <div className="acc-card-head">
             <div>
               <h3>Активные сессии</h3>
-              <div className="sub">Устройства с доступом к аккаунту.</div>
+              <div className="sub">
+                Устройства с доступом к аккаунту{sessions.length > 0 ? ` · ${sessions.length}` : ''}.
+              </div>
             </div>
           </div>
-          <div className="acc-body tight">
+          <div
+            ref={sessionsScroll.ref}
+            className="acc-body tight acc-sessions-list"
+            style={sessionsScroll.style}
+          >
             {sessions.length === 0 ? (
               <div className="acc-log-empty">Загрузка…</div>
             ) : (

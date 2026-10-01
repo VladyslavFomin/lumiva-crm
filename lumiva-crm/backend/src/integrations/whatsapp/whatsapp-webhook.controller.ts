@@ -4,10 +4,14 @@ import {
   Controller,
   Get,
   Header,
+  Headers,
+  HttpCode,
   Logger,
   Param,
   Post,
   Query,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { WhatsappWebhookService } from './whatsapp-webhook.service';
@@ -38,10 +42,17 @@ export class WhatsappWebhookController {
   }
 
   @Post(':connectionId')
+  @HttpCode(200) // Meta ждёт именно 200 OK
   async receive(
     @Param('connectionId') connectionId: string,
     @Body() body: unknown,
+    @Req() req: { rawBody?: Buffer },
+    @Headers('x-hub-signature-256') signature: string | undefined,
   ): Promise<{ ok: true }> {
+    if (!(await this.svc.verifySignature(connectionId, req.rawBody, signature))) {
+      this.log.warn(`WhatsApp webhook ${connectionId}: invalid or missing X-Hub-Signature-256, ignored`);
+      throw new UnauthorizedException('Invalid signature');
+    }
     // Fire-and-forget (как у Telegram-вебхука) — раньше ждали полную обработку (запись в БД +
     // создание лида + заметка) перед ответом. Meta ретраит вебхук при медленном/неудачном
     // ответе, а неуникальный check-then-insert по waMessageId/waPhoneDigits именно в этом окне

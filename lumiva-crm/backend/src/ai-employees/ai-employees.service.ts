@@ -26,6 +26,8 @@ import { HelpdeskTicket } from '../helpdesk/helpdesk-ticket.entity';
 import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
 import { TelegramContact } from '../telegram-crm/telegram-contact.entity';
 import { TelegramMessage } from '../telegram-crm/telegram-message.entity';
+import { WhatsappContact } from '../whatsapp-crm/whatsapp-contact.entity';
+import { WhatsappMessage } from '../whatsapp-crm/whatsapp-message.entity';
 import { EmailMessage } from '../email/email-message.entity';
 import { AiAgentAssignment } from './ai-agent-assignment.entity';
 import { AiKnowledgeItem } from './ai-knowledge-item.entity';
@@ -59,6 +61,7 @@ import { TenantLogsService } from '../tenants/tenant-logs.service';
 import { ANTI_INJECTION_PREAMBLE, scanForInjectionAttempt, safeExcerpt } from '../common/ai-security-guard.util';
 import { EmailService } from '../email/email.service';
 import { TelegramCrmService } from '../telegram-crm/telegram-crm.service';
+import { WhatsappCrmService } from '../whatsapp-crm/whatsapp-crm.service';
 import { LeadsService } from '../leads/leads.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { AiAgent } from './ai-agent.entity';
@@ -170,6 +173,7 @@ const ACTION_PERMISSION: Record<string, string> = {
   send_bulk_email: 'send_bulk_email',
   draft_whatsapp: 'draft_whatsapp',
   send_telegram: 'send_telegram',
+  send_whatsapp: 'send_whatsapp',
   create_meeting: 'create_meeting',
   create_report: 'create_report',
   daily_report: 'create_report',
@@ -224,6 +228,8 @@ const ROLE_SHORT_TITLE_LOCALIZED: Partial<Record<AiEmployeeRoleKey, { ru: string
   smm_manager: { ru: 'SMM-менеджер', tr: 'SMM Yöneticisi' },
   seo_manager: { ru: 'SEO-менеджер', tr: 'SEO Yöneticisi' },
   reviews_manager: { ru: 'Менеджер отзывов', tr: 'Yorum Yöneticisi' },
+  chat_operator: { ru: 'Онлайн-консультант', tr: 'Canlı Sohbet Danışmanı' },
+  messenger_operator: { ru: 'Консультант мессенджеров', tr: 'Mesajlaşma Danışmanı' },
   email_assistant: { ru: 'Email-ассистент', tr: 'E-posta Asistanı' },
   crm_analyst: { ru: 'CRM-аналитик', tr: 'CRM Analisti' },
   reservation_assistant: { ru: 'Ассистент по бронированию', tr: 'Rezervasyon Asistanı' },
@@ -282,6 +288,10 @@ export class AiEmployeesService {
     private readonly telegramContacts: Repository<TelegramContact>,
     @InjectRepository(TelegramMessage)
     private readonly telegramMessages: Repository<TelegramMessage>,
+    @InjectRepository(WhatsappContact)
+    private readonly whatsappContacts: Repository<WhatsappContact>,
+    @InjectRepository(WhatsappMessage)
+    private readonly whatsappMessages: Repository<WhatsappMessage>,
     @InjectRepository(EmailMessage)
     private readonly emailMessages: Repository<EmailMessage>,
     @InjectRepository(AiAgentAssignment)
@@ -308,6 +318,8 @@ export class AiEmployeesService {
     private readonly emailService: EmailService,
     @Inject(forwardRef(() => TelegramCrmService))
     private readonly telegramCrm: TelegramCrmService,
+    @Inject(forwardRef(() => WhatsappCrmService))
+    private readonly whatsappCrm: WhatsappCrmService,
     @Inject(forwardRef(() => LeadsService))
     private readonly leadsService: LeadsService,
     @Inject(forwardRef(() => IntegrationsService))
@@ -1030,13 +1042,15 @@ export class AiEmployeesService {
         this.ensureRoleDefaultPermissions(tenantId, agent),
         this.loadApprovalRules(agent.id, tenantId),
         this.statsForAgents(tenantId, [agent.id]),
+        // Служебные строки «Проактивный цикл» не показываем: созданные в цикле действия и так
+        // видны отдельными записями, а сами строки забивали все 10 мест журнала.
         this.actions.find({
-          where: { tenantId, agentId: agent.id },
+          where: { tenantId, agentId: agent.id, actionType: Not('proactive_cycle') },
           order: { createdAt: 'DESC' },
           take: 10,
         }),
         this.logs.find({
-          where: { tenantId, agentId: agent.id },
+          where: { tenantId, agentId: agent.id, eventType: Not('proactive_cycle_idle') },
           order: { createdAt: 'DESC' },
           take: 10,
         }),
@@ -1366,7 +1380,7 @@ export class AiEmployeesService {
     if (Object.prototype.hasOwnProperty.call(rules, actionType)) {
       return rules[actionType] === true;
     }
-    return ['send_email', 'send_telegram', 'update_lead_status', 'assign_lead'].includes(
+    return ['send_email', 'send_telegram', 'send_whatsapp', 'update_lead_status', 'assign_lead'].includes(
       actionType,
     );
   }
@@ -1393,6 +1407,61 @@ export class AiEmployeesService {
     return String(v ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   }
 
+  /** Проект «SEO · сайт» для SEO-задачи: сайт ищется по упоминанию в тексте задачи (alivip.site,
+   * «Lumiva Agency»…); если сайт у тенанта один — он. Не понять, о каком сайте, — null. */
+  private async seoTaskProjectFor(tenantId: string, text: string): Promise<string | null> {
+    const sites = await this.seoAgents.find({ where: { tenantId } });
+    if (!sites.length) return null;
+    const hay = ` ${this.normTitle(text)} `;
+    const matched = sites.filter((site) => {
+      const host = String(site.siteHost || '').toLowerCase().replace(/^www\./, '');
+      const name = host.split('.')[0];
+      return (
+        hay.includes(` ${this.normTitle(host)} `) || (name.length >= 4 && hay.includes(` ${name} `))
+      );
+    });
+    const site = matched.length === 1 ? matched[0] : sites.length === 1 ? sites[0] : null;
+    if (!site) return null;
+    try {
+      // Импорт лениво: seo-ai-signals.service сам импортирует AiEmployeesService — статический импорт
+      // здесь давал цикл и SeoAiSignalsService не собирался при старте (API падал).
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { SeoAiSignalsService } = require('../seo-ai/seo-ai-signals.service');
+      return await this.moduleRef.get(SeoAiSignalsService, { strict: false }).ensureProject(site);
+    } catch (e) {
+      this.log.warn(`SEO task project resolve failed: ${(e as Error).message}`);
+      return null;
+    }
+  }
+
+  /** Ведёт ли канал ИИ-консультант мессенджеров (роль messenger_operator, канал включён в его настройках). */
+  async messengerChannelActive(tenantId: string, channel: 'whatsapp' | 'telegram'): Promise<boolean> {
+    const agents = await this.agents.find({ where: { tenantId, role: 'messenger_operator' as any, status: 'active' as any } });
+    return agents.some((a) => a.autonomyMode !== 'suggest' && (a.settings as any)?.messenger?.channels?.[channel]?.enabled === true);
+  }
+
+  /** «Та же задача другими словами»: сравнение по грубым основам слов (первые 5 букв — хватает для
+   * падежей/окончаний ru/tr, предлоги ≤2 букв отброшены). Дубль — если все слова одного названия
+   * входят в другое («…код CSS» ⊂ «…код CSS на сайте») или совпадает ≥85% слов обоих. */
+  private similarTitles(a: unknown, b: unknown): boolean {
+    const stems = (v: unknown) =>
+      new Set(
+        // «мета-описание» = «метаописание»
+        this.normTitle(String(v ?? '').replace(/(\p{L})-(\p{L})/gu, '$1$2'))
+          .split(' ')
+          .filter((w) => w.length >= 3)
+          .map((w) => w.slice(0, 5)),
+      );
+    const x = stems(a);
+    const y = stems(b);
+    if (!x.size || !y.size) return false;
+    let common = 0;
+    x.forEach((w) => y.has(w) && common++);
+    const minSize = Math.min(x.size, y.size);
+    if (minSize >= 2 && common === minSize) return true;
+    return common / (x.size + y.size - common) >= 0.85;
+  }
+
   /** Защита от шума и заведомо бракованных вызовов: возвращает причину блокировки или null. */
   private async preflightBlockReason(
     tenantId: string,
@@ -1400,7 +1469,7 @@ export class AiEmployeesService {
     actionType: string,
     draft: ActionDraft,
     opts?: { hasTask?: boolean },
-  ): Promise<{ ru: string; en: string; tr: string } | null> {
+  ): Promise<{ ru: string; en: string; tr: string; quiet?: boolean } | null> {
     const p = (draft.payload || {}) as Record<string, any>;
     if (actionType === 'update_task' && !String(p.taskId ?? '').trim()) {
       return {
@@ -1409,26 +1478,53 @@ export class AiEmployeesService {
         tr: 'Eylem reddedildi: update_task için taskId yok',
       };
     }
+    // Диалоги канала ведёт ИИ-консультант мессенджеров — остальные сотрудники анализируют переписку,
+    // но клиенту в этот мессенджер не пишут, иначе клиент получит два ответа подряд.
+    const msgChannel = actionType === 'send_whatsapp' ? 'whatsapp' : actionType === 'send_telegram' ? 'telegram' : null;
+    if (msgChannel && !opts?.hasTask && agent.role !== 'messenger_operator' && (await this.messengerChannelActive(tenantId, msgChannel))) {
+      return {
+        quiet: true,
+        ru: 'Ответ клиенту пропущен: диалоги этого мессенджера ведёт ИИ-консультант',
+        en: 'Client reply skipped: this messenger is handled by the AI messenger consultant',
+        tr: 'Müşteri yanıtı atlandı: bu mesajlaşma kanalını YZ danışmanı yürütüyor',
+      };
+    }
     const since = (ms: number) => new Date(Date.now() - ms);
     if (['create_task', 'create_note', 'add_comment', 'handoff_to_colleague'].includes(actionType)) {
       const wanted = this.normTitle(p.title ?? draft.title ?? p.text ?? p.content ?? p.task);
       if (wanted) {
+        // Раньше: точное совпадение названия за 24ч. На проде этого не хватало — Sam AI каждые
+        // 30 минут заново предлагал те же SEO-задачи слегка другими словами («…главную страницу» /
+        // «…страницы»), а через сутки окно истекало и задача создавалась снова (5 копий за неделю).
+        // Теперь: нечёткое сравнение по основам слов, окно 7 дней для задач, плюс сверка с уже
+        // открытыми задачами самого проекта (кем бы они ни были созданы).
+        const windowMs = actionType === 'create_task' ? 7 * 24 * 3600_000 : 24 * 3600_000;
         const recent = await this.actions.find({
-          where: { tenantId, agentId: agent.id, actionType, createdAt: MoreThan(since(24 * 3600_000)) } as any,
+          where: { tenantId, agentId: agent.id, actionType, createdAt: MoreThan(since(windowMs)) } as any,
           order: { createdAt: 'DESC' },
-          take: 60,
+          take: 150,
         });
-        const dup = recent.some(
+        let dup = recent.some(
           (a) =>
             !['failed', 'rejected'].includes(a.status) &&
             (a.targetId || '') === (draft.targetId || '') &&
-            this.normTitle((a.payload as any)?.title ?? a.title ?? (a.payload as any)?.text) === wanted,
+            (actionType === 'create_task'
+              ? this.similarTitles((a.payload as any)?.title ?? a.title, wanted)
+              : this.normTitle((a.payload as any)?.title ?? a.title ?? (a.payload as any)?.text) === wanted),
         );
+        const projectId = String(p.projectId ?? (draft.targetType === 'project' ? draft.targetId : '') ?? '');
+        if (!dup && actionType === 'create_task' && projectId) {
+          const project = await this.projects.findOne({ where: { tenantId, id: projectId }, select: ['id', 'tasks'] as any });
+          dup = (project?.tasks || []).some(
+            (t: any) => !/^(done|готово|выполнено)$/i.test(String(t?.status ?? '')) && this.similarTitles(t?.title, wanted),
+          );
+        }
         if (dup) {
           return {
-            ru: `Действие пропущено как дубль: «${String(draft.title ?? p.title ?? '').slice(0, 80)}» уже создавалось за последние сутки`,
-            en: `Action skipped as a duplicate: "${String(draft.title ?? p.title ?? '').slice(0, 80)}" was already created in the last 24h`,
-            tr: 'Eylem tekrar olduğu için atlandı: son 24 saatte zaten oluşturuldu',
+            quiet: true,
+            ru: `Действие пропущено как дубль: «${String(draft.title ?? p.title ?? '').slice(0, 80)}» уже есть`,
+            en: `Action skipped as a duplicate: "${String(draft.title ?? p.title ?? '').slice(0, 80)}" already exists`,
+            tr: 'Eylem tekrar olduğu için atlandı: zaten mevcut',
           };
         }
       }
@@ -1521,6 +1617,9 @@ export class AiEmployeesService {
       return null;
     }
     const blockReason = await this.preflightBlockReason(tenantId, agent, actionType, draft, opts);
+    // Дубли пропускаем молча: каждый цикл модель может заново предложить уже сделанное, и запись
+    // «пропущено как дубль» каждые 30 минут сама становилась мусором в журнале (~185 в сутки).
+    if (blockReason?.quiet) return null;
     if (blockReason) {
       await this.logEvent({
         tenantId,
@@ -1755,6 +1854,18 @@ export class AiEmployeesService {
     return this.employeeCompletion(tenantId, null, system, prompt, agent);
   }
 
+  // ───────────── публичные обёртки для OnlineChatAiService (ИИ-онлайн-консультант) ─────────────
+
+  /** Действующие права сотрудника (умолчания роли, обрезанные зоной отдела). */
+  effectivePermissions(tenantId: string, agent: AiAgent) {
+    return this.ensureRoleDefaultPermissions(tenantId, agent);
+  }
+
+  /** Факты из «Базы знаний» под конкретный вопрос (+ всегда включённые пункты). */
+  knowledgeFor(tenantId: string, queryText: string) {
+    return this.knowledgeForPrompt(tenantId, queryText);
+  }
+
   /** Галочки данных аналитика = его read_*-права (в пределах зоны роли). */
   async setReadPermissions(tenantId: string, agent: AiAgent, readKeys: string[]) {
     const role = this.roleForAgent(agent);
@@ -1832,7 +1943,7 @@ export class AiEmployeesService {
 
     const marketingPromise = canReadMarketing
       ? this.marketing
-          .getTrafficChannelsStats(tenantId, undefined, undefined, undefined, 500)
+          .getTrafficChannelsStats(tenantId, undefined, undefined, undefined, 500, undefined, { splitMetaAccounts: true })
           .then((stats) => {
             const dsl = stats.dataSourceLabels ?? {};
             return {
@@ -2211,11 +2322,31 @@ export class AiEmployeesService {
         order: { date: 'DESC' },
         take: 40,
       });
+      // WhatsApp-переписка тем же форматом: contactId нужен для send_whatsapp.
+      const waMsgs = await this.whatsappMessages.find({ where: { tenantId }, order: { date: 'DESC' }, take: 40 });
+      const waIds = [...new Set(waMsgs.map((m) => m.contactId))].slice(0, 8);
+      const waContacts = waIds.length ? await this.whatsappContacts.find({ where: { tenantId, id: In(waIds) } }) : [];
+      const waById = new Map(waContacts.map((c) => [c.id, c]));
+      const whatsapp = waIds.map((cid) => {
+        const c = waById.get(cid);
+        return {
+          contactId: cid,
+          name: c?.waProfileName ?? null,
+          phone: c?.waPhoneDigits ? `+${c.waPhoneDigits}` : null,
+          leadId: c?.leadId ?? null,
+          lastMessages: waMsgs
+            .filter((m) => m.contactId === cid)
+            .slice(0, 3)
+            .reverse()
+            .map((m) => ({ direction: m.direction, text: clip(m.text, 300), date: m.date })),
+        };
+      });
       const contactIds = [...new Set(msgs.map((m) => m.contactId))].slice(0, 8);
-      if (!contactIds.length) return { telegram: [] };
+      if (!contactIds.length) return { telegram: [], whatsapp };
       const contacts = await this.telegramContacts.find({ where: { tenantId, id: In(contactIds) } });
       const byId = new Map(contacts.map((c) => [c.id, c]));
       return {
+        whatsapp,
         telegram: contactIds.map((cid) => {
           const c = byId.get(cid);
           return {
@@ -2294,6 +2425,29 @@ export class AiEmployeesService {
         });
       }
       return out;
+    });
+
+    // ИИ-онлайн-консультант: сводка по чатам сайта за 7 дней и последние диалоги (модуль online-chat)
+    const onlineChatPromise = safe('onlineChat', agent?.role === 'chat_operator', async () => {
+      const q = (sql: string, params: unknown[]) => this.agents.manager.query(sql, params);
+      const [totals] = await q(
+        `SELECT
+           COUNT(DISTINCT s.id)::int AS sessions,
+           COUNT(*) FILTER (WHERE m.sender = 'visitor')::int AS "visitorMessages",
+           COUNT(*) FILTER (WHERE m.sender = 'assistant' AND NOT m."isInternal")::int AS "aiReplies",
+           COUNT(*) FILTER (WHERE m.sender = 'staff' AND NOT m."isInternal")::int AS "staffReplies",
+           COUNT(DISTINCT s."leadId")::int AS leads
+         FROM chat_sessions s LEFT JOIN chat_messages m ON m."sessionId" = s.id
+         WHERE s."tenantId" = $1 AND s."lastMessageAt" > now() - interval '7 days'`,
+        [tenantId],
+      );
+      const recent = await q(
+        `SELECT s."siteHost" AS site, s."visitorName" AS visitor, s."lastMessageAt" AS "lastMessageAt", s."leadId" IS NOT NULL AS "hasLead",
+           (SELECT m.text FROM chat_messages m WHERE m."sessionId" = s.id AND m.sender = 'visitor' ORDER BY m."createdAt" DESC LIMIT 1) AS "lastQuestion"
+         FROM chat_sessions s WHERE s."tenantId" = $1 ORDER BY s."lastMessageAt" DESC NULLS LAST LIMIT 10`,
+        [tenantId],
+      );
+      return { last7days: totals, recent: recent.map((r: any) => ({ ...r, lastQuestion: clip(r.lastQuestion || '', 200) })) };
     });
 
     const reportsPromise = safe('reports', canRead('read_reports') && !!agent, async () => {
@@ -2389,6 +2543,7 @@ export class AiEmployeesService {
       assignmentsBlock,
       seoBlock,
       reviewsBlock,
+      onlineChatBlock,
     ] = await Promise.all([
       canReadLeads
         ? baseLeadsQb.clone().andWhere('l.createdAt > :today', { today }).getCount()
@@ -2459,6 +2614,7 @@ export class AiEmployeesService {
       assignmentsPromise,
       seoPromise,
       reviewsPromise,
+      onlineChatPromise,
     ]);
     return {
       generatedAt: now.toISOString(),
@@ -2503,6 +2659,7 @@ export class AiEmployeesService {
       // только у ИИ SEO-менеджера: последние SEO-отчёты по сайтам (см. seoPromise)
       ...(seoBlock ? { seo: seoBlock } : {}),
       ...(reviewsBlock ? { reviews: reviewsBlock } : {}),
+      ...(onlineChatBlock ? { onlineChat: onlineChatBlock } : {}),
       workspace: {
         tables: workspaceTables,
       },
@@ -3046,7 +3203,7 @@ export class AiEmployeesService {
     actionType: string,
     draft: ActionDraft,
   ): Promise<boolean> {
-    if (actionType !== 'send_email' && actionType !== 'send_telegram') return false;
+    if (actionType !== 'send_email' && actionType !== 'send_telegram' && actionType !== 'send_whatsapp') return false;
     // «Ведёт диалог сам» имеет силу только на уровне автономии «Авто» — на «Помощнике» и так всё
     // согласование (см. createAiAction), на «Режиме предложений» действий не бывает вовсе.
     if (agent.autonomyMode !== 'auto') return false;
@@ -3071,7 +3228,7 @@ export class AiEmployeesService {
     }
     if (!responsible) return false;
     const since = new Date(Date.now() - 3_600_000);
-    const base = { tenantId, agentId: agent.id, actionType: In(['send_email', 'send_telegram']), createdAt: MoreThan(since) };
+    const base = { tenantId, agentId: agent.id, actionType: In(['send_email', 'send_telegram', 'send_whatsapp']), createdAt: MoreThan(since) };
     if ((await this.actions.count({ where: base as any })) >= 30) return false;
     if (draft.targetId && (await this.actions.count({ where: { ...base, targetId: draft.targetId } as any })) >= 6) return false;
     return true;
@@ -3438,11 +3595,33 @@ export class AiEmployeesService {
     return lines.join('\n');
   }
 
+  /** Что сотрудник уже сделал за неделю — без этого проактивный цикл каждые 30 минут заново
+   * «находит» те же проблемы и предлагает те же задачи (реальный кейс: Sam AI и SEO-задачи). */
+  private async recentDoneForPrompt(tenantId: string, agentId: string): Promise<string> {
+    const rows = await this.actions.find({
+      where: { tenantId, agentId, status: 'executed', createdAt: MoreThan(new Date(Date.now() - 7 * 24 * 3_600_000)) },
+      order: { createdAt: 'DESC' },
+      take: 80,
+    });
+    const seen = new Set<string>();
+    const lines: string[] = [];
+    for (const r of rows) {
+      if (['run_now', 'proactive_cycle', 'trigger_run', 'assigned_task'].includes(r.actionType)) continue;
+      const key = `${r.actionType}:${this.normTitle(r.title)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lines.push(`- ${r.createdAt.toISOString().slice(0, 10)} ${r.actionType}: "${String(r.title).slice(0, 120)}"`);
+      if (lines.length >= 30) break;
+    }
+    return lines.join('\n');
+  }
+
   // ───────────────────────── Benefit report ─────────────────────────
 
   /** Условные минуты ручной работы, которые заменяет действие ИИ. Оценка — в интерфейсе подписана как «≈». */
   private static readonly MINUTES_SAVED: Record<string, number> = {
     send_telegram: 3,
+    send_whatsapp: 3,
     send_email: 4,
     send_bulk_email: 25,
     draft_email: 3,
@@ -3525,7 +3704,7 @@ export class AiEmployeesService {
         actionsPending: n(['pending']),
         actionsRejected: rejected,
         approvalRate: decided ? Math.round((approved / decided) * 100) : null,
-        clientMessages: (byType.send_telegram ?? 0) + (byType.send_email ?? 0),
+        clientMessages: (byType.send_telegram ?? 0) + (byType.send_whatsapp ?? 0) + (byType.send_email ?? 0),
         escalations: lc('escalated'),
         slaBreaches: lc('sla_breach'),
         recordsHandled: Number(handled.find((h) => h.agentId === a.id)?.count ?? 0),
@@ -3793,6 +3972,8 @@ export class AiEmployeesService {
     else if (entityType === 'task') assignRef = { entityType: 'company_task', entityId };
     else if (entityType === 'telegram_message' && data.contact?.leadId) {
       assignRef = { entityType: 'lead', entityId: String(data.contact.leadId) };
+    } else if (entityType === 'whatsapp_message' && (data.leadId || data.contact?.leadId)) {
+      assignRef = { entityType: 'lead', entityId: String(data.leadId || data.contact.leadId) };
     } else if (entityType === 'email' && data.leadId) {
       assignRef = { entityType: 'lead', entityId: String(data.leadId) };
     }
@@ -3895,6 +4076,20 @@ export class AiEmployeesService {
 
   private async telegramThread(tenantId: string, contactId: string) {
     const msgs = await this.telegramMessages.find({
+      where: { tenantId, contactId },
+      order: { date: 'DESC' },
+      take: 14,
+    });
+    return msgs.reverse().map((m) => ({
+      direction: m.direction,
+      text: clipText(m.text, 400),
+      date: m.date,
+    }));
+  }
+
+  /** Последние сообщения WhatsApp-диалога (для фокуса запуска по входящему WhatsApp). */
+  private async whatsappThread(tenantId: string, contactId: string) {
+    const msgs = await this.whatsappMessages.find({
       where: { tenantId, contactId },
       order: { date: 'DESC' },
       take: 14,
@@ -4027,6 +4222,26 @@ export class AiEmployeesService {
           const lead = await this.leads.findOne({ where: { tenantId, id: c.leadId } });
           if (lead) record.lead = compactRecord(lead);
         }
+      } else if (ref?.entityType === 'whatsapp_message') {
+        const c = data.contact ?? {};
+        title = c.waProfileName || (c.waPhoneDigits ? `+${c.waPhoneDigits}` : 'WhatsApp');
+        record.incomingMessage = {
+          text: clipText(data.message?.text, 800),
+          date: data.message?.date,
+          messageType: data.message?.messageType,
+        };
+        record.whatsapp = {
+          contactId: c.id,
+          phone: c.waPhoneDigits ? `+${c.waPhoneDigits}` : null,
+          profileName: c.waProfileName ?? null,
+          thread: c.id ? await this.whatsappThread(tenantId, c.id) : [],
+        };
+        const waLeadId = data.leadId || c.leadId;
+        if (waLeadId) {
+          expectedLeadId = String(waLeadId);
+          const lead = await this.leads.findOne({ where: { tenantId, id: String(waLeadId) } });
+          if (lead) record.lead = compactRecord(lead);
+        }
       } else if (ref?.entityType === 'email') {
         // handleAutomationEvent уже проверил, что этому конкретному агенту разрешён именно этот
         // почтовый ящик (emailInboxAccess.accountIds) — сюда доходят только уже допущенные письма.
@@ -4097,8 +4312,15 @@ export class AiEmployeesService {
     if (expectedLeadId) {
       parts.push(
         `IMPORTANT: this run is scoped to lead ${expectedLeadId} (see "lead"/"telegram"/"email" in the record above). ` +
-          'If you call assign_lead, send_telegram, send_email or create_meeting, their leadId/entityId MUST be this exact id — ' +
+          'If you call assign_lead, send_telegram, send_whatsapp, send_email or create_meeting, their leadId/entityId MUST be this exact id — ' +
           'never pick a different lead or a different telegram/email contact from your general snapshot data, even if it looks relevant.',
+      );
+    }
+    if (ref?.entityType === 'whatsapp_message') {
+      parts.push(
+        'This run was woken by an incoming WHATSAPP message (see "incomingMessage"/"whatsapp.thread" in the record above). ' +
+          'Read the whole thread before answering. If you reply, use send_whatsapp with contactId = record.whatsapp.contactId and leadId = the lead above, ' +
+          "in the client's language, short and factual — never a different WhatsApp contact.",
       );
     }
     if (ref?.entityType === 'email') {
@@ -4138,6 +4360,9 @@ export class AiEmployeesService {
     if (['lead', 'project', 'contact', 'company', 'sale'].includes(ref.entityType)) return ref;
     if (ref.entityType === 'telegram_message' && data?.contact?.leadId) {
       return { entityType: 'lead', entityId: String(data.contact.leadId) };
+    }
+    if (ref.entityType === 'whatsapp_message' && (data?.leadId || data?.contact?.leadId)) {
+      return { entityType: 'lead', entityId: String(data.leadId || data.contact.leadId) };
     }
     if (ref.entityType === 'email' && data?.leadId) {
       return { entityType: 'lead', entityId: String(data.leadId) };
@@ -4505,8 +4730,8 @@ ${agentCfg.instructions.trim() ? `Owner's standing instructions:\n${agentCfg.ins
     const timeContext = this.timeContextForPrompt(agentCfg.timezone);
     const dialogueRule =
       agentCfg.clientDialogue === 'auto' && agent.autonomyMode === 'auto'
-        ? "Client dialogue: on records where you are the responsible employee your send_email / send_telegram actions are executed IMMEDIATELY, without asking a human. Write as a careful professional: short, factual, in the client's language, no invented facts; when a decision, discount or exception is needed do not decide yourself: leave an add_comment / create_task for a human. On records where you are not responsible your messages still go to approval."
-        : 'Client dialogue: any message to a client goes through human approval (send_email / send_telegram create an approval item).';
+        ? "Client dialogue: on records where you are the responsible employee your send_email / send_telegram / send_whatsapp actions are executed IMMEDIATELY, without asking a human. Write as a careful professional: short, factual, in the client's language, no invented facts; when a decision, discount or exception is needed do not decide yourself: leave an add_comment / create_task for a human. On records where you are not responsible your messages still go to approval."
+        : 'Client dialogue: any message to a client goes through human approval (send_email / send_telegram / send_whatsapp create an approval item).';
     return `${ANTI_INJECTION_PREAMBLE}
 
 You are an AI Employee inside Lumiva CRM.
@@ -4543,6 +4768,7 @@ CRM actions (only if the matching permission is in "Enabled permissions" below).
 - send_email: payload { accountId (snapshot.channels.emailAccounts[].id), to: ["email"], subject, textBody, leadId?, templateId? } — really sends a client email. If snapshot.channels.emailTemplates has a template that fits the situation (matching name/category/description), PREFER templateId over writing the whole email yourself — it keeps tone/branding consistent with what the team already sends; subject/textBody you also pass are used only as a fallback for whatever the template leaves blank. Only free-write when no template fits. "to" MUST contain exactly ONE address, and leadId MUST be that exact lead — never combine several leads' addresses into one "to" array (they would see each other's email address, and it can't be logged against any one record). Use send_email/draft_email only for ONE specific, named lead the task or event is actually about; when the task means "many leads" or "all leads"/"everyone", use send_bulk_email instead (below) — do not fan it out into several send_email actions yourself.
 - send_bulk_email: payload { accountId, subject, bodyText and/or bodyHtml (or templateId), headline?, targetType: "leads"|"contacts", filterStatus?, filterSource?, filterSearch?, maxRecipients? (default/typical 50-200, cap 500) }. THIS is the tool for "email everyone" / "all leads" / "all contacts matching X" tasks — never try to reach many recipients by looping send_email yourself instead. {{name}} and {{email}} in subject/bodyText/bodyHtml are personalized per recipient automatically; do not personalize with a specific leadId — it targets a whole segment, not one record. ALWAYS requires human approval no matter the autonomy/clientDialogue settings — after proposing it, say the approximate audience size and the filters you used in your reason so the approver can judge it before it goes out.
 - send_telegram: payload { botId, telegramUserId (from snapshot.messages.telegram[]), text, leadId? } — really sends a Telegram message to an existing conversation.
+- send_whatsapp: payload { contactId (WhatsApp contact id: record.whatsapp.contactId or snapshot.messages.whatsapp[].contactId), text, leadId } — really sends a WhatsApp message into an existing conversation. WhatsApp only allows free-form replies within 24 hours after the client's last message; never start a conversation with it.
 - draft_email / draft_whatsapp: payload { to, subject?, text, leadId? } — saved as a draft for a human, NOT sent. Same one-recipient-per-action rule as send_email.
 - create_report: payload { title, contentMd } — saves a report.
 If a data block you need (e.g. snapshot.helpdesk, snapshot.bookings) is absent, the matching read_* permission is off — say so instead of guessing.
@@ -4945,7 +5171,7 @@ Use assigned_tasks in the snapshot when deciding what to process first.\n\n`
         : mode === 'trigger' && focus
           ? `This run was started by a CRM EVENT (not by a schedule). Act like a proactive, experienced team member — not a report generator.
 Autonomy mode: "${agent.autonomyMode}". If suggest: "actions" MUST be [] and you only analyse. Otherwise at most ${proactiveMax || 3} actions, each allowed by enabled permissions (if assisted, they will all wait for human approval regardless).
-Focus on the event record below. Decide what a strong human employee in your role would do right now: assess and prioritise, pick the right manager (assign_lead with a staff id from snapshot.channels.staff), leave a note with your reasoning (create_note), create a concrete follow-up task (create_task), move the status when justified, and — ONLY if you are the responsible employee for this record and the permission is enabled — talk to the client (send_telegram / send_email, or draft_* when unsure).
+Focus on the event record below. Decide what a strong human employee in your role would do right now: assess and prioritise, pick the right manager (assign_lead with a staff id from snapshot.channels.staff), leave a note with your reasoning (create_note), create a concrete follow-up task (create_task), move the status when justified, and — ONLY if you are the responsible employee for this record and the permission is enabled — talk to the client (send_whatsapp / send_telegram / send_email, or draft_* when unsure).
 If you are NOT the responsible employee, never message the client: prefer notes, tasks and assignment.
 Do not repeat something already visible in the record's notes or thread. If nothing useful is needed, return "actions": [].
 "summary" is shown to CRM staff in an activity feed: 1–2 sentences, in your language, saying what you decided/did and why.${
@@ -4963,6 +5189,7 @@ ${focus.text}\n\n`
       const kb = await this.knowledgeForPrompt(tenantId, focus?.kbQuery ?? '');
       const fb = await this.humanFeedbackForPrompt(tenantId, agent.id);
       const pending = await this.pendingProposalsForPrompt(tenantId, agent.id);
+      const done = await this.recentDoneForPrompt(tenantId, agent.id);
       knowledgeBlock =
         (kb
           ? `COMPANY KNOWLEDGE BASE (approved facts — when talking to clients answer ONLY from these and the CRM data; mention the source as [KB: title]; if the answer is not here call escalate_to_human, never invent):\n${kb}\n\n`
@@ -4970,6 +5197,9 @@ ${focus.text}\n\n`
         (fb ? `TEAM FEEDBACK (your recent actions that humans REJECTED — do not repeat them, adapt):\n${fb}\n\n` : '') +
         (pending
           ? `YOUR OWN PENDING PROPOSALS (already sent to the owner, awaiting their approve/reject — do NOT propose the same or a near-duplicate action again while one is still pending; wait for their decision instead):\n${pending}\n\n`
+          : '') +
+        (done
+          ? `ALREADY DONE BY YOU IN THE LAST 7 DAYS (these tasks/notes/reports already exist — do NOT create them again, not even reworded; if nothing new happened since, return an empty actions list):\n${done}\n\n`
           : '');
     } catch (e) {
       this.log.warn(`knowledge/feedback block failed: ${(e as Error).message}`);
@@ -5073,7 +5303,7 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
     // только на текст промпта.
     if (focus?.expectedLeadId) {
       const expected = focus.expectedLeadId;
-      const leadScoped = new Set(['assign_lead', 'send_telegram', 'send_email', 'update_lead_status']);
+      const leadScoped = new Set(['assign_lead', 'send_telegram', 'send_whatsapp', 'send_email', 'update_lead_status']);
       const kept: ActionDraft[] = [];
       for (const draft of draftActions) {
         const payload = (draft.payload || {}) as Record<string, unknown>;
@@ -5238,10 +5468,54 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
       }
     }
 
+    // Куда кладутся задачи. Без фокуса (плановый цикл) у модели нет «своей» записи, и она брала
+    // projectId первого проекта из снапшота — он отсортирован по updatedAt, а каждая новая задача
+    // поднимает проект наверх, так что клиентский «TEST SELECTUM HOTELS» копил SEO-задачи про
+    // Alivip.site и Lumiva Agency. Теперь: SEO-задачи — в проект «SEO · сайт» своего сайта (как у
+    // еженедельного SEO-отчёта), а в чужой проект, за который сотрудник не отвечает, — нельзя.
+    if (!focus) {
+      const kept: ActionDraft[] = [];
+      for (const draft of draftActions) {
+        if (String(draft.actionType) !== 'create_task') {
+          kept.push(draft);
+          continue;
+        }
+        const dp = { ...((draft.payload || {}) as Record<string, any>) };
+        if (agent.role === 'seo_manager') {
+          const projectId = await this.seoTaskProjectFor(tenantId, `${dp.site ?? ''} ${dp.title ?? draft.title ?? ''} ${dp.description ?? ''} ${draft.reason ?? ''}`);
+          if (!projectId) continue; // сайт не понять — не угадываем проект
+          delete dp.leadId;
+          draft.payload = { ...dp, projectId, source: 'seo_ai' };
+          draft.targetType = 'project';
+          draft.targetId = projectId;
+          kept.push(draft);
+          continue;
+        }
+        const projectId = String(dp.projectId ?? (draft.targetType === 'project' ? draft.targetId : '') ?? '');
+        if (projectId && !(await this.assignRepo.findOne({ where: { agentId: agent.id, entityType: 'project', entityId: projectId } }))) {
+          await this.logEvent({
+            tenantId,
+            agentId: agent.id,
+            eventType: 'action_blocked',
+            inputSummary: 'create_task',
+            outputSummary: this.tx(agent, {
+              ru: `Задача «${String(dp.title ?? draft.title ?? '').slice(0, 80)}» не создана: сотрудник не отвечает за этот проект`,
+              en: `Task "${String(dp.title ?? draft.title ?? '').slice(0, 80)}" not created: this employee is not responsible for that project`,
+              tr: `"${String(dp.title ?? draft.title ?? '').slice(0, 80)}" görevi oluşturulmadı: çalışan bu projeden sorumlu değil`,
+            }),
+            status: 'warning',
+          });
+          continue;
+        }
+        kept.push(draft);
+      }
+      draftActions = kept;
+    }
+
     // Сначала письма/сообщения, потом задачи: если сотрудник сам уже отправил клиенту то, о чём
     // собирался поставить задачу («отправить письмо…»), задача сразу создаётся выполненной, а не
     // висит «К выполнению» про уже сделанное.
-    const isSendType = (t: unknown) => t === 'send_email' || t === 'send_telegram';
+    const isSendType = (t: unknown) => t === 'send_email' || t === 'send_telegram' || t === 'send_whatsapp';
     draftActions = [
       ...draftActions.filter((d) => isSendType(d.actionType)),
       ...draftActions.filter((d) => !isSendType(d.actionType)),
@@ -5328,7 +5602,16 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
             : 'trigger_run'
           : usedFallback
             ? 'proactive_cycle_fallback'
-            : 'proactive_cycle';
+            : createdActions.length
+              ? 'proactive_cycle'
+              : 'proactive_cycle_idle';
+
+    // Плановый цикл, в котором ИИ ничего не сделал, — не событие: раньше каждые 30 минут в журнале
+    // появлялась одинаковая карточка «Проактивный цикл: … Плановый проактивный цикл ассистента.».
+    // Служебную строку-действие удаляем, лог оставляем (токены/аудит), но под отдельным типом,
+    // который не попадает ни в ленту, ни в журнал сотрудника.
+    const idleCycle = eventType === 'proactive_cycle_idle';
+    if (idleCycle) await this.actions.delete({ tenantId, id: runAction.id });
 
     if (focus?.taskActionId && !usedFallback && createdActions.length) {
       await this.actions.update(
@@ -5340,7 +5623,7 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
     await this.logEvent({
       tenantId,
       agentId: agent.id,
-      actionId: runAction.id,
+      actionId: idleCycle ? null : runAction.id,
       userId,
       eventType,
       targetType: focus?.entityType ?? null,
@@ -5564,6 +5847,8 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
     }
     if (query?.actionType) {
       qb.andWhere('a.actionType = :actionType', { actionType: query.actionType });
+    } else {
+      qb.andWhere("a.actionType <> 'proactive_cycle'");
     }
     const items = await qb.getMany();
     const agentMap = await this.agentMap(tenantId, items.map((i) => i.agentId));
@@ -6039,6 +6324,7 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
             {
               leadId: p.leadId ? String(p.leadId) : undefined,
               contactId: p.contactId ? String(p.contactId) : undefined,
+              source: 'ai',
             },
           );
         } else if (p.chatId) {
@@ -6046,6 +6332,25 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
         } else {
           throw new BadRequestException('send_telegram: payload.telegramUserId or payload.chatId is required');
         }
+        break;
+      }
+
+      case 'send_whatsapp': {
+        const text = p.text ? String(p.text) : action.reason || action.title;
+        const leadId = p.leadId ? String(p.leadId) : '';
+        // contactId — id WhatsApp-диалога; если модель прислала только leadId, берём диалог этого лида.
+        let contact = p.contactId
+          ? await this.whatsappContacts.findOne({ where: { tenantId, id: String(p.contactId) } })
+          : null;
+        if (!contact && leadId) {
+          contact = await this.whatsappContacts.findOne({ where: { tenantId, leadId }, order: { updatedAt: 'DESC' } });
+        }
+        if (!contact) throw new BadRequestException('send_whatsapp: WhatsApp conversation not found (contactId/leadId)');
+        if (leadId && contact.leadId && contact.leadId !== leadId) {
+          throw new BadRequestException('send_whatsapp: this WhatsApp conversation belongs to a different lead');
+        }
+        if (!contact.connectionId) throw new BadRequestException('send_whatsapp: no WhatsApp connection for this conversation');
+        await this.whatsappCrm.sendMessage(tenantId, contact.connectionId, contact.id, text, { source: 'ai', agentId: action.agentId });
         break;
       }
 
@@ -6202,6 +6507,7 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
     if (query?.agentId) qb.andWhere('l.agentId = :agentId', { agentId: query.agentId });
     if (query?.status) qb.andWhere('l.status = :status', { status: query.status });
     if (query?.eventType) qb.andWhere('l.eventType = :eventType', { eventType: query.eventType });
+    else qb.andWhere("l.eventType <> 'proactive_cycle_idle'");
     const items = await qb.getMany();
     const agentMap = await this.agentMap(
       tenantId,

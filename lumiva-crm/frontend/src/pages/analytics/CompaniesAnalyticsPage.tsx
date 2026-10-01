@@ -8,12 +8,43 @@ import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { fetchAllCompaniesAnalytics, fetchCompanies, type AllCompaniesAnalytics, type Company } from '../../api/companies';
+import { fetchRoiReport, type RoiReport } from '../../api/marketing';
 import { cl, money, Ic, LIC } from '../contacts/CrmListShared';
 import { industryLabel } from '../contacts/CrmFormShared';
 import '../contacts/crm-lists-design.css';
 import './companies-analytics-design.css';
 
-type MetricKey = 'revenue' | 'projects' | 'leads';
+type MetricKey = 'revenue' | 'projects' | 'leads' | 'marketing';
+
+/** Те же источники выручки, что выбраны на странице «Маркетинг → ROI» (RoiPage, LS_SRC). */
+const ROI_SOURCES_LS = 'lumiva_roi_sources_v2';
+const ROI_SOURCE_KEYS = ['manual', 'ads', 'ga4', 'crm'] as const;
+function roiSources(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(ROI_SOURCES_LS) || 'null') as Record<string, boolean> | null;
+    const picked = v ? ROI_SOURCE_KEYS.filter((k) => v[k]) : [];
+    if (picked.length) return picked;
+  } catch {
+    /* ignore */
+  }
+  return [...ROI_SOURCE_KEYS];
+}
+/** Период страницы → диапазон месяцев для ROI (у остальных вкладок период пока не применяется). */
+const PERIOD_MONTHS: Record<string, number> = { month: 1, quarter: 3, halfYear: 6, year: 12, allTime: 36 };
+function monthKey(offset: number): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth() + offset, 1)).toISOString().slice(0, 7);
+}
+
+type MarketingRow = {
+  companyId: string;
+  name: string;
+  industry: string;
+  revenue: number;
+  spend: number;
+  roi: number | null;
+  roas: number | null;
+};
 
 type Row = {
   companyId: string;
@@ -55,6 +86,9 @@ export const CompaniesAnalyticsPage: React.FC = () => {
   const [metric, setMetric] = useState<MetricKey>('revenue');
   const [period, setPeriod] = useState('quarter');
   const [limit, setLimit] = useState(10);
+  const [roi, setRoi] = useState<RoiReport | null>(null);
+  const [roiLoading, setRoiLoading] = useState(false);
+  const [roiError, setRoiError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -81,6 +115,23 @@ export const CompaniesAnalyticsPage: React.FC = () => {
   }, []);
 
   const currency = analytics?.summary.currency || 'EUR';
+
+  // ROI по клиентам грузим только при открытии вкладки «Маркетинг» — это отдельный тяжёлый отчёт.
+  useEffect(() => {
+    if (metric !== 'marketing' || !analytics) return;
+    let alive = true;
+    setRoiLoading(true);
+    setRoiError(null);
+    const n = PERIOD_MONTHS[period] ?? 3;
+    fetchRoiReport({ from: monthKey(-(n - 1)), to: monthKey(0), currency, sources: roiSources() })
+      .then((r) => alive && setRoi(r))
+      .catch((e: any) => alive && setRoiError(e?.message || t('crm.companies.analytics.marketing.loadFailed')))
+      .finally(() => alive && setRoiLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [metric, period, currency, analytics]);
+
   const cur = (v: number) => `${money(Math.round(v))} ${currency}`;
   const pct = (v: number) => (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, '') + '%';
 
@@ -88,6 +139,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
     ['revenue', t('crm.companies.analytics.metrics.revenue'), (v) => cur(v)],
     ['projects', t('crm.companies.analytics.metrics.projects'), (v) => v],
     ['leads', t('crm.companies.analytics.metrics.leads'), (v) => v],
+    ['marketing', t('crm.companies.analytics.metrics.marketing'), (v) => cur(v)],
   ];
 
   const PERIODS: Array<[string, string]> = [
@@ -144,19 +196,42 @@ export const CompaniesAnalyticsPage: React.FC = () => {
   }
 
   const S = analytics.summary;
+
+  const mkRows: MarketingRow[] = (roi?.clients || [])
+    .filter((c) => c.companyId && (c.total.spend > 0 || c.total.revenue > 0))
+    .map((c) => ({
+      companyId: c.companyId!,
+      name: companiesMap[c.companyId!]?.name || c.name || '—',
+      industry: industryLabel(t, companiesMap[c.companyId!]?.industry) || '—',
+      revenue: c.total.revenue,
+      spend: c.total.spend,
+      roi: c.total.roi,
+      roas: c.total.roas,
+    }))
+    .sort((a, b) => b.revenue - a.revenue || b.spend - a.spend);
+  const mkBoard = mkRows.slice(0, limit).map((c, i) => ({ ...c, rank: i + 1 }));
+  const mkMax = Math.max(...mkBoard.map((c) => c.revenue), 1);
+  const mkSpend = mkRows.reduce((s, c) => s + c.spend, 0);
+  const mkRevenue = mkRows.reduce((s, c) => s + c.revenue, 0);
+  const mkRoi = mkSpend > 0 && mkRevenue > 0 ? ((mkRevenue - mkSpend) / mkSpend) * 100 : null;
+  const mkRoas = mkSpend > 0 && mkRevenue > 0 ? mkRevenue / mkSpend : null;
+  const isMk = metric === 'marketing';
   const withRevenue = rows.filter((c) => c.revenue > 0);
   const avgPerCompany = S.totalCompanies ? S.totalRevenue / S.totalCompanies : 0;
   const avgProject = S.totalProjects ? S.totalRevenue / S.totalProjects : 0;
 
-  const sortedByMetric = [...rows].sort((a, b) => b[metric] - a[metric] || b.revenue - a.revenue);
-  const totalOfMetric = rows.reduce((s, c) => s + c[metric], 0) || 1;
+  const rowMetric: Exclude<MetricKey, 'marketing'> = metric === 'marketing' ? 'revenue' : metric;
+  const sortedByMetric = [...rows].sort((a, b) => b[rowMetric] - a[rowMetric] || b.revenue - a.revenue);
+  const totalOfMetric = rows.reduce((s, c) => s + c[rowMetric], 0) || 1;
   let acc = 0;
   const board = sortedByMetric.slice(0, limit).map((c, i) => {
-    acc += c[metric];
-    return { ...c, rank: i + 1, share: (c[metric] / totalOfMetric) * 100, cum: (acc / totalOfMetric) * 100 };
+    acc += c[rowMetric];
+    return { ...c, rank: i + 1, share: (c[rowMetric] / totalOfMetric) * 100, cum: (acc / totalOfMetric) * 100 };
   });
-  const maxOf = board.length ? board[0][metric] || 1 : 1;
+  const maxOf = board.length ? board[0][rowMetric] || 1 : 1;
   const fmt = METRICS.find((m) => m[0] === metric)![2];
+  const roiPct = (v: number | null) => (v == null ? '—' : pct(v));
+  const roasX = (v: number | null) => (v == null ? '—' : `×${(Math.round(v * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}`);
 
   const revSorted = [...rows].sort((a, b) => b.revenue - a.revenue);
   const top3 = revSorted.slice(0, 3).reduce((s, c) => s + c.revenue, 0);
@@ -196,6 +271,21 @@ export const CompaniesAnalyticsPage: React.FC = () => {
   ];
 
   const handleExport = () => {
+    if (isMk) {
+      downloadCsv(`companies-marketing-${Date.now()}.csv`, [
+        [
+          t('crm.companies.analytics.export.rank'),
+          t('crm.companies.analytics.export.company'),
+          t('crm.companies.analytics.export.industry'),
+          t('crm.companies.analytics.marketing.revenue'),
+          t('crm.companies.analytics.marketing.spend'),
+          'ROI',
+          'ROAS',
+        ],
+        ...mkRows.map((c, i) => [String(i + 1), c.name, c.industry, String(c.revenue), String(c.spend), roiPct(c.roi), roasX(c.roas)]),
+      ]);
+      return;
+    }
     const rowsCsv = [
       [
         t('crm.companies.analytics.export.rank'),
@@ -265,9 +355,9 @@ export const CompaniesAnalyticsPage: React.FC = () => {
                 ))}
               </div>
               <div className="sp" />
-              <span className="sub">{t('crm.companies.analytics.board.hint')}</span>
+              <span className="sub">{t(isMk ? 'crm.companies.analytics.marketing.hint' : 'crm.companies.analytics.board.hint')}</span>
               <div className="cl-seg">
-                {[5, 10, rows.length || 10].map((n, i) => (
+                {[5, 10, (isMk ? mkRows.length : rows.length) || 10].map((n, i) => (
                   <button key={i} type="button" className={cl(limit === n && 'on')} onClick={() => setLimit(n)}>
                     {i === 2 ? t('crm.companies.analytics.board.all') : n}
                   </button>
@@ -276,7 +366,70 @@ export const CompaniesAnalyticsPage: React.FC = () => {
             </div>
             <div className="ca-split">
               <div>
-                {board.length === 0 ? (
+                {isMk ? (
+                  roiLoading && !roi ? (
+                    <div className="cl-empty">{t('crm.contacts.list.loading')}</div>
+                  ) : roiError ? (
+                    <div className="cl-empty">
+                      <div className="t">{roiError}</div>
+                    </div>
+                  ) : mkBoard.length === 0 ? (
+                    <div className="cl-empty">
+                      <div className="t">{t('crm.companies.analytics.marketing.empty')}</div>
+                      <div className="d" style={{ marginTop: 8 }}>
+                        <button type="button" className="btn btn-sm" onClick={() => navigate('/app/marketing/roi')}>
+                          {t('crm.companies.analytics.marketing.openRoi')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="cl-scroll">
+                      <table className="ca-lb">
+                        <thead>
+                          <tr>
+                            <th></th>
+                            <th>{t('crm.companies.analytics.export.company')}</th>
+                            <th></th>
+                            <th className="r">{t('crm.companies.analytics.marketing.revenue')}</th>
+                            <th className="r">{t('crm.companies.analytics.marketing.spend')}</th>
+                            <th className="r">ROI</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mkBoard.map((c) => (
+                            <tr key={c.companyId}>
+                              <td className="rk">{String(c.rank).padStart(2, '0')}</td>
+                              <td>
+                                <div className="nm">
+                                  <a
+                                    href={`/app/companies/${c.companyId}`}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      navigate(`/companies/${c.companyId}`);
+                                    }}
+                                  >
+                                    {c.name}
+                                  </a>
+                                </div>
+                                <div className="meta">
+                                  {c.industry} · ROAS {roasX(c.roas)}
+                                </div>
+                              </td>
+                              <td className="bar">
+                                <div className="ca-track">
+                                  <i style={{ width: `${Math.max(2, (c.revenue / mkMax) * 100)}%` }} />
+                                </div>
+                              </td>
+                              <td className="r num">{cur(c.revenue)}</td>
+                              <td className="r num dim">{cur(c.spend)}</td>
+                              <td className="r num dim">{roiPct(c.roi)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                ) : board.length === 0 ? (
                   <div className="cl-empty">
                     <div className="t">{t('crm.companies.analytics.noData')}</div>
                   </div>
@@ -330,9 +483,43 @@ export const CompaniesAnalyticsPage: React.FC = () => {
                 )}
                 <div className="ca-foot">
                   <span>{t('crm.companies.analytics.foot.period', { period: PERIODS.find(([id]) => id === period)?.[1].toLowerCase() })}</span>
-                  <span>{t('crm.companies.analytics.foot.source')}</span>
+                  <span>{t(isMk ? 'crm.companies.analytics.marketing.source' : 'crm.companies.analytics.foot.source')}</span>
                 </div>
               </div>
+              {isMk ? (
+              <div className="ca-aside">
+                <div className="ca-stat" style={{ paddingTop: 0 }}>
+                  <div className="k">{t('crm.companies.analytics.marketing.totalRevenue')}</div>
+                  <div className="v">{cur(mkRevenue)}</div>
+                  <div className="d">{t('crm.companies.analytics.marketing.notYourRevenue')}</div>
+                </div>
+                <div className="ca-stat">
+                  <div className="k">{t('crm.companies.analytics.marketing.totalSpend')}</div>
+                  <div className="v">{cur(mkSpend)}</div>
+                  <div className="d">{t('crm.companies.analytics.marketing.clientsCount', { count: mkRows.length })}</div>
+                </div>
+                <div className="ca-stat">
+                  <div className="k">ROI</div>
+                  <div className="v">{roiPct(mkRoi)}</div>
+                  <div className="d">{t('crm.companies.analytics.marketing.roiHint')}</div>
+                </div>
+                <div className="ca-stat">
+                  <div className="k">ROAS</div>
+                  <div className="v">{roasX(mkRoas)}</div>
+                  <div className="d">
+                    <a
+                      href="/app/marketing/roi"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate('/app/marketing/roi');
+                      }}
+                    >
+                      {t('crm.companies.analytics.marketing.openRoi')} →
+                    </a>
+                  </div>
+                </div>
+              </div>
+              ) : (
               <div className="ca-aside">
                 <div className="ca-stat" style={{ paddingTop: 0 }}>
                   <div className="k">{t('crm.companies.analytics.aside.concentration')}</div>
@@ -386,6 +573,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
                   <div className="d">{t('crm.companies.analytics.aside.riskHint', { pct: pct(shTop3) })}</div>
                 </div>
               </div>
+              )}
             </div>
           </div>
 

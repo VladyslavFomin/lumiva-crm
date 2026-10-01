@@ -56,6 +56,14 @@ import { VkAdsApiService } from './vk-ads/vk-ads-api.service';
 /** Актуальная версия REST Google Ads API (v14 и ниже сняты → 404). */
 export const GOOGLE_ADS_API_VERSION = 'v23';
 
+/**
+ * Валюта группы строк трафика — по строкам с деньгами (расход/выручка/ценность конверсий), а не
+ * MAX(currency): у одного источника бывают строки в разных валютах (GA4: старые строки только с
+ * сессиями записаны в валюте из настроек, новые с выручкой — в валюте ресурса), и алфавитный MAX
+ * подписывал выручку в EUR как «TRY» без пересчёта.
+ */
+const CURRENCY_BY_MONEY_SQL = `(ARRAY_AGG(t.currency ORDER BY ABS(COALESCE(t.cost, 0)) + ABS(COALESCE(t.revenue, 0)) + ABS(COALESCE(t."conversionValue", 0)) DESC))[1]`;
+
 /** Если по `campaign` строк нет — дневная сводка по `customer`; подпись строки включает CID и имя счёта. */
 
 const GOOGLE_ADS_MARKETING_OAUTH_STATE_TYP = 'lumiva_ga_mkt_oauth_v1' as const;
@@ -235,6 +243,8 @@ export interface MarketingTrafficProviderBreakdown {
   revenue: number;
   impressions: number;
   cost: number;
+  conversions?: number;
+  conversionValue?: number;
   /** Доминирующая валюта строк группы (по весу расхода+выручки). */
   currency: string;
 }
@@ -255,14 +265,20 @@ export interface MarketingTrafficChannelsStats {
   totalClicks: number;
   totalImpressions: number;
   totalCost: number;
+  totalConversions?: number;
+  totalConversionValue?: number;
   /** Число сырых строк в marketing_traffic за период (до агрегации по каналам). */
   totalRows: number;
   dataSources: string[];
   providerBreakdown: MarketingTrafficProviderBreakdown[];
   /** Подписи dataSource (ga4_… → имя ресурса из интеграции). */
   dataSourceLabels?: Record<string, string>;
+  /** integrationId → название подключения (для разбивки Meta Ads по рекламным кабинетам). */
+  integrationLabels?: Record<string, string>;
   items: Array<{
     dataSource: string | null;
+    /** Подключение-источник строки; null — старые строки и источники без разбивки. */
+    integrationId: string | null;
   source: string | null;
   medium: string | null;
   campaign: string | null;
@@ -272,6 +288,8 @@ export interface MarketingTrafficChannelsStats {
   revenue: number;
     impressions: number;
     cost: number;
+    conversions?: number;
+    conversionValue?: number;
     /** Доминирующая валюта в агрегате (по весу расхода+выручки). */
   currency: string;
   }>;
@@ -353,8 +371,21 @@ export class MarketingService {
       params.mNames = names;
     }
     sql += ` OR (UPPER(COALESCE(t.country,'')) = :mCode AND ${genericCampaign}))`;
+    // Meta Ads: country — реальная страна показа (см. resolveRowMarket), догадка по названию не нужна.
+    const metaWithCountry = `(COALESCE(t.dataSource, '') = 'meta_ads' AND NULLIF(TRIM(COALESCE(t.country, '')), '') IS NOT NULL)`;
+    sql = `((${metaWithCountry} AND UPPER(TRIM(t.country)) = :mCode) OR (NOT ${metaWithCountry} AND ${sql}))`;
     qb.andWhere(sql, params);
     return qb;
+  }
+
+  /**
+   * Ключ источника «как у Google Ads»: у Meta все кабинеты пишутся под одним dataSource 'meta_ads'
+   * (различаются только integrationId), поэтому для ИИ/выгрузок каждый кабинет виртуально
+   * получает свой ключ meta_ads_<id рекламного кабинета> — аналог google_ads_<cid>. Данные в БД
+   * не меняются; интерфейс карточек продолжает группировать по реальному dataSource.
+   */
+  effectiveDataSourceSql(): string {
+    return `CASE WHEN t."dataSource" = 'meta_ads' AND t."integrationId" IS NOT NULL THEN COALESCE('meta_ads_' || NULLIF((SELECT regexp_replace(COALESCE(mi."primaryId", ''), '\\D', '', 'g') FROM marketing_integrations mi WHERE mi.id = t."integrationId"), ''), 'meta_ads') ELSE t."dataSource" END`;
   }
 
   /**
@@ -371,6 +402,15 @@ export class MarketingService {
   ): SelectQueryBuilder<MarketingTraffic> {
     const ds = dataSource?.trim();
     if (!ds) return qb;
+    // Один кабинет Meta: meta_ads_<id кабинета> (см. effectiveDataSourceSql).
+    const metaAcct = /^meta_ads_(?:act_)?(\d+)$/i.exec(ds);
+    if (metaAcct) {
+      qb.andWhere(
+        `t.dataSource = 'meta_ads' AND t."integrationId" IN (SELECT mi.id FROM marketing_integrations mi WHERE mi."tenantId" = t."tenantId" AND regexp_replace(COALESCE(mi."primaryId", ''), '\\D', '', 'g') = :metaAcct)`,
+        { metaAcct: metaAcct[1] },
+      );
+      return qb;
+    }
     const escaped = ds.replace(/[\\%_]/g, (c) => `\\${c}`);
     qb.andWhere(
       new Brackets((b) => {
@@ -631,7 +671,9 @@ export class MarketingService {
     this.applyDataSourcesFilter(qb, opts.dataSources);
     this.applyMarketFilter(qb, opts.market);
 
-    qb.select('t.dataSource', 'dataSource')
+    // Кабинеты Meta — отдельными ключами meta_ads_<id> (колонка «Кабинет» в рабочей области).
+    const dsExpr = this.effectiveDataSourceSql();
+    qb.select(dsExpr, 'dataSource')
       .addSelect('COALESCE(t.source, \'\')', 'source')
       .addSelect('COALESCE(t.medium, \'\')', 'medium')
       .addSelect('t.currency', 'currency')
@@ -641,7 +683,7 @@ export class MarketingService {
       .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
       .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
       .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
-      .groupBy('t.dataSource')
+      .groupBy(dsExpr)
       .addGroupBy('t.source')
       .addGroupBy('t.medium')
       .addGroupBy('t.currency');
@@ -693,7 +735,10 @@ export class MarketingService {
     itemsLimit = 14_000,
     /** ISO2 код рынка (см. marketing-market-catalog.ts) — уже разрешённый, не свободный текст. */
     market?: string,
+    /** Для ИИ: кабинеты Meta отдельными ключами meta_ads_<id> (как google_ads_<cid>). UI — без. */
+    opts?: { splitMetaAccounts?: boolean },
   ): Promise<MarketingTrafficChannelsStats> {
+    const dsExpr = opts?.splitMetaAccounts ? this.effectiveDataSourceSql() : 't.dataSource';
     const qb = this.trafficRepo
       .createQueryBuilder('t')
       .where('t.tenantId = :tenantId', { tenantId });
@@ -705,7 +750,7 @@ export class MarketingService {
     const num = (v: string | number | null | undefined) =>
       Number(v != null && v !== '' ? v : 0) || 0;
 
-    const [totalRows, totalsRaw, curRaw, itemRaw, provRaw, dataSourceLabels] =
+    const [totalRows, totalsRaw, curRaw, itemRaw, provRaw, dataSourceLabels, integrationLabels] =
       await Promise.all([
         qb.clone().getCount(),
         qb
@@ -716,6 +761,8 @@ export class MarketingService {
           .addSelect('COALESCE(SUM(t.revenue), 0)', 'totalRevenue')
           .addSelect('COALESCE(SUM(t.impressions), 0)', 'totalImpressions')
           .addSelect('COALESCE(SUM(t.cost), 0)', 'totalCost')
+          .addSelect('COALESCE(SUM(t.conversions), 0)', 'totalConversions')
+          .addSelect('COALESCE(SUM(t."conversionValue"), 0)', 'totalConversionValue')
           .getRawOne(),
         qb
           .clone()
@@ -725,7 +772,8 @@ export class MarketingService {
           .getRawMany(),
         qb
           .clone()
-          .select('t.dataSource', 'dataSource')
+          .select(dsExpr, 'dataSource')
+          .addSelect('t.integrationId', 'integrationId')
           .addSelect('t.source', 'source')
           .addSelect('t.medium', 'medium')
           .addSelect('t.campaign', 'campaign')
@@ -735,8 +783,11 @@ export class MarketingService {
           .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
           .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
           .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
-          .addSelect('MAX(t.currency)', 'currency')
-          .groupBy('t.dataSource')
+          .addSelect('COALESCE(SUM(t.conversions), 0)', 'conversions')
+          .addSelect('COALESCE(SUM(t."conversionValue"), 0)', 'conversionValue')
+          .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
+          .groupBy(dsExpr)
+          .addGroupBy('t.integrationId')
           .addGroupBy('t.source')
           .addGroupBy('t.medium')
           .addGroupBy('t.campaign')
@@ -749,7 +800,7 @@ export class MarketingService {
           .getRawMany(),
         qb
           .clone()
-          .select('t.dataSource', 'dataSource')
+          .select(dsExpr, 'dataSource')
           .addSelect('COUNT(*)', 'rowCount')
           .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
           .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
@@ -757,10 +808,13 @@ export class MarketingService {
           .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
           .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
           .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
-          .addSelect('MAX(t.currency)', 'currency')
-          .groupBy('t.dataSource')
+          .addSelect('COALESCE(SUM(t.conversions), 0)', 'conversions')
+          .addSelect('COALESCE(SUM(t."conversionValue"), 0)', 'conversionValue')
+          .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
+          .groupBy(dsExpr)
           .getRawMany(),
         this.buildMarketingDataSourceLabels(tenantId),
+        this.buildMarketingIntegrationLabels(tenantId),
       ]);
 
     const currenciesPresent = (curRaw as { currency?: string }[])
@@ -779,6 +833,10 @@ export class MarketingService {
       const ds = dsRaw || '_none';
       return {
         dataSource: ds && ds !== '_none' ? ds : null,
+        integrationId:
+          r.integrationId != null && String(r.integrationId).trim() !== ''
+            ? String(r.integrationId)
+            : null,
         source:
           r.source != null && String(r.source).trim() !== ''
             ? String(r.source)
@@ -796,6 +854,8 @@ export class MarketingService {
         revenue: num(r.revenue as string),
         impressions: num(r.impressions as string),
         cost: num(r.cost as string),
+        conversions: num(r.conversions as string),
+        conversionValue: num(r.conversionValue as string),
         currency: normTrafficCurrency(r.currency as string),
       };
     });
@@ -815,6 +875,8 @@ export class MarketingService {
           revenue: num(r.revenue as string),
           impressions: num(r.impressions as string),
           cost: num(r.cost as string),
+          conversions: num(r.conversions as string),
+          conversionValue: num(r.conversionValue as string),
           currency: normTrafficCurrency(r.currency as string),
         };
       })
@@ -840,12 +902,57 @@ export class MarketingService {
       totalClicks: num(tr?.totalClicks as string),
       totalImpressions: num(tr?.totalImpressions as string),
       totalCost: num(tr?.totalCost as string),
+      /** Конверсии и их ценность по данным рекламных площадок (Google Ads / Meta). */
+      totalConversions: num(tr?.totalConversions as string),
+      totalConversionValue: num(tr?.totalConversionValue as string),
       totalRows,
       dataSources: [...dsSet].sort(),
       providerBreakdown,
       dataSourceLabels,
+      integrationLabels,
       items,
     };
+  }
+
+  private async buildMarketingIntegrationLabels(
+    tenantId: string,
+  ): Promise<Record<string, string>> {
+    const rows = await this.integrationRepo.find({
+      where: { tenantId },
+      select: ['id', 'name', 'primaryId'],
+    });
+    const out: Record<string, string> = {};
+    for (const r of rows) {
+      out[r.id] = (r.name || '').trim() || (r.primaryId || '').trim() || r.id;
+    }
+    return out;
+  }
+
+  /** Фильтр окна канала: подстрока в названии кампании и/или страна (ISO2, '-' — не определена). */
+  private applyDrilldownFilter(
+    qb: SelectQueryBuilder<MarketingTraffic>,
+    drill?: { q?: string; country?: string },
+  ): void {
+    // Турецкие буквы сворачиваем с обеих сторон: «ingiltere» находит «İngiltere», «kampanyasi» — «Kampanyası».
+    const fold = (v: string) =>
+      v
+        .toLocaleLowerCase('tr')
+        .replace(/\u0307/g, '')
+        .replace(/[ışçğöüâîû]/g, (ch) => 'iscgouaiu'['ışçğöüâîû'.indexOf(ch)]);
+    const q = fold((drill?.q ?? '').trim().slice(0, 120));
+    if (q) {
+      const esc = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+      qb.andWhere(
+        `translate(lower(COALESCE(t.campaign, '')), 'ışçğöüâîû' || chr(775), 'iscgouaiu') LIKE :drillQ`,
+        { drillQ: `%${esc}%` },
+      );
+    }
+    const c = (drill?.country ?? '').trim().toUpperCase();
+    if (c === '-') {
+      qb.andWhere(`NULLIF(TRIM(COALESCE(t.country, '')), '') IS NULL`);
+    } else if (/^[A-Z]{2}$/.test(c)) {
+      qb.andWhere('UPPER(TRIM(t.country)) = :drillCountry', { drillCountry: c });
+    }
   }
 
   /**
@@ -858,6 +965,10 @@ export class MarketingService {
     dataSource?: string,
     onlyUnattributed?: boolean,
     market?: string,
+    /** Один кабинет Meta Ads (marketing_traffic.integrationId). */
+    integrationId?: string,
+    /** Поиск по кампании / страна из окна канала. */
+    drill?: { q?: string; country?: string },
   ): Promise<{ series: MarketingTrafficDailyPoint[] }> {
     const qb = this.trafficRepo
       .createQueryBuilder('t')
@@ -872,6 +983,10 @@ export class MarketingService {
     } else {
       this.applyDataSourceFilter(qb, dataSource);
     }
+    if (integrationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(integrationId)) {
+      qb.andWhere('t.integrationId = :integrationId', { integrationId });
+    }
+    this.applyDrilldownFilter(qb, drill);
 
     const num = (v: string | number | null | undefined) =>
       Number(v != null && v !== '' ? v : 0) || 0;
@@ -943,14 +1058,16 @@ export class MarketingService {
     this.applyDataSourceFilter(qb, dataSource);
     this.applyMarketFilter(qb, market);
 
+    // Кабинеты Meta — отдельными строками (meta_ads_<id>), как аккаунты Google Ads.
+    const dsExpr = this.effectiveDataSourceSql();
     const raw = await qb
-      .select('t.dataSource', 'dataSource')
+      .select(dsExpr, 'dataSource')
       .addSelect("to_char(date_trunc('month', t.date), 'YYYY-MM')", 'month')
       .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
-      .addSelect('MAX(t.currency)', 'currency')
-      .groupBy('t.dataSource')
+      .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
+      .groupBy(dsExpr)
       .addGroupBy("date_trunc('month', t.date)")
-      .orderBy('t.dataSource', 'ASC')
+      .orderBy(dsExpr, 'ASC')
       .addOrderBy("date_trunc('month', t.date)", 'ASC')
       .getRawMany();
 
@@ -1021,11 +1138,13 @@ export class MarketingService {
     const raw = await qb
       .select('t.campaign', 'campaign')
       .addSelect('t.country', 'country')
+      .addSelect('t.dataSource', 'dataSource')
       .addSelect("to_char(date_trunc('month', t.date), 'YYYY-MM')", 'month')
       .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
-      .addSelect('MAX(t.currency)', 'currency')
+      .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
       .groupBy('t.campaign')
       .addGroupBy('t.country')
+      .addGroupBy('t.dataSource')
       .addGroupBy("date_trunc('month', t.date)")
       .limit(80_000)
       .getRawMany();
@@ -1038,7 +1157,8 @@ export class MarketingService {
       monthsSet.add(month);
       const campaign = r.campaign != null ? String(r.campaign) : null;
       const country = r.country != null ? String(r.country) : null;
-      const code = resolveRowMarket(campaign, country) || 'UNCLASSIFIED';
+      const code =
+        resolveRowMarket(campaign, country, r.dataSource != null ? String(r.dataSource) : null) || 'UNCLASSIFIED';
       const cost = Number(r.cost) || 0;
       const cur = normTrafficCurrency(r.currency as string);
       if (!byMarket.has(code)) byMarket.set(code, { monthly: {}, currency: cur });
@@ -1070,12 +1190,33 @@ export class MarketingService {
     to?: string,
     dataSource?: string,
     onlyUnattributed?: boolean,
+    /** Один кабинет Meta Ads (marketing_traffic.integrationId). */
+    integrationId?: string,
+    /** Поиск по кампании из окна канала (страну UI фильтрует сам по details). */
+    drill?: { q?: string; country?: string },
   ): Promise<{
     rows: Array<{
       country: string | null;
       sessions: number;
       clicks: number;
       impressions: number;
+      cost: number;
+      currency: string;
+    }>;
+    /** Разбивка страны по кабинету и кампании (для раскрытия строки страны в UI). */
+    details: Array<{
+      country: string | null;
+      integrationId: string | null;
+      source: string | null;
+      medium: string | null;
+      campaign: string | null;
+      sessions: number;
+      clicks: number;
+      leads: number;
+      revenue: number;
+      impressions: number;
+      cost: number;
+      currency: string;
     }>;
   }> {
     const qb = this.trafficRepo
@@ -1090,20 +1231,51 @@ export class MarketingService {
     } else {
       this.applyDataSourceFilter(qb, dataSource);
     }
+    if (integrationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(integrationId)) {
+      qb.andWhere('t.integrationId = :integrationId', { integrationId });
+    }
+    this.applyDrilldownFilter(qb, drill);
 
     const num = (v: string | number | null | undefined) =>
       Number(v != null && v !== '' ? v : 0) || 0;
 
     const countryKeyExpr = `NULLIF(TRIM(UPPER(COALESCE(t.country, ''))), '')`;
 
-    const raw = await qb
-      .select(countryKeyExpr, 'country')
-      .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
-      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
-      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
-      .groupBy(countryKeyExpr)
-      .orderBy('COALESCE(SUM(t.sessions), 0)', 'DESC')
-      .getRawMany();
+    const [raw, detailRaw] = await Promise.all([
+      qb
+        .clone()
+        .select(countryKeyExpr, 'country')
+        .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+        .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+        .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+        .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+        .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
+        .groupBy(countryKeyExpr)
+        .orderBy('COALESCE(SUM(t.sessions), 0)', 'DESC')
+        .getRawMany(),
+      qb
+        .clone()
+        .select(countryKeyExpr, 'country')
+        .addSelect('t.integrationId', 'integrationId')
+        .addSelect('t.source', 'source')
+        .addSelect('t.medium', 'medium')
+        .addSelect('t.campaign', 'campaign')
+        .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+        .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+        .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
+        .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
+        .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+        .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+        .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
+        .groupBy(countryKeyExpr)
+        .addGroupBy('t.integrationId')
+        .addGroupBy('t.source')
+        .addGroupBy('t.medium')
+        .addGroupBy('t.campaign')
+        .orderBy('COALESCE(SUM(t.cost), 0) + COALESCE(SUM(t.sessions), 0)', 'DESC')
+        .limit(8000)
+        .getRawMany(),
+    ]);
 
     const rows = (raw as Record<string, unknown>[]).map((r) => {
       const c = r.country as string | null;
@@ -1112,10 +1284,30 @@ export class MarketingService {
         sessions: num(r.sessions as string),
         clicks: num(r.clicks as string),
         impressions: num(r.impressions as string),
+        cost: num(r.cost as string),
+        currency: normTrafficCurrency(r.currency as string),
       };
     });
 
-    return { rows };
+    const details = (detailRaw as Record<string, unknown>[]).map((r) => {
+      const c = r.country as string | null;
+      return {
+        country: c && String(c).trim() !== '' ? String(c).trim().toUpperCase() : null,
+        integrationId: r.integrationId != null ? String(r.integrationId) : null,
+        source: r.source != null && String(r.source).trim() !== '' ? String(r.source) : null,
+        medium: r.medium != null && String(r.medium).trim() !== '' ? String(r.medium) : null,
+        campaign: sanitizeTrafficText(r.campaign != null ? String(r.campaign) : undefined),
+        sessions: num(r.sessions as string),
+        clicks: num(r.clicks as string),
+        leads: num(r.leads as string),
+        revenue: num(r.revenue as string),
+        impressions: num(r.impressions as string),
+        cost: num(r.cost as string),
+        currency: normTrafficCurrency(r.currency as string),
+      };
+    });
+
+    return { rows, details };
   }
 
   /**
@@ -1162,6 +1354,7 @@ export class MarketingService {
     const raw = await qb
       .select('t.campaign', 'campaign')
       .addSelect('t.country', 'country')
+      .addSelect('t.dataSource', 'dataSource')
       .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
       .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
       .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
@@ -1170,6 +1363,7 @@ export class MarketingService {
       .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
       .groupBy('t.campaign')
       .addGroupBy('t.country')
+      .addGroupBy('t.dataSource')
       .limit(20_000)
       .getRawMany();
 
@@ -1182,7 +1376,7 @@ export class MarketingService {
     for (const r of raw as Record<string, unknown>[]) {
       const campaign = r.campaign != null ? String(r.campaign) : null;
       const country = r.country != null ? String(r.country) : null;
-      const code = resolveRowMarket(campaign, country);
+      const code = resolveRowMarket(campaign, country, r.dataSource != null ? String(r.dataSource) : null);
       const row = {
         sessions: num(r.sessions as string),
         clicks: num(r.clicks as string),
@@ -1227,6 +1421,11 @@ export class MarketingService {
   }
 
   /** Имена ресурсов GA4 из настроек интеграций (ключ dataSource = ga4_{propertyId}). */
+  /** Подписи ключей источников (ga4_…, google_ads_…, meta_ads_<кабинет>) — для выгрузок в рабочую область. */
+  getMarketingDataSourceLabels(tenantId: string): Promise<Record<string, string>> {
+    return this.buildMarketingDataSourceLabels(tenantId);
+  }
+
   private async buildMarketingDataSourceLabels(
     tenantId: string,
   ): Promise<Record<string, string>> {
@@ -1298,6 +1497,14 @@ export class MarketingService {
         }
       }
     }
+    // Кабинеты Meta: meta_ads_<id кабинета> → название подключения (см. effectiveDataSourceSql).
+    for (const r of rows) {
+      if (!this.isMetaAdsProvider(this.normalizeMarketingIntegrationProvider(r.provider))) continue;
+      const act = String(r.primaryId || '').replace(/\D/g, '');
+      if (!act) continue;
+      out[`meta_ads_${act}`.slice(0, 80)] = (r.name || '').trim() || `Meta Ads · ${act}`;
+    }
+
     return out;
   }
 
@@ -1914,6 +2121,15 @@ export class MarketingService {
       const metaPeers = await this.metaMarketingIntegrationPeersCount(em, tenantId, row.id);
       if (metaPeers === 0) {
         await this.marketingTrafficDeleteExactDataSource(em, tenantId, 'meta_ads');
+      } else {
+        await em
+          .createQueryBuilder()
+          .delete()
+          .from(MarketingTraffic)
+          .where('tenantId = :tenantId', { tenantId })
+          .andWhere('dataSource = :ds', { ds: 'meta_ads' })
+          .andWhere('integrationId = :integrationId', { integrationId: row.id })
+          .execute();
       }
       return;
     }
@@ -2396,9 +2612,11 @@ export class MarketingService {
     impressions: number;
     clicks: number;
     costMicros: number;
+    conversions: number;
+    conversionsValue: number;
   } {
     if (!r || typeof r !== 'object') {
-      return { impressions: 0, clicks: 0, costMicros: 0 };
+      return { impressions: 0, clicks: 0, costMicros: 0, conversions: 0, conversionsValue: 0 };
     }
     const row = r as Record<string, unknown>;
     const segBlock = (row.segments || row.Segments) as Record<string, unknown> | undefined;
@@ -2412,6 +2630,8 @@ export class MarketingService {
       impressions: Number(metrics?.impressions ?? 0),
       clicks: Number(metrics?.clicks ?? 0),
       costMicros: Number(metrics?.costMicros ?? metrics?.cost_micros ?? 0),
+      conversions: Number(metrics?.conversions ?? 0) || 0,
+      conversionsValue: Number(metrics?.conversionsValue ?? metrics?.conversions_value ?? 0) || 0,
     };
   }
 
@@ -2421,7 +2641,8 @@ export class MarketingService {
     // without the explicit IN clause, accounts where all campaigns are REMOVED would
     // return 0 rows here and fall back to the customer-level summary).
     return `
-      SELECT campaign.id, campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
+      SELECT campaign.id, campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros,
+        metrics.conversions, metrics.conversions_value
       FROM campaign
       WHERE segments.date BETWEEN '${from}' AND '${to}'
         AND campaign.status IN (ENABLED, PAUSED, REMOVED)
@@ -2432,7 +2653,8 @@ export class MarketingService {
   /** Дневные итоги по аккаунту — запасной вариант, если отчёт по campaign пуст при ненулевых метриках в UI. */
   private googleAdsGaqlCustomerDailyStats(from: string, to: string): string {
     return `
-      SELECT segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
+      SELECT segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros,
+        metrics.conversions, metrics.conversions_value
       FROM customer
       WHERE segments.date BETWEEN '${from}' AND '${to}'
       ORDER BY segments.date
@@ -2655,6 +2877,8 @@ export class MarketingService {
           revenue: '0',
           currency: cur,
           impressions: picked.impressions,
+          conversions: String(Math.round(picked.conversions * 100) / 100),
+          conversionValue: String(Math.round(picked.conversionsValue * 100) / 100),
         }),
       );
     }
@@ -3669,7 +3893,11 @@ export class MarketingService {
     const dataSourceTag = `ga4_${propertyId}`.slice(0, 80);
     const end = new Date();
     const start = new Date();
-    start.setUTCDate(end.getUTCDate() - 30);
+    // Выручку GA4 начали забирать 2026-09-29: первая синхронизация после этого догружает год
+    // (для ROI по месяцам), дальше — как раньше, скользящие 30 дней.
+    const ga4Settings = this.parseSettingsObject(row.settings);
+    const needsRevenueBackfill = !ga4Settings.ga4RevenueBackfilledAt;
+    start.setUTCDate(end.getUTCDate() - (needsRevenueBackfill ? 365 : 30));
     const date1 = start.toISOString().slice(0, 10);
     const date2 = end.toISOString().slice(0, 10);
 
@@ -3690,11 +3918,13 @@ export class MarketingService {
       const pageLimit = 25_000;
       const allRows: GaRow[] = [];
       let offset = 0;
+      /** Валюта ресурса GA4 из ответа (metadata.currencyCode) — точнее, чем настройка интеграции. */
+      let reportCurrency = currency;
       for (let guard = 0; guard < 40; guard += 1) {
         const res = await axios.post(
           apiUrl,
           {
-            dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+            dateRanges: [{ startDate: date1, endDate: date2 }],
             dimensions: [
               { name: 'date' },
               { name: 'countryId' },
@@ -3705,6 +3935,9 @@ export class MarketingService {
             metrics: [
               { name: 'sessions' },
               { name: 'screenPageViews' },
+              // Выручка покупок (бронирований) на сайте и ключевые события — для ROI.
+              { name: 'purchaseRevenue' },
+              { name: 'keyEvents' },
             ],
             limit: pageLimit,
             offset,
@@ -3743,6 +3976,8 @@ export class MarketingService {
             },
           },
         );
+        const metaCurrency = String(res.data?.metadata?.currencyCode || '').trim().toUpperCase();
+        if (/^[A-Z]{3}$/.test(metaCurrency)) reportCurrency = metaCurrency;
         const batch = res.data?.rows as GaRow[] | undefined;
         if (!Array.isArray(batch) || batch.length === 0) break;
         allRows.push(...batch);
@@ -3763,7 +3998,9 @@ export class MarketingService {
         if (!dateStr) continue;
         const sessions = Number(r.metricValues?.[0]?.value ?? 0);
         const views = Number(r.metricValues?.[1]?.value ?? 0);
-        if (!sessions && !views) continue;
+        const purchaseRevenue = Number(r.metricValues?.[2]?.value ?? 0) || 0;
+        const keyEvents = Number(r.metricValues?.[3]?.value ?? 0) || 0;
+        if (!sessions && !views && !purchaseRevenue && !keyEvents) continue;
         const rawCountry = String(r.dimensionValues?.[1]?.value ?? '')
           .trim()
           .toUpperCase();
@@ -3785,6 +4022,8 @@ export class MarketingService {
           prev.sessions += sessions;
           prev.clicks += views;
           prev.impressions += views;
+          prev.revenue = String(Math.round((Number(prev.revenue) + purchaseRevenue) * 100) / 100);
+          prev.conversions = String(Math.round((Number(prev.conversions) + keyEvents) * 100) / 100);
           continue;
         }
         mergeMap.set(
@@ -3802,8 +4041,10 @@ export class MarketingService {
             leads: 0,
             projects: 0,
             cost: '0',
-            revenue: '0',
-            currency,
+            /** GA4 purchaseRevenue — реальная выручка покупок на сайте (для ROI). */
+            revenue: String(Math.round(purchaseRevenue * 100) / 100),
+            conversions: String(Math.round(keyEvents * 100) / 100),
+            currency: reportCurrency,
             /** GA4: screenPageViews — в CRM «Показы» (просмотры экранов/страниц), не рекламные impressions. */
             impressions: views,
           }),
@@ -3820,6 +4061,12 @@ export class MarketingService {
         .andWhere('date BETWEEN :from AND :to', { from: date1, to: date2 })
         .execute();
       await this.saveMarketingTrafficChunked(trafficRows);
+      if (needsRevenueBackfill) {
+        const nextSettings = { ...ga4Settings, ga4RevenueBackfilledAt: new Date().toISOString() };
+        await this.integrationRepo.update({ id: row.id }, { settings: nextSettings as any });
+        // persistGa4PropertyDisplayName ниже пишет настройки из row.settings — без этого флаг потерялся бы.
+        row.settings = nextSettings as any;
+      }
       const displayName = await this.fetchGa4PropertyDisplayNameWithBearer(
         access,
         propertyId,
@@ -3933,19 +4180,56 @@ export class MarketingService {
     const baseUrl = `https://graph.facebook.com/${graphVer}/${actPath}/insights`;
     const agg = new Map<
       string,
-      { impressions: number; clicks: number; spend: number; campaignLabel: string }
+      {
+        impressions: number;
+        clicks: number;
+        spend: number;
+        campaignLabel: string;
+        country: string | null;
+        conversions: number;
+        conversionValue: number;
+      }
     >();
+    // Какие действия Meta считать конверсией и чья ценность — выручка площадки. Настраивается по
+    // кабинету (settings.conversionAction / revenueAction, через запятую). По умолчанию только
+    // сводные типы: Meta дублирует одно событие под разными именами (lead, onsite_web_lead,
+    // onsite_conversion.lead…), и сумма по всем посчитала бы один лид трижды.
+    const splitTypes = (v: unknown, def: string[]) => {
+      const list = String(v ?? '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      return new Set(list.length ? list : def);
+    };
+    const convTypes = splitTypes(s.conversionAction, ['lead', 'purchase']);
+    const valueTypes = splitTypes(s.revenueAction, ['purchase']);
+    /** Все встреченные типы действий с количеством — для выбора в интерфейсе. */
+    const actionTotals = new Map<string, number>();
 
     try {
       let nextUrl: string | null = null;
       let useParams = true;
       while (useParams || nextUrl) {
-        const res = await axios.get(useParams ? baseUrl : (nextUrl as string), {
+        // Обрыв связи без HTTP-ответа (ECONNRESET, тайм-аут) у Graph API случается — повторяем до 3 раз.
+        const getWithRetry = async <T,>(url: string, cfg: Parameters<typeof axios.get>[1]) => {
+          for (let attempt = 1; ; attempt++) {
+            try {
+              return await axios.get<T>(url, { timeout: 120_000, ...cfg });
+            } catch (e: unknown) {
+              const noResponse = axios.isAxiosError(e) && !e.response;
+              if (!noResponse || attempt >= 3) throw e;
+              await new Promise((r) => setTimeout(r, 2000 * attempt));
+            }
+          }
+        };
+        const res = await getWithRetry<any>(useParams ? baseUrl : (nextUrl as string), {
           params: useParams
             ? {
                 fields:
-                  'impressions,clicks,spend,date_start,campaign_name,campaign_id',
+                  'impressions,clicks,spend,date_start,campaign_name,campaign_id,actions,action_values',
                 level: 'campaign',
+                // Реальная страна показа (ISO2) — иначе гео у Meta приходилось угадывать по названию кампании.
+                breakdowns: 'country',
                 time_increment: 1,
                 time_range: JSON.stringify({ since, until }),
                 access_token: token,
@@ -3964,6 +4248,9 @@ export class MarketingService {
               date_start?: string;
               campaign_name?: string;
               campaign_id?: string;
+              country?: string;
+              actions?: Array<{ action_type?: string; value?: string }>;
+              action_values?: Array<{ action_type?: string; value?: string }>;
             }>
           | undefined;
         if (Array.isArray(data)) {
@@ -3974,22 +4261,41 @@ export class MarketingService {
             const id = it.campaign_id?.toString().trim();
             const campaignLabel =
               rawName || (id ? `Campaign ${id}` : 'Meta');
-            const key = `${ds}\0${campaignLabel}`;
+            const cc = String(it.country ?? '').trim().toUpperCase();
+            const country = /^[A-Z]{2}$/.test(cc) ? cc : null;
+            const key = `${ds}\0${campaignLabel}\0${country ?? ''}`;
             const impressions =
               parseInt(String(it.impressions ?? 0), 10) || 0;
             const clicks = parseInt(String(it.clicks ?? 0), 10) || 0;
             const spend = parseFloat(String(it.spend ?? 0)) || 0;
+            let conversions = 0;
+            for (const a of it.actions || []) {
+              const type = String(a.action_type || '');
+              const v = parseFloat(String(a.value ?? 0)) || 0;
+              if (type) actionTotals.set(type, (actionTotals.get(type) || 0) + v);
+              if (convTypes.has(type)) conversions += v;
+            }
+            let conversionValue = 0;
+            for (const a of it.action_values || []) {
+              if (valueTypes.has(String(a.action_type || ''))) conversionValue += parseFloat(String(a.value ?? 0)) || 0;
+            }
             const prev = agg.get(key) || {
               impressions: 0,
               clicks: 0,
               spend: 0,
               campaignLabel,
+              country,
+              conversions: 0,
+              conversionValue: 0,
             };
             agg.set(key, {
               impressions: prev.impressions + impressions,
               clicks: prev.clicks + clicks,
               spend: prev.spend + spend,
               campaignLabel,
+              country,
+              conversions: prev.conversions + conversions,
+              conversionValue: prev.conversionValue + conversionValue,
             });
           }
         }
@@ -4012,9 +4318,11 @@ export class MarketingService {
             tenantId: row.tenantId,
             date: dateStr,
             dataSource: 'meta_ads',
+            integrationId: row.id,
             source: 'meta',
             medium: 'paid',
             campaign: safeName,
+            country: m.country,
             sessions: m.clicks,
             clicks: m.clicks,
             leads: 0,
@@ -4023,19 +4331,58 @@ export class MarketingService {
             revenue: '0',
             currency: String(s.currency || 'USD').slice(0, 8) || 'USD',
             impressions: m.impressions,
+            conversions: String(Math.round(m.conversions * 100) / 100),
+            conversionValue: String(Math.round(m.conversionValue * 100) / 100),
           }),
         );
       }
 
-      await this.trafficRepo
+      // dataSource у всех Meta-кабинетов один ('meta_ads'), поэтому строки помечены integrationId.
+      // При одном подключении — как раньше, заменяем весь период. При нескольких кабинетах каждый
+      // удаляет только свои строки: помеченные своим id, плюс старые непомеченные (до integrationId)
+      // со своими кампаниями (текущие + записанные в прошлый раз) — иначе синхронизация второго
+      // кабинета стирала бы расходы первого.
+      const metaIntegrations = (await this.integrationRepo.find({ where: { tenantId: row.tenantId } as any })).filter(
+        (r) => r.isActive && this.isMetaAdsProvider(this.normalizeMarketingIntegrationProvider(r.provider)),
+      );
+      const ownCampaigns = [...new Set(trafficRows.map((r) => r.campaign).filter((c): c is string => !!c))];
+      const del = this.trafficRepo
         .createQueryBuilder()
         .delete()
         .from(MarketingTraffic)
         .where('tenantId = :tenantId', { tenantId: row.tenantId })
         .andWhere('dataSource = :ds', { ds: 'meta_ads' })
-        .andWhere('date BETWEEN :from AND :to', { from: since, to: until })
-        .execute();
+        .andWhere('date BETWEEN :from AND :to', { from: since, to: until });
+      if (metaIntegrations.length > 1) {
+        const prevCampaigns = Array.isArray((s as any).syncedCampaigns) ? ((s as any).syncedCampaigns as unknown[]).map(String) : [];
+        const scope = [...new Set([...ownCampaigns, ...prevCampaigns])];
+        del.andWhere(
+          new Brackets((w) => {
+            w.where('integrationId = :integrationId', { integrationId: row.id });
+            if (scope.length) {
+              w.orWhere('(integrationId IS NULL AND campaign IN (:...scope))', { scope });
+            }
+          }),
+        );
+        await del.execute();
+      } else {
+        await del.execute();
+      }
       await this.saveMarketingTrafficChunked(trafficRows);
+      const rawSettings = this.parseSettingsObject(row.settings);
+      await this.integrationRepo.update(
+        { id: row.id },
+        {
+          settings: {
+            ...rawSettings,
+            syncedCampaigns: ownCampaigns.slice(0, 500),
+            // Типы действий из кабинета (с количеством) — для выбора «что считать конверсией».
+            metaAvailableActions: Object.fromEntries(
+              [...actionTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k, v]) => [k, Math.round(v)]),
+            ),
+          } as any,
+        },
+      );
       this.log.log(
         `Meta Ads: сохранено ${trafficRows.length} строк (по кампаниям), ${actPath}`,
       );
@@ -4043,14 +4390,38 @@ export class MarketingService {
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const fb = err.response?.data as
-          | { error?: { message?: string } }
+          | { error?: { message?: string; code?: number; error_subcode?: number } }
           | undefined;
         const msg = fb?.error?.message;
+        // Лимиты Marketing API (особенно у приложений в Development Access): коды 4/17/32/613/80000–80014.
+        const code = Number(fb?.error?.code);
+        if ([4, 17, 32, 613].includes(code) || (code >= 80000 && code <= 80014)) {
+          let waitMin: number | null = null;
+          try {
+            const usage = JSON.parse(String(err.response?.headers?.['x-business-use-case-usage'] || '{}')) as Record<
+              string,
+              Array<{ estimated_time_to_regain_access?: number }>
+            >;
+            const mins = Object.values(usage).flat().map((u) => Number(u.estimated_time_to_regain_access) || 0);
+            if (mins.length) waitMin = Math.max(...mins);
+          } catch {
+            /* заголовка нет — без оценки времени */
+          }
+          throw new BadRequestException(
+            `Meta Ads: достигнут лимит запросов Marketing API${waitMin ? ` — доступ восстановится примерно через ${waitMin} мин` : ''}. ` +
+              'Уменьшите глубину синхронизации кабинета (поле «Синк, дн.») или получите для приложения Meta уровень Standard Access.',
+          );
+        }
         const raw = err.response?.data;
         const snippet =
           typeof raw === 'object' && raw
             ? JSON.stringify(raw).slice(0, 400)
             : '';
+        if (!err.response) {
+          throw new BadRequestException(
+            `Meta Ads: нет ответа от Meta (обрыв связи или тайм-аут${err.code ? `, ${err.code}` : ''}) — повторите синхронизацию через минуту.`,
+          );
+        }
         throw new BadRequestException(
           msg
             ? `Meta Ads API: ${msg}`

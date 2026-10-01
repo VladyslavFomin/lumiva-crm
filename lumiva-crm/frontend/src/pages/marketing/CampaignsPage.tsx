@@ -44,8 +44,6 @@ import {
 } from '../../utils/marketingChannelDisplay';
 import {
   marketingCard,
-  marketingChipActive,
-  marketingChipInactive,
   marketingFilterBar,
   marketingFilterLabel,
   marketingH1,
@@ -78,12 +76,12 @@ import {
 import { convertMarketingAmount } from './marketingDisplayCurrencyStorage';
 import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 import {
-  marketingTrafficClampDateRange,
   marketingTrafficDefaultCustomRange,
   marketingTrafficPresetRange,
-  marketingTrafficUtcTodayYmd,
   type MarketingTrafficPeriodPreset,
+  marketingTrafficPickerPresets,
 } from './marketingTrafficPeriod';
+import { DateRangePicker, fromIsoDate, toIsoDate } from '../../components/ui/DateRangePicker';
 
 interface DateRange {
   from?: string;
@@ -528,58 +526,16 @@ export const CampaignsPage: React.FC = () => {
               className={`${marketingFilterBar} w-full md:w-auto md:justify-end flex-wrap gap-y-2`}
             >
               <span className={marketingFilterLabel}>{t('crm.marketingCampaigns.periodLabel')}</span>
-              {(['7d', '30d', '90d', 'custom', 'all'] as MarketingTrafficPeriodPreset[]).map(
-                (p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => applyPreset(p)}
-                    className={preset === p ? marketingChipActive : marketingChipInactive}
-                  >
-                    {periodLabel[p]}
-                  </button>
-                ),
-              )}
-              {preset === 'custom' && (
-                <>
-                  <input
-                    type="date"
-                    aria-label={t('crm.marketingCampaigns.periodDateFromAria', {
-                      defaultValue: 'Дата начала',
-                    })}
-                    className={`${marketingSelect} h-10 max-w-[11rem]`}
-                    value={range.from || ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPreset('custom');
-                      setRange((r) =>
-                        marketingTrafficClampDateRange({
-                          from: v,
-                          to: r.to || marketingTrafficUtcTodayYmd(),
-                        }),
-                      );
-                    }}
-                  />
-                  <input
-                    type="date"
-                    aria-label={t('crm.marketingCampaigns.periodDateToAria', {
-                      defaultValue: 'Дата окончания',
-                    })}
-                    className={`${marketingSelect} h-10 max-w-[11rem]`}
-                    value={range.to || ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPreset('custom');
-                      setRange((r) =>
-                        marketingTrafficClampDateRange({
-                          from: r.from || marketingTrafficUtcTodayYmd(),
-                          to: v,
-                        }),
-                      );
-                    }}
-                  />
-                </>
-              )}
+              <DateRangePicker
+                value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
+                presetId={preset === 'custom' ? null : preset}
+                presets={marketingTrafficPickerPresets(periodLabel)}
+                onChange={(v) => {
+                  if (v.presetId) return applyPreset(v.presetId as MarketingTrafficPeriodPreset);
+                  setPreset('custom');
+                  setRange({ from: v.from ? toIsoDate(v.from) : undefined, to: v.to ? toIsoDate(v.to) : undefined });
+                }}
+              />
             </div>
             <div className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
               <span className={marketingFilterLabel}>
@@ -777,6 +733,7 @@ export const CampaignsPage: React.FC = () => {
               formatNumber={formatNumber}
               formatMoney={formatMoney}
               dataSourceLabels={view.dataSourceLabels}
+              integrationLabels={view.integrationLabels}
               trafficDateFrom={range.from}
               trafficDateTo={range.to}
               title={t('crm.marketingChannelBlocks.titleCampaigns', { defaultValue: 'Кампании по каналам' })}

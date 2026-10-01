@@ -343,6 +343,8 @@ export async function postAiBuildAnalyticsDashboard(body: {
   /** Выбранный на странице период (ISO-даты) — сузить выборку/статистику, из которой ИИ строит дашборд. */
   periodFrom?: string;
   periodTo?: string;
+  /** Пожелания пользователя: какие блоки построить (окно «Разобрать через ИИ»). */
+  instructions?: string;
 }): Promise<AiBuildAnalyticsDashboardResult> {
   return api.post<AiBuildAnalyticsDashboardResult>('/ai/analytics/build-dashboard', body);
 }

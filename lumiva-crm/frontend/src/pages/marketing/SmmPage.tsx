@@ -34,6 +34,7 @@ import { getLocale } from '../../i18n/utils';
 import { cl, Ic } from '../contacts/CrmListShared';
 import '../contacts/crm-lists-design.css';
 import './smm-design.css';
+import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../components/ui/DateRangePicker';
 
 type Preset = '7d' | '30d' | '90d' | 'custom';
 type MetricKey = 'followers' | 'reach' | 'likes' | 'comments' | 'videoViews';
@@ -317,7 +318,6 @@ export const SmmPage: React.FC = () => {
 
   const [preset, setPreset] = useState<Preset>('30d');
   const [range, setRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
-  const [draft, setDraft] = useState<{ from: string; to: string }>({ from: '', to: '' });
   const [profiles, setProfiles] = useState<SmmProfile[]>([]);
   const [stats, setStats] = useState<SmmStatsResponse | null>(null);
   const [prevStats, setPrevStats] = useState<SmmStatsResponse | null>(null);
@@ -348,7 +348,6 @@ export const SmmPage: React.FC = () => {
     const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const next = { from: isoDay(end - (n - 1) * dayMs), to: isoDay(end) };
     setPreset(p);
-    setDraft(next);
     setRange(next);
   };
   useEffect(() => {
@@ -667,23 +666,18 @@ export const SmmPage: React.FC = () => {
           </div>
 
           <div className="sm-bar">
-            <div className="sm-seg">
-              {(['7d', '30d', '90d', 'custom'] as const).map((p) => (
-                <button key={p} type="button" className={cl(preset === p && 'active')} onClick={() => (p === 'custom' ? setPreset('custom') : applyPreset(p))}>
-                  {t(`crm.marketingSmm.ui.range.${p}`)}
-                </button>
-              ))}
-            </div>
-            {preset === 'custom' && (
-              <div className="sm-dates">
-                <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
-                <span style={{ color: 'var(--fg-4)' }}>→</span>
-                <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
-                <button type="button" className="btn btn-sm" disabled={!draft.from || !draft.to || draft.from > draft.to} onClick={() => setRange(draft)}>
-                  {t('crm.marketingSmm.ui.range.apply')}
-                </button>
-              </div>
-            )}
+            <DateRangePicker
+              value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
+              presetId={preset === 'custom' ? null : preset}
+              presets={(['7d', '30d', '90d'] as const).map((p) => ({ id: p, label: t(`crm.marketingSmm.ui.range.${p}`), range: lastDays(Number(p.replace('d', ''))) }))}
+              onChange={(v) => {
+                if (v.presetId) return applyPreset(v.presetId as Exclude<Preset, 'custom'>);
+                if (!v.from || !v.to) return;
+                const next = { from: toIsoDate(v.from), to: toIsoDate(v.to) };
+                setPreset('custom');
+                setRange(next);
+              }}
+            />
             <div className="sm-bar-spacer" />
             <span className="sm-sync">
               {range.from} → {range.to} · {t('crm.marketingSmm.ui.rangeLine', { days })}

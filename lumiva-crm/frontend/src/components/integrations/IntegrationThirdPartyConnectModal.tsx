@@ -6,6 +6,8 @@ import { LottieIcon } from '../LottieIcon';
 import { integrationCatalogName } from '../../pages/automations/integrationsCatalog';
 import {
   createIntegration,
+  fetchIntegration,
+  updateIntegration,
   previewGoogleSheetsIntegration,
   testIntegration,
   startHubspotOAuth,
@@ -20,6 +22,7 @@ import {
   generateCf7Secret,
 } from './WordpressCf7ConnectGuide';
 import { GoogleCalendarOAuthHubModal } from './GoogleCalendarOAuthHubModal';
+import { WhatsappConnectGuide } from './WhatsappConnectGuide';
 import { OutlookCalendarOAuthHubModal } from './OutlookCalendarOAuthHubModal';
 
 export type GoogleSheetConnectImportTarget = 'leads' | 'workspace' | 'projects' | 'sales';
@@ -31,6 +34,7 @@ const HIDE_WEBHOOK_FIELD = new Set([
   'google_sheets',
   'lumiva_client_cabinet',
   'lumiva_online_chat',
+  'whatsapp',
 ]);
 
 const HIDE_API_TOKEN_FIELD = new Set([
@@ -85,6 +89,9 @@ type Props = {
   catalogId: string;
   onClose: () => void;
   onCreated: () => void;
+  /** Режим редактирования существующего подключения: поля заполняются сохранёнными значениями,
+   * секреты не показываются — пустое поле = «оставить как есть». */
+  editConnectionId?: string | null;
 };
 
 export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
@@ -92,19 +99,25 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
   catalogId,
   onClose,
   onCreated,
+  editConnectionId = null,
 }) => {
   const { t } = useTranslation();
+  const isEdit = Boolean(editConnectionId);
+  const [existingConfig, setExistingConfig] = useState<Record<string, unknown> | null>(null);
+  const [existingName, setExistingName] = useState('');
   const [draft, setDraft] = useState({
     label: '',
     webhookUrl: '',
     apiToken: '',
     accountEmail: '',
     phoneNumberId: '',
+    wabaId: '',
     calendarId: '',
     developerToken: '',
     openaiModel: '',
     openaiProvider: 'openai' as 'openai' | 'anthropic',
     webhookVerifyToken: '',
+    appSecret: '',
     amoWebhookSecret: '',
     bitrixWebhookSecret: '',
     webhookInboundSecret: '',
@@ -145,11 +158,13 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
       apiToken: '',
       accountEmail: '',
       phoneNumberId: '',
+      wabaId: '',
       calendarId: '',
       developerToken: '',
     openaiModel: '',
     openaiProvider: 'openai' as 'openai' | 'anthropic',
       webhookVerifyToken: '',
+      appSecret: '',
       amoWebhookSecret: '',
     bitrixWebhookSecret: '',
       webhookInboundSecret: '',
@@ -171,6 +186,88 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
     setPreviewErr(null);
     setSelectedSheetRows([]);
   }, [open, catalogId]);
+
+  useEffect(() => {
+    if (!open || !editConnectionId) {
+      setExistingConfig(null);
+      setExistingName('');
+      return;
+    }
+    let alive = true;
+    fetchIntegration(editConnectionId)
+      .then((row) => {
+        if (!alive) return;
+        const cfg = (row.config || {}) as Record<string, any>;
+        setExistingConfig(cfg);
+        setExistingName(row.name || '');
+        const str = (v: unknown) => (typeof v === 'string' ? v : '');
+        setDraft((d) => ({
+          ...d,
+          label: str(cfg.label) || row.name || '',
+          webhookUrl: str(cfg.webhookUrl),
+          accountEmail: str(cfg.accountEmail),
+          phoneNumberId: str(cfg.phoneNumberId),
+          wabaId: str(cfg.wabaId),
+          calendarId: str(cfg.calendarId),
+          openaiModel: str(cfg.model),
+          openaiProvider: cfg.provider === 'anthropic' ? 'anthropic' : 'openai',
+        }));
+      })
+      .catch((e: unknown) => {
+        if (alive) setErr((e as Error)?.message || t('crm.automations.panel.integrations.connectError'));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, editConnectionId, t]);
+
+  /** Плейсхолдер секретного поля при редактировании: значение сохранено, но в браузер не подставляется. */
+  const secretPh = (key: string, fallback?: string) =>
+    isEdit && existingConfig && typeof existingConfig[key] === 'string' && existingConfig[key]
+      ? t('crm.automations.panel.integrations.connectSecretKeep')
+      : fallback;
+
+  const saveEdit = async () => {
+    if (!editConnectionId || !existingConfig) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      // Пустое секретное поле = оставить сохранённое значение; остальные ключи конфига (OAuth,
+      // настройки синхронизации) переносятся как есть.
+      const keep = (key: string, v: string) => (v.trim() ? { [key]: v.trim() } : {});
+      const config: Record<string, unknown> = {
+        ...existingConfig,
+        catalogId,
+        label: draft.label.trim() || undefined,
+        webhookUrl: draft.webhookUrl.trim() || undefined,
+        accountEmail: draft.accountEmail.trim() || undefined,
+        phoneNumberId: draft.phoneNumberId.trim() || undefined,
+        ...(catalogId === 'whatsapp' ? { wabaId: draft.wabaId.trim() || undefined } : {}),
+        calendarId: draft.calendarId.trim() || undefined,
+        ...(catalogId === 'openai'
+          ? { model: draft.openaiModel.trim() || undefined, provider: draft.openaiProvider }
+          : {}),
+        ...keep('apiToken', draft.apiToken),
+        ...keep('developerToken', draft.developerToken),
+        ...keep('webhookVerifyToken', draft.webhookVerifyToken),
+        ...keep('appSecret', draft.appSecret),
+        ...keep('amoWebhookSecret', draft.amoWebhookSecret),
+        ...keep('bitrixWebhookSecret', draft.bitrixWebhookSecret),
+        ...keep('webhookInboundSecret', draft.webhookInboundSecret),
+      };
+      await updateIntegration(editConnectionId, {
+        name: draft.label.trim() || existingName || integrationCatalogName(catalogId, t),
+        config,
+      });
+      await testIntegration(editConnectionId).catch(() => {});
+      onCreated();
+      onClose();
+    } catch (e: unknown) {
+      setErr((e as Error)?.message || t('crm.automations.panel.integrations.connectError'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || catalogId !== 'wordpress_cf7') return;
@@ -303,6 +400,14 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
   };
 
   const submit = async () => {
+    if (isEdit) {
+      if (catalogId === 'mailchimp' && draft.apiToken.trim() && draft.apiToken.trim().length < 12) {
+        setErr(t('crm.automations.panel.integrations.connectMailchimpTokenShort'));
+        return;
+      }
+      await saveEdit();
+      return;
+    }
     if (catalogId === 'mailchimp' && draft.apiToken.trim().length < 12) {
       setErr(t('crm.automations.panel.integrations.connectMailchimpTokenShort'));
       return;
@@ -423,6 +528,9 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
               }
             : {}),
           webhookVerifyToken: draft.webhookVerifyToken.trim() || undefined,
+          ...(catalogId === 'whatsapp'
+            ? { appSecret: draft.appSecret.trim() || undefined, wabaId: draft.wabaId.trim() || undefined }
+            : {}),
           ...(catalogId === 'amocrm'
             ? { amoWebhookSecret: draft.amoWebhookSecret.trim() || undefined }
             : {}),
@@ -516,9 +624,12 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
           />
           <div>
             <h3 className="text-sm font-semibold text-slate-900">
-              {t('crm.automations.panel.integrations.connectTitle', {
-                name: integrationCatalogName(catalogId, t),
-              })}
+              {t(
+                isEdit
+                  ? 'crm.automations.panel.integrations.connectEditTitle'
+                  : 'crm.automations.panel.integrations.connectTitle',
+                { name: isEdit && existingName ? existingName : integrationCatalogName(catalogId, t) },
+              )}
             </h3>
             <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
               {catalogId === 'mailchimp'
@@ -532,11 +643,14 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                     ? t('crm.automations.panel.integrations.connectGoogleSheetsIntro')
                     : catalogId === 'openai'
                       ? t('crm.automations.panel.integrations.connectOpenaiIntro')
-                      : t('crm.automations.panel.integrations.connectIntro')}
+                      : catalogId === 'whatsapp'
+                        ? t('crm.automations.panel.integrations.connectWhatsappIntro')
+                        : t('crm.automations.panel.integrations.connectIntro')}
             </p>
           </div>
         </div>
         <div className="mt-4 space-y-3">
+          {catalogId === 'whatsapp' && !wpCf7Done ? <WhatsappConnectGuide t={t} /> : null}
           {wpCf7Done ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
               <div className="text-sm font-semibold text-emerald-950">
@@ -1009,15 +1123,23 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
           {!HIDE_API_TOKEN_FIELD.has(catalogId) && (
             <div>
               <label className="mb-1 block text-[11px] text-slate-600">
-                {t('crm.automations.panel.integrations.connectToken')}
+                {catalogId === 'whatsapp'
+                  ? t('crm.automations.panel.integrations.connectWhatsappToken')
+                  : t('crm.automations.panel.integrations.connectToken')}
               </label>
               <input
                 type="password"
                 autoComplete="new-password"
                 value={draft.apiToken}
+                placeholder={secretPh('apiToken')}
                 onChange={(e) => setDraft((d) => ({ ...d, apiToken: e.target.value }))}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
               />
+              {catalogId === 'whatsapp' && (
+                <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+                  {t('crm.automations.panel.integrations.connectWhatsappTokenHint')}
+                </p>
+              )}
               {catalogId === 'mailchimp' && (
                 <p className="mt-1 text-[10px] text-slate-500 leading-snug">
                   {t('crm.automations.panel.integrations.connectMailchimpTokenHint')}
@@ -1227,12 +1349,14 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                 type="password"
                 autoComplete="new-password"
                 value={draft.developerToken}
+                placeholder={secretPh('developerToken')}
                 onChange={(e) => setDraft((d) => ({ ...d, developerToken: e.target.value }))}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
               />
             </div>
           )}
           {catalogId !== 'mailchimp' &&
+            catalogId !== 'whatsapp' &&
             catalogId !== 'google_sheets' &&
             catalogId !== 'wordpress_cf7' &&
             catalogId !== 'lumiva_client_cabinet' &&
@@ -1265,6 +1389,20 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
               </p>
               <div className="mt-3">
                 <label className="mb-1 block text-[11px] text-slate-600">
+                  {t('crm.automations.panel.integrations.connectWhatsappWabaId')}
+                </label>
+                <input
+                  value={draft.wabaId}
+                  onChange={(e) => setDraft((d) => ({ ...d, wabaId: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
+                  placeholder="1234567890123456"
+                />
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {t('crm.automations.panel.integrations.connectWhatsappWabaIdHint')}
+                </p>
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-[11px] text-slate-600">
                   {t('crm.automations.panel.integrations.connectWhatsappVerifyToken')}
                 </label>
                 <input
@@ -1275,10 +1413,26 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                     setDraft((d) => ({ ...d, webhookVerifyToken: e.target.value }))
                   }
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                  placeholder="lumiva-wa-secret-…"
+                  placeholder={secretPh('webhookVerifyToken', "lumiva-wa-secret-…")}
                 />
                 <p className="mt-1 text-[10px] text-slate-500">
                   {t('crm.automations.panel.integrations.connectWhatsappVerifyTokenHint')}
+                </p>
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-[11px] text-slate-600">
+                  {t('crm.automations.panel.integrations.connectWhatsappAppSecret')}
+                </label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={draft.appSecret}
+                  onChange={(e) => setDraft((d) => ({ ...d, appSecret: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
+                  placeholder={secretPh('appSecret', "a1b2c3…")}
+                />
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {t('crm.automations.panel.integrations.connectWhatsappAppSecretHint')}
                 </p>
               </div>
             </div>
@@ -1294,7 +1448,7 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                 value={draft.amoWebhookSecret}
                 onChange={(e) => setDraft((d) => ({ ...d, amoWebhookSecret: e.target.value }))}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                placeholder="••••••••"
+                placeholder={secretPh('amoWebhookSecret', "••••••••")}
               />
               <p className="mt-1 text-[10px] text-slate-500 leading-snug">
                 {t('crm.automations.panel.integrations.connectAmocrmWebhookSecretHint')}
@@ -1312,7 +1466,7 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                 value={draft.bitrixWebhookSecret}
                 onChange={(e) => setDraft((d) => ({ ...d, bitrixWebhookSecret: e.target.value }))}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                placeholder="••••••••"
+                placeholder={secretPh('bitrixWebhookSecret', "••••••••")}
               />
               <p className="mt-1 text-[10px] text-slate-500 leading-snug">
                 {t('crm.automations.panel.integrations.connectBitrixWebhookSecretHint')}
@@ -1355,7 +1509,13 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                 onClick={() => void submit()}
                 className="rounded-full bg-[#222222] px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? t('crm.automations.list.loading') : t('crm.automations.panel.integrations.connectSubmit')}
+                {busy
+                  ? t('crm.automations.list.loading')
+                  : t(
+                      isEdit
+                        ? 'crm.automations.panel.integrations.connectSave'
+                        : 'crm.automations.panel.integrations.connectSubmit',
+                    )}
               </button>
             )}
           </div>

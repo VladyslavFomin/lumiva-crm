@@ -28,6 +28,8 @@ import {
 import { fetchProjects, type Project } from '../../api/projects';
 import { fetchCustomFields, type CustomField } from '../../api/custom-fields';
 import { MainLayout } from '../../layout/MainLayout';
+import { BLOCK_CHROME_HEIGHT, EmbedBody } from '../../components/analytics/EmbedBody';
+import { AiBuildDashboardModal, type AiBuildMode } from '../../components/analytics/AiBuildDashboardModal';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
 import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage';
@@ -40,8 +42,11 @@ import {
   normalizeMarketingDisplayCurrency,
   type MarketingDisplayCurrencyState,
 } from '../marketing/marketingDisplayCurrencyStorage';
+import { DateRangePicker, formatRange, fromIsoDate, toIsoDate } from '../../components/ui/DateRangePicker';
 
-type PeriodId = '30d' | '7d' | 'quarter' | 'ytd' | 'all';
+type PresetPeriodId = '30d' | '7d' | 'quarter' | 'ytd' | 'all';
+type PeriodId = PresetPeriodId | `custom:${string}`;
+const PRESET_PERIODS: PresetPeriodId[] = ['7d', '30d', 'quarter', 'ytd', 'all'];
 type ViewId = 'overview' | 'sources' | 'managers' | 'funnel';
 type BlockType = 'metric' | 'formula' | 'line' | 'donut' | 'bar' | 'funnel' | 'leaderboard' | 'table' | 'heatmap' | 'note';
 type ValueMode = 'count' | 'sum';
@@ -149,7 +154,7 @@ const GRID_ROW = 72;
 const MIN_BLOCK_H = 100;
 const MAX_BLOCK_H = 1400;
 
-function getPeriodLabels(t: TFunction): Record<PeriodId, string> {
+function getPeriodLabels(t: TFunction): Record<PresetPeriodId, string> {
   return {
     '30d': t('crm.leadsAnalytics.periods.d30'),
     '7d': t('crm.leadsAnalytics.periods.d7'),
@@ -253,15 +258,24 @@ function splitMulti(raw: unknown) {
     .filter(Boolean);
 }
 
-function formatDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
 function formatDateShort(date: Date, locale = 'ru-RU') {
   return date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
 
+/** Свой диапазон хранится в той же строке периода: `custom:YYYY-MM-DD:YYYY-MM-DD` (переживает embed/дашборд). */
+function parseCustomPeriod(period: string) {
+  const m = /^custom:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/.exec(period);
+  if (!m) return null;
+  const from = fromIsoDate(m[1]);
+  const to = fromIsoDate(m[2]);
+  if (!from || !to) return null;
+  to.setHours(23, 59, 59, 999);
+  return { from, to };
+}
+
 function periodRange(period: PeriodId) {
+  const custom = parseCustomPeriod(period);
+  if (custom) return custom;
   const now = new Date();
   now.setHours(23, 59, 59, 999);
   if (period === 'all') return { from: null as Date | null, to: now };
@@ -2076,10 +2090,40 @@ function exportCsv(items: LeadAnalyticsItem[], period: PeriodId, t: TFunction) {
   URL.revokeObjectURL(url);
 }
 
-export const LeadsAnalyticsPage: React.FC = () => {
+/** Блок по id для главной: сначала сохранённая раскладка этой страницы, потом стандартная.
+ * Нужен старым закреплениям, у которых в пресете нет самого блока (nativeBlock). */
+export function findLeadsBlockById(id: string, t: TFunction): AnalyticsBlock | null {
+  const search = (layout: Record<string, AnalyticsBlock[]> | null | undefined) => {
+    if (!layout) return null;
+    for (const blocks of Object.values(layout)) {
+      const hit = Array.isArray(blocks) ? blocks.find((b) => b?.id === id) : undefined;
+      if (hit) return hit;
+    }
+    return null;
+  };
+  try {
+    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (raw && localStorage.getItem(LAYOUT_VERSION_KEY) === LAYOUT_VERSION) {
+      const hit = search(JSON.parse(raw));
+      if (hit) return hit;
+    }
+  } catch {
+    // ignore
+  }
+  return search(defaultLayout(t) as Record<string, AnalyticsBlock[]>);
+}
+
+export const LeadsAnalyticsPage: React.FC<{
+  /** Режим «один блок» для главной — тот же расчёт и отрисовка, что на этой странице. */
+  embedBlock?: { block: unknown; period?: string; globalFilters?: unknown[] };
+}> = ({ embedBlock }) => {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const periodLabels = useMemo(() => getPeriodLabels(t), [t]);
+  const periodName = (p: PeriodId) => {
+    const c = parseCustomPeriod(p);
+    return c ? formatRange(c.from, c.to, locale) : periodLabels[p as PresetPeriodId];
+  };
   const views = useMemo(() => getViews(t), [t]);
   const [rawLeads, setRawLeads] = useState<Lead[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -2087,7 +2131,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
   const [projectsByLeadId, setProjectsByLeadId] = useState<Map<string, Project[]>>(() => new Map());
   const [projectsRoiByLeadId, setProjectsRoiByLeadId] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<PeriodId>('30d');
+  const [period, setPeriod] = useState<PeriodId>((embedBlock?.period as PeriodId) || '30d');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 640);
@@ -2114,7 +2158,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
   const [configId, setConfigId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
-  const [globalFilters, setGlobalFilters] = useState<FilterRow[]>([]);
+  const [globalFilters, setGlobalFilters] = useState<FilterRow[]>((embedBlock?.globalFilters as FilterRow[]) || []);
   const [shareToast, setShareToast] = useState(false);
   const [aiConfirmOpen, setAiConfirmOpen] = useState(false);
   const [aiBuilding, setAiBuilding] = useState(false);
@@ -2370,8 +2414,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
     setConfigId(null);
   };
 
-  const buildWithAi = async () => {
-    setAiConfirmOpen(false);
+  const buildWithAi = async ({ instructions, mode }: { instructions: string; mode: AiBuildMode }) => {
     setAiError(null);
     setAiBuilding(true);
     try {
@@ -2380,18 +2423,31 @@ export const LeadsAnalyticsPage: React.FC = () => {
         module: 'leads',
         periodFrom: range.from ? range.from.toISOString() : undefined,
         periodTo: range.to ? range.to.toISOString() : undefined,
+        instructions: instructions || undefined,
       });
       if (!res.ok || !res.layouts) {
         setAiError(res.note || res.error || 'Не удалось построить дашборд — недостаточно данных.');
         return;
       }
       const next = res.layouts as unknown as Record<ViewId, AnalyticsBlock[]>;
-      const full: Record<ViewId, AnalyticsBlock[]> = {
-        overview: next.overview || [],
-        sources: next.sources || [],
-        managers: next.managers || [],
-        funnel: next.funnel || [],
-      };
+      const stamp = Date.now().toString(36);
+      const fresh = (view: ViewId) =>
+        (next[view] || []).map((block, i) => ({ ...block, id: `ai-${stamp}-${view}-${i}` }));
+      const full: Record<ViewId, AnalyticsBlock[]> =
+        mode === 'append'
+          ? {
+              overview: [...(layouts.overview || []), ...fresh('overview')],
+              sources: [...(layouts.sources || []), ...fresh('sources')],
+              managers: [...(layouts.managers || []), ...fresh('managers')],
+              funnel: [...(layouts.funnel || []), ...fresh('funnel')],
+            }
+          : {
+              overview: fresh('overview'),
+              sources: fresh('sources'),
+              managers: fresh('managers'),
+              funnel: fresh('funnel'),
+            };
+      setAiConfirmOpen(false);
       setLayouts(full);
       localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(full));
       localStorage.setItem(LAYOUT_VERSION_KEY, LAYOUT_VERSION);
@@ -2436,7 +2492,12 @@ export const LeadsAnalyticsPage: React.FC = () => {
     requestAddDashboardPreset({
       source: 'leads',
       slug: block.id,
-      widgetConfig: blockToDashboardWidgetConfig(block),
+      widgetConfig: {
+        ...blockToDashboardWidgetConfig(block),
+        nativeBlock: block,
+        nativePeriod: period,
+        nativeFilters: globalFilters,
+      },
     });
   };
 
@@ -2457,6 +2518,31 @@ export const LeadsAnalyticsPage: React.FC = () => {
     setShareToast(true);
     setTimeout(() => setShareToast(false), 2500);
   };
+
+  if (embedBlock) {
+    const block = embedBlock.block as AnalyticsBlock;
+    const blockAllItems = applyFilterRows(filteredAllItems, block.filters);
+    const blockItems = blockAllItems.filter((item) => inRange(item.createdAt, range));
+    return (
+      <EmbedBody>
+        {(height) =>
+          loading ? (
+            <div className="flex h-full items-center justify-center text-[11px] text-neutral-400">{t('crm.dashboard.loading')}</div>
+          ) : (
+            <RenderBlock
+              block={{ ...block, height: Math.max(height + BLOCK_CHROME_HEIGHT, MIN_BLOCK_H) }}
+              items={blockItems}
+              trendItems={blockAllItems}
+              baseItems={filteredItems}
+              fields={fields}
+              period={period}
+              reportCurrency={reportCurrency}
+            />
+          )
+        }
+      </EmbedBody>
+    );
+  }
 
   return (
     <MainLayout>
@@ -2485,21 +2571,17 @@ export const LeadsAnalyticsPage: React.FC = () => {
         <div className="space-y-5 py-6">
           <section className="border-b border-neutral-200 pb-6">
             <div className="mb-4">
-              <div className="mb-2  text-xs uppercase tracking-[0.38em] text-neutral-500">{t('crm.leadsAnalytics.page.kicker', { period: periodLabels[period] })}</div>
+              <div className="mb-2  text-xs uppercase tracking-[0.38em] text-neutral-500">{t('crm.leadsAnalytics.page.kicker', { period: periodName(period) })}</div>
               <h1 className="text-3xl font-semibold tracking-[-0.055em] text-[#222] sm:text-4xl md:text-5xl">{t('crm.leadsAnalytics.page.title')}</h1>
               <p className="mt-2 hidden max-w-[760px] text-base leading-7 text-neutral-500 sm:mt-3 sm:block sm:text-lg">{t('crm.leadsAnalytics.page.subtitle')}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl border border-neutral-200 bg-white p-1">
-                {(['30d', '7d', 'quarter', 'ytd', 'all'] as PeriodId[]).map((item) => (
-                  <button key={item} type="button" className={cx('rounded-lg px-3 py-1.5 text-xs transition sm:px-4 sm:py-2 sm:text-sm', period === item ? 'bg-[#222] text-white shadow-sm' : 'text-neutral-500 hover:text-[#222]')} onClick={() => setPeriod(item)}>{periodLabels[item]}</button>
-                ))}
-              </div>
-              <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm sm:inline-flex">
-                <Icon name="calendar" size={15} />
-                <span className="text-xs uppercase tracking-[0.16em] text-neutral-400">{t('crm.leadsAnalytics.page.periodLabel')}</span>
-                <span className="font-medium">{range.from ? `${formatDateInput(range.from)} – ${formatDateInput(range.to)}` : t('crm.leadsAnalytics.page.allTimeLabel')}</span>
-              </div>
+              <DateRangePicker
+                value={range}
+                presetId={parseCustomPeriod(period) ? null : period}
+                presets={PRESET_PERIODS.map((id) => ({ id, label: periodLabels[id], range: periodRange(id) }))}
+                onChange={(v) => setPeriod(v.presetId ? (v.presetId as PresetPeriodId) : v.from && v.to ? `custom:${toIsoDate(v.from)}:${toIsoDate(v.to)}` : 'all')}
+              />
               <button type="button" className="hidden sm:inline-flex items-center gap-2 btn-secondary" onClick={handleShare}><Icon name="share" size={15} /><span className="hidden md:inline">{t('crm.leadsAnalytics.page.shareBtn')}</span></button>
               <button type="button" className="hidden sm:inline-flex items-center gap-2 btn-secondary" onClick={() => exportCsv(filteredItems, period, t)}><Icon name="download" size={15} /><span className="hidden md:inline">{t('crm.leadsAnalytics.page.exportCsvBtn')}</span></button>
               <button type="button" className="btn-primary" onClick={() => setEditing((value) => !value)}>{editing ? t('crm.leadsAnalytics.page.doneBtn') : t('crm.leadsAnalytics.page.editBtn')}</button>
@@ -2620,20 +2702,15 @@ export const LeadsAnalyticsPage: React.FC = () => {
         onClose={() => setConfigId(null)}
         onDelete={() => configId && deleteBlock(configId)}
       />
-      {aiConfirmOpen && (
-        <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#222]">Разобрать через АИ?</h3>
-            <p className="mt-2 text-sm leading-6 text-neutral-500">
-              ИИ изучит реальные данные по лидам и построит полноценный набор блоков на всех вкладках — заменит текущие.
-            </p>
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button type="button" onClick={() => setAiConfirmOpen(false)} className="btn-secondary">Отмена</button>
-              <button type="button" onClick={buildWithAi} className="btn-primary">Разобрать</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AiBuildDashboardModal
+        open={aiConfirmOpen}
+        busy={aiBuilding}
+        error={aiError}
+        currentBlocks={Object.values(layouts).reduce((sum, list) => sum + (list?.length || 0), 0)}
+        replaceScope="all"
+        onClose={() => setAiConfirmOpen(false)}
+        onSubmit={(input) => void buildWithAi(input)}
+      />
       {aiError && (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-rose-600 px-5 py-3 text-sm text-white shadow-lg">
           {aiError}

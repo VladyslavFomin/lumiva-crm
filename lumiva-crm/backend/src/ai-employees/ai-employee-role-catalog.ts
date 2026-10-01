@@ -14,6 +14,8 @@ export type AiEmployeeRoleKey =
   | 'smm_manager'
   | 'seo_manager'
   | 'reviews_manager'
+  | 'chat_operator'
+  | 'messenger_operator'
   | 'email_assistant'
   | 'crm_analyst'
   | 'reservation_assistant';
@@ -121,7 +123,8 @@ const ALWAYS_ON_EXTRAS = ['escalate_to_human'];
  * Убраны как декоративные: read_deals (дубль read_sales), read_files (нет доступа к файлам),
  * read_campaigns/read_marketing_traffic/costs/roi/integrations/read_attribution/read_analytics
  * (все 7 включали один и тот же блок «маркетинг» — свёрнуты в read_marketing),
- * send_whatsapp (исполнения не было — действие «выполнялось» без отправки; остался draft_whatsapp).
+ * send_whatsapp убирался как декоративный (не было исполнения) — вернулся с реальной отправкой через
+ * WhatsApp Cloud API (WhatsappCrmService.sendMessage) в существующий диалог.
  */
 export const AI_EMPLOYEE_PERMISSION_KEYS = [
   'read_leads',
@@ -147,11 +150,16 @@ export const AI_EMPLOYEE_PERMISSION_KEYS = [
   'send_bulk_email',
   'draft_whatsapp',
   'send_telegram',
+  'send_whatsapp',
   'create_meeting',
   'create_report',
   'create_project',
   'create_workspace_table',
   'manage_workspace_data',
+  // Онлайн-консультант (online-chat/online-chat-ai.service.ts): отвечать посетителям сайта от своего имени
+  // (выключено — ответ пишется черновиком-заметкой для оператора) и брать цены из каталога «Продукты».
+  'reply_online_chat',
+  'read_products',
 ] as const;
 
 /** Action types where the system can perform real execution (not just "mark done"). */
@@ -160,6 +168,7 @@ export const AI_REAL_EXECUTABLE_ACTIONS = [
   'send_email',
   'send_bulk_email',
   'send_telegram',
+  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
   'create_task',
@@ -186,6 +195,7 @@ export const AI_REAL_EXECUTABLE_ACTIONS = [
 export const AI_EMPLOYEE_APPROVAL_ACTIONS = [
   'send_email',
   'send_telegram',
+  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
   'create_task',
@@ -199,6 +209,7 @@ export const AI_EMPLOYEE_APPROVAL_ACTIONS = [
 const DEFAULT_APPROVAL_RULES = [
   'send_email',
   'send_telegram',
+  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
 ];
@@ -246,6 +257,7 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
       { event: 'lead.created', scope: 'all' },
       { event: 'lead.status_changed', scope: 'mine' },
       { event: 'telegram.message_received', scope: 'mine' },
+      { event: 'whatsapp.message_received', scope: 'mine' },
     ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     assignableEntityTypes: ['lead', 'custom_object_record'],
@@ -292,6 +304,7 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
       { event: 'lead.status_changed', scope: 'mine' },
       { event: 'sale.status_changed', scope: 'all' },
       { event: 'telegram.message_received', scope: 'mine' },
+      { event: 'whatsapp.message_received', scope: 'mine' },
     ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     assignableEntityTypes: ['lead', 'custom_object_record'],
@@ -329,6 +342,7 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
     defaultTriggers: [
       { event: 'lead.status_changed', scope: 'mine' },
       { event: 'telegram.message_received', scope: 'mine' },
+      { event: 'whatsapp.message_received', scope: 'mine' },
     ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     assignableEntityTypes: [],
@@ -366,11 +380,13 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
       'create_note',
       'draft_email',
       'send_telegram',
+      'send_whatsapp',
       'create_meeting',
       'create_report',
     ],
     defaultTriggers: [
       { event: 'telegram.message_received', scope: 'mine' },
+      { event: 'whatsapp.message_received', scope: 'mine' },
     ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     assignableEntityTypes: ['contact', 'company_task', 'custom_object_record'],
@@ -412,6 +428,7 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
       'send_email',
       'draft_whatsapp',
       'send_telegram',
+      'send_whatsapp',
       'create_meeting',
       'create_report',
     ],
@@ -519,7 +536,8 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
     assignableEntityTypes: [],
     systemPrompt:
       'You are an AI SEO Manager inside Lumiva CRM. snapshot.seo holds the latest weekly SEO reports per website (Search Console traffic week/month, tracked keyword positions, striking-distance queries, page issues, PageSpeed, recommendations, tasks already created, active alerts) — base every SEO answer on it and say so when data is missing. ' +
-      'Analyze organic search performance, site health and content opportunities based only on real Search Console, PageSpeed and site data; give concrete, prioritized fixes.',
+      'Analyze organic search performance, site health and content opportunities based only on real Search Console, PageSpeed and site data; give concrete, prioritized fixes. ' +
+      'Every SEO task you create is about ONE website: always put its host in payload.site (e.g. "alivip.site") and name the site in the title; such tasks are filed automatically into that site\'s own "SEO · <site>" project — never put them into client or sales projects. Do not re-create tasks that already exist in snapshot.seo[].lastReport.tasks or in your recent actions.',
   },
   {
     // Открывает «Отзывы» (Маркетинг → Отзывы): без активного сотрудника этой роли страница закрыта
@@ -541,6 +559,48 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
     assignableEntityTypes: [],
     systemPrompt:
       'You are an AI Reviews Manager inside Lumiva CRM. snapshot.reviews holds the monitored Google places with rating, recent reviews, sentiment and open negatives — base answers on it. Replies to reviews must be polite, specific to what the guest wrote, in the reviewer’s language, never argue or disclose private data, and invite unhappy guests to contact the business directly.',
+  },
+  {
+    // Отвечает посетителям в онлайн-чате сайта (виджет lumiva-chat.js / WP-плагин) — по брифу владельца
+    // (услуги, цены, правила), базе знаний и каталогу «Продукты». Сам обработчик — online-chat/online-chat-ai.service.ts.
+    key: 'chat_operator',
+    title: 'AI Online Chat Consultant',
+    shortTitle: 'Chat Consultant',
+    defaultName: 'Nova AI',
+    department: 'Customer Service',
+    jobTitle: 'AI Online Chat Consultant',
+    minPlan: 'standard',
+    accent: '#1f2937',
+    description:
+      'Answers visitors in your website chat 24/7 about services, prices and terms from your brief, collects contacts into leads and calls a manager when needed.',
+    functions: ['24/7 website chat replies', 'Services and prices from your brief', 'Contacts → leads', 'Hand-off to a manager', 'Replies in the visitor’s language'],
+    defaultPermissions: ['reply_online_chat', 'read_products', 'read_reports', 'create_report', ...ALWAYS_ON_EXTRAS],
+    defaultTriggers: [],
+    defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
+    systemPrompt:
+      'You are an AI Online Chat Consultant inside Lumiva CRM. You answer website visitors in the online chat using only the owner’s brief, the knowledge base and the product catalog; you collect contacts and hand the conversation to a human when you cannot answer.',
+  },
+  {
+    // Отвечает клиентам в мессенджерах (WhatsApp Cloud API, Telegram-боты) — у каждого канала свой бриф.
+    // Обработчик — online-chat/online-chat-ai.service.ts (тот же движок, что у онлайн-консультанта сайта).
+    key: 'messenger_operator',
+    title: 'AI Messenger Consultant',
+    shortTitle: 'Messenger Consultant',
+    defaultName: 'Mira AI',
+    department: 'Customer Service',
+    jobTitle: 'AI Messenger Consultant',
+    minPlan: 'standard',
+    accent: '#1FA855',
+    description:
+      'Answers clients in WhatsApp and Telegram 24/7 about services, prices and terms — a separate brief for each channel, replies in the client’s language and calls a manager when needed.',
+    functions: ['24/7 WhatsApp and Telegram replies', 'Separate brief per channel', 'Services and prices from your brief', 'Hand-off to a manager', 'Replies in the client’s language'],
+    defaultPermissions: ['send_whatsapp', 'send_telegram', 'read_products', 'read_reports', ...ALWAYS_ON_EXTRAS],
+    defaultTriggers: [],
+    defaultApprovalRules: DEFAULT_APPROVAL_RULES,
+    assignableEntityTypes: [],
+    systemPrompt:
+      'You are an AI Messenger Consultant inside Lumiva CRM. You answer clients in WhatsApp and Telegram using only the owner’s brief for that channel, the knowledge base and the product catalog; you hand the conversation to a human when you cannot answer.',
   },
   {
     key: 'email_assistant',
@@ -648,6 +708,7 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
       { event: 'booking.reservation_created', scope: 'all' },
       { event: 'hotel.reservation_created', scope: 'all' },
       { event: 'telegram.message_received', scope: 'mine' },
+      { event: 'whatsapp.message_received', scope: 'mine' },
     ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     assignableEntityTypes: ['lead', 'custom_object_record'],
@@ -706,8 +767,8 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
   lead_manager: {
     allowedPermissions: ['read_leads', 'read_contacts', 'read_companies', 'read_tasks', 'read_messages', 'read_notes', 'read_reports',
       'create_task', 'update_task', 'create_note', 'assign_lead', 'update_lead_status', 'draft_email', 'send_email', 'draft_whatsapp',
-      'send_telegram', 'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
-    allowedTriggers: ['ai.assigned', 'lead.created', 'lead.status_changed', 'lead.assigned', 'contact.created', 'telegram.message_received', 'email.received', ...WS],
+      'send_telegram', 'send_whatsapp', 'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
+    allowedTriggers: ['ai.assigned', 'lead.created', 'lead.status_changed', 'lead.assigned', 'contact.created', 'telegram.message_received', 'whatsapp.message_received', 'email.received', ...WS],
     charter: {
       does: 'incoming leads: first response, qualification, routing to the right manager, lead statuses, follow-ups until the lead is qualified',
       doesNot: 'closing deals and sales pipeline (Sales Manager), marketing channels/campaigns/content (Marketing), projects (Project Manager), support tickets (Support), bookings (Reservation Assistant), SEO (SEO Manager)',
@@ -715,9 +776,9 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
   },
   sales_manager: {
     allowedPermissions: ['read_leads', 'read_contacts', 'read_companies', 'read_sales', 'read_tasks', 'read_messages', 'read_notes', 'read_reports',
-      'create_task', 'update_task', 'create_note', 'update_lead_status', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram',
+      'create_task', 'update_task', 'create_note', 'update_lead_status', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp',
       'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
-    allowedTriggers: ['ai.assigned', 'lead.status_changed', 'sale.created', 'sale.status_changed', 'telegram.message_received', 'email.received', ...WS],
+    allowedTriggers: ['ai.assigned', 'lead.status_changed', 'sale.created', 'sale.status_changed', 'telegram.message_received', 'whatsapp.message_received', 'email.received', ...WS],
     charter: {
       does: 'qualified leads and deals: offers, follow-ups, negotiations, deal statuses, stuck deals, sales reports',
       doesNot: 'raw incoming leads and their distribution (Lead Manager), marketing (Marketing), projects after the sale (Project Manager), support (Support), SEO (SEO Manager)',
@@ -763,11 +824,27 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
       doesNot: 'leads and sales (Lead/Sales Manager), support tickets (Support), marketing campaigns (Marketing), SEO (SEO Manager), bookings (Reservation Assistant)',
     },
   },
+  messenger_operator: {
+    allowedPermissions: ['send_whatsapp', 'send_telegram', 'read_products', 'read_reports', 'create_report', 'escalate_to_human'],
+    allowedTriggers: [],
+    charter: {
+      does: 'client conversations in WhatsApp and Telegram (channels switched on in its settings): answering about services, prices, terms and availability from the channel brief/knowledge base/catalog, handing the chat to a human manager',
+      doesNot: 'website chat (Online Chat Consultant), working leads after the chat (Lead Manager), deals (Sales), support tickets (Support), bookings (Reservation Assistant), marketing, SEO — and never promises discounts or exceptions',
+    },
+  },
+  chat_operator: {
+    allowedPermissions: ['reply_online_chat', 'read_products', 'read_reports', 'create_report', 'escalate_to_human'],
+    allowedTriggers: [],
+    charter: {
+      does: 'website online chat: answering visitors about services, prices, terms and availability from the brief/knowledge base/catalog, collecting visitor contacts, handing the chat to a human manager',
+      doesNot: 'working leads after the chat (Lead Manager), deals (Sales), support tickets (Support), bookings (Reservation Assistant), marketing, SEO — and never promises discounts or exceptions',
+    },
+  },
   support_manager: {
     allowedPermissions: ['read_helpdesk', 'read_contacts', 'read_companies', 'read_messages', 'read_tasks', 'read_notes', 'read_reports',
-      'create_task', 'update_task', 'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'create_meeting',
+      'create_task', 'update_task', 'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp', 'create_meeting',
       'create_report', 'escalate_to_human', 'manage_workspace_data'],
-    allowedTriggers: ['ai.assigned', 'telegram.message_received', 'email.received', 'task.created', 'task.status_changed', ...WS],
+    allowedTriggers: ['ai.assigned', 'telegram.message_received', 'whatsapp.message_received', 'email.received', 'task.created', 'task.status_changed', ...WS],
     charter: {
       does: 'customer support: tickets, client questions and complaints, FAQ answers, escalation of hard cases',
       doesNot: 'selling and new leads (Lead/Sales Manager), marketing, projects delivery (Project Manager), bookings (Reservation Assistant), SEO',
@@ -775,9 +852,9 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
   },
   project_manager: {
     allowedPermissions: ['read_projects', 'read_tasks', 'read_contacts', 'read_companies', 'read_messages', 'read_notes', 'read_reports',
-      'create_task', 'update_task', 'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'create_meeting',
+      'create_task', 'update_task', 'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp', 'create_meeting',
       'create_report', 'create_project', 'create_workspace_table', 'manage_workspace_data', 'escalate_to_human'],
-    allowedTriggers: ['ai.assigned', 'project.created', 'project.status_changed', 'task.created', 'task.status_changed', 'telegram.message_received', ...WS],
+    allowedTriggers: ['ai.assigned', 'project.created', 'project.status_changed', 'task.created', 'task.status_changed', 'telegram.message_received', 'whatsapp.message_received', ...WS],
     charter: {
       does: 'projects and their tasks: plans, deadlines, statuses, blockers, client updates on project progress, workspace tables for projects',
       doesNot: 'leads and their distribution (Lead Manager), deals (Sales), marketing, support tickets, SEO',
@@ -803,9 +880,9 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
   },
   reservation_assistant: {
     allowedPermissions: ['read_bookings', 'read_leads', 'read_contacts', 'read_messages', 'read_notes', 'read_reports', 'create_task',
-      'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
+      'create_note', 'draft_email', 'send_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp', 'create_meeting', 'create_report', 'escalate_to_human', 'manage_workspace_data'],
     allowedTriggers: ['ai.assigned', 'booking.reservation_created', 'booking.reservation_status_changed', 'hotel.reservation_created',
-      'hotel.reservation_status_changed', 'telegram.message_received', 'email.received', ...WS],
+      'hotel.reservation_status_changed', 'telegram.message_received', 'whatsapp.message_received', 'email.received', ...WS],
     charter: {
       does: 'reservations: booking requests, guest replies in RU/TR/EN, date/room checks, agency communication, reservation reports',
       doesNot: 'general leads outside reservations (Lead Manager), deals (Sales), marketing, projects, SEO',
@@ -858,4 +935,6 @@ export const EVENT_OWNER_ROLE: Record<string, AiEmployeeRoleKey> = {
   'hotel.reservation_status_changed': 'reservation_assistant',
   'email.received': 'email_assistant',
   'telegram.message_received': 'support_manager',
+  'whatsapp.message_received': 'messenger_operator',
+  'online_chat.message_received': 'chat_operator',
 };

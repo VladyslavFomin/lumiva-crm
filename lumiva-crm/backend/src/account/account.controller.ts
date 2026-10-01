@@ -44,6 +44,11 @@ export class AccountController {
 
   // ---------- предпочтения ----------
 
+  @Get('preferences')
+  getPreferences(@CurrentUser() user: CurrentUserPayload) {
+    return this.accountService.getPreferences(user.userId!);
+  }
+
   @Patch('preferences')
   updatePreferences(@CurrentUser() user: CurrentUserPayload, @Body() body: Record<string, any>) {
     return this.accountService.updatePreferences(user.userId!, body || {});

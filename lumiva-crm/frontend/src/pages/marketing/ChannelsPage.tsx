@@ -31,7 +31,6 @@ import {
   marketingLead,
   marketingPageShell,
   marketingSectionTitle,
-  marketingSelect,
 } from './marketingPageChrome';
 import { MarketingChannelBlocks } from './marketingChannelBlocks';
 import { MarketingProviderBreakdownTable } from './MarketingProviderBreakdownTable';
@@ -41,12 +40,12 @@ import {
 } from './MarketingDisplayCurrencyToolbar';
 import { convertMarketingAmount } from './marketingDisplayCurrencyStorage';
 import {
-  marketingTrafficClampDateRange,
   marketingTrafficDefaultCustomRange,
   marketingTrafficPresetRange,
-  marketingTrafficUtcTodayYmd,
   type MarketingTrafficPeriodPreset,
+  marketingTrafficPickerPresets,
 } from './marketingTrafficPeriod';
+import { DateRangePicker, fromIsoDate, toIsoDate } from '../../components/ui/DateRangePicker';
 
 interface DateRange {
   from?: string;
@@ -188,6 +187,16 @@ export const ChannelsPage: React.FC = () => {
     return { kind: 'single' as const, sum, cur, miss };
   }, [providerBreakdown, curPrefs, view.currency, currency]);
 
+  /** Ценность конверсий рекламных площадок (Google Ads / Meta) — отдельно от выручки сайтов/CRM. */
+  const kpiConvValue = useMemo(() => {
+    let sum = 0;
+    for (const p of providerBreakdown) {
+      if (!p.conversionValue) continue;
+      sum += convertMarketingAmount(p.conversionValue, p.currency, 'converted', curPrefs.displayCurrency, curPrefs.rates).value;
+    }
+    return sum;
+  }, [providerBreakdown, curPrefs]);
+
   const spendSummary = useMemo(() => {
     if (totalCost <= 0) return null;
     if (curPrefs.currencyMode === 'native') {
@@ -265,19 +274,6 @@ export const ChannelsPage: React.FC = () => {
     fontFamily: 'inherit',
   };
 
-  const segBtn = (active: boolean): React.CSSProperties => ({
-    background: active ? '#fff' : 'none',
-    border: 'none',
-    padding: '6px 12px',
-    fontSize: 12,
-    color: active ? INK : FG3,
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    fontWeight: active ? 500 : 400,
-    boxShadow: active ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
-  });
-
   return (
     <MainLayout>
       <PageHelpButton topic="marketingTraffic" />
@@ -308,45 +304,16 @@ export const ChannelsPage: React.FC = () => {
 
         {/* ── Toolbar ────────────────────────────────────────────── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {/* Period segment */}
-          <div style={{ display: 'inline-flex', background: BG, border: `1px solid ${LINE}`, borderRadius: 8, padding: 2 }}>
-            {(['7d', '30d', '90d', 'custom', 'all'] as MarketingTrafficPeriodPreset[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => applyPreset(p)}
-                style={segBtn(preset === p)}
-              >
-                {periodLabel[p]}
-              </button>
-            ))}
-          </div>
-          {preset === 'custom' && (
-            <>
-              <input
-                type="date"
-                aria-label={t('crm.marketingChannels.periodDateFromAria', { defaultValue: 'Дата начала' })}
-                className={`${marketingSelect} h-9`}
-                value={range.from || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setPreset('custom');
-                  setRange((r) => marketingTrafficClampDateRange({ from: v, to: r.to || marketingTrafficUtcTodayYmd() }));
-                }}
-              />
-              <input
-                type="date"
-                aria-label={t('crm.marketingChannels.periodDateToAria', { defaultValue: 'Дата окончания' })}
-                className={`${marketingSelect} h-9`}
-                value={range.to || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setPreset('custom');
-                  setRange((r) => marketingTrafficClampDateRange({ from: r.from || marketingTrafficUtcTodayYmd(), to: v }));
-                }}
-              />
-            </>
-          )}
+          <DateRangePicker
+            value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
+            presetId={preset === 'custom' ? null : preset}
+            presets={marketingTrafficPickerPresets(periodLabel)}
+            onChange={(v) => {
+              if (v.presetId) return applyPreset(v.presetId as MarketingTrafficPeriodPreset);
+              setPreset('custom');
+              setRange({ from: v.from ? toIsoDate(v.from) : undefined, to: v.to ? toIsoDate(v.to) : undefined });
+            }}
+          />
           {/* DataSource */}
           <select
             value={dataSource}
@@ -429,6 +396,14 @@ export const ChannelsPage: React.FC = () => {
                     </>
                   )}
                 </div>
+                {kpiConvValue > 0 && (
+                  <div style={{ fontSize: 11, color: FG3, marginTop: 4 }}>
+                    {t('crm.marketingChannelBlocks.platformValueHint', {
+                      defaultValue: '+ ценность конверсий площадок: {{v}}',
+                      v: `${formatMoney(kpiConvValue)} ${curPrefs.displayCurrency}`,
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -447,6 +422,7 @@ export const ChannelsPage: React.FC = () => {
               formatNumber={formatNumber}
               formatMoney={formatMoney}
               dataSourceLabels={view.dataSourceLabels}
+              integrationLabels={view.integrationLabels}
               trafficDateFrom={range.from}
               trafficDateTo={range.to}
               title=""

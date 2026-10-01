@@ -2698,7 +2698,9 @@
       "file": "Dosya",
       "confirmDelete": "Bu görüşmeyi silmek istiyor musunuz? Mesajlar kalıcı olarak silinir.",
       "errors": {
-        "deleteFailed": "Sohbet silinemedi"
+        "deleteFailed": "Sohbet silinemedi",
+        "statusFailed": "Sohbet durumu değiştirilemedi",
+        "sendFailed": "Mesaj gönderilemedi"
       },
       "dialogTitle": "Görüşme #{{id}}",
       "title": "Çevrimiçi sohbet",
@@ -2720,7 +2722,96 @@
       "listHeading": "Görüşmeler",
       "siteLabel": "Site",
       "openLead": "Lead’e git",
-      "noLeadYet": "Henüz lead yok (widget formu gönderilmedi)."
+      "noLeadYet": "Henüz lead yok (widget formu gönderilmedi).",
+      "ai": {
+        "mode": {
+          "auto": "{{name}} ziyaretçilere kendisi yanıt veriyor",
+          "draft": "{{name}} yanıt taslakları yazıyor — siz gönderiyorsunuz",
+          "off": "{{name}} öneri modunda — sohbete yazmıyor"
+        },
+        "noBrief": "Brif boş — danışman hizmetlerinizi ve fiyatlarınızı bilmiyor",
+        "settings": "Danışmanı ayarla",
+        "notHired": "YZ danışmanı ziyaretçilere hizmetleriniz ve fiyatlarınız hakkında 7/24 yanıt verebilir.",
+        "activate": "{{name}}'yı etkinleştir",
+        "hire": "YZ danışmanı işe al",
+        "noSeats": "Boş YZ çalışanı yeri yok",
+        "badgeAi": "YZ",
+        "badgeHuman": "Operatör",
+        "pause": "Bu sohbette YZ'yi kapat",
+        "resume": "YZ'yi sohbete geri getir",
+        "pauseHint": "YZ bu sohbette yanıt vermeyi bırakır",
+        "resumeHint": "YZ ziyaretçinin yeni mesajlarına yeniden yanıt verir",
+        "toggleFailed": "YZ değiştirilemedi",
+        "draftLabel": "Taslak · {{name}} — ziyaretçi görmez",
+        "useDraft": "Yanıta ekle",
+        "takeOver": "YZ'den devral",
+        "giveBack": "YZ'ye geri ver",
+        "offTitle": "YZ danışmanı bağlı değil — operatörler yanıtlıyor",
+        "modeHint": {
+          "auto": "Sohbete yazdığınızda YZ orada otomatik olarak kapanır",
+          "draft": "Taslakları yalnızca çalışanlar görür — ziyaretçi görmez",
+          "off": "Yeni mesajlar operatör yanıtı bekliyor"
+        }
+      },
+      "kicker": "Müşteri iletişimi",
+      "today": "Bugün",
+      "yesterday": "Dün",
+      "noMatches": "Sohbet bulunamadı",
+      "noMessages": "Mesaj yok",
+      "youPrefix": "Siz: ",
+      "aiPrefix": "YZ: ",
+      "waitingReply": "Yanıt bekliyor",
+      "operator": "Operatör",
+      "internalNote": "Dahili not",
+      "back": "Listeye dön",
+      "panelToggle": "Ziyaretçi bilgileri",
+      "closedBar": "Sohbet kapatıldı",
+      "reopen": "Yeniden aç",
+      "reopenDialog": "Sohbeti yeniden aç",
+      "closeDialog": "Sohbeti kapat",
+      "enterHint": "Enter — gönder",
+      "deleteTitle": "Sohbet silinsin mi?",
+      "deleteText": "{{name}} (#{{id}}) ile yapılan yazışma kalıcı olarak silinecek.",
+      "deleteConfirm": "Sil",
+      "cancel": "İptal",
+      "stats": {
+        "open": "Açık",
+        "waiting": "Yanıt bekleyen",
+        "ai": "YZ yürütüyor"
+      },
+      "filters": {
+        "all": "Tümü",
+        "ai": "YZ",
+        "op": "Operatör",
+        "closed": "Kapalı"
+      },
+      "quick": {
+        "greet": "Merhaba! Size nasıl yardımcı olabilirim?",
+        "handoff": "Sorunuzu bir yöneticiye ileteceğim",
+        "askContact": "Lütfen telefon numaranızı bırakın"
+      },
+      "note": {
+        "aiPrefix": "Şu anda yanıtlayan:",
+        "aiSuffix": "Mesajınız bu sohbette YZ'yi kapatacak.",
+        "draft": "{{name}} taslak hazırlıyor — gönderen sizsiniz",
+        "human": "Bu sohbeti siz yürütüyorsunuz"
+      },
+      "info": {
+        "visitor": "Ziyaretçi",
+        "name": "Ad",
+        "email": "E-posta",
+        "started": "Başlangıç",
+        "messages": "Mesaj",
+        "status": "Durum",
+        "source": "Kaynak",
+        "site": "Site",
+        "channel": "Kanal",
+        "campaign": "Kampanya",
+        "content": "Reklam",
+        "term": "Anahtar kelime",
+        "noUtm": "Doğrudan giriş",
+        "lead": "Potansiyel müşteri"
+      }
     },
     "clientAccounts": {
       "title": "Müşteri hesapları",
@@ -3417,7 +3508,8 @@
       "marketingUtmLinks": "Etiketli bağlantılar",
       "aiEmployeesKnowledge": "Bilgi tabanı",
       "aiEmployeesInsights": "Fayda",
-      "marketingReviews": "Yorumlar"
+      "marketingReviews": "Yorumlar",
+      "marketingRoi": "Müşteri ROI"
     },
     "aiEmployees": {
       "badge": {
@@ -3828,7 +3920,7 @@
       },
       "approvalAction": {
         "send_email": "e-posta gönderme",
-        "send_whatsapp": "WhatsApp gönderme",
+        "send_whatsapp": "WhatsApp mesajı gönderme",
         "update_lead_status": "lead durumu değiştirme",
         "assign_lead": "lead atama",
         "edit_client_data": "müşteri verisi düzenleme",
@@ -4059,6 +4151,34 @@
             "Yorum konuları ve eğilimler",
             "Kötü yorumlar için görevler"
           ]
+        },
+        "chat_operator": {
+          "title": "YZ Canlı Sohbet Danışmanı",
+          "shortTitle": "Sohbet Danışmanı",
+          "department": "Müşteri Hizmetleri",
+          "jobTitle": "YZ Canlı Sohbet Danışmanı",
+          "description": "Sitenizdeki sohbette ziyaretçilere 7/24 hizmetler, fiyatlar ve koşullar hakkında brifinize göre yanıt verir, iletişim bilgilerini lead olarak toplar ve gerektiğinde yöneticiyi çağırır.",
+          "functions": [
+            "7/24 site sohbeti yanıtları",
+            "Brifinizdeki hizmet ve fiyatlar",
+            "İletişim → lead",
+            "Yöneticiye devir",
+            "Ziyaretçinin dilinde yanıt"
+          ]
+        },
+        "messenger_operator": {
+          "title": "YZ Mesajlaşma Danışmanı",
+          "shortTitle": "Mesajlaşma Danışmanı",
+          "department": "Müşteri Hizmetleri",
+          "jobTitle": "YZ Mesajlaşma Danışmanı",
+          "description": "WhatsApp ve Telegram'da müşterilere 7/24 hizmetler, fiyatlar ve koşullar hakkında yanıt verir — her kanalın kendi brifi var; müşterinin dilinde yazar ve gerektiğinde yöneticiyi çağırır.",
+          "functions": [
+            "WhatsApp ve Telegram'da 7/24 yanıt",
+            "Her kanal için ayrı brif",
+            "Brifteki hizmetler ve fiyatlar",
+            "Yöneticiye devir",
+            "Müşterinin dilinde yanıt"
+          ]
         }
       },
       "departments": {
@@ -4169,6 +4289,10 @@
           "title": "Telegram'a gönderme",
           "hint": "Telegram botundaki mevcut diyaloglarda müşterilere gerçekten yanıt verir."
         },
+        "send_whatsapp": {
+          "title": "WhatsApp mesajı gönder",
+          "hint": "Mevcut WhatsApp yazışmalarında müşterilere gerçekten yanıt verir (son mesajlarından sonraki 24 saat içinde)."
+        },
         "create_project": {
           "title": "Proje oluşturma",
           "hint": "«Projeler» modülünde proje açar."
@@ -4188,6 +4312,14 @@
         "create_meeting": {
           "title": "Toplantılar",
           "hint": "Gerçek bir toplantı oluşturur (tarih, bağlantı, katılımcılar) — ekip takviminde görünür."
+        },
+        "reply_online_chat": {
+          "title": "Site sohbetinde yanıt ver",
+          "hint": "Yanıt ziyaretçiye hemen gider (Otomatik modda). Kapalıysa YZ yalnızca operatörün gördüğü bir taslak yazar."
+        },
+        "read_products": {
+          "title": "Katalog ve fiyatlar",
+          "hint": "«Ürünler»deki ürünler ve online randevu hizmetleri fiyatlarıyla — danışman güncel fiyatları söyler."
         }
       },
       "config": {
@@ -4268,6 +4400,10 @@
           "telegram_message_received": {
             "title": "Telegram'da müşteri mesajı",
             "hint": "Müşteri bota yazdı. Çalışan onay kurallarına göre yanıt hazırlar veya gönderir."
+          },
+          "whatsapp_message_received": {
+            "title": "WhatsApp'ta müşteri mesajı",
+            "hint": "Müşteri WhatsApp'tan yazdı. Çalışan yazışmayı okur, onay kurallarına göre yanıtlar veya taslak hazırlar, not ve görev bırakır."
           },
           "email_received": {
             "title": "Müşteriden e-posta",
@@ -4552,7 +4688,148 @@
           "hotel_reservation_status_changed": "rezervasyon değişiklikleri",
           "email_received": "gelen e-postalar",
           "telegram_message_received": "Telegram mesajları",
-          "handoff": "meslektaşlardan devredilen"
+          "whatsapp_message_received": "WhatsApp mesajları",
+          "handoff": "meslektaşlardan devredilen",
+          "online_chat_message_received": "canlı sohbet mesajları"
+        }
+      },
+      "chatOperator": {
+        "tab": "Canlı sohbet",
+        "briefTitle": "Danışman ne biliyor",
+        "briefHint": "Hizmetlerinizi, fiyatları, süreleri, koşulları, adres ve iletişim bilgilerini, sık sorulan soruları ve üslubu yazın. Danışman yalnızca bu metne, bilgi tabanına ve kataloğa göre yanıt verir; yanıt yoksa dürüstçe yöneticiyi çağırır.",
+        "briefPlaceholder": "Örnek:\nBiz Antalya'da Lumiva dijital ajansıyız.\n\nHizmetler ve fiyatlar:\n— Landing page — 900 €'dan başlayan, 2–3 hafta\n— Kurumsal site — 2.500 €'dan başlayan\n— SEO — aylık 600 €'dan başlayan\n\nKoşullar: %50 ön ödeme, sözleşme.\nİletişim: +90 …, hello@…\n\nSSS:\n— Tasarım yapıyor musunuz? Evet, fiyata dahil.\n\nÜslup: samimi, kısa.",
+        "sourcesHint": "Danışman brif dışında YZ çalışanlarının ortak bilgi tabanını ve («Katalog ve fiyatlar» izniyle) fiyatlı ürün ve hizmetleri kullanır.",
+        "knowledgeLink": "Bilgi tabanı →",
+        "modeTitle": "Nasıl çalışır",
+        "mode": {
+          "auto": {
+            "t": "Ziyaretçilere kendisi yanıt verir",
+            "d": "Otomatik mod ve «Site sohbetinde yanıt ver» izni açık. Operatör bir sohbette kendisi yanıt verirse YZ o sohbette susar."
+          },
+          "draft": {
+            "t": "Operatör için taslak yazar",
+            "d": "Ziyaretçi YZ yanıtını görmez: /chat'te bir taslak çıkar, operatör tek tıkla gönderir. YZ'nin kendisi yanıt vermesi için «Erişim» sekmesinde Otomatik modu ve «Site sohbetinde yanıt ver» iznini açın."
+          },
+          "off": {
+            "t": "Yanıt vermez",
+            "d": "Öneri modunda danışman sohbete yazmaz. «Erişim» sekmesinde Asistan (taslak) veya Otomatik seçin."
+          }
+        },
+        "collectContacts": "Ziyaretçi ilgilendiğinde ad ve telefon/e-posta iste (lead oluşturulur)",
+        "maxReplies": "Bir sohbette en fazla YZ yanıtı",
+        "humanNote": "Soru brifin dışındaysa, indirim gerekiyorsa, ziyaretçi bir insan isterse veya sipariş vermek isterse YZ yöneticiyi çağırır: sahiplere sohbet bağlantılı bildirim gider.",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "saved": "Kaydedildi",
+        "saveError": "Kaydedilemedi",
+        "loadError": "Ayarlar yüklenemedi",
+        "openInbox": "Canlı sohbeti aç",
+        "testTitle": "Yanıtı dene",
+        "testHint": "Ziyaretçi gibi bir soru sorun — danışman mevcut brife (kaydedilmemiş olsa bile) göre yanıt verir. Hiçbir şey gönderilmez.",
+        "testPlaceholder": "Bir site ne kadar ve ne kadar sürede yapılır?",
+        "testBtn": "Sor",
+        "testing": "Düşünüyor…",
+        "testError": "Yanıt alınamadı",
+        "wouldHandoff": "Gerçek sohbette yöneticiyi çağırırdı: {{reason}}"
+      },
+      "messengerOperator": {
+        "tab": "Kanallar ve brifler",
+        "channelsTitle": "Kanallar",
+        "channelsHint": "Her mesajlaşma kanalının kendi brifi var: hizmetler, fiyatlar, koşullar, üslup. Danışman yalnızca buna, bilgi tabanına ve Ürünler kataloğuna göre yanıt verir.",
+        "state": {
+          "off": "kapalı",
+          "auto": "kendisi yanıtlıyor",
+          "draft": "taslaklar"
+        },
+        "enable": "{{channel}}'ta müşterilere yanıt ver",
+        "mode": {
+          "off": {
+            "t": "Kanal kapalı",
+            "d": "Danışman {{channel}}'ta yanıt vermez."
+          },
+          "auto": {
+            "t": "Kendisi yanıtlıyor",
+            "d": "Yanıtlar {{channel}}'ta müşterilere hemen gider."
+          },
+          "draft": {
+            "t": "Taslaklar",
+            "d": "Yanıt size bildirim olarak gelir, siz gönderirsiniz. Kendisi yanıtlaması için: erişim sekmesinde “Otomatik” mod ve “{{channel}} mesajı gönder” izni."
+          }
+        },
+        "briefTitle": "{{channel}} için brif",
+        "briefPlaceholder": {
+          "whatsapp": "Kimsiniz, hizmetler ve fiyatlar, ödeme koşulları ve süreler, adres ve çalışma saatleri, nasıl randevu alınır, hangi sorular yöneticiye gider, üslup…",
+          "telegram": "Kimsiniz, hizmetler ve fiyatlar, ödeme koşulları ve süreler, nasıl randevu alınır, hangi sorular yöneticiye gider, üslup…"
+        },
+        "testTitle": "Yanıtı test et",
+        "testPlaceholder": "Müşteri gibi bir soru, ör. fiyatı ne kadar…",
+        "testBtn": "Test et",
+        "testing": "Düşünüyor…",
+        "openInbox": "{{channel}} yazışmaları",
+        "wouldHandoff": "Yöneticiyi çağırırdı: {{reason}}",
+        "maxReplies": "Bir yazışmada günlük en fazla YZ yanıtı",
+        "rulesNote": "Bir ekip üyesi müşteriye yanıt verirse danışman o yazışmada 12 saat sessiz kalır. Danışman bir kanalı yürütürken diğer AI çalışanları orada müşterilere yazmaz. Telegram'da danışman botun yerleşik YZ'sinin yerini alır; bot bir senaryo çalıştırıyorsa senaryo yanıtlar. Ortak bilgileri şurada tutun:",
+        "knowledgeLink": "bilgi tabanı",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "saved": "Kaydedildi",
+        "saveError": "Kaydedilemedi",
+        "loadError": "Ayarlar yüklenemedi",
+        "testError": "Yanıt alınamadı"
+      },
+      "aiBooking": {
+        "title": "Rezervasyonlara kayıt",
+        "hint": "YZ, uzmanların çalışma planına ve mevcut randevulara göre boş saatleri kontrol eder, müşteriyi kaydeder ve Rezervasyonlar modülünde randevu oluşturur. Bu çalışanın yanıt verdiği her yerde çalışır.",
+        "enable": "Müşterileri Rezervasyonlara kaydet",
+        "state": {
+          "off": {
+            "t": "Kayıt kapalı",
+            "d": "YZ yalnızca soruları yanıtlar ve randevu almak isteyenleri yöneticiye aktarır."
+          },
+          "on": {
+            "t": "YZ müşterileri kaydediyor",
+            "auto": "Yeni randevular hemen onaylanır. Saat dilimi: {{tz}}.",
+            "manual": "Yeni randevular yönetici onayı bekler — bildirim alırsınız. Saat dilimi: {{tz}}."
+          },
+          "notReady": {
+            "t": "Kayıt henüz çalışmıyor"
+          }
+        },
+        "reason": {
+          "component_disabled": "Rezervasyonlar modülü şirketiniz için kapalı.",
+          "no_locations": "Rezervasyonlarda aktif bir lokasyon yok.",
+          "no_services": "Rezervasyonlarda kayıt yapılabilecek aktif hizmet yok.",
+          "unavailable": "Rezervasyonlar modülü şu anda kullanılamıyor."
+        },
+        "reasonLink": {
+          "no_locations": "Lokasyon ekle",
+          "no_services": "Hizmet ekle"
+        },
+        "settingsLink": "Rezervasyon ayarları",
+        "servicesTitle": "YZ'nin kayıt yapabileceği hizmetler",
+        "servicesAll": "Tüm aktif hizmetler ({{count}})",
+        "servicesSelected": "Yalnızca seçilenler",
+        "pickService": "En az bir hizmet seçin",
+        "minutes": "{{n}} dk",
+        "priceOnRequest": "fiyat talep üzerine",
+        "masters_one": "{{count}} uzman",
+        "masters_other": "{{count}} uzman",
+        "noMasters": "uzmansız",
+        "allowChanges": "Müşterilerin randevularını YZ üzerinden iptal etmesine ve taşımasına izin ver",
+        "howItWorks": "Boş saatler lokasyonun çalışma saatlerine, uzmanların planına ve izinlerine, mevcut randevulara ve rezervasyon kurallarınıza (minimum süre, rezervasyon ufku, tamponlar) göre hesaplanır. YZ kayıttan önce her zaman müşteriden hizmet, tarih ve saati onaylamasını ister. Her kayıt, iptal ve taşıma için bildirim alırsınız.",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "saved": "Kaydedildi",
+        "saveError": "Kaydedilemedi",
+        "loadError": "Kayıt ayarları yüklenemedi",
+        "trace": {
+          "find_slots": "Boş saatleri kontrol etti",
+          "book": "Müşteriyi kaydederdi",
+          "my_bookings": "Müşterinin randevularına baktı",
+          "cancel": "Randevuyu iptal ederdi",
+          "reschedule": "Randevuyu taşırdı",
+          "other": "Kayıt adımı",
+          "testNote": "Bu bir testtir: randevu oluşturulmaz veya değiştirilmez."
         }
       }
     },
@@ -5321,6 +5598,14 @@
         "stepDone": "İçe aktarma",
         "fileSectionTitle": "Dosya",
         "fileSectionHint": "Excel (.xlsx) veya CSV. İlk satır kolon başlıklarıdır.",
+        "aiReshapeOfferTitle": "Bu bir özet rapora benziyor",
+        "aiReshapeManualTitle": "Tablo yapısı",
+        "aiReshapeButton": "Yapay zeka ile analiz et",
+        "aiReshapeLoading": "Yapay zeka analiz ediyor...",
+        "aiReshapeOfferHint": "Yapay zeka satırları gruplayabilir ve tekrarlanan değerleri ayrı sütunlara açabilir.",
+        "aiReshapeAlreadyFlat": "Tablo zaten düz bir yapıya sahip.",
+        "aiReshapeDone": "Yapı dönüştürüldü. Gruplama: {{groupBy}}. Sütunlar: {{columns}}.",
+        "aiReshapeError": "Tablo yapısı yapay zeka ile analiz edilemedi.",
         "fileColumn": "Dosya kolonu",
         "nextStepHint": "Sonraki adım — satırları ana tabloya aktarın: statüler, sorumlular ve tarihler orada olur.",
         "chooseFile": "Dosya seç",
@@ -5669,6 +5954,14 @@
         "prev": "Geri",
         "next": "İleri",
         "searchEvents": "Etkinlik ara...",
+        "dateField": "Tarih alanı",
+        "dateFieldAuto": "Tarih: otomatik",
+        "showTime": "Saati göster",
+        "displayColumns": "Sütunları göster",
+        "upcomingTitle": "Yaklaşan kayıtlar",
+        "upcomingDate": "Tarih",
+        "upcomingRecord": "Kayıt",
+        "upcomingEmpty": "Tarihli kayıt yok.",
         "noDatedRecords": "Henüz tarihli kayıt yok.",
         "moreCount": "+{{count}} daha"
       },
@@ -5693,7 +5986,8 @@
         "kinds": {
           "monthly": "Aylık harcama",
           "rows": "Reklam hesapları",
-          "import": "Entegrasyon içe aktarma"
+          "import": "Entegrasyon içe aktarma",
+          "roi": "Müşteri bazında ROI"
         },
         "dialog": {
           "title": "Reklam hesaplarından kaynak ekle",
@@ -5736,7 +6030,36 @@
         "aiExpand": "Raporu göster",
         "aiNoAgents": "Bu tabloya erişimi olan işe alınmış YZ çalışanı yok",
         "aiError": "Hesaplanamadı",
-        "aiComputedBy": "{{name}} · {{date}}"
+        "aiComputedBy": "{{name}} · {{date}}",
+        "aiLastReport": "son rapor {{date}}",
+        "aiPanelExpand": "Genişlet",
+        "aiPanelCollapse": "Daralt"
+      },
+      "report": {
+        "button": "E-postayla rapor",
+        "title": "Raporu e-postayla gönder",
+        "subtitle": "Analitik blokları (ekrandaki gibi), yapay zekâ analizi ve yorumunuz — tek e-postada.",
+        "to": "Kime",
+        "subject": "Konu",
+        "comment": "Yorum",
+        "commentPlaceholder": "Ör. ayın ana sonuçları ve önerilerimiz",
+        "includeAi": "Tablonun yapay zekâ analizini ekle",
+        "aiFrom": "Son rapor: {{name}}, {{date}}",
+        "noAi": "Henüz yapay zekâ analizi yok — “Tablonun YZ analizi” panelinden çalıştırın",
+        "blocks": "Bloklar: {{selected}} / {{total}}",
+        "all": "Tümünü seç",
+        "none": "Temizle",
+        "noBlocks": "Bu sekmede blok yok",
+        "blocksHint": "“{{tab}}” sekmesi, dönem: {{period}}, para birimi {{currency}} — ekrandaki gibi.",
+        "send": "Gönder",
+        "capturing": "Bloklar hazırlanıyor…",
+        "sending": "Gönderiliyor…",
+        "sentOk": "Rapor gönderildi ({{count}})",
+        "sentPartial": "Gönderildi: {{sent}}. Başarısız: {{failed}}",
+        "close": "Tamam",
+        "needEmail": "En az bir e-posta girin",
+        "failed": "Rapor gönderilemedi",
+        "defaultSubject": "Rapor: {{name}} · {{period}}"
       }
     },
     "marketingTraffic": {
@@ -5871,6 +6194,8 @@
       "allUnattributedHidden": "Tüm satırlar gizli: yalnızca entegrasyon kanalı olmayan kayıtlar kaldı. Aşağıdaki filtreyi kaldırın veya içe aktarımda dataSource ayarlayın.",
       "hideUnattributed": "«Entegrasyon kanalı yok» satırlarını gizle",
       "moreDetails": "Ayrıntılar",
+      "allAccounts": "Tüm hesaplar ({{count}})",
+      "accountFilter": "Reklam hesabı",
       "unknownExplain": "CRM'de veri kaynağı olmayan satırlar: genelde n8n/analitik içe aktarımı entegrasyon etiketi olmadan. Gösterimler ve harcama burada UTM'siz Meta/Google oturum dilimleriyle çakışabilir—komşu kartlara «ek reklam» gibi eklemeyin.",
       "ctr": "CTR",
       "cpc": "CPC",
@@ -5880,7 +6205,13 @@
       "title": "Trafik ve kampanyalar",
       "titleCampaigns": "Kampanyalar",
       "subtitleTraffic": "Oturum, tıklama ve harcama özeti.",
-      "subtitleCampaigns": "En iyi kampanyalar ve performans."
+      "subtitleCampaigns": "En iyi kampanyalar ve performans.",
+      "conversions": "Dönüşümler",
+      "conversionValue": "Dönüşüm değeri",
+      "conversionValueShort": "Değer",
+      "platformValueHint": "+ platform dönüşüm değeri: {{v}}",
+      "placeholderValue": "temsili değer, gelir değil",
+      "placeholderValueHint": "Dönüşüm başına ortalama 10'dan az: dönüşümlere temsili bir değer atanmış (genelde 1 — aramalar, tıklamalar, formlar), bu gelir değildir."
     },
     "marketingCampaigns": {
       "kicker": "Pazarlama · Kampanyalar",
@@ -6052,7 +6383,8 @@
           "revenueAction": "Gelir eylemi (isteğe bağlı)",
           "source": "Kaynak (isteğe bağlı)",
           "medium": "Orta (isteğe bağlı)",
-          "currency": "Para birimi (isteğe bağlı)"
+          "currency": "Para birimi (isteğe bağlı)",
+          "tokenHint": "Kendi Meta uygulamanızdan kalıcı sistem kullanıcısı anahtarı: business.facebook.com/settings → Kullanıcılar → Sistem kullanıcıları → reklam hesabını atayın → ads_read izni ve “Asla” süresiyle “Anahtar oluştur”. EAA… ile başlar. Para birimini reklam hesabınınkiyle aynı seçin — harcamalar o birimde gelir."
         },
         "note": "«Client secret», refresh/access token ve Yandex OAuth jetonu, Google / Meta / Yandex API’sinin istediği kimlik bilgileridir; rastgele bir «CRM sırrı» değildir ve şifreli saklanır. Diğer alanlar kimlik, UTM vb. Bu bağlantıları raporlarda ve otomasyonlarda kullanabilirsiniz.",
         "pickCurrency": "Para birimi seç",
@@ -6175,7 +6507,8 @@
           "soon": "{{count}} gün kaldı · {{date}}",
           "expired": "süresi doldu {{date}}"
         }
-      }
+      },
+      "syncBackground": "Büyük hesabın senkronizasyonu arka planda sürüyor — veriler 1–2 dakika içinde görünecek."
     },
     "telegram": {
       "kicker": "KANAL · TELEGRAM",
@@ -6577,6 +6910,12 @@
       "otherHubConnectionsHeading": "Tablolar, mağazalar ve diğerleri",
       "connectionTurnOn": "Aç",
       "connectionTurnOff": "Kapat",
+      "connectionEdit": "Düzenle",
+      "connectionDelete": "Sil",
+      "connectionDeleteConfirm": "Bağlantı silinsin mi?",
+      "connectionDeleteYes": "Evet, sil",
+      "connectionDeleteNo": "İptal",
+      "connectionDeleted": "Bağlantı silindi",
       "toggleBusy": "Kaydediliyor…",
       "toggleSaved": "Bağlantı durumu güncellendi",
       "tabs": {
@@ -7091,6 +7430,11 @@
           "connectPhoneNumberIdHint": "From your Meta WhatsApp Cloud API settings (numeric ID).",
           "connectWhatsappVerifyToken": "WhatsApp · Verify token (Meta webhook)",
           "connectWhatsappVerifyTokenHint": "Choose a string and enter the same in Meta → Webhook → Verify token.",
+          "connectWhatsappAppSecret": "WhatsApp · App Secret (Meta uygulaması)",
+          "connectWhatsappAppSecretHint": "Meta → uygulamanız → Uygulama ayarları → Temel → Uygulama gizli anahtarı. Webhook imzasını doğrulamak için gerekir: olmadan gelen mesajlar kabul edilmez.",
+          "connectEditTitle": "Düzenle: {{name}}",
+          "connectSave": "Kaydet",
+          "connectSecretKeep": "Kayıtlı — değiştirmemek için boş bırakın",
           "whatsappInboundUrlTitle": "Callback URL for inbound (Meta)",
           "whatsappInboundUrlHint": "Paste into WhatsApp webhook settings in Meta. Subscribe to “messages”.",
           "whatsappInboundUrlMissingEnv": "Public callback URL is not available yet — ask your administrator to verify API settings.",
@@ -7251,7 +7595,43 @@
           "nextStepLabel": "After connecting:",
           "nextStepCreateLink": "Create scenario →",
           "viaConnector": "Connector: {{name}}",
-          "webhookUrlDetails": "Technical details"
+          "webhookUrlDetails": "Technical details",
+          "connectWhatsappIntro": "WhatsApp Business numaranızı Meta'nın resmi WhatsApp Cloud API'si ile bağlayın: müşteri mesajları CRM'e gelir, lead kartından yanıtlayabilir ve AI çalışanlarının yazışmayı yürütmesini sağlayabilirsiniz. Aşağıda her değerin nereden alınacağını anlatan adım adım rehber var.",
+          "connectWhatsappToken": "Meta erişim anahtarı (sistem kullanıcısı)",
+          "connectWhatsappTokenHint": "EAA… ile başlayan kalıcı sistem kullanıcısı anahtarı (4. adım). “Deneyin” sayfasındaki geçici anahtar uygun değil — bir gün içinde çalışmaz hale gelir.",
+          "connectWhatsappWabaId": "WhatsApp · WhatsApp Business Hesap Kimliği",
+          "connectWhatsappWabaIdHint": "Phone number ID'nin yanında: “WhatsApp” kullanım senaryosu → “1. Adım. Deneyin”. CRM bu kimlikle uygulamayı gelen mesajlara otomatik abone eder.",
+          "waGuide": {
+            "title": "📘 Adım adım rehber: veriler nereden alınır (30–40 dakika)",
+            "intro": "Bir Facebook hesabı ve WhatsApp için bir telefon numarası gerekir. Numara telefondaki WhatsApp uygulamasında kullanılıyor olmamalı: ayrı bir numara kullanın (sabit hat da olur) veya uygulamada o numaradaki WhatsApp hesabını silin. Mesaj almak ve müşterilere yanıt vermek için şirket belgesi gerekmez.",
+            "fieldsTitle": "Forma ne girilir",
+            "fields": {
+              "token": "Erişim anahtarı — zorunlu (4. adım)",
+              "phoneNumberId": "Phone number ID — zorunlu (3. adım). Telefon numarasının kendisi değil, uzun bir sayısal kimlik",
+              "wabaId": "WhatsApp Business Hesap Kimliği — önerilir (3. adım): CRM uygulamayı mesajlara kendisi abone eder",
+              "verifyToken": "Verify token — zorunlu: boşluksuz, Latin harflerle herhangi bir metin uydurun (ör. company-wa-2026) ve not edin",
+              "appSecret": "App Secret — zorunlu (5. adım): olmadan gelen mesajlar kabul edilmez",
+              "label": "CRM'deki ad — isteğe bağlı",
+              "notNeeded": "WhatsApp için Webhook URL ve E-posta gerekmez"
+            },
+            "step1Title": "Meta işletme portföyü",
+            "step1Body": "business.facebook.com adresini açın ve Facebook ile giriş yapın. Şirketinizin portföyü yoksa oluşturun: şirket adı, adınız, iş e-postası.",
+            "step2Title": "Meta uygulaması",
+            "step2Body": "developers.facebook.com → “Uygulamalarım” → “Uygulama oluştur” → “WhatsApp üzerinden müşterilerle bağlantı kurun” kullanım senaryosu → işletme portföyünüzü seçin → “Oluştur”. Meta bir WhatsApp Business hesabı oluşturur ve test numarası verir.",
+            "step3Title": "Phone number ID ve WhatsApp Business Hesap Kimliği",
+            "step3Body": "Uygulamada: “Kullanım senaryoları” → “WhatsApp'ta bağlantı” → “1. Adım. Deneyin”. Numaranın altında “Phone Number ID” ve “WhatsApp Business Hesap Kimliği” görünür — ikisini de kopyalayın.\nTest numarası yerine kendi numaranız: aynı sayfada “Telefon numarası ekle” → görünen ad (web sitesindeki şirket adı), kategori → numara → SMS veya aramayla gelen kod. Ardından “2. Adım. Çalışma alanını ayarlayın” → “WhatsApp telefon numaranızı kaydedin” → 6 haneli PIN belirleyip saklayın. Forma kendi numaranızın kimliğini girin.",
+            "step4Title": "Erişim anahtarı (kalıcı)",
+            "step4Body": "business.facebook.com/settings → “Kullanıcılar” → “Sistem kullanıcıları” → “Ekle”: herhangi bir ad, rol “Yönetici”.\nKullanıcıyı açın → “Varlık ata”: “Uygulamalar” → uygulamanız → “Tam kontrol”. Tekrar “Varlık ata”: “WhatsApp hesapları” → hesabınız → “Tam kontrol”.\n“Anahtar oluştur”a basın: uygulama — sizinki, süre — “Asla”, izinler — whatsapp_business_messaging ve whatsapp_business_management. EAA ile başlayan metni kopyalayın: Meta onu tekrar göstermez.",
+            "step5Title": "App Secret ve gizlilik politikası",
+            "step5Body": "developers.facebook.com → uygulamanız → “Uygulama ayarları” → “Temel” → “Uygulama gizli anahtarı” → “Göster” (Facebook şifrenizi sorar) — bu App Secret'tır.\nAynı sayfada “Gizlilik Politikası URL'si” (web sitenizdeki politika sayfası) ve “Kategori” alanlarını doldurun, sonra “Değişiklikleri kaydet” — bunlar olmadan uygulama yayınlanamaz.",
+            "step6Title": "Bağlantıyı CRM'e kaydedin",
+            "step6Body": "Bu formu doldurun ve “Kaydet ve kontrol et”e basın. CRM anahtarı ve numarayı Meta'da kontrol eder ve uygulamayı mesajlara abone eder. Bağlantı kartında webhook adresi (Callback URL) görünür — sonraki adımda gerekir.",
+            "step7Title": "Meta'da webhook",
+            "step7Body": "Uygulamada: “WhatsApp'ta bağlantı” → “2. Adım. Çalışma alanını ayarlayın” → “Webhook'ları yapılandır”.\n“Geri arama URL'si” — CRM'deki bağlantı kartındaki adres. “Doğrulama anahtarı” — formdaki Verify token'ın birebir aynısı.\n“Doğrula ve kaydet” → webhook alanları listesinde messages aboneliğini açın.",
+            "step8Title": "Yayınlama ve kontrol",
+            "step8Body": "Solda “Yayınla” → “Yayınla”: uygulama yayınlanana kadar gerçek müşteri mesajları gelmez.\nTelefonunuzdan numaraya yazın — mesaj WhatsApp bölümünde ve lead kartında görünür (numara CRM'de yoksa yeni lead otomatik oluşur). Meta test numarası yalnızca alıcı listesindeki numaralarla (en fazla 5) yazışabilir.",
+            "pricing": "💬 Ücret: müşteri mesajları ve son mesajlarından sonraki 24 saat içindeki yanıtlarınız ücretsizdir. Müşteriye ilk siz yazmak yalnızca Meta şablonlarıyla mümkündür ve WhatsApp Manager'da ödeme yöntemi gerekir. Belgelerle işletme doğrulaması, yalnızca günde 250'den fazla yeni müşteriye ilk siz yazıyorsanız gerekir."
+          }
         },
         "usage": {
           "title": "Otomasyon kullanımı",
@@ -9867,6 +10247,30 @@
       "dimEmpty": "(tanımsız)",
       "other": "Diğer",
       "mapTitleGa4": "Coğrafya (Google Analytics verisi)",
+      "mapTitleMeta": "Gösterim coğrafyası (Meta Ads verileri)",
+      "mapHintMeta": "Reklamın gösterildiği ülke — Meta reklam hesabı istatistiklerinden (ülke kırılımı).",
+      "geoTableHintMeta": "Reklamın gösterildiği ülkeye göre gösterimler ve tıklamalar — Meta reklam hesabı istatistiklerinden. Reklam toplamlarıdır, tekil CRM kullanıcıları değildir.",
+      "geoExpandHint": "Bu ülkenin reklam hesaplarını ve kampanyalarını göster",
+      "accountExpandHint": "Hesabın kampanyalarını göster",
+      "periodPreset": "Dönem",
+      "preset7": "Son 7 gün",
+      "preset30": "Son 30 gün",
+      "preset90": "Son 90 gün",
+      "presetMonth": "Bu ay",
+      "presetYear": "Bu yıl",
+      "presetAll": "Tüm dönem",
+      "presetPage": "Sayfadaki gibi",
+      "dateFrom": "Başlangıç",
+      "dateTo": "Bitiş",
+      "currency": "Para birimi",
+      "currencyNative": "Orijinal para birimi",
+      "currencyHint": "Frankfurter / ECB kurlarıyla çevrilir",
+      "loadingShort": "Yükleniyor…",
+      "chartCostRevenueCur": "Günlük harcama ve gelir, {{currency}}",
+      "searchCampaign": "Kampanya ara…",
+      "allCountries": "Tüm ülkeler ({{count}})",
+      "resetFilters": "Sıfırla",
+      "filteredCampaigns": "Kampanya: {{count}}",
       "mapHintGa4": "Ülke, GA4 senkronunda countryId alanından gelir. Yoğunluk oturumlara göre. Bunlar web analitiği özetleri, CRM'deki kişiler değil.",
       "mapEmptyNoInfer": "Dönem için veritabanında coğrafya yok ve kampanya adından ülke çıkarılamadı. GA4 kanalları için güncellemeden sonra entegrasyonu senkronize edin.",
       "geoUnknownCountry": "Ülke belirlenemedi",
@@ -9888,6 +10292,11 @@
       "geoTableHint": "Google Analytics'teki Geo raporu gibi: ülkeye göre oturum ve görüntülenme. Bireysel CRM kullanıcıları yok—yalnızca web analitiği özetleri.",
       "geoColCountry": "Ülke",
       "fullTable": "Seçimdeki tüm kampanyalar",
+      "byAccount": "Reklam hesaplarına göre",
+      "campaignsCount": "Kampanya",
+      "costShare": "Harcama payı",
+      "accountCol": "Hesap",
+      "noAccount": "Hesap etiketi yok",
       "fullTableHint": "Sütunlara göre sıralayın. Veriler trafik sayfasındaki dönem özetine uyar.",
       "mapTitle": "Coğrafya (kampanya adlarından tahmin)",
       "mapHint": "Oturumlara göre renklendirme. Ülke, kampanya adındaki anahtar kelimelerden tahmin edilir (ör. «Almanya», «Polonya»). Eşleşme yoksa haritada görünmez.",
@@ -11280,7 +11689,10 @@
         "addToDashboard": "Ana sayfaya ekle",
         "previewHint": "Önizleme",
         "embedFallback": "Bu widget türü için veri yok",
-        "formulaOnFullPage": "Formülü yapılandırmak için tam analitiği açın"
+        "formulaOnFullPage": "Formülü yapılandırmak için tam analitiği açın",
+        "renderFailed": "Blok gösterilemedi — analitiği açın",
+        "loadFailed": "Veriler yüklenemedi",
+        "sourceMissing": "Kaynak silindi — bu bloğu kaldırın"
       },
       "projectsAnalytics": {
         "kpiProjects": "Projeler",
@@ -11655,7 +12067,8 @@
           "contactCreated": "Kişi oluşturuldu ve leade bağlandı",
           "meetingCreated": "Toplantı oluşturuldu",
           "noteCreated": "Not oluşturuldu",
-          "leadConverted": "Lead müşteriye dönüştürüldü"
+          "leadConverted": "Lead müşteriye dönüştürüldü",
+          "meetingCreatedEmailFailed": "Toplantı oluşturuldu, ancak müşteriye davet e-postası gönderilemedi"
         },
         "errors": {
           "loadLead": "Lead yüklenemedi",
@@ -11721,7 +12134,22 @@
           "telegramWith": "{{name}} ile yazışma",
           "telegramNoMessages": "Henüz mesaj yok.",
           "telegramPlaceholder": "Bir mesaj yazın…",
-          "telegramSend": "Gönder"
+          "telegramSend": "Gönder",
+          "whatsappTitle": "WhatsApp yazışması",
+          "whatsappCount": "{{count}} mesaj",
+          "whatsappEmpty": "Bu lead'in henüz WhatsApp yazışması yok.",
+          "whatsappWith": "{{name}} ile yazışma",
+          "whatsappNoMessages": "Henüz mesaj yok.",
+          "whatsappPlaceholder": "WhatsApp'tan yaz…",
+          "whatsappSend": "Gönder",
+          "whatsappNoConnection": "Bu yazışma için WhatsApp bağlantısı yok",
+          "meetingsCancelled": "İptal edildi",
+          "meetingsEmpty": "Henüz planlanmış toplantı yok.",
+          "meetingsFallbackTitle": "Toplantı",
+          "meetingsNotified": "bildirim gönderildi {{date}}",
+          "meetingsPast": "Geçti",
+          "meetingsTitle": "TOPLANTILAR",
+          "meetingsUpcoming": "Yaklaşan"
         },
         "journey": {
           "title": "Müşteri yolculuğu",
@@ -11875,7 +12303,11 @@
           "save": "Kaydet",
           "closeMeeting": "Toplantıyı kapat",
           "delete": "Sil",
-          "edit": "Düzenle"
+          "edit": "Düzenle",
+          "link": "Bağlantı"
+        },
+        "labels": {
+          "team": "Ekip:"
         }
       },
       "access": {
@@ -11920,6 +12352,119 @@
         "forbiddenReassign": "Yalnızca \"Sahip\" seviyesi erişim sorumluyu değiştirebilir",
         "forbiddenEditSome": "Seçilen bazı potansiyel müşteriler sizin tarafınızdan düzenlenemez ve atlandı",
         "fullAccessNote": "Sahip, yöneticiler ve departman müdürleri tüm potansiyel müşterileri her zaman görür — onlara erişim vermeye gerek yok."
+      },
+      "roiManagers": {
+        "kicker": "Potansiyel müşteriler",
+        "title": "Potansiyel müşteri ROI",
+        "lead": "Her yöneticinin kaç potansiyel müşteriyi kazandığı ve kaybettiği, ne kadar gelir getirdikleri ve hangi müşterilerin tekrar satın aldığı.",
+        "noManager": "Sorumlusuz",
+        "leads": "Adaylar",
+        "won": "Kazanılan",
+        "conv": "Dönüşüm",
+        "colManager": "Yönetici",
+        "topLeads": "Gelir getiren adaylar",
+        "empty": "Bu dönemde yeni aday ve aday geliri yok.",
+        "srcSales": "Satışlar",
+        "srcProjects": "Projeler",
+        "allManagers": "Tüm yöneticiler",
+        "managers": "Yöneticiler",
+        "paybackTitle": "Yöneticiye göre sonuçlar",
+        "searchPh": "Yönetici veya departman",
+        "inactive": "aktif değil",
+        "footnote": "Potansiyel müşteriler, kazanılan ve kaybedilen — dönemde oluşturulanlar, mevcut durum ve sorumluya göre. Gelir — dönemdeki {{src}} (iptal ve iadeler hariç); tekrar — aynı müşterinin ikinci ve sonraki satın alımları. Tutarlar {{cur}} cinsinden, ECB kuruyla{{asOf}}.",
+        "srcSalesGen": "satışları",
+        "srcProjectsGen": "projeleri",
+        "lost": "Kaybedildi",
+        "inWork": "Devam ediyor",
+        "repeat": "Tekrar",
+        "repeatRevenue": "Tekrar gelir",
+        "kpiNew": "Yeni potansiyel müşteriler",
+        "newHint": "devam eden: {{n}}",
+        "wonHint": "dönüşüm {{v}}",
+        "lostHint": "yeni müşterilerin {{v}}",
+        "repeatHint": "{{n}} müşteri tekrar satın aldı · {{total}} içinden {{share}}",
+        "repeatBadge": "tekrar ×{{n}}",
+        "noRevenue": "Bu dönemde yöneticinin potansiyel müşterileri gelir getirmedi.",
+        "outcomes": "Yeni potansiyel müşterilerin sonucu"
+      },
+      "bin": {
+        "kicker": "Potansiyel müşteriler",
+        "tabTrash": "Çöp kutusu",
+        "tabArchive": "Arşiv",
+        "trashLead": "Silinen potansiyel müşteriler. Silindikten {{count}} gün sonra otomatik olarak kalıcı silinirler — o zamana kadar geri yükleyebilirsiniz.",
+        "archiveLead": "Kapanmış ve ertelenmiş potansiyel müşteriler. Kanban ve raporlara dahil edilmez, süresiz saklanır ve tüm geçmişleri korunur.",
+        "soonCount_one": "{{count}} potansiyel müşteri silinecek",
+        "soonCount_other": "{{count}} potansiyel müşteri silinecek",
+        "soonTail": "(önümüzdeki 3 gün içinde).",
+        "soonNone": "Önümüzdeki 3 gün içinde otomatik silme yok.",
+        "emptyTrash": "Çöp kutusunu boşalt",
+        "selected": "Seçilen: {{count}}",
+        "restore": "Geri yükle",
+        "returnToWork": "Çalışmaya geri al",
+        "toArchive": "Arşive taşı",
+        "toTrash": "Çöp kutusuna taşı",
+        "deleteForever": "Kalıcı olarak sil",
+        "clearSelection": "Seçimi kaldır",
+        "searchPlaceholder": "Ad, e-posta veya telefona göre ara",
+        "allStatuses": "Tüm durumlar",
+        "count_one": "{{count}} potansiyel müşteri",
+        "count_other": "{{count}} potansiyel müşteri",
+        "selectAll": "Tümünü seç",
+        "selectOne": "{{name}} seç",
+        "colDeleted": "Silinme",
+        "colArchived": "Arşivlenme",
+        "colTtl": "Silinmesine kalan",
+        "days_one": "{{count}} gün",
+        "days_other": "{{count}} gün",
+        "notFound": "Hiçbir şey bulunamadı",
+        "notFoundHint": "Aramayı veya filtreleri değiştirin",
+        "trashEmptyHint": "Silinen potansiyel müşteriler burada görünecek",
+        "archiveEmptyHint": "Kapanmış ve ertelenmiş potansiyel müşteriler buraya gelir",
+        "range": "{{from}}–{{to}} / {{total}}",
+        "prev": "Geri",
+        "next": "İleri",
+        "confirmEmptyTitle": "Çöp kutusu boşaltılsın mı?",
+        "confirmDeleteTitle": "Kalıcı olarak silinsin mi?",
+        "confirmOne": "“{{name}}” ve tüm geçmişi geri alınamaz şekilde silinecek.",
+        "confirmMany_one": "{{count}} potansiyel müşteri ve tüm geçmişi geri alınamaz şekilde silinecek.",
+        "confirmMany_other": "{{count}} potansiyel müşteri ve tüm geçmişleri geri alınamaz şekilde silinecek.",
+        "cancel": "İptal",
+        "undo": "Geri al",
+        "toast": {
+          "restored_one": "{{count}} potansiyel müşteri geri yüklendi",
+          "restored_other": "{{count}} potansiyel müşteri geri yüklendi",
+          "returned_one": "{{count}} potansiyel müşteri çalışmaya geri alındı",
+          "returned_other": "{{count}} potansiyel müşteri çalışmaya geri alındı",
+          "archived_one": "{{count}} potansiyel müşteri arşive taşındı",
+          "archived_other": "{{count}} potansiyel müşteri arşive taşındı",
+          "trashed_one": "{{count}} potansiyel müşteri çöp kutusuna taşındı",
+          "trashed_other": "{{count}} potansiyel müşteri çöp kutusuna taşındı",
+          "purged_one": "{{count}} potansiyel müşteri kalıcı olarak silindi",
+          "purged_other": "{{count}} potansiyel müşteri kalıcı olarak silindi",
+          "purgeFailed_one": "{{count}} potansiyel müşteri silinemedi.",
+          "purgeFailed_other": "{{count}} potansiyel müşteri silinemedi.",
+          "failed_one": "{{count}} potansiyel müşteri kaydedilemedi — sayfayı yenileyin.",
+          "failed_other": "{{count}} potansiyel müşteri kaydedilemedi — sayfayı yenileyin."
+        },
+        "errors": {
+          "loadFailed": "Potansiyel müşteriler yüklenemedi"
+        }
+      },
+      "trash": {
+        "title": "Potansiyel müşteri çöp kutusu",
+        "loading": "Çöp kutusu yükleniyor...",
+        "empty": "Çöp kutusu boş",
+        "columns": {
+          "name": "Potansiyel müşteri",
+          "status": "Durum",
+          "created": "Oluşturulma",
+          "actions": "İşlemler"
+        }
+      },
+      "archive": {
+        "title": "Potansiyel müşteri arşivi",
+        "loading": "Arşiv yükleniyor...",
+        "empty": "Arşiv boş"
       }
     },
     "companies": {
@@ -12303,7 +12848,8 @@
         "metrics": {
           "revenue": "Gelir",
           "projects": "Projeler",
-          "leads": "Lidler"
+          "leads": "Lidler",
+          "marketing": "Pazarlama"
         },
         "kpis": {
           "companies": "Şirketler",
@@ -12373,6 +12919,20 @@
           "title": "Gelir dağılımı",
           "hint": "gruptaki şirket sayısı ve toplam gelire katkısı",
           "revenueShare": "gelirin {{pct}}'i"
+        },
+        "marketing": {
+          "hint": "reklamdan müşteri geliri · harcama · ROI",
+          "revenue": "Müşteri geliri",
+          "spend": "Harcama",
+          "totalRevenue": "Reklamdan müşteri geliri",
+          "notYourRevenue": "müşterilerin cirosu, sizin geliriniz değil",
+          "totalSpend": "Reklam harcaması",
+          "clientsCount": "bağlı reklam hesabı olan {{count}} müşteri",
+          "roiHint": "(gelir − harcama) / harcama",
+          "openRoi": "Müşteri ROI sayfasını aç",
+          "empty": "Bu dönem için reklam verisi yok. ROI sayfasında reklam hesaplarını şirketlere bağlayın.",
+          "loadFailed": "Müşteri ROI yüklenemedi",
+          "source": "kaynak · pazarlama → müşteri ROI"
         }
       },
       "bulk": {
@@ -12992,7 +13552,9 @@
           "empty": "Henüz yorum yok",
           "newPlaceholder": "Yeni yorum… yöneticiyi @ ile anabilirsiniz",
           "draftTitle": "@ bahsetmeli taslak",
-          "draftPlaceholder": "Taslak mesaj…"
+          "draftPlaceholder": "Taslak mesaj…",
+          "reply": "Yanıtla",
+          "replyPlaceholder": "Yanıt..."
         },
         "actions": {
           "save": "Kaydet",
@@ -13088,7 +13650,8 @@
             "bar": "Grafik",
             "table": "Tablo",
             "formula": "Formül",
-            "pivot": "Özet tablo"
+            "pivot": "Özet tablo",
+            "map": "Harita"
           }
         },
         "ownersTable": {
@@ -13183,6 +13746,23 @@
             "count": "Adet",
             "percent": "Yüzde",
             "sum": "Toplam"
+          },
+          "group": {
+            "count": "adet",
+            "max": "En iyi “{{dim}}”: {{measure}}",
+            "min": "En düşük “{{dim}}”: {{measure}}",
+            "maxOption": "En iyi grup…",
+            "minOption": "En düşük grup…",
+            "dim": "Grup",
+            "measure": "Gösterge"
+          },
+          "measure": {
+            "label": "Ne hesaplansın",
+            "count": "Satır sayısı"
+          },
+          "diffOutput": {
+            "value": "Fark (sayı)",
+            "percent": "Sağ tarafa göre % değişim"
           }
         },
         "reset": {
@@ -13233,6 +13813,199 @@
           "extraSection": "Ek sütunlar",
           "maxColumnsHint": "En fazla sütun: {{max}}",
           "removeColumn": "Sütunu kaldır"
+        },
+        "tabs": {
+          "overview": "Genel bakış",
+          "add": "Sekme",
+          "menu": "Sekme işlemleri",
+          "renameHint": "Yeniden adlandırmak için çift tıklayın",
+          "rename": "Yeniden adlandır",
+          "moveLeft": "Sola taşı",
+          "moveRight": "Sağa taşı",
+          "delete": "Sil",
+          "createTitle": "Yeni sekme",
+          "renameTitle": "Sekmeyi yeniden adlandır",
+          "deleteTitle": "Sekme silinsin mi?",
+          "deleteMessage": "“{{name}}” sekmesi ve tüm blokları silinecek. Proje verileri etkilenmez.",
+          "name": "Ad",
+          "namePlaceholder": "Örn. 4. çeyrek satışları",
+          "source": "Başlangıç",
+          "sourceEmpty": "Boş",
+          "sourceEmptyHint": "Blokları sıfırdan oluşturun",
+          "sourceCopy": "Mevcut sekmenin kopyası",
+          "sourceCopyHint": "Açık sekmeyle aynı bloklar ve filtreler",
+          "sourceDefault": "Standart set",
+          "sourceDefaultHint": "Temel KPI'lar, grafikler ve tablolar",
+          "cancel": "İptal",
+          "create": "Oluştur",
+          "save": "Kaydet"
+        },
+        "dataCurrency": {
+          "label": "Veri para birimi",
+          "hint": "Bu tablodaki tutarların kaydedildiği para birimi — rapor para birimine buradan çevrilir",
+          "missingRate": "Bazı kayıtlar için döviz kuru alınamadı — tutarları orijinal para biriminde gösteriliyor ve toplamı bozabilir."
+        },
+        "tooltip": {
+          "sum": "Toplam",
+          "count": "Adet"
+        },
+        "share": {
+          "title": "Analitiği paylaş",
+          "subtitle": "Alıcı yalnızca bu tablonun analitiğini görür — CRM menüsü, tablo ve yapay zekâ olmadan.",
+          "link": "Bağlantı",
+          "copy": "Kopyala",
+          "copied": "Kopyalandı",
+          "statusActive": "Aktif",
+          "statusExpired": "Süresi doldu",
+          "withPassword": "Şifreli",
+          "withoutPassword": "Şifresiz",
+          "until": "{{date}} tarihine kadar",
+          "protect": "Şifreyle koru",
+          "passwordSet": "Şifre ayarlandı.",
+          "changePassword": "Değiştir",
+          "passwordPlaceholder": "Görüntüleme şifresi (en az 4 karakter)",
+          "passwordTooShort": "Şifre en az 4 karakter olmalı",
+          "expiry": "Geçerlilik süresi",
+          "expiryNever": "Süresiz",
+          "expiry1d": "1 gün",
+          "expiry7d": "7 gün",
+          "expiry30d": "30 gün",
+          "expiryCustom": "Tarihe kadar",
+          "pickDate": "Bitiş tarihini seçin",
+          "viewerNote": "İzleyici sekmeleri, filtreleri, dönemi ve para birimini değiştirebilir ancak hiçbir şeyi kaydedemez veya değiştiremez. Bloklar ve sekmeler analitiğinizdekiyle aynıdır, değişiklikler anında görünür.",
+          "disable": "Erişimi kapat",
+          "submit": "Paylaş",
+          "update": "Kaydet",
+          "emptyTab": "Bu sekmede henüz blok yok.",
+          "publicTitle": "Analitik",
+          "expiredTitle": "Bağlantının süresi doldu",
+          "expiredText": "Sahibinden yeni bir bağlantı isteyin.",
+          "unavailableTitle": "Bağlantı kullanılamıyor",
+          "unavailableText": "Bu bağlantıyla erişim kapatılmış veya bağlantı hatalı.",
+          "passwordPrompt": "Bu sayfa şifreyle korunuyor.",
+          "password": "Şifre",
+          "wrongPassword": "Yanlış şifre",
+          "tooManyAttempts": "Çok fazla deneme. Bir dakika sonra tekrar deneyin.",
+          "open": "Aç",
+          "signIn": "Giriş yap",
+          "headerNoExpiry": "Bağlantı süresiz",
+          "headerUntil": "{{date}} tarihine kadar erişim · {{days}} gün kaldı"
+        },
+        "map": {
+          "scope": "Harita alanı",
+          "regions": "Bölgeler",
+          "countries": "Tek ülke",
+          "hint": "“Veri” sütunu ülke adlarını (Türkçe, İngilizce veya Rusça) ya da kodlarını içermelidir — ör. “Almanya”, “Germany”, “DE”.",
+          "loading": "Harita yükleniyor…",
+          "loadError": "Harita yüklenemedi",
+          "share": "Pay: %{{share}}",
+          "rank": "{{total}} içinde {{rank}}.",
+          "noData": "Bu ülke için veri yok",
+          "reset": "Yakınlaştırmayı sıfırla",
+          "unmatched": "Haritada yok: {{count}}",
+          "scopes": {
+            "world": "Tüm dünya",
+            "europe": "Avrupa",
+            "asia": "Asya",
+            "north_america": "Kuzey Amerika",
+            "south_america": "Güney Amerika",
+            "africa": "Afrika",
+            "oceania": "Avustralya ve Okyanusya"
+          },
+          "mode": "Gösterilecek",
+          "modes": {
+            "countries": "Ülkeler",
+            "countriesHint": "Değere göre renklendirilmiş ülkeler",
+            "points": "Şehirler ve adresler",
+            "pointsHint": "Haritada noktalar, boyut değere göre"
+          },
+          "pointsHint": "“Veri” sütunu şehir veya adres içerir (“İstanbul”, “Antalya”, “Berlin”). Koordinatlar otomatik bulunur (OpenStreetMap) ve saklanır. Doğruluk için “Harita alanı”nda ülke seçin.",
+          "pointsUnavailable": "Noktalar yalnızca çalışma alanı tablolarında kullanılabilir",
+          "geocodeFailed": "Koordinatlar belirlenemedi",
+          "geocoding": "Konum belirleniyor: {{count}} kaldı"
+        },
+        "aiBuild": {
+          "title": "Yapay zekâ ile oluştur",
+          "subtitle": "Nasıl bir analitik istediğinizi yazın — yapay zekâ tablonun gerçek verilerinden bloklar oluşturur.",
+          "placeholder": "Ör. üstte toplamlarla 4 metrik, altında tam genişlikte aylık trend çizgisi, sonra ülkelere göre tablo ve Avrupa haritası; sonda ana sonuçları içeren bir not.",
+          "chipsLabel": "Hızlı ipuçları",
+          "footnote": "“Sıfırla” ile geri alabilirsiniz.",
+          "submit": "Oluştur",
+          "building": "Yapay zekâ blokları oluşturuyor…",
+          "mode": {
+            "append": "Mevcutlara ekle",
+            "appendHint": "Yeni bloklar mevcutların ardından eklenir",
+            "replace": "Blokları değiştir",
+            "replaceHint_tab": "Bu sekmedeki mevcut bloklar ({{count}}) değiştirilecek",
+            "replaceHint_all": "Tüm sekmelerdeki bloklar ({{count}}) değiştirilecek"
+          },
+          "chips": {
+            "kpi": {
+              "label": "KPI metrikleri",
+              "text": "üstte ana toplamlarla 4 KPI metriği"
+            },
+            "line": {
+              "label": "Trend çizgisi",
+              "text": "aylık trend çizgisi"
+            },
+            "bar": {
+              "label": "Sütunlar",
+              "text": "ana kategoriye göre sütun grafiği"
+            },
+            "donut": {
+              "label": "Halka",
+              "text": "pay dağılımı halka grafiği"
+            },
+            "table": {
+              "label": "Tablo",
+              "text": "ayrıntılı tablo"
+            },
+            "pivot": {
+              "label": "Pivot",
+              "text": "iki boyutlu pivot tablo"
+            },
+            "formula": {
+              "label": "Karşılaştırma",
+              "text": "son ayı öncekiyle karşılaştıran formül"
+            },
+            "mapWorld": {
+              "label": "Dünya haritası",
+              "text": "ülkelere göre dünya haritası"
+            },
+            "mapEurope": {
+              "label": "Avrupa haritası",
+              "text": "ülkelere göre Avrupa haritası"
+            },
+            "mapCountry": {
+              "label": "Ülke haritası",
+              "text": "şehirlere göre tek ülke haritası"
+            },
+            "note": {
+              "label": "Sonuç notu",
+              "text": "sonda ana sonuçları içeren bir not"
+            }
+          },
+          "noteTitle": "Yapay zekâ blokları oluşturdu, ancak isteğin tamamını değil"
+        },
+        "noteText": {
+          "label": "Not metni",
+          "placeholder": "Sonuçlar, yorumlar, sonraki adımlar. Boş — verilerin otomatik özeti."
+        },
+        "fieldHint": {
+          "notSuitable": "gruplama için uygun değil",
+          "deleted": "sütun silindi",
+          "deletedLong": "Bu sütun artık tabloda yok — başka birini seçin.",
+          "values": "{{count}} değer — gruplama için uygun",
+          "kind": {
+            "unique": "Neredeyse tüm değerler farklı (isimler, ID'ler) — grafik tekil satırlardan oluşur. Bir kategori seçin.",
+            "number": "Bunlar sayılar — “Değer” alanında seçin, kategoriye göre gruplayın.",
+            "date": "Bunlar tarihler — trend için “Çizgi” bloğunu kullanın.",
+            "longtext": "Uzun metin (yorumlar) — gruplama için uygun değil.",
+            "constant": "Tüm tabloda aynı değer — gruplama bir şey göstermez.",
+            "empty": "Sütun boş — gruplanacak veri yok."
+          },
+          "brokenTitle": "Blok artık olmayan bir sütuna başvuruyor",
+          "brokenText": "Bulunamadı: {{fields}}. “Ayarla”yı açıp başka bir sütun seçin."
         }
       },
       "dotsMenuAria": "Menü"
@@ -15233,7 +16006,8 @@
         "walkin": "Kapıdan gelen",
         "manual": "Manuel",
         "api": "API",
-        "telegram": "Telegram"
+        "telegram": "Telegram",
+        "whatsapp": "WhatsApp"
       },
       "list": {
         "error": "Rezervasyonlar yüklenemedi",
@@ -18478,6 +19252,488 @@
         "REVIEWS_PLACES_LIMIT": "En fazla 10 işletme takip edilebilir.",
         "REVIEWS_NO_EMPLOYEE": "Etkin bir “Yorum Yöneticisi” YZ çalışanı gerekli."
       }
+    },
+    "chatInbox": {
+      "kicker": "Kanal · {{channel}}",
+      "title": "{{channel}} yazışmaları",
+      "settings": {
+        "telegram": "Botlar ve senaryolar",
+        "whatsapp": "Bağlantılar"
+      },
+      "searchPlaceholder": {
+        "telegram": "Ad veya @kullanıcı adı",
+        "whatsapp": "Ad veya numara"
+      },
+      "filter": {
+        "all": "Tümü",
+        "unread": "Okunmamış",
+        "nolead": "Lead'siz"
+      },
+      "allSenders": {
+        "telegram": "Tüm botlar",
+        "whatsapp": "Tüm numaralar"
+      },
+      "emptyList": {
+        "telegram": "Henüz yazışma yok. Müşteriler botunuza yazdığında burada görünür.",
+        "whatsapp": "Henüz yazışma yok. Müşteriler bağlı WhatsApp numaranıza yazdığında burada görünür."
+      },
+      "emptyFilter": "Filtreye uyan yazışma yok",
+      "loading": "Yükleniyor…",
+      "selectDialog": "Soldan bir yazışma seçin",
+      "noMessages": "Henüz mesaj yok",
+      "today": "Bugün",
+      "yesterday": "Dün",
+      "via": "{{sender}} üzerinden",
+      "openLead": "Lead'i aç",
+      "createLead": "Lead oluştur",
+      "refresh": "Yenile",
+      "card": "Kart",
+      "back": "Geri",
+      "aiReply": "YZ yanıtı",
+      "botReply": "Bot senaryosu",
+      "src": {
+        "manual": "Siz",
+        "ai": "YZ",
+        "flow": "Bot"
+      },
+      "type": {
+        "photo": "Fotoğraf",
+        "document": "Belge",
+        "voice": "Sesli mesaj",
+        "video": "Video",
+        "location": "Konum",
+        "other": "Ek"
+      },
+      "open": "Aç",
+      "attach": "Dosya ekle",
+      "removeFile": "Dosyayı kaldır",
+      "dropFile": "Eklemek için dosyayı bırakın",
+      "captionPlaceholder": "Dosya açıklaması (isteğe bağlı)…",
+      "messagePlaceholder": "{{channel}} mesajı…",
+      "send": "Gönder",
+      "sendingFrom": "Gönderen",
+      "noSender": {
+        "telegram": "Bağlı bot yok",
+        "whatsapp": "Bağlı numara yok"
+      },
+      "keyboardHint": "Enter — gönder · Shift+Enter — yeni satır",
+      "lead": "Lead",
+      "noLead": "Lead'siz",
+      "stage": "Aşama",
+      "owner": "Sorumlu",
+      "notAssigned": "atanmadı",
+      "noLeadNote": "Bu yazışma henüz bir lead'e bağlı değil. Lead oluşturun — yazışma onun geçmişinde kalır.",
+      "crmContact": "CRM kişisi",
+      "contact": "Kişi",
+      "company": "Şirket",
+      "notLinked": "bağlı değil",
+      "channel": "Kanal",
+      "senderLabel": {
+        "telegram": "Bot",
+        "whatsapp": "Numara"
+      },
+      "idLabel": {
+        "telegram": "Telegram ID",
+        "whatsapp": "Telefon"
+      },
+      "firstMessage": "İlk mesaj",
+      "messages": "Mesaj sayısı",
+      "leadStatus": {
+        "new": "Yeni",
+        "in_progress": "Çalışılıyor",
+        "waiting": "Bekliyor",
+        "won": "Kazanıldı",
+        "lost": "Kaybedildi"
+      },
+      "errors": {
+        "send": "Gönderilemedi",
+        "lead": "Lead oluşturulamadı",
+        "fileType": "Yalnızca PDF, Word, Excel, JPEG ve PNG gönderilebilir",
+        "fileSize": "Dosya 50 MB'tan büyük",
+        "fileUnavailable": "Dosya kullanılamıyor"
+      }
+    },
+    "leadCard": {
+      "more": "Daha fazla",
+      "loading": "Yükleniyor…",
+      "contactFallback": "Kişi",
+      "saveFirst": "Yazışmaları, yorumları ve geçmişi görmek için potansiyel müşteriyi kaydedin.",
+      "kicker": {
+        "lead": "Potansiyel müşteri",
+        "created": "oluşturuldu {{date}}",
+        "source": "kaynak {{source}}"
+      },
+      "status": {
+        "since": "{{v}} süredir",
+        "won": "Kazanıldı",
+        "lost": "Kaybedildi"
+      },
+      "duration": {
+        "m": "{{count}} dk",
+        "h": "{{count}} sa",
+        "d": "{{count}} gün"
+      },
+      "strip": {
+        "amount": "Tutar",
+        "owner": "Sorumlu",
+        "noOwner": "Atanmadı",
+        "moreOwners": "+ {{count}} kişi daha",
+        "nextStep": "Sonraki adım",
+        "allDone": "Tüm adımlar tamamlandı",
+        "noSteps": "Henüz adım yok",
+        "until": "{{date}} tarihine kadar",
+        "noDeadline": "süresiz",
+        "lastContact": "Son temas",
+        "incoming": "müşteriden gelen",
+        "outgoing": "ekip yanıtı",
+        "noContact": "Henüz yazışma yok",
+        "notScored": "puanlanmadı",
+        "priority": {
+          "high": "yüksek öncelik",
+          "medium": "orta öncelik",
+          "low": "düşük öncelik"
+        }
+      },
+      "sec": {
+        "contact": "İletişim",
+        "deal": "Anlaşma",
+        "links": "Bağlantılar",
+        "ccp": "Müşteri paneli",
+        "external": "Harici sistemler"
+      },
+      "noChannel": {
+        "whatsapp": "WhatsApp bağlı değil",
+        "telegram": "Telegram bağlı değil",
+        "email": "E-posta yok"
+      },
+      "links": {
+        "all": "Tümü",
+        "sales": "Satışlar",
+        "bookings": "Rezervasyonlar"
+      },
+      "ccp": {
+        "goTo": "Hesaba git"
+      },
+      "custom": {
+        "notSelected": "Seçilmedi"
+      },
+      "resStatus": {
+        "draft": "Taslak",
+        "pending": "Beklemede",
+        "confirmed": "Onaylandı",
+        "checked_in": "Giriş yaptı",
+        "in_progress": "Devam ediyor",
+        "completed": "Tamamlandı",
+        "cancelled_by_customer": "Müşteri iptal etti",
+        "cancelled_by_business": "Tarafımızca iptal edildi",
+        "rejected": "Reddedildi",
+        "no_show": "Gelmedi"
+      },
+      "tabs": {
+        "chat": "Yazışma",
+        "comments": "Yorumlar",
+        "history": "Geçmiş"
+      },
+      "comments": {
+        "send": "Gönder"
+      },
+      "tasks": {
+        "title": "Kontrol listesi"
+      },
+      "meetings": {
+        "add": "Planla"
+      },
+      "owners": {
+        "title": "Sorumlular",
+        "main": "ana"
+      },
+      "savebar": {
+        "dirty": "Kaydedilmemiş değişiklikler var",
+        "discard": "Vazgeç"
+      },
+      "confirmDelete": {
+        "title": "Silme",
+        "ok": "Sil"
+      },
+      "comms": {
+        "ch": {
+          "whatsapp": "WhatsApp",
+          "telegram": "Telegram",
+          "email": "E-posta"
+        },
+        "allChannels": "Tüm kanallar",
+        "loading": "Yazışma yükleniyor…",
+        "loadError": "Yüklenemedi",
+        "noAccess": "Bu kanala erişiminiz yok — sorumluya başvurun.",
+        "noMailbox": "Gönderim için bağlı posta kutusu yok",
+        "sendError": "Mesaj gönderilemedi",
+        "aiNoIncoming": "Yanıtlanacak gelen mesaj yok",
+        "aiError": "Yapay zekâ taslak hazırlayamadı",
+        "today": "Bugün",
+        "yesterday": "Dün",
+        "src": {
+          "ai": "YZ yanıtı",
+          "flow": "Bot senaryosu",
+          "system": "Sistem",
+          "manual": "Manuel"
+        },
+        "att": {
+          "voice": "Sesli mesaj",
+          "photo": "Fotoğraf",
+          "video": "Video",
+          "file": "Dosya",
+          "message": "mesaj",
+          "inMailbox": "Dosya posta kutusunda mevcut"
+        },
+        "noSubject": "(konu yok)",
+        "noBody": "E-postada metin yok",
+        "you": "Siz",
+        "collapse": "Daralt",
+        "expand": "Tamamını göster",
+        "reply": "Yanıtla",
+        "inMailbox": "Postada",
+        "emptyAll": "Bu müşteriyle henüz yazışma yok. İlk mesajı siz yazın — seçilen kanala gider ve burada saklanır.",
+        "emptyEmail": "Bu müşteriyle henüz e-posta yok",
+        "noLeadEmail": "Potansiyel müşterinin e-postası yok",
+        "emptyChannel": "Bu kanalda henüz mesaj yok",
+        "noDialog": {
+          "whatsapp": "Bu kayda bağlı WhatsApp sohbeti yok — müşteri bağlı numaranıza yazdığında görünür.",
+          "telegram": "Bu kayda bağlı Telegram sohbeti yok — müşteri botunuza yazdığında görünür.",
+          "email": "Potansiyel müşterinin e-postası yok"
+        },
+        "markRead": "Okundu",
+        "synced": "Senk. {{time}}",
+        "refresh": "Yenile",
+        "via": "{{from}} üzerinden",
+        "openSection": "Bölümde aç",
+        "newMessages": "Yeni mesajlar",
+        "newBelow": "{{count}} yeni",
+        "to": "Alıcı",
+        "fromMailbox": "Gönderen posta kutusu",
+        "subjectPh": "Konu",
+        "attach": "Ek",
+        "removeFile": "Dosyayı kaldır",
+        "ph": {
+          "whatsapp": "WhatsApp mesajı…",
+          "telegram": "Telegram mesajı…",
+          "email": "E-posta metni…"
+        },
+        "noChannels": "Yanıt için bağlı kanal yok",
+        "aiDraft": "Taslak",
+        "aiDrafting": "Yazılıyor…",
+        "aiDraftHint": "Müşterinin son mesajına yapay zekâ taslak yanıtı",
+        "send": "Gönder",
+        "lastReplyIn": "Müşterinin son yanıtı:",
+        "switch": "geç",
+        "savedHint": "Mesaj kaydın geçmişine kaydedilir",
+        "kbEmail": "Göndermek için Ctrl/⌘ + Enter",
+        "kbChat": "Enter — gönder · Shift+Enter — yeni satır"
+      }
+    },
+    "aiCards": {
+      "requestError": "İstek hatası",
+      "analyzing": "Analiz ediliyor…",
+      "analyzingLead": "Yapay zekâ kaydı analiz ediyor…",
+      "refresh": "Yenile",
+      "updated": "Güncellendi: {{date}}",
+      "score": {
+        "failed": "Puan alınamadı",
+        "analyze": "Analiz et",
+        "empty": "Önceliği yapay zekâya değerlendirtmek için «Analiz et»e basın",
+        "priority": {
+          "high": "Yüksek öncelik",
+          "medium": "Orta öncelik",
+          "low": "Düşük öncelik"
+        }
+      },
+      "next": {
+        "failed": "Öneri alınamadı",
+        "title": "Sonraki adım",
+        "recommend": "Öner",
+        "empty": "Yapay zekâ bu kayıt için en önemli eylemi belirler",
+        "urgency": {
+          "hot": "Sıcak",
+          "warm": "Ilık",
+          "cold": "Soğuk"
+        }
+      },
+      "outreach": {
+        "failed": "E-posta oluşturulamadı",
+        "title": "Müşteriye e-posta",
+        "collapse": "Daralt",
+        "expand": "Genişlet",
+        "generating": "Oluşturuluyor…",
+        "another": "Yeni sürüm",
+        "create": "E-posta yaz",
+        "empty": "Yapay zekâ kayıt verilerine göre kişisel bir e-posta yazar",
+        "writing": "Yapay zekâ yazıyor…",
+        "subject": "Konu",
+        "body": "Metin",
+        "done": "Tamam",
+        "edit": "Düzenle",
+        "copied": "Kopyalandı",
+        "copy": "Kopyala",
+        "toComposer": "Yanıta ekle"
+      },
+      "enrich": {
+        "failed": "Öneriler alınamadı",
+        "title": "YZ içgörüleri",
+        "run": "Verileri zenginleştir",
+        "empty": "Yapay zekâ mevcut verileri inceler ve eklemeler önerir",
+        "working": "Yapay zekâ verileri zenginleştiriyor…",
+        "confidence": {
+          "high": "Yüksek",
+          "medium": "Orta"
+        },
+        "apply": "Uygula",
+        "applied": "Uygulandı",
+        "none": "Öneri yok — veriler zaten dolu"
+      }
+    },
+    "messengerAiPause": {
+      "text": "{{name}} {{time}} saatine kadar duraklatıldı: bu sohbette bir çalışan manuel yanıt verdi, bu yüzden YZ danışmanı sessiz.",
+      "resume": "YZ'yi geri getir",
+      "resuming": "Geri getiriliyor…",
+      "resumeHint": "Duraklatmayı kaldırın — YZ müşterinin yanıtlanmamış mesajına hemen yanıt verir",
+      "error": "YZ geri getirilemedi"
+    },
+    "marketingRoi": {
+      "unassigned": "Müşterisiz",
+      "revenueInputHint": "Müşterinin aylık geliri ({{cur}})",
+      "kicker": "Pazarlama",
+      "title": "Müşteri bazında ROI",
+      "lead": "Müşterinin reklam hesabı harcaması ile geliri: aylara göre ROI, ROAS ve tıklama başı maliyet. Reklam hesapları CRM şirketlerine bağlanır.",
+      "currencyHint": "Tüm tutarlar ECB (Frankfurter) kuruyla çevrilir",
+      "accountsButton": "Hesaplar ve müşteriler",
+      "importButton": "Gelir içe aktar",
+      "unassignedBanner": "{{n}} hesaptaki {{sum}} harcama müşterilere bağlı değil ve ROI'ye dahil edilmiyor.",
+      "assignNow": "Bağla",
+      "accountsTitle": "Hesaplar ve müşteriler",
+      "accountsHint": "Her reklam hesabının hangi müşteri şirketine ait olduğunu seçin. Farklı platformlardaki birden fazla hesap tek şirkete bağlanabilir.",
+      "acceptSuggestions": "Önerileri kabul et ({{n}})",
+      "colPlatform": "Platform",
+      "colAccount": "Hesap",
+      "colSpendAll": "Harcama (tüm zamanlar)",
+      "colClient": "Müşteri",
+      "notAssigned": "— bağlı değil —",
+      "newCompany": "+ Yeni şirket…",
+      "newCompanyPrompt": "Müşteri şirketinin adı",
+      "create": "Oluştur",
+      "suggested": "Önerilen: {{name}}",
+      "noAccounts": "Reklam hesabı verisi yok — Google Ads, Meta Ads, Yandex Direct veya VK Ads bağlayın.",
+      "importTitle": "Müşteri gelirini içe aktar",
+      "importHint": "Excel/Google Sheets tablosunu veya CSV'yi yapıştırın: Şirket · Ay (YYYY-AA veya AA.YYYY) · Tutar · Para birimi. Şirketler CRM'deki adıyla eşleştirilir; o aya ait mevcut değerler değiştirilir.",
+      "importRun": "İçe aktar ({{n}} satır)",
+      "imported": "İçe aktarıldı: {{n}}",
+      "skippedRow": "Satır {{row}}: {{reason}}",
+      "kpiSpend": "Harcama",
+      "kpiRevenue": "Gelir",
+      "roiHint": "(gelir − harcama) / harcama",
+      "roasHint": "gelir / harcama",
+      "missingRates": "Kur yok: {{list}} — bu tutarlar çevrilmedi.",
+      "clientsTitle": "Müşteriler",
+      "empty": "Bu dönemde harcama yok.",
+      "footnote": "Müşteri raporundaki geliri ay satırındaki ✎ düğmesiyle girin (müşteriyi açın) veya tablo içe aktarın. Tutarlar {{cur}} cinsinden, ECB kuruyla{{asOf}}.",
+      "colConversions": "Dönüşümler",
+      "sourcesHint": "ROI'ye hangi gelir dahil edilsin",
+      "srcManual": "Manuel/içe aktarma",
+      "srcAds": "Platform dönüşüm değeri",
+      "metaActionsBtn": "Dönüşümler: {{list}}",
+      "metaActionsSaved": "Kaydedildi — hesap yeniden senkronize ediliyor (bir dakikaya kadar)",
+      "metaConvTitle": "Dönüşüm say",
+      "metaValueTitle": "Değeri platform geliri say",
+      "metaNoActions": "Eylem listesi hesap senkronize edildikten sonra görünür.",
+      "save": "Kaydet",
+      "metaActionsHint": "Meta aynı olayı birkaç adla bildirir (lead, onsite_web_lead…) — kopyalardan yalnızca birini işaretleyin.",
+      "srcGa4": "Site geliri (GA4)",
+      "srcCrm": "CRM satışları",
+      "notCounted": "dahil değil",
+      "crmUnattributed": "{{sum}} tutarındaki CRM satışları ({{n}} adet) müşterilere atanamadı: lead'in bağlı hesaptan UTM kampanyası yok ve “Otel” alanı bir şirketle eşleşmiyor.",
+      "toWorkspace": "Çalışma alanına",
+      "toWorkspaceHint": "Panolar ve formüller için otomatik güncellenen “müşteri × ay” tablosu oluştur",
+      "overlapBadge": "çift sayım olabilir",
+      "overlapHint": "{{n}} ayda gelir hem platform dönüşüm değerinde hem GA4'te var. Google Ads/Meta satın almaları GA4'ten alıyorsa bunlar aynı rezervasyonlardır — kaynaklardan birini kapatın.",
+      "noPrev": "önceki döneme ait veri yok",
+      "pp_points": "puan",
+      "vsPrev": "önceki döneme göre",
+      "srcOf": "4 kaynaktan {{n}}",
+      "autoAds": "Platformlar",
+      "dynamics": "Dinamik",
+      "byMonth": "Aylara göre",
+      "modeSr": "Harcama / gelir",
+      "cabinets": "Hesaplar",
+      "spendFrom": "Harcama nereden",
+      "ofSpend": "harcamanın",
+      "convShort": "dön.",
+      "siteSource": "Site geliri kaynağı · harcama yok",
+      "month": "Ay",
+      "auto": "Otomatik",
+      "noSpend": "harcama yok",
+      "currency": "Para birimi",
+      "revenueFrom": "Gelir kaynağı",
+      "reviewSale": "Satışı incele",
+      "pp": {
+        "monthsShort": "ay",
+        "last3": "Son 3 ay",
+        "last6": "Son 6 ay",
+        "last12": "Son 12 ay",
+        "ytd": "{{y}} başından beri",
+        "year": "{{y}} yılı",
+        "all": "Tüm zamanlar",
+        "title": "Dönem",
+        "pickLast": "Son ayı seçin",
+        "pickFirst": "İlk ayı seçin"
+      },
+      "allClients": "Tüm müşteriler",
+      "paybackTitle": "Müşteri bazında geri dönüş",
+      "searchPh": "Müşteri veya hesap",
+      "collapse": "Daralt",
+      "expand": "Genişlet",
+      "noMatch": "Bir şey bulunamadı.",
+      "noClients": "Bu dönemde bağlı hesabı olan müşteri yok.",
+      "totalRow": "Toplam",
+      "cancel": "İptal",
+      "apply": "Uygula",
+      "mln": "mn",
+      "thousand": "bin",
+      "breakEven": "başa baş 1×",
+      "importIntro": "CSV yükleyin (Excel → “CSV olarak kaydet”) veya tablo yapıştırın: müşteri ve ay başına bir satır. Eşleşen aylar elle girilen tutarların üzerine yazar. Müşteriler CRM şirket adıyla eşleştirilir.",
+      "fileTooBig": "Dosya 5 MB'tan büyük",
+      "dropHint": "Bilgisayarınızdan bir dosya seçin",
+      "upTo5mb": "5 MB'a kadar",
+      "pastePlaceholder": "…veya tablo satırlarını buraya yapıştırın",
+      "downloadTemplate": "Şablonu indir",
+      "close": "Kapat",
+      "accountsKick": "CRM şirketlerine bağlama",
+      "manualShort": "Manuel",
+      "editManual": "Girilen geliri düzenle",
+      "addManual": "Ayın gelirini elle girin (müşteri raporundan)",
+      "placeholderBadge": "dönüşüm değeri temsili",
+      "placeholderHint": "{{list}} hesaplarında dönüşümlere temsili bir değer atanmış (dönüşüm başına ≈1 — aramalar, tıklamalar, formlar), rezervasyon tutarı değil. Gelir sayılmaz. Gerçek ROI için otel raporundaki geliri girin veya Google Ads'e rezervasyon değerlerini gönderin.",
+      "placeholderLine": "Temsili dönüşüm değeri {{v}} — gelir değil, dahil edilmedi",
+      "accountsButtonShort": "Hesaplar",
+      "toWorkspaceShort": "Çalışma alanı",
+      "importButtonShort": "İçe aktar",
+      "sortBy": "Sıralama",
+      "cabinetsShort": "hes."
+    },
+    "dateRange": {
+      "title": "Dönem",
+      "pickFirst": "İlk günü seçin",
+      "pickLast": "Son günü seçin",
+      "cancel": "İptal",
+      "apply": "Uygula",
+      "daysShort": "gün",
+      "allTime": "Tüm zamanlar",
+      "last7": "Son 7 gün",
+      "last14": "Son 14 gün",
+      "last30": "Son 30 gün",
+      "last90": "Son 90 gün",
+      "last365": "Son 12 ay",
+      "thisMonth": "Bu ay",
+      "prevMonth": "Geçen ay",
+      "ytd": "Yılbaşından beri",
+      "custom": "Özel dönem"
     }
   },
   "landing": {

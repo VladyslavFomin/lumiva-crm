@@ -1,0 +1,39 @@
+/* ROI по лидам — дополнения к roiDesign.css: исходы лидов (выиграно / проиграно / в работе). */
+.roi { --lr-w:#2f8f5b; --lr-l:#c2485a; --lr-o:#d9dbde; }
+
+.roi .lr-w{color:var(--pos)}
+.roi .lr-l{color:var(--neg)}
+.roi .lr-sub{font-weight:400;color:var(--fg-3)}
+
+/* полоска исхода в строке менеджера */
+.lr-ob{width:90px;height:4px;border-radius:2px;overflow:hidden;display:flex;background:var(--lr-o)}
+.lr-ob i{display:block;height:100%}
+.lr-ob i.w{background:var(--lr-w)}
+.lr-ob i.l{background:var(--lr-l)}
+.roi-mc .lr-ob{width:auto;margin:0 0 8px}
+
+/* столбики по месяцам */
+.lr-chart{display:flex;align-items:stretch;gap:6px;padding:8px 0 0}
+.lr-chart .col{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
+.lr-chart .stk{width:100%;max-width:38px;min-height:2px;display:flex;flex-direction:column;border-radius:4px 4px 0 0;overflow:hidden;background:var(--line-3)}
+.lr-chart .stk i{display:block;min-height:2px}
+.lr-chart .stk i.w{background:var(--lr-w)}
+.lr-chart .stk i.l{background:var(--lr-l)}
+.lr-chart .stk i.o{background:var(--lr-o)}
+.lr-chart .mo{font-family:var(--ff-mono);font-size:9.5px;color:var(--fg-3);text-transform:uppercase;white-space:nowrap}
+.lr-chart .col:hover .stk{opacity:.8}
+@media(max-width:767px){.lr-chart{gap:3px}.lr-chart .mo{font-size:8px}}
+
+.lr-leg{display:flex;gap:16px;font-size:12px;color:var(--fg-2);padding:10px 0 0}
+.lr-leg span{display:inline-flex;align-items:center;gap:6px}
+.lr-leg i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.lr-leg i.w{background:var(--lr-w)}.lr-leg i.l{background:var(--lr-l)}.lr-leg i.o{background:var(--lr-o)}
+
+/* детализация */
+.roi-det-top .lr-mt{min-width:0}
+.roi-lds em.lr-rep{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:4px;background:var(--pos-bg);border:1px solid var(--pos-bd);color:var(--pos);white-space:nowrap}
+.lr-none{margin:8px 0 0;font-size:13px;color:var(--fg-3)}
+.roi-mc .grid.lr-mc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.roi-mc .grid.lr-mc-grid>div:nth-child(3n){border-right:1px solid var(--line-3)}
+.roi-mc .grid.lr-mc-grid>div:nth-child(2n){border-right:0}
+.roi-mc .grid.lr-mc-grid>div:nth-last-child(-n+2){border-bottom:0}

@@ -1,5 +1,5 @@
 // src/router/AppRouter.tsx
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -9,215 +9,215 @@ import {
   useParams,
 } from 'react-router-dom';
 
-import { LoginPage } from '../pages/LoginPage';
-import { BillingPage } from '../pages/BillingPage';
-import { DashboardPage } from '../pages/DashboardPage';
-import { BiDashboardPage } from '../pages/analytics/BiDashboardPage';
-import LandingPage from "../pages/LandingPage";
-import DevelopmentPage from '../pages/public/DevelopmentPage';
-import ScenariosPage from '../pages/public/ScenariosPage';
-import ApiPage from '../pages/public/ApiPage';
-import ApiDocsPage from '../pages/public/ApiDocsPage';
-import IntegrationsPage from '../pages/public/IntegrationsPage';
-import { PaymentResultPage } from '../pages/public/PaymentResultPage';
-import SolutionsPage from '../pages/public/SolutionsPage';
-import AnalyticsPage from '../pages/public/AnalyticsPage';
-import MarketingPage from '../pages/public/MarketingPage';
-import SalesSolutionsPage from '../pages/public/SalesSolutionsPage';
-import WarehouseSolutionsPage from '../pages/public/WarehouseSolutionsPage';
-import ClientAccountsSolutionsPage from '../pages/public/ClientAccountsSolutionsPage';
-import ProductsSolutionsPage from '../pages/public/ProductsSolutionsPage';
-import BookingSolutionsPage from '../pages/public/BookingSolutionsPage';
-import HotelSolutionsPage from '../pages/public/HotelSolutionsPage';
-import SecurityPage from '../pages/public/SecurityPage';
-import ComparePage from '../pages/public/ComparePage';
-import PrivacyPage from '../pages/public/PrivacyPage';
-import BlogPage from '../pages/public/BlogPage';
-import BlogPostPage from '../pages/public/BlogPostPage';
-import PricingPage from '../pages/public/PricingPage';
-import FeaturesPage from '../pages/public/FeaturesPage';
-import AboutPage from '../pages/public/AboutPage';
-import ContactPage from '../pages/public/ContactPage';
-import FaqPage from '../pages/public/FaqPage';
-import TermsPage from '../pages/public/TermsPage';
-import ChangelogPage from '../pages/public/ChangelogPage';
-import { AccessDeniedPage } from '../pages/AccessDeniedPage';
-import TenantInactivePage from '../pages/TenantInactivePage';
-import ForgotPasswordPage from "../pages/ForgotPasswordPage";
+const LoginPage = lazy(() => import('../pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const BillingPage = lazy(() => import('../pages/BillingPage').then((m) => ({ default: m.BillingPage })));
+const DashboardPage = lazy(() => import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const BiDashboardPage = lazy(() => import('../pages/analytics/BiDashboardPage').then((m) => ({ default: m.BiDashboardPage })));
+const LandingPage = lazy(() => import('../pages/LandingPage'));
+const DevelopmentPage = lazy(() => import('../pages/public/DevelopmentPage'));
+const ScenariosPage = lazy(() => import('../pages/public/ScenariosPage'));
+const ApiPage = lazy(() => import('../pages/public/ApiPage'));
+const ApiDocsPage = lazy(() => import('../pages/public/ApiDocsPage'));
+const IntegrationsPage = lazy(() => import('../pages/public/IntegrationsPage'));
+const PaymentResultPage = lazy(() => import('../pages/public/PaymentResultPage').then((m) => ({ default: m.PaymentResultPage })));
+const SolutionsPage = lazy(() => import('../pages/public/SolutionsPage'));
+const AnalyticsPage = lazy(() => import('../pages/public/AnalyticsPage'));
+const MarketingPage = lazy(() => import('../pages/public/MarketingPage'));
+const SalesSolutionsPage = lazy(() => import('../pages/public/SalesSolutionsPage'));
+const WarehouseSolutionsPage = lazy(() => import('../pages/public/WarehouseSolutionsPage'));
+const ClientAccountsSolutionsPage = lazy(() => import('../pages/public/ClientAccountsSolutionsPage'));
+const ProductsSolutionsPage = lazy(() => import('../pages/public/ProductsSolutionsPage'));
+const BookingSolutionsPage = lazy(() => import('../pages/public/BookingSolutionsPage'));
+const HotelSolutionsPage = lazy(() => import('../pages/public/HotelSolutionsPage'));
+const SecurityPage = lazy(() => import('../pages/public/SecurityPage'));
+const ComparePage = lazy(() => import('../pages/public/ComparePage'));
+const PrivacyPage = lazy(() => import('../pages/public/PrivacyPage'));
+const BlogPage = lazy(() => import('../pages/public/BlogPage'));
+const BlogPostPage = lazy(() => import('../pages/public/BlogPostPage'));
+const PricingPage = lazy(() => import('../pages/public/PricingPage'));
+const FeaturesPage = lazy(() => import('../pages/public/FeaturesPage'));
+const AboutPage = lazy(() => import('../pages/public/AboutPage'));
+const ContactPage = lazy(() => import('../pages/public/ContactPage'));
+const FaqPage = lazy(() => import('../pages/public/FaqPage'));
+const TermsPage = lazy(() => import('../pages/public/TermsPage'));
+const ChangelogPage = lazy(() => import('../pages/public/ChangelogPage'));
+const AccessDeniedPage = lazy(() => import('../pages/AccessDeniedPage').then((m) => ({ default: m.AccessDeniedPage })));
+const TenantInactivePage = lazy(() => import('../pages/TenantInactivePage'));
+const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage'));
 
 // STAFF
-import { StaffDetailPage } from '../pages/staff/StaffDetailPage';
-import { StaffListPage } from '../pages/staff/StaffListPage';
-import { StaffProfilePage } from '../pages/staff/StaffProfilePage';
-import { StaffPermissionsPage } from '../pages/staff/StaffPermissionsPage';
+const StaffDetailPage = lazy(() => import('../pages/staff/StaffDetailPage').then((m) => ({ default: m.StaffDetailPage })));
+const StaffListPage = lazy(() => import('../pages/staff/StaffListPage').then((m) => ({ default: m.StaffListPage })));
+const StaffProfilePage = lazy(() => import('../pages/staff/StaffProfilePage').then((m) => ({ default: m.StaffProfilePage })));
+const StaffPermissionsPage = lazy(() => import('../pages/staff/StaffPermissionsPage').then((m) => ({ default: m.StaffPermissionsPage })));
 
 // DEPARTMENTS
-import { DepartmentsPage } from '../pages/departments/DepartmentsPage';
-import { DepartmentFormPage } from '../pages/departments/DepartmentFormPage';
+const DepartmentsPage = lazy(() => import('../pages/departments/DepartmentsPage').then((m) => ({ default: m.DepartmentsPage })));
+const DepartmentFormPage = lazy(() => import('../pages/departments/DepartmentFormPage').then((m) => ({ default: m.DepartmentFormPage })));
 
 // SALES
-import { SalesPage } from '../pages/sales/SalesPage';
-import { SalesAnalyticsPage } from '../pages/sales/SalesAnalyticsPageV2';
-import { SalesChannelsPage } from '../pages/sales/SalesChannelsPage';
-import { SalesPaymentsPage } from '../pages/sales/SalesPaymentsPage';
-import { SalesIntegrationsPage } from '../pages/sales/SalesIntegrationsPage';
-import { SalesImportPage } from '../pages/sales/SalesImportPage';
-import { SalesIntegrationNewPage } from '../pages/sales/SalesIntegrationNewPage';
-import { SaleDetailsPage } from '../pages/sales/SaleDetailsPage';
+const SalesPage = lazy(() => import('../pages/sales/SalesPage').then((m) => ({ default: m.SalesPage })));
+const SalesAnalyticsPage = lazy(() => import('../pages/sales/SalesAnalyticsPageV2').then((m) => ({ default: m.SalesAnalyticsPage })));
+const SalesChannelsPage = lazy(() => import('../pages/sales/SalesChannelsPage').then((m) => ({ default: m.SalesChannelsPage })));
+const SalesPaymentsPage = lazy(() => import('../pages/sales/SalesPaymentsPage').then((m) => ({ default: m.SalesPaymentsPage })));
+const SalesIntegrationsPage = lazy(() => import('../pages/sales/SalesIntegrationsPage').then((m) => ({ default: m.SalesIntegrationsPage })));
+const SalesImportPage = lazy(() => import('../pages/sales/SalesImportPage').then((m) => ({ default: m.SalesImportPage })));
+const SalesIntegrationNewPage = lazy(() => import('../pages/sales/SalesIntegrationNewPage').then((m) => ({ default: m.SalesIntegrationNewPage })));
+const SaleDetailsPage = lazy(() => import('../pages/sales/SaleDetailsPage').then((m) => ({ default: m.SaleDetailsPage })));
 
 // SETTINGS
-import { SettingsCompanyPage } from '../pages/settings/SettingsCompanyPage';
-import { SettingsApiPage } from '../pages/settings/SettingsApiPage';
+const SettingsCompanyPage = lazy(() => import('../pages/settings/SettingsCompanyPage').then((m) => ({ default: m.SettingsCompanyPage })));
+const SettingsApiPage = lazy(() => import('../pages/settings/SettingsApiPage').then((m) => ({ default: m.SettingsApiPage })));
 
 // PROFILE / ACCOUNT
-import { AccountCenterLayout } from '../pages/account/AccountCenterLayout';
-import { AccountOverviewTab } from '../pages/account/tabs/AccountOverviewTab';
-import { AccountPersonalTab } from '../pages/account/tabs/AccountPersonalTab';
-import { AccountSecurityTab } from '../pages/account/tabs/AccountSecurityTab';
-import { AccountPreferencesTab } from '../pages/account/tabs/AccountPreferencesTab';
+const AccountCenterLayout = lazy(() => import('../pages/account/AccountCenterLayout').then((m) => ({ default: m.AccountCenterLayout })));
+const AccountOverviewTab = lazy(() => import('../pages/account/tabs/AccountOverviewTab').then((m) => ({ default: m.AccountOverviewTab })));
+const AccountPersonalTab = lazy(() => import('../pages/account/tabs/AccountPersonalTab').then((m) => ({ default: m.AccountPersonalTab })));
+const AccountSecurityTab = lazy(() => import('../pages/account/tabs/AccountSecurityTab').then((m) => ({ default: m.AccountSecurityTab })));
+const AccountPreferencesTab = lazy(() => import('../pages/account/tabs/AccountPreferencesTab').then((m) => ({ default: m.AccountPreferencesTab })));
 
 // Лиды
-import { LeadsBoardPage } from '../pages/leads/LeadsBoardPage';
-import { LeadsListPage } from '../pages/leads/LeadsListPage';
-import { LeadsCalendarPage } from '../pages/leads/LeadsCalendarPage';
-import { LeadAccessSettingsPage } from '../pages/leads/LeadAccessSettingsPage';
-import { LeadFormPage } from '../pages/leads/LeadFormPage';
-import { LeadsAnalyticsPage } from '../pages/analytics/LeadsAnalyticsPageV2';
-import { LeadsRoiPage } from '../pages/analytics/LeadsRoiPage';
-import { CompaniesAnalyticsPage } from '../pages/analytics/CompaniesAnalyticsPage';
-import { LostLeadsPage } from '../pages/leads/LostLeadsPage';
-import { LeadsArchivePage } from '../pages/leads/LeadsArchivePage';
-import { LeadsTrashPage } from '../pages/leads/LeadsTrashPage';
+const LeadsBoardPage = lazy(() => import('../pages/leads/LeadsBoardPage').then((m) => ({ default: m.LeadsBoardPage })));
+const LeadsListPage = lazy(() => import('../pages/leads/LeadsListPage').then((m) => ({ default: m.LeadsListPage })));
+const LeadsCalendarPage = lazy(() => import('../pages/leads/LeadsCalendarPage').then((m) => ({ default: m.LeadsCalendarPage })));
+const LeadAccessSettingsPage = lazy(() => import('../pages/leads/LeadAccessSettingsPage').then((m) => ({ default: m.LeadAccessSettingsPage })));
+const LeadFormPage = lazy(() => import('../pages/leads/LeadFormPage').then((m) => ({ default: m.LeadFormPage })));
+const LeadsAnalyticsPage = lazy(() => import('../pages/analytics/LeadsAnalyticsPageV2').then((m) => ({ default: m.LeadsAnalyticsPage })));
+const LeadsRoiPage = lazy(() => import('../pages/analytics/LeadsRoiPage').then((m) => ({ default: m.LeadsRoiPage })));
+const CompaniesAnalyticsPage = lazy(() => import('../pages/analytics/CompaniesAnalyticsPage').then((m) => ({ default: m.CompaniesAnalyticsPage })));
+const LostLeadsPage = lazy(() => import('../pages/leads/LostLeadsPage').then((m) => ({ default: m.LostLeadsPage })));
+const LeadsArchivePage = lazy(() => import('../pages/leads/LeadsArchivePage').then((m) => ({ default: m.LeadsArchivePage })));
+const LeadsTrashPage = lazy(() => import('../pages/leads/LeadsTrashPage').then((m) => ({ default: m.LeadsTrashPage })));
 
 // Проекты
-import { ProjectsListPage } from '../pages/projects/ProjectsListPage';
-import { ProjectsBoardPage } from '../pages/projects/ProjectsBoardPage';
-import { ProjectsArchivePage } from '../pages/projects/ProjectsArchivePage';
-import { ProjectsTrashPage } from '../pages/projects/ProjectsTrashPage';
-import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
-import { ClosedProjectsPage } from '../pages/projects/ClosedProjectsPage';
-import { InProgressProjectsPage } from '../pages/projects/InProgressProjectsPage';
-import { ProjectTasksPage } from '../pages/projects/ProjectTasksPage';
-import { OverdueTasksPage } from '../pages/projects/OverdueTasksPage';
-import { ProjectsAnalyticsPage } from '../pages/projects/ProjectsAnalyticsPage';
-import { ProjectsCalendarPage } from '../pages/projects/ProjectsCalendarPage';
+const ProjectsListPage = lazy(() => import('../pages/projects/ProjectsListPage').then((m) => ({ default: m.ProjectsListPage })));
+const ProjectsBoardPage = lazy(() => import('../pages/projects/ProjectsBoardPage').then((m) => ({ default: m.ProjectsBoardPage })));
+const ProjectsArchivePage = lazy(() => import('../pages/projects/ProjectsArchivePage').then((m) => ({ default: m.ProjectsArchivePage })));
+const ProjectsTrashPage = lazy(() => import('../pages/projects/ProjectsTrashPage').then((m) => ({ default: m.ProjectsTrashPage })));
+const ProjectFormPage = lazy(() => import('../pages/projects/ProjectFormPage').then((m) => ({ default: m.ProjectFormPage })));
+const ClosedProjectsPage = lazy(() => import('../pages/projects/ClosedProjectsPage').then((m) => ({ default: m.ClosedProjectsPage })));
+const InProgressProjectsPage = lazy(() => import('../pages/projects/InProgressProjectsPage').then((m) => ({ default: m.InProgressProjectsPage })));
+const ProjectTasksPage = lazy(() => import('../pages/projects/ProjectTasksPage').then((m) => ({ default: m.ProjectTasksPage })));
+const OverdueTasksPage = lazy(() => import('../pages/projects/OverdueTasksPage').then((m) => ({ default: m.OverdueTasksPage })));
+const ProjectsAnalyticsPage = lazy(() => import('../pages/projects/ProjectsAnalyticsPage').then((m) => ({ default: m.ProjectsAnalyticsPage })));
+const ProjectsCalendarPage = lazy(() => import('../pages/projects/ProjectsCalendarPage').then((m) => ({ default: m.ProjectsCalendarPage })));
 
 // CCP
-import ClientAccountsPage from '../pages/client-accounts/ClientAccountsPage';
-import ClientAccountDetailsPage from '../pages/client-accounts/ClientAccountDetailsPage';
-import ClientAccountAnalyticsPage from '../pages/client-accounts/ClientAccountAnalyticsPage';
-import ClientAccountSitesPage from '../pages/client-accounts/ClientAccountSitesPage';
-import ClientFinancialOperationsPage from '../pages/client-accounts/ClientFinancialOperationsPage';
+const ClientAccountsPage = lazy(() => import('../pages/client-accounts/ClientAccountsPage'));
+const ClientAccountDetailsPage = lazy(() => import('../pages/client-accounts/ClientAccountDetailsPage'));
+const ClientAccountAnalyticsPage = lazy(() => import('../pages/client-accounts/ClientAccountAnalyticsPage'));
+const ClientAccountSitesPage = lazy(() => import('../pages/client-accounts/ClientAccountSitesPage'));
+const ClientFinancialOperationsPage = lazy(() => import('../pages/client-accounts/ClientFinancialOperationsPage'));
 
 // MARKETING
-import { TrafficPage } from '../pages/marketing/TrafficPage';
-import { CampaignsPage } from '../pages/marketing/CampaignsPage';
-import { BroadcastsPage } from '../pages/marketing/BroadcastsPage';
-import { BroadcastFormPage } from '../pages/marketing/BroadcastFormPage';
-import { UtmsPage } from '../pages/marketing/UtmsPage';
-import { UtmLinksPage } from '../pages/marketing/UtmLinksPage';
-import { SegmentsPage } from '../pages/marketing/SegmentsPage';
-import { SmmPage } from '../pages/marketing/SmmPage';
-import { ChannelsPage } from '../pages/marketing/ChannelsPage';
-import { SeoPage } from '../pages/marketing/SeoPage';
-import { ReviewsPage } from '../pages/marketing/ReviewsPage';
-import { EmailTemplatesPage } from '../pages/marketing/EmailTemplatesPage';
-import { EmailTemplateFormPage } from '../pages/marketing/EmailTemplateFormPage';
+const TrafficPage = lazy(() => import('../pages/marketing/TrafficPage').then((m) => ({ default: m.TrafficPage })));
+const CampaignsPage = lazy(() => import('../pages/marketing/CampaignsPage').then((m) => ({ default: m.CampaignsPage })));
+const RoiPage = lazy(() => import('../pages/marketing/RoiPage').then((m) => ({ default: m.RoiPage })));
+const BroadcastsPage = lazy(() => import('../pages/marketing/BroadcastsPage').then((m) => ({ default: m.BroadcastsPage })));
+const BroadcastFormPage = lazy(() => import('../pages/marketing/BroadcastFormPage').then((m) => ({ default: m.BroadcastFormPage })));
+const UtmsPage = lazy(() => import('../pages/marketing/UtmsPage').then((m) => ({ default: m.UtmsPage })));
+const UtmLinksPage = lazy(() => import('../pages/marketing/UtmLinksPage').then((m) => ({ default: m.UtmLinksPage })));
+const SegmentsPage = lazy(() => import('../pages/marketing/SegmentsPage').then((m) => ({ default: m.SegmentsPage })));
+const SmmPage = lazy(() => import('../pages/marketing/SmmPage').then((m) => ({ default: m.SmmPage })));
+const ChannelsPage = lazy(() => import('../pages/marketing/ChannelsPage').then((m) => ({ default: m.ChannelsPage })));
+const SeoPage = lazy(() => import('../pages/marketing/SeoPage').then((m) => ({ default: m.SeoPage })));
+const ReviewsPage = lazy(() => import('../pages/marketing/ReviewsPage').then((m) => ({ default: m.ReviewsPage })));
+const EmailTemplatesPage = lazy(() => import('../pages/marketing/EmailTemplatesPage').then((m) => ({ default: m.EmailTemplatesPage })));
+const EmailTemplateFormPage = lazy(() => import('../pages/marketing/EmailTemplateFormPage').then((m) => ({ default: m.EmailTemplateFormPage })));
 import  OnlineChatPage  from '../pages/online-chat/OnlineChatPage'; // или default export
+import { LumivaSupportChat } from '../components/support/LumivaSupportChat';
 import { getAccessToken, isBillingLocked } from '../auth/session';
-import SetPasswordPage from '../pages/SetPasswordPage';
-import { OnboardingWizardPage } from '../pages/onboarding/OnboardingWizardPage';
+const SetPasswordPage = lazy(() => import('../pages/SetPasswordPage'));
+const OnboardingWizardPage = lazy(() => import('../pages/onboarding/OnboardingWizardPage').then((m) => ({ default: m.OnboardingWizardPage })));
 import { fetchOnboardingState } from '../api/onboarding';
-import { TeamCalendarPage } from '../pages/calendar/TeamCalendarPage';
-import { PortalLoginPage } from '../pages/portal/PortalLoginPage';
-import { PortalVerifyPage } from '../pages/portal/PortalVerifyPage';
-import { PortalDashboardPage } from '../pages/portal/PortalDashboardPage';
-import { PortalProtectedRoute } from '../pages/portal/PortalProtectedRoute';
-import { PortalTicketsPage } from '../pages/portal/PortalTicketsPage';
-import { PortalTicketDetailPage } from '../pages/portal/PortalTicketDetailPage';
-import { HelpdeskPage } from '../pages/helpdesk/HelpdeskPage';
-import { EsignPage } from '../pages/esign/EsignPage';
-import { EsignPublicPage } from '../pages/esign/EsignPublicPage';
+const TeamCalendarPage = lazy(() => import('../pages/calendar/TeamCalendarPage').then((m) => ({ default: m.TeamCalendarPage })));
+const PortalLoginPage = lazy(() => import('../pages/portal/PortalLoginPage').then((m) => ({ default: m.PortalLoginPage })));
+const PortalVerifyPage = lazy(() => import('../pages/portal/PortalVerifyPage').then((m) => ({ default: m.PortalVerifyPage })));
+const PortalDashboardPage = lazy(() => import('../pages/portal/PortalDashboardPage').then((m) => ({ default: m.PortalDashboardPage })));
+const PortalProtectedRoute = lazy(() => import('../pages/portal/PortalProtectedRoute').then((m) => ({ default: m.PortalProtectedRoute })));
+const PortalTicketsPage = lazy(() => import('../pages/portal/PortalTicketsPage').then((m) => ({ default: m.PortalTicketsPage })));
+const PortalTicketDetailPage = lazy(() => import('../pages/portal/PortalTicketDetailPage').then((m) => ({ default: m.PortalTicketDetailPage })));
+const HelpdeskPage = lazy(() => import('../pages/helpdesk/HelpdeskPage').then((m) => ({ default: m.HelpdeskPage })));
+const EsignPage = lazy(() => import('../pages/esign/EsignPage').then((m) => ({ default: m.EsignPage })));
+const EsignPublicPage = lazy(() => import('../pages/esign/EsignPublicPage').then((m) => ({ default: m.EsignPublicPage })));
 
 // NEW MODULES
-import { ContactsListPage } from '../pages/contacts/ContactsListPage';
-import { ContactPage as ContactCardPage } from '../pages/contacts/ContactPage';
-import { CompaniesListPage } from '../pages/companies/CompaniesListPage';
-import { CompanyPage } from '../pages/companies/CompanyPage';
-import { ProductsListPage } from '../pages/products/ProductsListPage';
-import { ProductFormPage } from '../pages/products/ProductFormPage';
-import { ProductDetailPage } from '../pages/products/ProductDetailPage';
-import { ProductAttributesPage } from '../pages/products/ProductAttributesPage';
-import { ProductCategoriesPage } from '../pages/products/ProductCategoriesPage';
-import { ProductFieldTypesPage } from '../pages/products/ProductFieldTypesPage';
-import { ProductStockPage } from '../pages/products/ProductStockPage';
-import { ProductLocationsPage } from '../pages/products/ProductLocationsPage';
-import { ProductFeedsPage } from '../pages/products/ProductFeedsPage';
-import { ProductWebhooksPage } from '../pages/products/ProductWebhooksPage';
-import { ProductModerationQueuePage } from '../pages/products/ProductModerationQueuePage';
-import { ProductsAnalyticsPage } from '../pages/products/ProductsAnalyticsPage';
-import { ProductImportPage } from '../pages/products/ProductImportPage';
-import { ProductLabelsPrintPage } from '../pages/products/ProductLabelsPrintPage';
-import { BookingOverviewPage } from '../pages/bookings/BookingOverviewPage';
-import { ReservationsPage } from '../pages/bookings/ReservationsPage';
-import { ReservationDetailPage } from '../pages/bookings/ReservationDetailPage';
-import { ReservationsImportPage } from '../pages/bookings/ReservationsImportPage';
-import { BookingLocationsPage } from '../pages/bookings/BookingLocationsPage';
-import { BookingServicesPage } from '../pages/bookings/BookingServicesPage';
-import { BookingResourcesPage } from '../pages/bookings/BookingResourcesPage';
-import { BookingAvailabilityPage } from '../pages/bookings/BookingAvailabilityPage';
-import { BookingSettingsPage } from '../pages/bookings/BookingSettingsPage';
-import { BookingWaitlistPage } from '../pages/bookings/BookingWaitlistPage';
-import { BookingAnalyticsPage } from '../pages/bookings/BookingAnalyticsPage';
-import { BookingLogsPage } from '../pages/bookings/BookingLogsPage';
-import { HotelsOverviewPage } from '../pages/hotels/HotelsOverviewPage';
-import { HotelsListPage } from '../pages/hotels/HotelsListPage';
-import { HotelDetailPage } from '../pages/hotels/HotelDetailPage';
-import { HotelReservationsPage } from '../pages/hotels/HotelReservationsPage';
-import { HotelFrontDeskPage } from '../pages/hotels/HotelFrontDeskPage';
-import { HotelPricingPage } from '../pages/hotels/HotelPricingPage';
-import { HotelCalendarPage } from '../pages/hotels/HotelCalendarPage';
-import { HotelRoomPricingPage } from '../pages/hotels/HotelRoomPricingPage';
-import { HotelAnalyticsPage } from '../pages/hotels/HotelAnalyticsPage';
-import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
-import { IntegrationsHubPage } from '../pages/integrations/IntegrationsHubPage';
-import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
-import { PendingApprovalsPage } from '../pages/automations/PendingApprovalsPage';
-import { EmailAccountsPage } from '../pages/email/EmailAccountsPage';
-import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
-import { EmailInboxPage } from '../pages/email/EmailInboxPage';
-import { TelegramPage } from '../pages/telegram/TelegramPage';
-import TelegramInboxPage from '../pages/telegram-crm/TelegramInboxPage';
-import WhatsappInboxPage from '../pages/whatsapp-crm/WhatsappInboxPage';
-import { TelephonyPage } from '../pages/telephony/TelephonyPage';
-import { TelephonySmsPage } from '../pages/telephony/TelephonySmsPage';
-import { TelephonyAnalyticsPage } from '../pages/telephony/TelephonyAnalyticsPage';
-import { TelephonySettingsPage } from '../pages/telephony/TelephonySettingsPage';
-import { DuplicatesPage } from '../pages/deduplication/DuplicatesPage';
-import { AuditLogPage } from '../pages/settings/AuditLogPage';
-import { ExportBackupPage } from '../pages/settings/ExportBackupPage';
-import { ApiTokensPage } from '../pages/settings/ApiTokensPage';
-import { WorkspaceTablesPage } from '../pages/workspace/WorkspaceTablesPage';
-import { WorkspaceNewTablePage } from '../pages/workspace/WorkspaceNewTablePage';
-import { WorkspaceTableViewPage } from '../pages/workspace/WorkspaceTableViewPage';
-import { WorkspaceKanbanViewPage } from '../pages/workspace/WorkspaceKanbanViewPage';
-import { WorkspaceCalendarViewPage } from '../pages/workspace/WorkspaceCalendarViewPage';
-import { WorkspaceAnalyticsPage } from '../pages/workspace/WorkspaceAnalyticsPage';
-import { PublicWorkspaceAnalyticsPage } from '../pages/workspace/PublicWorkspaceAnalyticsPage';
-import { WorkspaceSettingsPage } from '../pages/workspace/WorkspaceSettingsPage';
-import { WorkspaceImportPage } from '../pages/workspace/WorkspaceImportPage';
-import { WorkspaceAreaHomePage } from '../pages/workspace/WorkspaceAreaHomePage';
-import { WorkspaceAreasListPage } from '../pages/workspace/WorkspaceAreasListPage';
-import { WorkspaceAreaSettingsPage } from '../pages/workspace/WorkspaceAreaSettingsPage';
-import { WorkspaceGanttViewPage } from '../pages/workspace/WorkspaceGanttViewPage';
-import { WebFormsListPage } from '../pages/web-forms/WebFormsListPage';
-import { WebFormEditorPage } from '../pages/web-forms/WebFormEditorPage';
-import { WebFormsSettingsPage } from '../pages/web-forms/WebFormsSettingsPage';
-import { PublicEmbedFormPage } from '../pages/public-embed/PublicEmbedFormPage';
-import {
-  AiEmployeeProfilePage,
-  AiEmployeesPage,
-} from '../pages/ai-employees/AiEmployeesPage';
+const ContactsListPage = lazy(() => import('../pages/contacts/ContactsListPage').then((m) => ({ default: m.ContactsListPage })));
+const ContactCardPage = lazy(() => import('../pages/contacts/ContactPage').then((m) => ({ default: m.ContactPage })));
+const CompaniesListPage = lazy(() => import('../pages/companies/CompaniesListPage').then((m) => ({ default: m.CompaniesListPage })));
+const CompanyPage = lazy(() => import('../pages/companies/CompanyPage').then((m) => ({ default: m.CompanyPage })));
+const ProductsListPage = lazy(() => import('../pages/products/ProductsListPage').then((m) => ({ default: m.ProductsListPage })));
+const ProductFormPage = lazy(() => import('../pages/products/ProductFormPage').then((m) => ({ default: m.ProductFormPage })));
+const ProductDetailPage = lazy(() => import('../pages/products/ProductDetailPage').then((m) => ({ default: m.ProductDetailPage })));
+const ProductAttributesPage = lazy(() => import('../pages/products/ProductAttributesPage').then((m) => ({ default: m.ProductAttributesPage })));
+const ProductCategoriesPage = lazy(() => import('../pages/products/ProductCategoriesPage').then((m) => ({ default: m.ProductCategoriesPage })));
+const ProductFieldTypesPage = lazy(() => import('../pages/products/ProductFieldTypesPage').then((m) => ({ default: m.ProductFieldTypesPage })));
+const ProductStockPage = lazy(() => import('../pages/products/ProductStockPage').then((m) => ({ default: m.ProductStockPage })));
+const ProductLocationsPage = lazy(() => import('../pages/products/ProductLocationsPage').then((m) => ({ default: m.ProductLocationsPage })));
+const ProductFeedsPage = lazy(() => import('../pages/products/ProductFeedsPage').then((m) => ({ default: m.ProductFeedsPage })));
+const ProductWebhooksPage = lazy(() => import('../pages/products/ProductWebhooksPage').then((m) => ({ default: m.ProductWebhooksPage })));
+const ProductModerationQueuePage = lazy(() => import('../pages/products/ProductModerationQueuePage').then((m) => ({ default: m.ProductModerationQueuePage })));
+const ProductsAnalyticsPage = lazy(() => import('../pages/products/ProductsAnalyticsPage').then((m) => ({ default: m.ProductsAnalyticsPage })));
+const ProductImportPage = lazy(() => import('../pages/products/ProductImportPage').then((m) => ({ default: m.ProductImportPage })));
+const ProductLabelsPrintPage = lazy(() => import('../pages/products/ProductLabelsPrintPage').then((m) => ({ default: m.ProductLabelsPrintPage })));
+const BookingOverviewPage = lazy(() => import('../pages/bookings/BookingOverviewPage').then((m) => ({ default: m.BookingOverviewPage })));
+const ReservationsPage = lazy(() => import('../pages/bookings/ReservationsPage').then((m) => ({ default: m.ReservationsPage })));
+const ReservationDetailPage = lazy(() => import('../pages/bookings/ReservationDetailPage').then((m) => ({ default: m.ReservationDetailPage })));
+const ReservationsImportPage = lazy(() => import('../pages/bookings/ReservationsImportPage').then((m) => ({ default: m.ReservationsImportPage })));
+const BookingLocationsPage = lazy(() => import('../pages/bookings/BookingLocationsPage').then((m) => ({ default: m.BookingLocationsPage })));
+const BookingServicesPage = lazy(() => import('../pages/bookings/BookingServicesPage').then((m) => ({ default: m.BookingServicesPage })));
+const BookingResourcesPage = lazy(() => import('../pages/bookings/BookingResourcesPage').then((m) => ({ default: m.BookingResourcesPage })));
+const BookingAvailabilityPage = lazy(() => import('../pages/bookings/BookingAvailabilityPage').then((m) => ({ default: m.BookingAvailabilityPage })));
+const BookingSettingsPage = lazy(() => import('../pages/bookings/BookingSettingsPage').then((m) => ({ default: m.BookingSettingsPage })));
+const BookingWaitlistPage = lazy(() => import('../pages/bookings/BookingWaitlistPage').then((m) => ({ default: m.BookingWaitlistPage })));
+const BookingAnalyticsPage = lazy(() => import('../pages/bookings/BookingAnalyticsPage').then((m) => ({ default: m.BookingAnalyticsPage })));
+const BookingLogsPage = lazy(() => import('../pages/bookings/BookingLogsPage').then((m) => ({ default: m.BookingLogsPage })));
+const HotelsOverviewPage = lazy(() => import('../pages/hotels/HotelsOverviewPage').then((m) => ({ default: m.HotelsOverviewPage })));
+const HotelsListPage = lazy(() => import('../pages/hotels/HotelsListPage').then((m) => ({ default: m.HotelsListPage })));
+const HotelDetailPage = lazy(() => import('../pages/hotels/HotelDetailPage').then((m) => ({ default: m.HotelDetailPage })));
+const HotelReservationsPage = lazy(() => import('../pages/hotels/HotelReservationsPage').then((m) => ({ default: m.HotelReservationsPage })));
+const HotelFrontDeskPage = lazy(() => import('../pages/hotels/HotelFrontDeskPage').then((m) => ({ default: m.HotelFrontDeskPage })));
+const HotelPricingPage = lazy(() => import('../pages/hotels/HotelPricingPage').then((m) => ({ default: m.HotelPricingPage })));
+const HotelCalendarPage = lazy(() => import('../pages/hotels/HotelCalendarPage').then((m) => ({ default: m.HotelCalendarPage })));
+const HotelRoomPricingPage = lazy(() => import('../pages/hotels/HotelRoomPricingPage').then((m) => ({ default: m.HotelRoomPricingPage })));
+const HotelAnalyticsPage = lazy(() => import('../pages/hotels/HotelAnalyticsPage').then((m) => ({ default: m.HotelAnalyticsPage })));
+const AutomationsPageNew = lazy(() => import('../pages/automations/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
+const IntegrationsHubPage = lazy(() => import('../pages/integrations/IntegrationsHubPage').then((m) => ({ default: m.IntegrationsHubPage })));
+const AutomationFormPage = lazy(() => import('../pages/automations/AutomationFormPage').then((m) => ({ default: m.AutomationFormPage })));
+const PendingApprovalsPage = lazy(() => import('../pages/automations/PendingApprovalsPage').then((m) => ({ default: m.PendingApprovalsPage })));
+const EmailAccountsPage = lazy(() => import('../pages/email/EmailAccountsPage').then((m) => ({ default: m.EmailAccountsPage })));
+const EmailAccountFormPage = lazy(() => import('../pages/email/EmailAccountFormPage').then((m) => ({ default: m.EmailAccountFormPage })));
+const EmailInboxPage = lazy(() => import('../pages/email/EmailInboxPage').then((m) => ({ default: m.EmailInboxPage })));
+const TelegramPage = lazy(() => import('../pages/telegram/TelegramPage').then((m) => ({ default: m.TelegramPage })));
+const TelegramInboxPage = lazy(() => import('../pages/telegram-crm/TelegramInboxPage'));
+const WhatsappInboxPage = lazy(() => import('../pages/whatsapp-crm/WhatsappInboxPage'));
+const TelephonyPage = lazy(() => import('../pages/telephony/TelephonyPage').then((m) => ({ default: m.TelephonyPage })));
+const TelephonySmsPage = lazy(() => import('../pages/telephony/TelephonySmsPage').then((m) => ({ default: m.TelephonySmsPage })));
+const TelephonyAnalyticsPage = lazy(() => import('../pages/telephony/TelephonyAnalyticsPage').then((m) => ({ default: m.TelephonyAnalyticsPage })));
+const TelephonySettingsPage = lazy(() => import('../pages/telephony/TelephonySettingsPage').then((m) => ({ default: m.TelephonySettingsPage })));
+const DuplicatesPage = lazy(() => import('../pages/deduplication/DuplicatesPage').then((m) => ({ default: m.DuplicatesPage })));
+const AuditLogPage = lazy(() => import('../pages/settings/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
+const ExportBackupPage = lazy(() => import('../pages/settings/ExportBackupPage').then((m) => ({ default: m.ExportBackupPage })));
+const ApiTokensPage = lazy(() => import('../pages/settings/ApiTokensPage').then((m) => ({ default: m.ApiTokensPage })));
+const WorkspaceTablesPage = lazy(() => import('../pages/workspace/WorkspaceTablesPage').then((m) => ({ default: m.WorkspaceTablesPage })));
+const WorkspaceNewTablePage = lazy(() => import('../pages/workspace/WorkspaceNewTablePage').then((m) => ({ default: m.WorkspaceNewTablePage })));
+const WorkspaceTableViewPage = lazy(() => import('../pages/workspace/WorkspaceTableViewPage').then((m) => ({ default: m.WorkspaceTableViewPage })));
+const WorkspaceKanbanViewPage = lazy(() => import('../pages/workspace/WorkspaceKanbanViewPage').then((m) => ({ default: m.WorkspaceKanbanViewPage })));
+const WorkspaceCalendarViewPage = lazy(() => import('../pages/workspace/WorkspaceCalendarViewPage').then((m) => ({ default: m.WorkspaceCalendarViewPage })));
+const WorkspaceAnalyticsPage = lazy(() => import('../pages/workspace/WorkspaceAnalyticsPage').then((m) => ({ default: m.WorkspaceAnalyticsPage })));
+const PublicWorkspaceAnalyticsPage = lazy(() => import('../pages/workspace/PublicWorkspaceAnalyticsPage').then((m) => ({ default: m.PublicWorkspaceAnalyticsPage })));
+const WorkspaceSettingsPage = lazy(() => import('../pages/workspace/WorkspaceSettingsPage').then((m) => ({ default: m.WorkspaceSettingsPage })));
+const WorkspaceImportPage = lazy(() => import('../pages/workspace/WorkspaceImportPage').then((m) => ({ default: m.WorkspaceImportPage })));
+const WorkspaceAreaHomePage = lazy(() => import('../pages/workspace/WorkspaceAreaHomePage').then((m) => ({ default: m.WorkspaceAreaHomePage })));
+const WorkspaceAreasListPage = lazy(() => import('../pages/workspace/WorkspaceAreasListPage').then((m) => ({ default: m.WorkspaceAreasListPage })));
+const WorkspaceAreaSettingsPage = lazy(() => import('../pages/workspace/WorkspaceAreaSettingsPage').then((m) => ({ default: m.WorkspaceAreaSettingsPage })));
+const WorkspaceGanttViewPage = lazy(() => import('../pages/workspace/WorkspaceGanttViewPage').then((m) => ({ default: m.WorkspaceGanttViewPage })));
+const WebFormsListPage = lazy(() => import('../pages/web-forms/WebFormsListPage').then((m) => ({ default: m.WebFormsListPage })));
+const WebFormEditorPage = lazy(() => import('../pages/web-forms/WebFormEditorPage').then((m) => ({ default: m.WebFormEditorPage })));
+const WebFormsSettingsPage = lazy(() => import('../pages/web-forms/WebFormsSettingsPage').then((m) => ({ default: m.WebFormsSettingsPage })));
+const PublicEmbedFormPage = lazy(() => import('../pages/public-embed/PublicEmbedFormPage').then((m) => ({ default: m.PublicEmbedFormPage })));
+const AiEmployeeProfilePage = lazy(() => import('../pages/ai-employees/AiEmployeesPage').then((m) => ({ default: m.AiEmployeeProfilePage })));
+const AiEmployeesPage = lazy(() => import('../pages/ai-employees/AiEmployeesPage').then((m) => ({ default: m.AiEmployeesPage })));
 
 // Routes where the onboarding overlay must not appear on top of the page (billing/error pages
 // the user may be sent to regardless of onboarding state).
@@ -309,9 +309,16 @@ const LegacyAppRedirect: React.FC = () => {
   );
 };
 
+/** Пока догружается код страницы (страницы грузятся лениво — отдельными файлами). */
+const RouteLoadingFallback: React.FC = () => (
+  <div className="flex min-h-[40vh] items-center justify-center text-sm text-neutral-400">…</div>
+);
+
 export const AppRouter: React.FC = () => {
   return (
     <BrowserRouter>
+      <LumivaSupportChat />
+      <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
         {/* Публичный лендинг CRM на корне */}
         <Route path="/" element={<LandingPage />} />
@@ -847,6 +854,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <TrafficPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketing/roi"
+          element={
+            <ProtectedRoute>
+              <RoiPage />
             </ProtectedRoute>
           }
         />
@@ -1794,6 +1809,7 @@ export const AppRouter: React.FC = () => {
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };

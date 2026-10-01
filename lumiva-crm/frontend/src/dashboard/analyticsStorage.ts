@@ -25,7 +25,11 @@ export type PivotMeasureConfig = {
 /** Снимок виджета из localStorage (тот же формат, что JSON в аналитике) */
 export type ProjectsAnalyticsWidgetConfig = {
   id: string;
-  type: 'metric' | 'donut' | 'bar' | 'line' | 'funnel' | 'leaderboard' | 'table' | 'heatmap' | 'note' | 'formula' | 'pivot';
+  type: 'metric' | 'donut' | 'bar' | 'line' | 'funnel' | 'leaderboard' | 'table' | 'heatmap' | 'note' | 'formula' | 'pivot' | 'map';
+  /** Блок «Карта»: 'world' | континент | `country:DE` */
+  mapScope?: string;
+  mapMode?: 'countries' | 'points';
+  noteText?: string;
   title: string;
   size: 'sm' | 'md' | 'lg';
   height?: number;
@@ -43,6 +47,8 @@ export type ProjectsAnalyticsWidgetConfig = {
   formulaLeftKey?: string;
   formulaRightType?: string;
   formulaRightKey?: string;
+  formulaLeftMeasure?: string;
+  formulaRightMeasure?: string;
   formulaMode?: string;
   formulaFilters?: Array<{ scope: string; key?: string; keys?: string[] }>;
   /** Как показать сравнение левой/правой части формулы (кроме голого числа) — см. CompareDisplay

@@ -1291,6 +1291,9 @@ export class CustomObjectsService {
     } else {
       qb.orderBy('record.updatedAt', 'DESC');
     }
+    // Стабильный порядок для постраничной загрузки: синк-выгрузки вставляют тысячи строк с одинаковым
+    // updatedAt — без тай-брейкера страницы OFFSET пересекаются (дубли/пропуски строк).
+    qb.addOrderBy('record.id', 'ASC');
     qb.limit(options?.limit || 50);
     qb.offset(options?.offset || 0);
     const items = await qb.getMany();
@@ -1299,6 +1302,49 @@ export class CustomObjectsService {
       return { items: enriched, total };
     }
     return { items, total };
+  }
+
+  /**
+   * Версия строк таблицы: число строк + последние createdAt/updatedAt. Меняется при любом
+   * добавлении, правке, удалении (count) и пересинхронизации (новые строки → новые даты).
+   */
+  async getRecordsVersion(tenantId: string, objectId: string): Promise<{ version: string; total: number }> {
+    const raw = await this.recordRepo
+      .createQueryBuilder('record')
+      .select('COUNT(*)', 'total')
+      .addSelect('MAX(record.updatedAt)', 'maxUpdated')
+      .addSelect('MAX(record.createdAt)', 'maxCreated')
+      .where('record.tenantId = :tenantId', { tenantId })
+      .andWhere('record.objectId = :objectId', { objectId })
+      .getRawOne<{ total: string; maxUpdated: Date | null; maxCreated: Date | null }>();
+    const total = Number(raw?.total || 0);
+    const ts = (d: Date | string | null | undefined) => (d ? new Date(d).getTime() : 0);
+    return { version: `${total}.${ts(raw?.maxUpdated)}.${ts(raw?.maxCreated)}`, total };
+  }
+
+  /** Все строки для аналитики одним ответом (см. контроллер `records/compact`). */
+  async listRecordsCompact(tenantId: string, objectId: string, knownVersion?: string) {
+    await this.getObject(tenantId, objectId);
+    const { version, total } = await this.getRecordsVersion(tenantId, objectId);
+    if (knownVersion && knownVersion === version) {
+      return { version, total, unchanged: true as const };
+    }
+    const raw = await this.recordRepo
+      .createQueryBuilder('record')
+      .select('record.id', 'id')
+      .addSelect('record.values', 'values')
+      .addSelect('record.createdAt', 'createdAt')
+      .addSelect('record.updatedAt', 'updatedAt')
+      .where('record.tenantId = :tenantId', { tenantId })
+      .andWhere('record.objectId = :objectId', { objectId })
+      .orderBy('record.updatedAt', 'DESC')
+      .addOrderBy('record.id', 'ASC')
+      .getRawMany<{ id: string; values: Record<string, unknown> | null; createdAt: Date; updatedAt: Date }>();
+    return {
+      version,
+      total,
+      rows: raw.map((r) => [r.id, r.values ?? {}, r.createdAt, r.updatedAt] as const),
+    };
   }
 
   private static readonly SAFE_VALUES_KEY = /^[a-zA-Z0-9_]+$/;
@@ -2297,6 +2343,42 @@ export class CustomObjectsService {
         }`,
       );
       return 'skipped';
+    }
+  }
+
+  /** То же сопоставление для внешних источников, но с диагностикой ошибки строки. */
+  async upsertRecordFromWorkspaceMapped(
+    tenantId: string,
+    objectId: string,
+    flat: Record<string, string>,
+    cfg: {
+      enabledColumns: string[];
+      columnToFieldKey: Record<string, string>;
+    },
+  ): Promise<{ status: 'created' | 'updated' | 'skipped'; error?: string }> {
+    const oid = String(flat.id || '').trim();
+    if (!oid) return { status: 'skipped', error: 'missing_external_id' };
+    try {
+      const fields = (await this.listFields(tenantId, objectId)).filter((f) => f.isActive);
+      const byKey = new Map(fields.map((f) => [f.key, f]));
+      const values: Record<string, any> = {};
+      for (const column of cfg.enabledColumns) {
+        const fieldKey = String(cfg.columnToFieldKey[column] || '').trim();
+        const field = byKey.get(fieldKey);
+        if (!field) throw new BadRequestException(`Поле «${fieldKey}» не найдено в таблице`);
+        const value = flat[column];
+        if (value !== undefined && String(value).trim() !== '') values[fieldKey] = value;
+      }
+      const existing = await this.recordRepo.findOne({ where: { tenantId, objectId, externalId: oid } });
+      if (existing) {
+        const previous = existing.values && typeof existing.values === 'object' ? existing.values : {};
+        await this.updateRecord(tenantId, objectId, existing.id, { values: { ...previous, ...values }, externalId: oid });
+        return { status: 'updated' };
+      }
+      await this.createRecord(tenantId, objectId, { externalId: oid, values });
+      return { status: 'created' };
+    } catch (e) {
+      return { status: 'skipped', error: e instanceof Error ? e.message : String(e) };
     }
   }
 

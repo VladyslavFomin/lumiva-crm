@@ -12,6 +12,7 @@ import { BookingService } from './booking-service.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { BookingsProjectsService } from './bookings-projects.service';
 import { ReservationActivity } from './reservation-activity.entity';
+import { hmToMinutes, safeTimeZone, zonedParts, zonedToUtc } from './booking-time.util';
 
 export interface ConflictCheckInput {
   tenantId: string;
@@ -20,6 +21,8 @@ export interface ConflictCheckInput {
   startAt: Date;
   endAt: Date;
   excludeReservationId?: string;
+  /** Пояс проекта — если не передан, берём из проекта тенанта. */
+  timezone?: string;
 }
 
 export interface ConflictCheckResult {
@@ -51,7 +54,8 @@ export class BookingsAvailabilityService {
     if (!staffUserId && !resourceId) return { ok: true };
 
     if (staffUserId) {
-      const scheduleCheck = await this.checkStaffSchedule(tenantId, staffUserId, startAt, endAt);
+      const tz = input.timezone || (await this.projects.getOrCreateDefaultProject(tenantId)).timezone;
+      const scheduleCheck = await this.checkStaffSchedule(tenantId, staffUserId, startAt, endAt, tz);
       if (!scheduleCheck.ok) return scheduleCheck;
     }
 
@@ -89,30 +93,35 @@ export class BookingsAvailabilityService {
     return { ok: true };
   }
 
-  private static readonly WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
   /**
    * Отпуск/выходной и недельный график мастера (booking_staff_profiles.timeOff/
    * weeklyAvailability) — раньше сохранялись через upsertStaffWeeklyAvailability/
    * addStaffTimeOff, но нигде не читались: слот-инспектор и создание брони уверенно
    * подтверждали время, когда мастер в отпуске. Нет профиля/графика — как раньше,
    * без ограничений (не отказываем тенантам, которые это не настраивали).
+   * Часы графика — местное время салона: сверяем в поясе проекта, а не по часам сервера (UTC),
+   * иначе для Москвы запись на 10:00 проверялась как 07:00.
    */
-  private async checkStaffSchedule(
+  async checkStaffSchedule(
     tenantId: string,
     staffUserId: string,
     startAt: Date,
     endAt: Date,
+    timezone?: string,
+    preloadedProfile?: BookingStaffProfile | null,
   ): Promise<ConflictCheckResult> {
-    const profile = await this.staffProfilesRepo.findOne({ where: { tenantId, staffUserId } });
+    const profile =
+      preloadedProfile !== undefined ? preloadedProfile : await this.staffProfilesRepo.findOne({ where: { tenantId, staffUserId } });
     if (!profile) return { ok: true };
+    const tz = safeTimeZone(timezone);
 
     for (const off of profile.timeOff || []) {
-      const from = new Date(off.from);
       // "YYYY-MM-DD" без времени парсится как полночь UTC — без этого последний день отпуска
       // считался бы свободным для записи (см. тот же баг в reservations.service.ts::list).
+      // День без времени — весь местный день салона.
+      const from = /^\d{4}-\d{2}-\d{2}$/.test((off.from || '').trim()) ? zonedToUtc(off.from.trim(), '00:00', tz) : new Date(off.from);
       const to = /^\d{4}-\d{2}-\d{2}$/.test((off.to || '').trim())
-        ? new Date(`${off.to.trim()}T23:59:59.999Z`)
+        ? new Date(zonedToUtc(off.to.trim(), '23:59', tz).getTime() + 60_000 - 1)
         : new Date(off.to);
       if (startAt < to && endAt > from) {
         return {
@@ -126,20 +135,17 @@ export class BookingsAvailabilityService {
 
     const weekly = profile.weeklyAvailability;
     if (weekly && Object.keys(weekly).length) {
-      const dayKey = BookingsAvailabilityService.WEEKDAY_KEYS[startAt.getDay()];
-      const periods = weekly[dayKey] || [];
+      const startLocal = zonedParts(startAt, tz);
+      const endLocal = zonedParts(endAt, tz);
+      const periods = weekly[startLocal.weekday] || [];
       if (!periods.length) {
         return { ok: false, reason: 'У мастера нет рабочих часов в этот день' };
       }
-      const toMinutes = (d: Date) => d.getHours() * 60 + d.getMinutes();
-      const parseHm = (s: string) => {
-        const [h, m] = s.split(':').map((n) => Number(n) || 0);
-        return h * 60 + m;
-      };
-      const slotStart = toMinutes(startAt);
-      const slotEnd = toMinutes(endAt);
+      const slotStart = startLocal.minutes;
+      // конец ровно в полночь или на следующий день — за пределами любого периода этого дня
+      const slotEnd = endLocal.ymd === startLocal.ymd ? endLocal.minutes : 24 * 60 + endLocal.minutes;
       const fitsSomePeriod = periods.some(
-        (p) => slotStart >= parseHm(p.start) && slotEnd <= parseHm(p.end),
+        (p) => slotStart >= hmToMinutes(p.start) && slotEnd <= hmToMinutes(p.end),
       );
       if (!fitsSomePeriod) {
         return { ok: false, reason: 'Время вне рабочих часов мастера' };

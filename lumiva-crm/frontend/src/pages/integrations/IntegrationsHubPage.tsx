@@ -12,6 +12,7 @@ import {
   syncIntegration,
   testIntegration,
   updateIntegration,
+  deleteIntegration,
   type IntegrationConnectionDto,
   type IntegrationHubCatalogEntry,
   type IntegrationHubCrmModule,
@@ -247,6 +248,7 @@ export const IntegrationsHubPage: React.FC = () => {
     provider: MarketingIntegrationProviderKey;
   } | null>(null);
   const [connectCatalogId, setConnectCatalogId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<{ id: string; catalogId: string } | null>(null);
   const [ga4QuickConnectOpen, setGa4QuickConnectOpen] = useState(false);
   const [marketingPanelRefreshSignal, setMarketingPanelRefreshSignal] = useState(0);
   const [openMetaAdsSignal, setOpenMetaAdsSignal] = useState(0);
@@ -511,6 +513,24 @@ export const IntegrationsHubPage: React.FC = () => {
       setActionMsg((e as Error).message);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  /** «Изменить» — только для подключений через общую форму (у Google Таблиц своё окно настроек). */
+  const canEditConnection = (c: IntegrationConnectionDto) =>
+    c.kind === 'third_party_link' &&
+    Boolean(c.linkCatalogId) &&
+    c.linkCatalogId !== 'google_sheets' &&
+    isHubThirdPartyConnectCatalogId(c.linkCatalogId || '');
+
+  const handleDeleteConnection = async (c: IntegrationConnectionDto) => {
+    setActionMsg(null);
+    try {
+      await deleteIntegration(c.id);
+      await load({ quiet: true });
+      setActionMsg(t('crm.integrationsHub.connectionDeleted'));
+    } catch (e) {
+      setActionMsg((e as Error).message);
     }
   };
 
@@ -1044,6 +1064,8 @@ export const IntegrationsHubPage: React.FC = () => {
                                 connection={c}
                                 t={t}
                                 fetchCf7PasteUrl={fetchCf7PasteUrl}
+                      onEdit={canEditConnection(c) ? (conn) => setEditTarget({ id: conn.id, catalogId: conn.linkCatalogId || '' }) : undefined}
+                      onDelete={handleDeleteConnection}
                                 connectorSubtitle={false}
                                 lastSyncVariant="hub"
                                 showLastSyncStatus
@@ -1108,6 +1130,8 @@ export const IntegrationsHubPage: React.FC = () => {
                       connection={c}
                       t={t}
                       fetchCf7PasteUrl={fetchCf7PasteUrl}
+                      onEdit={canEditConnection(c) ? (conn) => setEditTarget({ id: conn.id, catalogId: conn.linkCatalogId || '' }) : undefined}
+                      onDelete={handleDeleteConnection}
                       connectorSubtitle={
                         c.kind === 'woocommerce' ||
                         (c.kind === 'third_party_link' && c.linkCatalogId)
@@ -1197,6 +1221,8 @@ export const IntegrationsHubPage: React.FC = () => {
                       connection={c}
                       t={t}
                       fetchCf7PasteUrl={fetchCf7PasteUrl}
+                      onEdit={canEditConnection(c) ? (conn) => setEditTarget({ id: conn.id, catalogId: conn.linkCatalogId || '' }) : undefined}
+                      onDelete={handleDeleteConnection}
                       surfaceTone="whiteDashed"
                       connectorSubtitle={false}
                       metaLine={
@@ -1369,6 +1395,16 @@ export const IntegrationsHubPage: React.FC = () => {
           onCreated={() => void load({ quiet: true })}
         />
       )}
+
+      {editTarget ? (
+        <IntegrationThirdPartyConnectModal
+          open
+          catalogId={editTarget.catalogId}
+          editConnectionId={editTarget.id}
+          onClose={() => setEditTarget(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : null}
 
       {googleSheetsSettingsId ? (
         <GoogleSheetsConnectionSettingsModal

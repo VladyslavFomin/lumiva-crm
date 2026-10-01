@@ -86,8 +86,9 @@ export class SeoAiSignalsService {
 
   // ---------------------------------------------------------------- проект для задач
 
-  /** Проект для SEO-задач: выбранный в настройках, иначе «SEO · сайт» (создаётся один раз). */
-  private async ensureProject(site: SeoAiAgent): Promise<string | null> {
+  /** Проект для SEO-задач: выбранный в настройках, иначе «SEO · сайт» (создаётся один раз).
+   * Публичный: сюда же ИИ-сотрудники (ai-employees) направляют SEO-задачи из своих циклов. */
+  async ensureProject(site: SeoAiAgent): Promise<string | null> {
     if (site.taskProjectId) {
       const p = await this.projectsRepo.findOne({ where: { id: site.taskProjectId, tenantId: site.tenantId } });
       if (p && !(p as any).isDeleted) return p.id;

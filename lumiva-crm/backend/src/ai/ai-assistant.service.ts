@@ -31,6 +31,7 @@ import { ANTI_INJECTION_PREAMBLE } from '../common/ai-security-guard.util';
 
 const MAX_TOOL_ROUNDS = 8;
 const MAX_HISTORY = 24;
+const MAX_OPENAI_TOOLS = 128;
 
 @Injectable()
 export class AiAssistantService {
@@ -94,12 +95,32 @@ export class AiAssistantService {
         ({ component }) => component,
       ),
     );
-    if (!disabledComponents.size) return AI_TOOL_DEFINITIONS;
-    return AI_TOOL_DEFINITIONS.filter((tool) => {
+    const available = !disabledComponents.size
+      ? AI_TOOL_DEFINITIONS
+      : AI_TOOL_DEFINITIONS.filter((tool) => {
       const name = (tool as { function?: { name?: string } })?.function?.name || '';
       const hit = AiAssistantService.TOOL_PREFIX_COMPONENT.find(({ prefix }) => name.startsWith(prefix));
       return !hit || !disabledComponents.has(hit.component);
+      });
+
+    if (available.length <= MAX_OPENAI_TOOLS) return available;
+
+    // Optional module tools are the least harmful to omit when OpenAI's hard limit is reached.
+    // Keep core CRM and workspace tools available, then fill the remaining slots deterministically.
+    const optionalPrefixes = ['crm_hotel_', 'crm_booking_', 'crm_product_'];
+    const core = available.filter((tool) => {
+      const name = (tool as { function?: { name?: string } })?.function?.name || '';
+      return !optionalPrefixes.some((prefix) => name.startsWith(prefix));
     });
+    const optional = available.filter((tool) => {
+      const name = (tool as { function?: { name?: string } })?.function?.name || '';
+      return optionalPrefixes.some((prefix) => name.startsWith(prefix));
+    });
+    const limited = [...core, ...optional].slice(0, MAX_OPENAI_TOOLS);
+    this.log.warn(
+      `OpenAI tools limited from ${available.length} to ${MAX_OPENAI_TOOLS}; omitted ${available.length - limited.length} optional tools`,
+    );
+    return limited;
   }
 
   /**
@@ -155,7 +176,8 @@ export class AiAssistantService {
 - Чтобы перенести в рабочую область данные по рекламе/каналам из CRM (то, что в маркетинге и marketing_traffic): без разбивки по времени — crm_workspace_import_marketing_channels (одна строка на кампанию за весь период, БЕЗ поля месяца — после такого импорта помесячный вид в рабочей области построить нельзя никак, ни через группировку, ни через pivot-виджет аналитики, потому что месяца просто нет в данных). Если пользователь хочет разбивку по месяцам ("по месяцам", "помесячно", "по каждому аккаунту/стране по месяцам") — используй crm_workspace_import_marketing_monthly_breakdown, он сразу создаёт таблицу с готовыми колонками-месяцами. Оба инструмента сами создают таблицу с нужными колонками и заполняют строки — не создавай пустую таблицу через crm_workspace_create_table без fields и без последующих crm_workspace_add_record.
 - Автообновление таблиц рабочей области и сведение нескольких источников в одну таблицу: у таблицы может быть несколько «источников синхронизации», каждый обновляется сам (данные рекламных кабинетов — каждую ночь после их синхронизации). Строки, записанные источником, помечены: пересборка одного источника не трогает строки других источников и ручные строки (ручные правки внутри строк САМОГО источника при обновлении не сохраняются — скажи об этом пользователю). Инструменты: crm_workspace_create_marketing_table — новая таблица со строками из рекламных кабинетов (providers: google_ads, meta_ads, yandex_direct, vk_ads, ga4, yandex_metrika — можно несколько сразу, они сведутся в одну таблицу; grain daily/campaign/channel; для кабинетов в разных валютах передавай displayCurrency); crm_workspace_add_sync_source — добавить ещё один источник в существующую таблицу; crm_workspace_list_sync_sources / crm_workspace_remove_sync_source / crm_workspace_refresh_now. Помесячные расходы «страна × месяц» — crm_workspace_import_marketing_monthly_breakdown (по умолчанию тоже автообновляется; такая таблица занимает весь лист и не сочетается с другими источниками). Для уже существующей таблицы, созданной старым инструментом, — crm_workspace_set_auto_refresh (сначала crm_workspace_describe_table; параметры выгрузки уточни у пользователя, не угадывай). Woo, Meta Ads (Graph) и GA4 с маппингом колонок подключаются к автообновлению на странице импорта таблицы (/workspace/<id>/import, переключатель «Обновлять автоматически») — через чат этого сделать нельзя, так и скажи. Период без конечной даты (to не передавай) значит «до сегодняшнего дня». Не говори, что автообновление включено, пока инструмент не вернул ok:true (он делает пробную загрузку).
 - Разбивка расходов по месяцам (особенно в разрезе нескольких аккаунтов/каналов/стран сразу, например "сколько по каждой стране по месяцам") — используй crm_marketing_monthly_breakdown (или crm_workspace_import_marketing_monthly_breakdown для рабочей области) с groupBy:"market" для разбивки по странам ОДНИМ вызовом — а НЕ ручное суммирование crm_marketing_daily_series по каждому аккаунту в уме и НЕ отдельный вызов на каждую страну через параметр market (упрёшься в лимит вызовов за один ответ раньше, чем обойдёшь все страны, и часть таблицы останется нулевой — реальная причина неверных сумм и "нулей" в прошлых ответах).
-- Сегментация рекламы по стране/рынку (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown, crm_workspace_import_marketing_channels): у большинства источников (Google Ads, Meta, Yandex Direct/Metrika, VK Ads) НЕТ поля страны в БД — гео есть только у GA4-строк; у остальных рынок можно определить лишь эвристически по тегу в начале названия кампании ("LV - Search - Traffic - ...") или по названию страны в тексте кампании. Поэтому: если пользователь просит данные ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ВСЕГДА передавай параметр market (код ISO2 или название), а если не уверен — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков с расходом по каждому и unclassified (кампании без определённого рынка). НИКОГДА не переименовывай заголовок таблицы/ответа в название страны, не передав фактический фильтр market — старая ошибка бота была именно в этом (заголовок "по Великобритании", а внутри данные всех стран). Если market не распознан (ok:false, error:"unknown_market") или после фильтра 0 строк — не показывай нефильтрованные данные, а прямо скажи, что не можешь надёжно сегментировать по этой стране, и покажи availableMarkets.
+- Сегментация рекламы по стране/рынку (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown, crm_workspace_import_marketing_channels): у Google Ads, Yandex Direct/Metrika и VK Ads НЕТ поля страны в БД — гео есть у GA4 (страна визита) и у Meta Ads (реальная страна показа из кабинета; инструменты учитывают её сами); у остальных рынок можно определить лишь эвристически по тегу в начале названия кампании ("LV - Search - Traffic - ...") или по названию страны в тексте кампании. Поэтому: если пользователь просит данные ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ВСЕГДА передавай параметр market (код ISO2 или название), а если не уверен — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков с расходом по каждому и unclassified (кампании без определённого рынка). НИКОГДА не переименовывай заголовок таблицы/ответа в название страны, не передав фактический фильтр market — старая ошибка бота была именно в этом (заголовок "по Великобритании", а внутри данные всех стран). Если market не распознан (ok:false, error:"unknown_market") или после фильтра 0 строк — не показывай нефильтрованные данные, а прямо скажи, что не можешь надёжно сегментировать по этой стране, и покажи availableMarkets.
+- ROI / окупаемость рекламы клиента (crm_marketing_roi): клиент = компания CRM, к которой привязаны его рекламные кабинеты; выручка берётся из выбранных источников (manual/ads/ga4/crm). Если в ответе есть unassignedSpend > 0 или crmUnattributed — прямо скажи, что часть расхода/продаж не отнесена к клиентам и не входит в ROI. Не считай ROI сам из других инструментов.
 - Валюта расходов/выручки в маркетинге (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown): у каждой кампании/канала своя валюта (задаётся при подключении интеграции — например Yandex Direct тенанта может быть в TRY, у другого в RUB), она приходит в ответе инструмента в поле currency (или originalCurrency у отдельных строк; "MIXED" — если в выборке смешаны разные валюты). НИКОГДА не пиши суммы в $/USD/EUR "по умолчанию" и не переводи их в другую валюту в уме — всегда бери валюту из currency/originalCurrency в ответе инструмента и указывай её рядом с суммой ровно как в данных (например "66 641,41 TRY", не "$66,641.41"). Если currency:"MIXED" — либо покажи валюту отдельно для каждой строки/канала, либо явно предупреди пользователя, что суммы в разных валютах и складывать их напрямую нельзя. Если пользователь просит перевести суммы В ДРУГУЮ валюту ("переведи в евро", "сколько это в долларах") — НИКОГДА не считай курс сам (ни по памяти, ни "примерно", ни через отдельные вычисления/LaTeX в ответе) и не оценивай его на глаз — это реальный случай прошлой ошибки (курс TRY→EUR был просто придуман и итог получился неверный). Единственный способ — заново вызвать тот же инструмент с параметром displayCurrency (есть у всех трёх маркетинговых инструментов); он возвращает реальный курс ECB/Frankfurter и уже пересчитанные суммы. Если инструмент вернул fxConversionFailed — так и скажи пользователю, что конвертация сейчас недоступна, покажи суммы в исходной валюте, и НЕ предлагай "примерный" курс взамен.
 - Если таблица уже создана без колонок — добавь поля через crm_workspace_add_field, затем crm_workspace_describe_table и crm_workspace_add_record с правильными key.
 - Если в сообщении есть блок «Вложение: импорт продаж» с importId — для завершения импорта вызови crm_sales_import_apply (маппинг из suggestedMapping, если пользователь не указал иное).
@@ -1196,7 +1218,7 @@ ${existingFieldsList}
   async buildAnalyticsDashboard(
     tenantId: string,
     userId: string,
-    input: { module?: string; workspaceObjectId?: string; periodFrom?: string; periodTo?: string },
+    input: { module?: string; workspaceObjectId?: string; periodFrom?: string; periodTo?: string; instructions?: string },
   ): Promise<{
     ok: boolean;
     module: string;
@@ -1210,20 +1232,29 @@ ${existingFieldsList}
       throw new BadRequestException('module must be one of projects|workspace|leads|sales');
     }
     const range = this.parsePeriodRange(input.periodFrom, input.periodTo);
+    // Пожелания пользователя из окна «Разобрать через ИИ» — главный приоритет для состава блоков.
+    const instructions = typeof input.instructions === 'string' ? input.instructions.trim().slice(0, 2000) : '';
     try {
       if (module === 'projects' || module === 'workspace') {
         const workspaceObjectId = input.workspaceObjectId ? String(input.workspaceObjectId).trim() : undefined;
         if (module === 'workspace' && !workspaceObjectId) {
           throw new BadRequestException('workspaceObjectId required for module "workspace"');
         }
-        const widgets = await this.buildProjectsStyleDashboard(tenantId, module, workspaceObjectId, range);
+        const { widgets, note } = await this.buildProjectsStyleDashboard(
+          tenantId, module, workspaceObjectId, range, instructions,
+        );
         if (!widgets.length) {
-          return { ok: false, module, error: 'no_data', note: 'Недостаточно данных для построения дашборда.' };
+          return {
+            ok: false,
+            module,
+            error: 'no_data',
+            note: note || 'Недостаточно данных для построения дашборда.',
+          };
         }
-        return { ok: true, module, widgets };
+        return { ok: true, module, widgets, note };
       }
       // leads | sales
-      const layouts = await this.buildBlockStyleDashboard(tenantId, module as 'leads' | 'sales', range);
+      const layouts = await this.buildBlockStyleDashboard(tenantId, module as 'leads' | 'sales', range, instructions);
       const totalBlocks = Object.values(layouts).reduce((s, v) => s + v.length, 0);
       if (!totalBlocks) {
         return { ok: false, module, error: 'no_data', note: 'Недостаточно данных для построения дашборда.' };
@@ -1290,7 +1321,8 @@ ${existingFieldsList}
     module: 'projects' | 'workspace',
     workspaceObjectId?: string,
     range?: { from: Date; to: Date } | null,
-  ): Promise<Record<string, unknown>[]> {
+    instructions = '',
+  ): Promise<{ widgets: Record<string, unknown>[]; note?: string }> {
     let totalCount = 0;
     let dimensionLines: string[] = [];
     let numericLines: string[] = [];
@@ -1375,7 +1407,62 @@ ${existingFieldsList}
           }
           continue;
         }
-        if (['text', 'date', 'datetime', 'boolean', 'file'].includes(type)) {
+        if (type === 'text' || type === 'ai') {
+          // Текстовая колонка бывает и числом («Итого (TRY)» = "1200"), и категорией («Мастер»,
+          // «Салон», «Источник») — раньше такие колонки ИИ вообще не видел, поэтому не мог
+          // посчитать, например, выручку по мастерам. Решаем по реальным значениям.
+          const rawVals = scopedItems
+            .map((r: any) => r.values?.[f.key])
+            .filter((v: unknown) => v != null && String(v).trim() !== '')
+            .map((v: unknown) => String(v).trim());
+          validMetricKeys.add(`filled:${f.key}`);
+          if (!rawVals.length) continue;
+          const parsedNums = rawVals
+            .map((v: string) => Number(v.replace(/\s+/g, '').replace(',', '.').replace(/[^0-9.\-]/g, '')))
+            .filter((n: number) => Number.isFinite(n));
+          const notNumericByName = /(тел|phone|id|код|номер|время|time|дата|date|час)/i.test(`${f.key} ${f.label}`);
+          const numberLike = (v: string) =>
+            /^[+\-]?[\d\s.,]+\s*(%|₺|\$|€|£|₽|try|usd|eur|rub|tl)?$/i.test(v) && (v.match(/\d/g) || []).length <= 9;
+          const looksNumeric =
+            !notNumericByName && rawVals.filter(numberLike).length / rawVals.length >= 0.8;
+          if (looksNumeric) {
+            const sum = parsedNums.reduce((a: number, b: number) => a + b, 0);
+            validMetricKeys.add(`sum:${f.key}`);
+            validMetricKeys.add(`avg:${f.key}`);
+            validNumericFieldKeys.add(`field:${f.key}`);
+            numericLines.push(
+              `- ${f.label} (числовое поле "field:${f.key}", хранится текстом — metricKey "sum:${f.key}"/"avg:${f.key}" или chartValueField "field:${f.key}"): sum=${Math.round(sum)}, avg=${Math.round(sum / parsedNums.length)}, заполнено в ${parsedNums.length}/${scopedItems.length} строк`,
+            );
+            continue;
+          }
+          const counts = new Map<string, number>();
+          for (const v of rawVals) counts.set(v, (counts.get(v) || 0) + 1);
+          const distinct = counts.size;
+          // Те же правила, что профиль колонок на странице (profileField в ProjectsAnalyticsPage):
+          // даты и длинный текст — не категории; >40 значений или почти все разные при 20+ строках —
+          // имена/ID. «Широкая» таблица, где каждая строка — своя страна (14 из 14), — категория.
+          const dateLike = rawVals.filter((v: string) =>
+            /^(\d{4}-\d{2}-\d{2}([T\s][\d:.]+Z?)?|\d{1,2}[./]\d{1,2}[./]\d{2,4})$/.test(v),
+          ).length;
+          const avgLen = rawVals.reduce((sum: number, v: string) => sum + v.length, 0) / rawVals.length;
+          const isCategory =
+            distinct >= 2 &&
+            dateLike / rawVals.length < 0.8 &&
+            avgLen <= 40 &&
+            distinct <= 40 &&
+            !(rawVals.length >= 20 && distinct / rawVals.length > 0.9);
+          if (isCategory) {
+            const top = [...counts.entries()]
+              .map(([value, count]) => ({ value, count }))
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 12);
+            validChartKeys.add(key);
+            validTableKeys.add(key);
+            dimensionLines.push(this.fmtValueStats(f.label, key, top));
+          }
+          continue;
+        }
+        if (['date', 'datetime', 'boolean', 'file'].includes(type)) {
           validMetricKeys.add(`filled:${f.key}`);
           continue;
         }
@@ -1464,8 +1551,10 @@ ${existingFieldsList}
       dimensionLines,
       numericLines,
       extraNote: wideNumericColumnsWarning,
-      widgetTypes: 'metric | donut | bar | line | funnel | leaderboard | table | heatmap | note | formula | pivot',
+      widgetTypes: 'metric | donut | bar | line | funnel | leaderboard | table | heatmap | note | formula | pivot | map',
       outputShape: 'WIDGET_ARRAY',
+      instructions,
+      allowPointsMap: module === 'workspace',
       validChartKeys: [...validChartKeys],
       validMetricKeys: [...validMetricKeys],
       validTableKeys: [...validTableKeys],
@@ -1474,11 +1563,17 @@ ${existingFieldsList}
     });
 
     const raw = await this.quickCompletion(tenantId, prompt);
-    const parsed = this.parseJsonLoose<{ widgets?: Record<string, unknown>[] }>(raw);
+    const parsed = this.parseJsonLoose<{ widgets?: Record<string, unknown>[]; note?: unknown }>(raw);
     const widgets = Array.isArray(parsed?.widgets) ? parsed!.widgets : [];
-    return this.sanitizeWidgetArray(widgets, {
-      validChartKeys, validMetricKeys, validTableKeys, validNumericFieldKeys,
+    const sanitized = this.sanitizeWidgetArray(widgets, {
+      validChartKeys, validMetricKeys, validTableKeys, validNumericFieldKeys, allowPointsMap: module === 'workspace',
     });
+    const dropped = widgets.length - sanitized.length;
+    const notes = [
+      typeof parsed?.note === 'string' ? parsed.note.trim().slice(0, 600) : '',
+      dropped > 0 ? `${dropped} блок(ов) отброшено: ссылались на несуществующие поля.` : '',
+    ].filter(Boolean);
+    return { widgets: sanitized, note: notes.join(' ') || undefined };
   }
 
   /** module: 'leads' | 'sales' → Record<ViewId, AnalyticsBlock[]> (схема *AnalyticsPageV2.tsx). */
@@ -1486,6 +1581,7 @@ ${existingFieldsList}
     tenantId: string,
     module: 'leads' | 'sales',
     range?: { from: Date; to: Date } | null,
+    instructions = '',
   ): Promise<Record<string, Record<string, unknown>[]>> {
     const views = ['overview', 'sources', 'managers', 'funnel'];
     let totalCount = 0;
@@ -1638,6 +1734,7 @@ ${existingFieldsList}
       validNumericFieldKeys: [...validNumericFieldKeys],
       periodLabel: this.formatPeriodLabel(range),
       views,
+      instructions,
     });
 
     const raw = await this.quickCompletion(tenantId, prompt);
@@ -1670,6 +1767,8 @@ ${existingFieldsList}
     extraNote?: string;
     views?: string[];
     periodLabel?: string;
+    instructions?: string;
+    allowPointsMap?: boolean;
   }): string {
     const outputSpec =
       input.outputShape === 'WIDGET_ARRAY'
@@ -1693,9 +1792,15 @@ ${existingFieldsList}
       "formulaLeftType": "<scope>", "formulaLeftKey": "<value>",
       "formulaRightType": "<scope>", "formulaRightKey": "<value>",
       "formulaMode": "count" | "percent" | "sum",
-      "compareDisplay": "number" | "bar" | "line" | "donut" | "table"
+      "compareDisplay": "number" | "bar" | "line" | "donut" | "table",
+      "mapScope": "<только для type=map: world | europe | asia | north_america | south_america | africa | oceania | country:XX (ISO-2, напр. country:TR)>",
+      "mapMode": "<только для type=map: countries (закраска стран) | points (города/адреса точками${input.allowPointsMap ? '' : ' — здесь НЕДОСТУПНО'})>",
+      "span": <ширина блока в колонках сетки из 12: 3 (четверть), 4 (треть), 6 (половина), 8, 12 (вся ширина)>,
+      "height": <высота блока в пикселях: 180 для metric, 320–420 для графиков/таблиц, 420–520 для map>,
+      "noteText": "<только для type=note — короткий вывод/заметка на русском по реальным цифрам выше>"
     }
-  ]
+  ],
+  "note": "<необязательно: что из пожеланий пользователя не удалось выполнить и почему>"
 }`
         : `Верни строго JSON (без markdown, без пояснений вне JSON) — по блокам НА КАЖДУЮ вкладку (${(input.views || []).join(', ')}):
 {
@@ -1726,7 +1831,22 @@ ${input.extraNote || ''}
 
 compareDisplay — необязательное поле у type=formula, показывает результат не только числом, но и графиком/таблицей сравнения левой и правой части. Ставь его в "bar"/"line"/"donut"/"table" ТОЛЬКО если formulaLeftType и formulaRightType — оба суммы по РАЗНЫМ числовым полям, соответствующим отдельным месяцам (когда среди допустимых числовых полей видны несколько похожих полей-месяцев вроде "Август 2025"/"Сентябрь 2025" — сравнивай их между собой). Во всех остальных случаях (или если не уверен) оставляй compareDisplay "number" или не указывай его вовсе — иначе график не отобразится.
 
-Собери от 6 до 12 блоков (для layouts — суммарно по всем вкладкам), с реальным разнообразием типов, не только metric.
+${input.outputShape === 'WIDGET_ARRAY' ? `ОПЕРАНДЫ ФОРМУЛЫ (formulaLeftType / formulaRightType) — ТОЛЬКО из этого списка, иначе блок отбрасывается:
+- "total" — количество записей;
+- любой допустимый metricKey вида "sum:<ключ>", "avg:<ключ>", "filled:<ключ>" (сумма/среднее/заполненность поля);
+- допустимый chartKey (например "field:<ключ>") + formulaLeftKey/formulaRightKey = одно из РЕАЛЬНЫХ значений этого измерения из топов выше — количество записей с этим значением;
+- "groupmax:<chartKey>|count" или "groupmax:<chartKey>|sum:<ключ числового поля>" — значение ЛУЧШЕЙ группы измерения (например лучший мастер по выручке: "groupmax:field:мастер|sum:итого_try");
+- "groupmin:<chartKey>|count" или "groupmin:<chartKey>|sum:<ключ>" — значение ХУДШЕЙ группы.
+Пример «разница между лучшим и худшим мастером по выручке»: {"type":"formula","formulaFn":"diff","formulaMode":"sum","formulaLeftType":"groupmax:field:мастер|sum:итого_try","formulaRightType":"groupmin:field:мастер|sum:итого_try"} (подставь реальные ключи из списков выше).
+Для сравнения групп между собой чаще подходит bar или leaderboard с chartKey=измерение и chartValueMode "sum".
+
+Блок type:"map" — карта: chartKey — измерение, чьи значения являются НАЗВАНИЯМИ СТРАН (mapMode "countries") или ГОРОДОВ/АДРЕСОВ (mapMode "points"); chartValueMode/chartValueField как у bar. mapScope — область карты (весь мир, континент или одна страна "country:XX"). Строй карту ТОЛЬКО если такое измерение реально есть в списке выше (смотри на значения: «Германия», «Турция», «Istanbul»…), иначе не строй.` : ''}
+
+${input.instructions ? `ПОЖЕЛАНИЯ ПОЛЬЗОВАТЕЛЯ — ГЛАВНЫЙ ПРИОРИТЕТ. Выполни их буквально: какие блоки, сколько, по каким полям, в каком порядке, какой ширины. Если что-то из просьбы невозможно по данным — замени ближайшим возможным, но не выдумывай ключи.
+Пожелания: «${input.instructions}»
+Количество и состав блоков — как просит пользователь. Если количество не указано — от 4 до 12 блоков.
+Если какую-то часть просьбы выполнить нельзя (нет нужного поля/данных), НЕ подменяй её молча стандартными блоками: сделай ближайшее возможное и обязательно объясни это в поле "note" ответа (1–2 предложения по-русски: что сделано вместо и какого поля не хватает). Если всё выполнено — "note" не пиши.` : 'Собери от 6 до 12 блоков (для layouts — суммарно по всем вкладкам), с реальным разнообразием типов, не только metric.'}
+Располагай блоки осмысленно: сначала 2–4 KPI-метрики, затем графики, затем таблицы и карты.
 
 ${outputSpec}`;
   }
@@ -1750,16 +1870,58 @@ ${outputSpec}`;
       validMetricKeys: Set<string>;
       validTableKeys: Set<string>;
       validNumericFieldKeys: Set<string>;
+      allowPointsMap?: boolean;
     },
   ): Record<string, unknown>[] {
     const allowedTypes = new Set([
-      'metric', 'donut', 'bar', 'line', 'funnel', 'leaderboard', 'table', 'heatmap', 'note', 'formula', 'pivot',
+      'metric', 'donut', 'bar', 'line', 'funnel', 'leaderboard', 'table', 'heatmap', 'note', 'formula', 'pivot', 'map',
     ]);
+    const regionScopes = new Set(['world', 'europe', 'asia', 'north_america', 'south_america', 'africa', 'oceania']);
     const out: Record<string, unknown>[] = [];
     let idx = 0;
     for (const raw of widgets) {
       const type = String(raw.type || '');
       if (!allowedTypes.has(type)) continue;
+      if (type === 'map') {
+        if (!raw.chartKey || !valid.validChartKeys.has(String(raw.chartKey))) continue;
+        if (
+          raw.chartValueMode === 'sum' &&
+          (!raw.chartValueField || !valid.validNumericFieldKeys.has(String(raw.chartValueField)))
+        ) continue;
+        const scope = String(raw.mapScope || 'world');
+        raw.mapScope = regionScopes.has(scope) || /^country:[A-Z]{2}$/.test(scope) ? scope : 'world';
+        raw.mapMode = raw.mapMode === 'points' && valid.allowPointsMap ? 'points' : 'countries';
+      }
+      if (type === 'note' && raw.noteText != null) raw.noteText = String(raw.noteText).slice(0, 600);
+      if (type === 'formula') {
+        const fn = String(raw.formulaFn || 'sumif');
+        const operandOk = (op: unknown, key: unknown): boolean => {
+          if (op == null || op === '') return true;
+          const v = String(op);
+          if (v === 'total' || v.startsWith('summonths:')) return true;
+          if (valid.validMetricKeys.has(v)) return true;
+          if (['amount', 'avgAmount', 'owners', 'categories', 'tags', 'status', 'category', 'owner', 'tag'].includes(v)) {
+            return valid.validMetricKeys.has(v) || valid.validChartKeys.has(v);
+          }
+          const g = /^(groupmax|groupmin):(.+)\|(count|sum:.+)$/.exec(v);
+          if (g) {
+            return (
+              valid.validChartKeys.has(g[2]) &&
+              (g[3] === 'count' || valid.validNumericFieldKeys.has(`field:${g[3].slice(4)}`) || valid.validNumericFieldKeys.has(g[3].slice(4)))
+            );
+          }
+          if (valid.validChartKeys.has(v)) return key != null && String(key).trim() !== '';
+          return false;
+        };
+        if (!operandOk(raw.formulaLeftType, raw.formulaLeftKey)) continue;
+        if ((fn === 'diff' || fn === 'ratio') && !operandOk(raw.formulaRightType, raw.formulaRightKey)) continue;
+        // diff/ratio одного и того же операнда — всегда 0/100%: бессмысленный блок.
+        if (
+          (fn === 'diff' || fn === 'ratio') &&
+          String(raw.formulaLeftType || 'total') === String(raw.formulaRightType || 'total') &&
+          String(raw.formulaLeftKey || '') === String(raw.formulaRightKey || '')
+        ) continue;
+      }
       if (type === 'metric' && raw.metricKey && !valid.validMetricKeys.has(String(raw.metricKey))) continue;
       if (['donut', 'bar', 'line', 'funnel', 'leaderboard', 'heatmap'].includes(type)) {
         if (!raw.chartKey || !valid.validChartKeys.has(String(raw.chartKey))) continue;
@@ -1786,6 +1948,8 @@ ${outputSpec}`;
         id: String(raw.id || `ai-${Date.now()}-${idx++}`),
         title: String(raw.title || '').slice(0, 120) || 'Блок',
         size: ['sm', 'md', 'lg'].includes(String(raw.size)) ? raw.size : 'md',
+        ...(Number.isFinite(Number(raw.span)) ? { span: Math.min(12, Math.max(3, Math.round(Number(raw.span)))) } : {}),
+        ...(Number.isFinite(Number(raw.height)) ? { height: Math.min(720, Math.max(160, Math.round(Number(raw.height)))) } : {}),
       });
     }
     return out.slice(0, 16);

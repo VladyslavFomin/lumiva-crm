@@ -32,6 +32,7 @@ import {
 } from '../../api/products';
 import { fetchMarketingFxRates } from '../../api/marketing';
 import { ProductsAnalyticsBuilder } from './ProductsAnalyticsBuilder';
+import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../components/ui/DateRangePicker';
 import './products-design.css';
 
 const CHART_COLORS = ['#222222', '#5a3a86', '#175c3d', '#7a4a09', '#214b8a', '#9a1f31', '#888888', '#c08319'];
@@ -72,6 +73,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [periodPreset, setPeriodPreset] = useState<string | null>('all');
   const [status, setStatus] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [locationId, setLocationId] = useState('');
@@ -176,12 +178,21 @@ export const ProductsAnalyticsPage: React.FC = () => {
         <>
         <div className="an-toolbar">
           <div className="an-filter">
-            <label>{t('crm.products.analytics.filters.from')}</label>
-            <input type="date" className="ai-input" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div className="an-filter">
-            <label>{t('crm.products.analytics.filters.to')}</label>
-            <input type="date" className="ai-input" value={to} onChange={(e) => setTo(e.target.value)} />
+            <label>{t('crm.dateRange.title')}</label>
+            <DateRangePicker
+              value={{ from: fromIsoDate(from), to: fromIsoDate(to) }}
+              presetId={periodPreset}
+              presets={[
+                ...([7, 30, 90] as const).map((n) => ({ id: `${n}d`, label: t(`crm.dateRange.last${n}`), range: lastDays(n) })),
+                { id: '365d', label: t('crm.dateRange.last365'), range: lastDays(365) },
+                { id: 'all', label: t('crm.dateRange.allTime'), range: { from: null, to: null } },
+              ]}
+              onChange={(v) => {
+                setPeriodPreset(v.presetId);
+                setFrom(v.from ? toIsoDate(v.from) : '');
+                setTo(v.to ? toIsoDate(v.to) : '');
+              }}
+            />
           </div>
           <div className="an-filter">
             <label>{t('crm.products.analytics.filters.status')}</label>

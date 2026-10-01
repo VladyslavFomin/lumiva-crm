@@ -23,6 +23,25 @@ export function WorkspaceAiAnalyticsPanel({ objectId }: { objectId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
+  // Свёрнута по умолчанию — панель не должна перетягивать внимание с блоков аналитики.
+  const [expanded, setExpanded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ws_ai_panel_expanded') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleExpanded = () =>
+    setExpanded((prev) => {
+      try {
+        localStorage.setItem('ws_ai_panel_expanded', prev ? '0' : '1');
+      } catch {
+        // ignore
+      }
+      return !prev;
+    });
+  const openReport = () =>
+    window.dispatchEvent(new CustomEvent('lumiva:analytics-report', { detail: { objectId } }));
 
   useEffect(() => {
     let alive = true;
@@ -76,12 +95,58 @@ export function WorkspaceAiAnalyticsPanel({ objectId }: { objectId: string }) {
 
   if (loading) return null;
 
+  const header = (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={toggleExpanded}
+        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        aria-expanded={expanded}
+      >
+        <span aria-hidden style={{ color: '#7c3aed' }}>✦</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{t('crm.workspace.analytics.aiTitle')}</span>
+        {cached ? (
+          <span className="truncate text-xs text-neutral-500">
+            · {t('crm.workspace.analytics.aiLastReport', {
+              date: new Date(cached.computedAt).toLocaleString(i18n.language, {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            })}
+          </span>
+        ) : null}
+      </button>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs text-neutral-700 hover:border-neutral-300"
+        onClick={openReport}
+      >
+        ✉ {t('crm.workspace.report.button')}
+      </button>
+      <button
+        type="button"
+        className="inline-flex items-center rounded-lg px-2 py-1 text-xs text-neutral-600 hover:bg-white/70"
+        onClick={toggleExpanded}
+      >
+        {expanded ? t('crm.workspace.analytics.aiPanelCollapse') : t('crm.workspace.analytics.aiPanelExpand')}
+        <span aria-hidden style={{ marginLeft: 4, display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+      </button>
+    </div>
+  );
+
+  if (!expanded) {
+    return (
+      <div className="ws-ai-config" style={{ marginBottom: 16, paddingTop: 10, paddingBottom: 10 }}>
+        {header}
+      </div>
+    );
+  }
+
   return (
     <div className="ws-ai-config" style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span aria-hidden style={{ color: '#7c3aed' }}>✦</span>
-        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{t('crm.workspace.analytics.aiTitle')}</div>
-      </div>
+      {header}
       <div className="ws-f2" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <div className="ws-field" style={{ flex: '1 1 220px' }}>
           <label>{t('crm.workspace.table.aiColumnAgent')}</label>

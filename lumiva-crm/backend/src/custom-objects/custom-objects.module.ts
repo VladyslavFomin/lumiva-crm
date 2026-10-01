@@ -9,6 +9,11 @@ import { CustomObjectsService } from './custom-objects.service';
 import { CustomObjectImportAiService } from './custom-object-import-ai.service';
 import { CustomObjectsController } from './custom-objects.controller';
 import { CustomObjectsPublicController } from './custom-objects-public.controller';
+import { WorkspaceSharesService } from './workspace-shares.service';
+import { GeocodeService } from './geocode.service';
+import { AnalyticsReportMailService } from './analytics-report-mail.service';
+import { MailModule } from '../mail/mail.module';
+import { WorkspaceSharesPublicController } from './workspace-shares-public.controller';
 import { AutomationsModule } from '../automations/automations.module';
 import { ApiTokensModule } from '../api-tokens/api-tokens.module';
 import { Tenant } from '../tenants/tenant.entity';
@@ -35,11 +40,15 @@ import { WorkspaceAreaActivityLogModule } from '../workspace-areas/workspace-are
     TenantsModule,
     WorkspaceAreasModule,
     WorkspaceAreaActivityLogModule,
+    MailModule,
   ],
-  controllers: [CustomObjectsController, CustomObjectsPublicController],
+  controllers: [CustomObjectsController, CustomObjectsPublicController, WorkspaceSharesPublicController],
   providers: [
     CustomObjectsService,
     CustomObjectImportAiService,
+    WorkspaceSharesService,
+    GeocodeService,
+    AnalyticsReportMailService,
     ApiTokenGuard,
     WorkspaceAreaAccessGuard,
   ],

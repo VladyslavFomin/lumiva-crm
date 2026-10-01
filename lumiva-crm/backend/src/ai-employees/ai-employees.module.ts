@@ -14,6 +14,9 @@ import { HelpdeskTicket } from '../helpdesk/helpdesk-ticket.entity';
 import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
 import { TelegramContact } from '../telegram-crm/telegram-contact.entity';
 import { TelegramMessage } from '../telegram-crm/telegram-message.entity';
+import { WhatsappContact } from '../whatsapp-crm/whatsapp-contact.entity';
+import { WhatsappMessage } from '../whatsapp-crm/whatsapp-message.entity';
+import { WhatsappCrmModule } from '../whatsapp-crm/whatsapp-crm.module';
 import { EmailMessage } from '../email/email-message.entity';
 import { AiModule } from '../ai/ai.module';
 import { TenantsModule } from '../tenants/tenants.module';
@@ -87,6 +90,8 @@ import { MailModule } from '../mail/mail.module';
       TelegramBot,
       TelegramContact,
       TelegramMessage,
+      WhatsappContact,
+      WhatsappMessage,
       EmailMessage,
       AiAgent,
       AiAgentPermission,
@@ -107,6 +112,7 @@ import { MailModule } from '../mail/mail.module';
     MailModule, // рассылка отчёта CRM-аналитика
     forwardRef(() => EmailModule),
     forwardRef(() => TelegramCrmModule),
+    forwardRef(() => WhatsappCrmModule),
     forwardRef(() => LeadsModule),
     forwardRef(() => IntegrationsModule),
     forwardRef(() => TenantsModule), // TenantLogsService — security-event visibility for pl1

@@ -1,0 +1,65 @@
+/* Единый выбор периода — визуально 1:1 с .roi-pp из marketing/roi/roiDesign.css.
+ * Токены объявлены локально, чтобы компонент выглядел одинаково на любой странице. */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+.lv-dr, .lv-dr-pop {
+  --dr-ink:#222; --dr-fg-2:#555; --dr-fg-3:#888; --dr-fg-4:#b5b5b5;
+  --dr-line-2:#e7e7e7; --dr-line-3:#f0f0f0; --dr-muted:#fafafa; --dr-soft:#f5f5f5;
+  --dr-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--dr-ink);font-size:14px
+}
+.lv-dr{position:relative;display:inline-flex;flex-shrink:0}
+.lv-dr *,.lv-dr-pop *{box-sizing:border-box}
+.lv-dr button,.lv-dr-pop button{font-family:inherit}
+.lv-dr :focus-visible,.lv-dr-pop :focus-visible{outline:2px solid var(--dr-ink);outline-offset:2px}
+.lv-dr-t{height:34px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--dr-line-2);border-radius:8px;background:#fff;color:var(--dr-ink);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
+.lv-dr-t:hover,.lv-dr-t.on{border-color:var(--dr-ink)}
+.lv-dr-t em{font-style:normal;font-family:var(--dr-mono);font-size:10px;color:var(--dr-fg-3);border-left:1px solid var(--dr-line-2);padding-left:8px}
+.lv-dr-pop{position:fixed;z-index:9600;display:grid;grid-template-columns:180px auto;background:#fff;border:1px solid var(--dr-line-2);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.06);overflow:hidden;text-align:left}
+.lv-dr-pop.solo{grid-template-columns:200px}
+.lv-dr-pop.solo .lv-dr-pre{border-right:0}
+.lv-dr-pop .kick{font-family:var(--dr-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dr-fg-3)}
+.lv-dr-pop .mono{font-family:var(--dr-mono);font-size:11px;color:var(--dr-fg-2)}
+.lv-dr-pre{display:flex;flex-direction:column;gap:2px;padding:12px 8px;border-right:1px solid var(--dr-line-2);background:var(--dr-muted)}
+.lv-dr-pre .kick{padding:0 8px 6px}
+.lv-dr-pre button{border:0;background:none;text-align:left;padding:7px 8px;border-radius:6px;font-size:13px;color:var(--dr-fg-2);cursor:pointer;white-space:nowrap}
+.lv-dr-pre button:hover{background:#fff;color:var(--dr-ink)}
+.lv-dr-pre button.on{background:var(--dr-ink);color:#fff}
+.lv-dr-cal{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.lv-dr-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dr-fg-3)}
+.lv-dr-ib{width:30px;height:30px;border-radius:8px;border:1px solid var(--dr-line-2);background:#fff;color:var(--dr-fg-2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.lv-dr-ib:hover{border-color:var(--dr-ink);color:var(--dr-ink)}
+.lv-dr-ib:disabled{opacity:.35;cursor:default;border-color:var(--dr-line-2)}
+.lv-dr-months{display:grid;grid-template-columns:repeat(2,238px);gap:18px}
+.lv-dr-month .mh{font-weight:600;font-size:16px;color:var(--dr-ink);margin-bottom:6px}
+.lv-dr-month .grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:3px}
+.lv-dr-month .grid.wd span{font-family:var(--dr-mono);font-size:9.5px;text-transform:uppercase;color:var(--dr-fg-3);text-align:center;padding:2px 0 4px}
+.lv-dr-month .grid button{height:32px;border:0;background:#fff;font-size:12.5px;color:var(--dr-ink);cursor:pointer;position:relative;padding:0}
+.lv-dr-month .grid button.today{font-weight:700}
+.lv-dr-month .grid button:hover:not(:disabled){box-shadow:inset 0 0 0 1px var(--dr-ink);border-radius:6px}
+.lv-dr-month .grid button:disabled{color:var(--dr-fg-4);cursor:default;background-image:repeating-linear-gradient(135deg,transparent 0 5px,var(--dr-line-3) 5px 6px)}
+.lv-dr-month .grid button.in{background:var(--dr-soft)}
+.lv-dr-month .grid button.st,.lv-dr-month .grid button.en{background:var(--dr-ink);color:#fff}
+.lv-dr-month .grid button.st{border-radius:6px 0 0 6px}
+.lv-dr-month .grid button.en{border-radius:0 6px 6px 0}
+.lv-dr-month .grid button.st.en{border-radius:6px}
+.lv-dr-foot{display:flex;align-items:center;gap:6px;border-top:1px solid var(--dr-line-3);padding-top:10px}
+.lv-dr-btn{height:34px;display:inline-flex;align-items:center;padding:0 13px;border:1px solid var(--dr-line-2);border-radius:8px;background:#fff;color:var(--dr-ink);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.lv-dr-btn:hover{border-color:var(--dr-ink)}
+.lv-dr-btn.pri{background:var(--dr-ink);border-color:var(--dr-ink);color:#fff}
+.lv-dr-btn.pri:hover{background:#000}
+.lv-dr-btn:disabled{opacity:.45;cursor:default}
+
+/* Телефон — лист снизу, как в ROI */
+@media(max-width:767px){
+  .lv-dr{max-width:100%}
+  .lv-dr-t{max-width:100%}
+  .lv-dr-t span{overflow:hidden;text-overflow:ellipsis}
+  .lv-dr-pop,.lv-dr-pop.solo{position:fixed;left:8px;right:8px;bottom:8px;top:auto;max-height:82vh;overflow:auto;grid-template-columns:1fr;z-index:9600;visibility:visible!important}
+  .lv-dr-pre{flex-direction:row;flex-wrap:wrap;gap:4px;border-right:0;border-bottom:1px solid var(--dr-line-2)}
+  .lv-dr-pre .kick{width:100%}
+  .lv-dr-pre button{border:1px solid var(--dr-line-2);background:#fff;padding:6px 10px}
+  .lv-dr-months{grid-template-columns:1fr;gap:10px}
+  .lv-dr-month:first-child{display:none}
+  .lv-dr-foot{flex-wrap:wrap}
+}

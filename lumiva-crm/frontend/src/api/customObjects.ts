@@ -251,47 +251,68 @@ export async function fetchCustomObjectRecordsPage(
   );
 }
 
+/**
+ * Все записи таблицы: первая страница узнаёт total, остальные грузятся параллельно (по 4) крупными
+ * страницами — раньше 20 000 строк шли 100 последовательными запросами по 200 (~1,5 мин загрузки
+ * аналитики). Сервер сортирует стабильно (…, id), поэтому страницы не пересекаются; на всякий
+ * случай дедуплицируем по id.
+ */
+async function loadAllRecordPages(
+  objectId: string,
+  extra: URLSearchParams,
+): Promise<{ items: CustomObjectRecord[]; total: number }> {
+  const pageSize = 1000;
+  const concurrency = 4;
+  const fetchPage = (offset: number) => {
+    const query = new URLSearchParams(extra);
+    query.set('limit', String(pageSize));
+    query.set('offset', String(offset));
+    return api.get<{ items: CustomObjectRecord[]; total: number }>(
+      `/custom-objects/${objectId}/records?${query.toString()}`,
+    );
+  };
+  const first = await fetchPage(0);
+  const total = first.total || first.items.length;
+  const pages: CustomObjectRecord[][] = [first.items];
+  if (first.items.length >= pageSize && total > pageSize) {
+    const offsets: number[] = [];
+    for (let o = pageSize; o < total; o += pageSize) offsets.push(o);
+    const results: CustomObjectRecord[][] = new Array(offsets.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < offsets.length) {
+        const i = next++;
+        results[i] = (await fetchPage(offsets[i])).items;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, offsets.length) }, worker));
+    pages.push(...results);
+  }
+  const seen = new Set<string>();
+  const items: CustomObjectRecord[] = [];
+  for (const page of pages) {
+    for (const r of page || []) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      items.push(r);
+    }
+  }
+  return { items, total: total || items.length };
+}
+
 export async function fetchCustomObjectRecords(
   objectId: string,
   search?: string,
   opts?: { enrichColumnBindings?: boolean },
 ) {
-  const all: CustomObjectRecord[] = [];
-  const pageSize = 200;
-  let offset = 0;
-  let total = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const query = new URLSearchParams();
-    query.set('limit', String(pageSize));
-    query.set('offset', String(offset));
-    if (search?.trim()) query.set('search', search.trim());
-    if (opts?.enrichColumnBindings) query.set('enrichColumnBindings', '1');
-    const res = await api.get<{ items: CustomObjectRecord[]; total: number }>(
-      `/custom-objects/${objectId}/records?${query.toString()}`,
-    );
-    if (!total) total = res.total || 0;
-    all.push(...res.items);
-    offset += res.items.length;
-    if (res.items.length < pageSize || offset >= (res.total || total)) break;
-  }
-  return { items: all, total: total || all.length };
+  const extra = new URLSearchParams();
+  if (search?.trim()) extra.set('search', search.trim());
+  if (opts?.enrichColumnBindings) extra.set('enrichColumnBindings', '1');
+  return loadAllRecordPages(objectId, extra);
 }
 
 export async function fetchAllCustomObjectRecords(objectId: string) {
-  const all: CustomObjectRecord[] = [];
-  const pageSize = 200;
-  let offset = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const res = await api.get<{ items: CustomObjectRecord[]; total: number }>(
-      `/custom-objects/${objectId}/records?limit=${pageSize}&offset=${offset}`,
-    );
-    all.push(...res.items);
-    offset += res.items.length;
-    if (res.items.length < pageSize || offset >= res.total) break;
-  }
-  return all;
+  return (await loadAllRecordPages(objectId, new URLSearchParams())).items;
 }
 
 export async function createCustomObjectRecord(
@@ -572,7 +593,7 @@ export async function applyCustomObjectImport(
 
 /* ── Источники синхронизации таблицы (backend/src/workspace-sync) ── */
 
-export type SyncSourceKind = 'marketing_monthly' | 'marketing_rows' | 'integration_import';
+export type SyncSourceKind = 'marketing_monthly' | 'marketing_rows' | 'integration_import' | 'marketing_roi';
 
 export interface SyncSourceDto {
   id: string;

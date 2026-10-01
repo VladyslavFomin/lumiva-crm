@@ -10,6 +10,7 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 import { Ic, BI_ICON } from './BiDashboardIcons';
 import '../telephony/telephony-design.css';
 import './bi-dashboard-design.css';
+import { DateRangePicker, lastDays } from '../../components/ui/DateRangePicker';
 
 const cx = (...a: Array<string | false | undefined>) => a.filter(Boolean).join(' ');
 
@@ -262,11 +263,14 @@ export const BiDashboardPage: React.FC = () => {
           </div>
           <div className="tel-hero-r">
             <button className="btn btn-sm" onClick={() => downloadCsv(data, t)}><Ic d={BI_ICON.download} size={13} />{t('crm.bi.hero.export')}</button>
-            {[30, 90].map((d) => (
-              <button key={d} className={'btn btn-sm' + (days === d ? ' btn-primary' : '')} onClick={() => setDays(d)}>
-                {t('crm.bi.hero.periodDays', { days: d })}
-              </button>
-            ))}
+            {/* Бэкенд считает только «последние N дней», поэтому без своего диапазона. */}
+            <DateRangePicker
+              value={lastDays(days)}
+              presetId={String(days)}
+              allowCustom={false}
+              presets={[7, 14, 30, 90].map((d) => ({ id: String(d), label: t(`crm.dateRange.last${d}`), range: lastDays(d) }))}
+              onChange={(v) => v.presetId && setDays(Number(v.presetId))}
+            />
           </div>
         </div>
 

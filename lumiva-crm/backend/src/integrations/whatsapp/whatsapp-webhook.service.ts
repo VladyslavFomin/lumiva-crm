@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -10,6 +11,8 @@ type WaCfg = {
   apiToken?: string;
   phoneNumberId?: string;
   webhookVerifyToken?: string;
+  /** App Secret приложения Meta — ключ HMAC для заголовка X-Hub-Signature-256 */
+  appSecret?: string;
 };
 
 @Injectable()
@@ -66,6 +69,26 @@ export class WhatsappWebhookService {
     return challenge;
   }
 
+  /**
+   * Подлинность входящего вебхука: Meta подписывает каждое POST-уведомление HMAC-SHA256 от сырого
+   * тела с ключом App Secret. Раньше подпись не проверялась вовсе — любой, кто знает URL вебхука
+   * (в нём только id подключения), мог слать поддельные «сообщения клиентов», и CRM заводила по
+   * ним контакты и лиды. Без App Secret в подключении входящие не принимаются (fail closed).
+   */
+  async verifySignature(connectionId: string, rawBody: Buffer | undefined, header: string | undefined): Promise<boolean> {
+    const row = await this.loadWhatsappConnection(connectionId);
+    if (!row) return false;
+    const secret = String(row.cfg.appSecret || '').trim();
+    if (!secret) {
+      this.log.warn(`WhatsApp webhook ${connectionId}: rejected — no App Secret in connection settings`);
+      return false;
+    }
+    if (!rawBody?.length || !header?.startsWith('sha256=')) return false;
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest();
+    const got = Buffer.from(header.slice('sha256='.length).trim(), 'hex');
+    return got.length === expected.length && crypto.timingSafeEqual(got, expected);
+  }
+
   private normalizeDigits(phone: string): string {
     return String(phone || '').replace(/\D/g, '');
   }
@@ -104,6 +127,13 @@ export class WhatsappWebhookService {
           continue;
         }
         const messages = Array.isArray((value as any).messages) ? (value as any).messages : [];
+        const statuses = Array.isArray((value as any).statuses) ? (value as any).statuses : [];
+        // Без текста и номеров — только что пришло, чтобы при «сообщение не дошло до CRM» было видно,
+        // присылала ли Meta вообще входящее или только статусы доставки исходящих.
+        this.log.log(
+          `WhatsApp webhook ${connectionId}: ${messages.length} message(s) [${messages.map((m: any) => m?.type).join(',')}], ` +
+            `${statuses.length} status(es) [${statuses.map((s: any) => s?.status).join(',')}]`,
+        );
         for (const msg of messages) {
           if (!msg || typeof msg !== 'object') continue;
           const from = String((msg as any).from || '').trim();

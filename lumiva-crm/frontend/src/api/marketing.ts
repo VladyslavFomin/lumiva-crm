@@ -9,6 +9,9 @@ export type MarketingTrafficProviderBreakdown = {
   revenue: number;
   impressions: number;
   cost: number;
+  /** Конверсии / их ценность по данным рекламных площадок (Google Ads, Meta). */
+  conversions?: number;
+  conversionValue?: number;
   currency: string;
 };
 
@@ -22,15 +25,21 @@ export type MarketingTrafficStats = {
   totalClicks: number;
   totalImpressions: number;
   totalCost: number;
+  totalConversions?: number;
+  totalConversionValue?: number;
   totalRows: number;
   dataSources: string[];
   /** Подписи к кодам источников (если пришли с API). */
   dataSourceLabels?: Record<string, string>;
+  /** integrationId → название подключения (разбивка Meta Ads по рекламным кабинетам). */
+  integrationLabels?: Record<string, string>;
   /** Уникальные валюты по строкам отчёта. */
   currenciesPresent?: string[];
   providerBreakdown: MarketingTrafficProviderBreakdown[];
   items: Array<{
     dataSource: string | null;
+    /** Подключение-источник строки (сейчас только Meta Ads); null — без разбивки. */
+    integrationId?: string | null;
     source: string | null;
     medium: string | null;
     campaign: string | null;
@@ -40,6 +49,8 @@ export type MarketingTrafficStats = {
     revenue: number;
     impressions: number;
     cost: number;
+    conversions?: number;
+    conversionValue?: number;
     /** Валюта строки (если известна). */
     currency?: string;
   }>;
@@ -188,6 +199,10 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
           : currency;
       items.push({
         dataSource: dsRaw != null && String(dsRaw).trim() !== '' ? String(dsRaw) : null,
+        integrationId:
+          o.integrationId != null && String(o.integrationId).trim() !== ''
+            ? String(o.integrationId)
+            : null,
         source: o.source != null ? String(o.source) : null,
         medium: o.medium != null ? String(o.medium) : null,
         campaign: o.campaign != null ? String(o.campaign) : null,
@@ -197,6 +212,8 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
         revenue: num(o.revenue),
         impressions: num(o.impressions),
         cost: num(o.cost),
+        conversions: num(o.conversions),
+        conversionValue: num(o.conversionValue ?? o.conversion_value),
         currency: rowCurrency,
       });
     }
@@ -221,6 +238,8 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
         revenue: num(o.revenue),
         impressions: num(o.impressions),
         cost: num(o.cost),
+        conversions: num(o.conversions),
+        conversionValue: num(o.conversionValue ?? o.conversion_value),
         currency: rowCurrency,
       };
     });
@@ -243,6 +262,12 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
         )
       : undefined;
 
+  const ilRaw = pick<Record<string, unknown>>('integrationLabels', 'integration_labels');
+  const integrationLabels =
+    ilRaw && typeof ilRaw === 'object' && !Array.isArray(ilRaw)
+      ? Object.fromEntries(Object.entries(ilRaw).map(([k, v]) => [k, String(v ?? '')]))
+      : undefined;
+
   const currRaw = pick<unknown[]>('currenciesPresent', 'currencies_present');
   const currenciesPresent = Array.isArray(currRaw)
     ? currRaw.map((x) => String(x).slice(0, 8)).filter(Boolean)
@@ -258,9 +283,12 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
     totalClicks: num(pick('totalClicks', 'total_clicks')),
     totalImpressions: num(pick('totalImpressions', 'total_impressions')),
     totalCost: num(pick('totalCost', 'total_cost')),
+    totalConversions: num(pick('totalConversions', 'total_conversions')),
+    totalConversionValue: num(pick('totalConversionValue', 'total_conversion_value')),
     totalRows,
     dataSources,
     dataSourceLabels,
+    integrationLabels,
     currenciesPresent,
     providerBreakdown,
     items,
@@ -302,6 +330,18 @@ export type MarketingTrafficCountryRow = {
   sessions: number;
   clicks: number;
   impressions: number;
+  cost?: number;
+  currency?: string;
+};
+
+/** Страна × кабинет × кампания — раскрытие строки страны в окне канала. */
+export type MarketingTrafficCountryDetail = MarketingTrafficCountryRow & {
+  integrationId: string | null;
+  source?: string | null;
+  medium?: string | null;
+  campaign: string | null;
+  leads?: number;
+  revenue?: number;
 };
 
 function appendMarketingTrafficQuery(
@@ -311,12 +351,18 @@ function appendMarketingTrafficQuery(
     to?: string;
     dataSource?: string;
     onlyUnattributed?: boolean;
+    integrationId?: string;
+    q?: string;
+    country?: string;
   },
 ) {
   if (params.from) p.set('from', params.from);
   if (params.to) p.set('to', params.to);
   if (params.onlyUnattributed) p.set('onlyUnattributed', '1');
   else if (params.dataSource) p.set('dataSource', params.dataSource);
+  if (params.integrationId) p.set('integrationId', params.integrationId);
+  if (params.q) p.set('q', params.q);
+  if (params.country) p.set('country', params.country);
 }
 
 /** GET /marketing/traffic/daily — дневной ряд для графиков в модалке канала. */
@@ -325,6 +371,9 @@ export async function fetchMarketingTrafficDaily(params: {
   to?: string;
   dataSource?: string;
   onlyUnattributed?: boolean;
+  integrationId?: string;
+  q?: string;
+  country?: string;
 }): Promise<{ series: MarketingTrafficDailyPoint[] }> {
   const p = new URLSearchParams();
   appendMarketingTrafficQuery(p, params);
@@ -340,11 +389,14 @@ export async function fetchMarketingTrafficByCountry(params: {
   to?: string;
   dataSource?: string;
   onlyUnattributed?: boolean;
-}): Promise<{ rows: MarketingTrafficCountryRow[] }> {
+  integrationId?: string;
+  q?: string;
+  country?: string;
+}): Promise<{ rows: MarketingTrafficCountryRow[]; details?: MarketingTrafficCountryDetail[] }> {
   const p = new URLSearchParams();
   appendMarketingTrafficQuery(p, params);
   const qs = p.toString();
-  return api.get<{ rows: MarketingTrafficCountryRow[] }>(
+  return api.get<{ rows: MarketingTrafficCountryRow[]; details?: MarketingTrafficCountryDetail[] }>(
     `/marketing/traffic/by-country${qs ? `?${qs}` : ''}`,
   );
 }
@@ -628,6 +680,8 @@ export type MarketingIntegrationSyncResult = {
   ok: boolean;
   /** Сколько строк записано в marketing_traffic за этот прогон (0 = API без строк или пустой период). */
   rowsSaved: number;
+  /** Синк не уложился в ожидание — продолжается на сервере в фоне. */
+  background?: boolean;
 };
 
 function readRowsSavedFromObject(o: Record<string, unknown>): number | undefined {
@@ -680,7 +734,7 @@ export async function syncMarketingIntegration(
   const o = unwrapIntegrationSyncPayload(raw);
   const parsed = readRowsSavedFromObject(o);
   const n = parsed !== undefined && Number.isFinite(parsed) ? parsed : 0;
-  return { ok: o.ok !== false, rowsSaved: n };
+  return { ok: o.ok !== false, rowsSaved: n, background: o.background === true };
 }
 
 export type GoogleAdsManagedCustomersResponse = {
@@ -828,4 +882,115 @@ export async function connectMetaAdsAccounts(
   return api.post('/marketing/integrations/meta-ads/connect', {
     accounts: accounts.map((a) => ({ id: a.id, name: a.name, currency: a.currency || undefined })),
   });
+}
+
+/* ── ROI по клиентам (кабинет → компания CRM, выручка по месяцам) ── */
+
+export type RoiMetrics = {
+  spend: number;
+  revenue: number;
+  clicks: number;
+  impressions: number;
+  roi: number | null;
+  roas: number | null;
+  cpc: number | null;
+  conversions: number;
+  cpa: number | null;
+};
+
+export type RoiClientRow = {
+  companyId: string | null;
+  name: string | null;
+  /** Город компании из CRM (подзаголовок клиента). */
+  city?: string | null;
+  accounts: Array<{ key: string; label: string; provider: string; spend: number; clicks?: number; conversions?: number }>;
+  months: Record<string, RoiMetrics & { revenueBySource: Record<string, number> }>;
+  /** Месяцы с выручкой и в конверсиях площадок, и в GA4 — возможен двойной учёт. */
+  overlapMonths?: string[];
+  /** Кабинеты с условной ценностью конверсий (≈1 за конверсию) — не считается выручкой. */
+  placeholderValueAccounts?: string[];
+  total: RoiMetrics;
+};
+
+export type RoiReport = {
+  fromMonth: string;
+  toMonth: string;
+  months: string[];
+  displayCurrency: string;
+  fxAsOf: string | null;
+  missingRates: string[];
+  sources: string[];
+  clients: RoiClientRow[];
+  unassigned: RoiClientRow | null;
+  crmUnattributed?: { amount: number; count: number };
+  total: RoiMetrics;
+};
+
+export type RoiAccount = {
+  key: string;
+  label: string;
+  provider: string;
+  cost: number;
+  currency: string;
+  lastDate: string | null;
+  companyId: string | null;
+  suggestedCompanyId: string | null;
+  /** Только кабинеты Meta: какие действия считаются конверсией / ценностью. */
+  metaActions: null | {
+    available: Record<string, number>;
+    conversionAction: string[];
+    revenueAction: string[];
+  };
+};
+
+export async function fetchRoiReport(params: { from?: string; to?: string; currency?: string; sources?: string[] }) {
+  const p = new URLSearchParams();
+  if (params.from) p.set('from', params.from);
+  if (params.to) p.set('to', params.to);
+  if (params.currency) p.set('currency', params.currency);
+  if (params.sources?.length) p.set('sources', params.sources.join(','));
+  return api.get<RoiReport>(`/marketing/roi?${p.toString()}`);
+}
+
+export async function fetchRoiAccounts() {
+  return api.get<{ accounts: RoiAccount[]; companies: Array<{ id: string; name: string }> }>('/marketing/roi/accounts');
+}
+
+export async function setRoiAccountClient(accountKey: string, companyId: string | null) {
+  return api.put<{ ok: boolean }>('/marketing/roi/accounts', { accountKey, companyId });
+}
+
+/** Автообновляемая таблица «ROI по клиентам» в рабочей области. */
+export async function createRoiWorkspaceTable(dto: { tableName?: string; displayCurrency?: string; sources?: string[] }) {
+  return api.post<{ ok: boolean; objectId?: string; tableUrlPath?: string; error?: string; hint?: string }>(
+    '/ai/workspace-tables/roi',
+    dto,
+  );
+}
+
+export async function setRoiMetaActions(accountKey: string, conversionAction: string[], revenueAction: string[]) {
+  return api.put<{ ok: boolean; resyncStarted: boolean }>('/marketing/roi/accounts/meta-actions', {
+    accountKey,
+    conversionAction,
+    revenueAction,
+  });
+}
+
+export async function upsertRoiRevenue(dto: {
+  companyId: string;
+  month: string;
+  amount: number | string | null;
+  currency?: string;
+  note?: string | null;
+}) {
+  return api.put<{ ok: boolean }>('/marketing/roi/revenue', dto);
+}
+
+export async function importRoiRevenue(
+  rows: Array<{ company?: string; month?: string; amount?: number | string; currency?: string }>,
+) {
+  return api.post<{ imported: number; skipped: Array<{ row: number; reason: string }> }>(
+    '/marketing/roi/revenue/import',
+    { rows },
+  );
 }

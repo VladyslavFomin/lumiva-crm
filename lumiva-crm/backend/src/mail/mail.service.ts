@@ -12,7 +12,7 @@ export interface MailSendOptions {
   html: string;
   /** Base64-encoded content — required (not a Buffer) so an attachment survives BullMQ's JSON
    * serialization through Redis when queued. */
-  attachments?: Array<{ filename: string; content: string }>;
+  attachments?: Array<{ filename: string; content: string; cid?: string; contentType?: string }>;
   replyTo?: string;
   messageId?: string;
 }
@@ -77,6 +77,8 @@ export class MailService {
           filename: a.filename,
           content: a.content,
           encoding: 'base64' as const,
+          ...(a.cid ? { cid: a.cid } : {}),
+          ...(a.contentType ? { contentType: a.contentType } : {}),
         })),
       });
       this.logger.log(
@@ -111,6 +113,8 @@ export class MailService {
           filename: a.filename,
           content: a.content,
           encoding: 'base64' as const,
+          ...(a.cid ? { cid: a.cid } : {}),
+          ...(a.contentType ? { contentType: a.contentType } : {}),
         })),
       });
       this.logger.log(

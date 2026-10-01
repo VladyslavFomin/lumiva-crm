@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { postAiLeadScore, type AiLeadScoreResult } from '../../api/ai';
 
 interface Props {
@@ -12,15 +13,9 @@ const PRIORITY_COLOR: Record<string, string> = {
   low: '#dc2626',
 };
 
-const PRIORITY_LABEL: Record<string, string> = {
-  high: 'Высокий',
-  medium: 'Средний',
-  low: 'Низкий',
-};
-
 function lsKey(leadId: string) { return `ai_lead_score_${leadId}`; }
 
-function loadCached(leadId: string): AiLeadScoreResult | null {
+export function loadCachedLeadScore(leadId: string): AiLeadScoreResult | null {
   try {
     const raw = localStorage.getItem(lsKey(leadId));
     return raw ? (JSON.parse(raw) as AiLeadScoreResult) : null;
@@ -29,6 +24,10 @@ function loadCached(leadId: string): AiLeadScoreResult | null {
 
 function saveCached(leadId: string, result: AiLeadScoreResult) {
   try { localStorage.setItem(lsKey(leadId), JSON.stringify(result)); } catch {}
+}
+
+function uiLocale(lang: string) {
+  return lang.startsWith('tr') ? 'tr-TR' : lang.startsWith('en') ? 'en-US' : 'ru-RU';
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -53,12 +52,13 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 export const AiLeadScoreCard: React.FC<Props> = ({ leadId, onScored }) => {
-  const [result, setResult] = useState<AiLeadScoreResult | null>(() => loadCached(leadId));
+  const { t, i18n } = useTranslation();
+  const [result, setResult] = useState<AiLeadScoreResult | null>(() => loadCachedLeadScore(leadId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const cached = loadCached(leadId);
+    const cached = loadCachedLeadScore(leadId);
     setResult(cached);
   }, [leadId]);
 
@@ -72,16 +72,18 @@ export const AiLeadScoreCard: React.FC<Props> = ({ leadId, onScored }) => {
     setError(null);
     try {
       const r = await postAiLeadScore(leadId);
-      if (!r.ok) { setError('Не удалось получить оценку'); return; }
+      if (!r.ok) { setError(r.error || t('crm.aiCards.score.failed')); return; }
       setResult(r);
       saveCached(leadId, r);
       onScored?.(r);
     } catch {
-      setError('Ошибка запроса');
+      setError(t('crm.aiCards.requestError'));
     } finally {
       setLoading(false);
     }
   }
+
+  const prio = (result?.priority ?? 'medium') as 'high' | 'medium' | 'low';
 
   return (
     <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, fontFamily: FF }}>
@@ -95,7 +97,7 @@ export const AiLeadScoreCard: React.FC<Props> = ({ leadId, onScored }) => {
           disabled={loading}
           style={{ fontFamily: FM, fontSize: 10, color: '#7c3aed', background: 'none', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: '0.06em' }}
         >
-          {loading ? 'Анализ...' : result ? '↻ Обновить' : '✦ Анализировать'}
+          {loading ? t('crm.aiCards.analyzing') : result ? `↻ ${t('crm.aiCards.refresh')}` : `✦ ${t('crm.aiCards.score.analyze')}`}
         </button>
       </div>
 
@@ -103,14 +105,14 @@ export const AiLeadScoreCard: React.FC<Props> = ({ leadId, onScored }) => {
 
       {!result && !loading && (
         <div style={{ fontSize: 12, color: FG3, fontStyle: 'italic' }}>
-          Нажмите «Анализировать» чтобы AI оценил приоритет лида
+          {t('crm.aiCards.score.empty')}
         </div>
       )}
 
       {loading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', border: '6px solid #e7e7e7', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite' }} />
-          <span style={{ fontSize: 12, color: FG3 }}>AI анализирует лид…</span>
+          <span style={{ fontSize: 12, color: FG3 }}>{t('crm.aiCards.analyzingLead')}</span>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
@@ -120,8 +122,8 @@ export const AiLeadScoreCard: React.FC<Props> = ({ leadId, onScored }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <ScoreRing score={result.score ?? 0} />
             <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: `${PRIORITY_COLOR[result.priority ?? 'medium']}18`, border: `1px solid ${PRIORITY_COLOR[result.priority ?? 'medium']}40`, fontSize: 11, fontWeight: 600, color: PRIORITY_COLOR[result.priority ?? 'medium'], marginBottom: 4 }}>
-                ● {PRIORITY_LABEL[result.priority ?? 'medium']} приоритет
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: `${PRIORITY_COLOR[prio]}18`, border: `1px solid ${PRIORITY_COLOR[prio]}40`, fontSize: 11, fontWeight: 600, color: PRIORITY_COLOR[prio], marginBottom: 4 }}>
+                ● {t(`crm.aiCards.score.priority.${prio}`)}
               </div>
               <div style={{ fontSize: 12, color: '#222', lineHeight: 1.4 }}>{result.label}</div>
             </div>
@@ -135,7 +137,7 @@ export const AiLeadScoreCard: React.FC<Props> = ({ leadId, onScored }) => {
           )}
           {result.updatedAt && (
             <div style={{ fontFamily: FM, fontSize: 9.5, color: '#b5b5b5' }}>
-              Обновлено: {new Date(result.updatedAt).toLocaleString('ru-RU')}
+              {t('crm.aiCards.updated', { date: new Date(result.updatedAt).toLocaleString(uiLocale(i18n.language || 'ru')) })}
             </div>
           )}
         </div>

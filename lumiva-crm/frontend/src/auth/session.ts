@@ -203,6 +203,12 @@ export function clearSession() {
   } catch (e) {
     console.error('Cannot clear session:', e);
   }
+  // Кэш строк таблиц рабочей области (workspaceRecordsCache) — не оставляем данные после выхода.
+  try {
+    if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('lumiva-workspace-records');
+  } catch {
+    /* ignore */
+  }
 }
 
 export function isBillingLocked(): boolean {

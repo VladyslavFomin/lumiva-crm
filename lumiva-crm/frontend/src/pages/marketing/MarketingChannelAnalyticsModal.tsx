@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { DateRangePicker, fromIsoDate, lastDays, toIsoDate, type DateRangePreset } from '../../components/ui/DateRangePicker';
 import {
   Bar,
   BarChart,
@@ -18,9 +19,12 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  fetchMarketingFxRates,
+  fetchMarketingTraffic,
   fetchMarketingTrafficByCountry,
   fetchMarketingTrafficDaily,
   type MarketingTrafficCountryRow,
+  type MarketingTrafficCountryDetail,
   type MarketingTrafficDailyPoint,
   type MarketingTrafficStats,
 } from '../../api/marketing';
@@ -29,11 +33,16 @@ import {
   sanitizeMarketingDimension,
 } from '../../utils/marketingChannelDisplay';
 import { MarketingTrafficWorldMap } from './MarketingTrafficWorldMap';
+import { marketingProviderFamilyLabel } from '../../utils/marketingDataSourceLabel';
 import {
   aggregateTrafficByInferredCountry,
   type CountryTrafficAgg,
 } from './marketingTrafficCountryInference';
-import { convertMarketingAmount, type MarketingCurrencyMode } from './marketingDisplayCurrencyStorage';
+import {
+  convertMarketingAmount,
+  MARKETING_ALLOWED_CURRENCIES,
+  type MarketingCurrencyMode,
+} from './marketingDisplayCurrencyStorage';
 import {
   marketingCard,
   marketingSectionSub,
@@ -59,7 +68,31 @@ const PIE_COLORS = [
   '#64748b',
 ];
 
-type SortKey = 'campaign' | 'impressions' | 'clicks' | 'sessions' | 'leads' | 'cost' | 'revenue';
+/** Доля расхода: полоска + процент (таблицы «По кабинетам» и стран). */
+function ShareCell({ share, muted }: { share: number; muted?: boolean }) {
+  const w = Math.max(0, Math.min(100, share));
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <div className="h-1.5 w-16 rounded-full bg-[#222222]/8 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${muted ? 'bg-[#0866FF]/45' : 'bg-[#0866FF]'}`}
+          style={{ width: `${w.toFixed(1)}%` }}
+        />
+      </div>
+      <span className={`tabular-nums w-12 text-right ${muted ? 'text-[#222222]/60' : ''}`}>{share.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+/** Поиск без учёта турецких букв (как на сервере): İ/ı→i, ş→s, ç→c, ğ→g, ö→o, ü→u. */
+function foldTr(v: string): string {
+  return v
+    .toLocaleLowerCase('tr')
+    .replace(/\u0307/g, '')
+    .replace(/[ışçğöüâîû]/g, (ch) => 'iscgouaiu'['ışçğöüâîû'.indexOf(ch)]);
+}
+
+type SortKey = 'campaign' | 'account' | 'impressions' | 'clicks' | 'sessions' | 'leads' | 'cost' | 'revenue';
 type SortDir = 'asc' | 'desc';
 
 /** Оболочка таблиц в модалке: горизонтальный скролл на мобильных (без overflow-hidden). */
@@ -232,6 +265,12 @@ export type MarketingChannelAnalyticsModalProps = {
   open: boolean;
   onClose: () => void;
   dataSourceKey: string;
+  /** Кабинет Meta Ads, выбранный при открытии ('' / undefined — все). Внутри окна его можно сменить. */
+  integrationId?: string;
+  /** Сообщить карточке о смене кабинета внутри окна, чтобы выбор совпадал. */
+  onIntegrationChange?: (integrationId: string) => void;
+  /** integrationId → название подключения: таблица «По кабинетам» и колонка «Кабинет». */
+  integrationLabels?: Record<string, string>;
   channelTitle: string;
   rows: Item[];
   dateFrom?: string;
@@ -248,22 +287,216 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
   open,
   onClose,
   dataSourceKey,
+  integrationId,
+  onIntegrationChange,
+  integrationLabels: integrationLabelsProp,
   channelTitle,
-  rows,
-  dateFrom,
-  dateTo,
-  currencyMode,
-  displayCurrency,
-  rates,
+  rows: rowsProp,
+  dateFrom: dateFromProp,
+  dateTo: dateToProp,
+  currencyMode: currencyModeProp,
+  displayCurrency: displayCurrencyProp,
+  rates: ratesProp,
   formatNumber,
   formatMoney,
   t,
 }) => {
   const { i18n } = useTranslation();
+
+  /** Период окна: по умолчанию — период страницы; при смене данные канала подгружаются заново. */
+  const [dateFrom, setDateFrom] = useState<string | undefined>(dateFromProp);
+  const [dateTo, setDateTo] = useState<string | undefined>(dateToProp);
+  useEffect(() => {
+    setDateFrom(dateFromProp);
+    setDateTo(dateToProp);
+  }, [dateFromProp, dateToProp]);
+  const rangeChanged = (dateFrom || '') !== (dateFromProp || '') || (dateTo || '') !== (dateToProp || '');
+  const [rangeData, setRangeData] = useState<null | { rows: Item[]; labels?: Record<string, string> }>(null);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  useEffect(() => {
+    if (!open || !rangeChanged) {
+      setRangeData(null);
+      return;
+    }
+    let alive = true;
+    setRangeLoading(true);
+    const unattributed = dataSourceKey === 'unknown';
+    fetchMarketingTraffic({
+      from: dateFrom,
+      to: dateTo,
+      ...(unattributed ? {} : { dataSource: dataSourceKey }),
+      itemsLimit: 20_000,
+    })
+      .then((st) => {
+        if (!alive) return;
+        const items = unattributed
+          ? st.items.filter((it) => !(it.dataSource ?? '').trim())
+          : st.items.filter((it) => (it.dataSource ?? '') === dataSourceKey);
+        setRangeData({ rows: items, labels: st.integrationLabels });
+      })
+      .catch(() => {
+        if (alive) setRangeData({ rows: [] });
+      })
+      .finally(() => {
+        if (alive) setRangeLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, rangeChanged, dateFrom, dateTo, dataSourceKey]);
+  const allRows = rangeChanged ? (rangeData?.rows ?? []) : rowsProp;
+  const integrationLabels = rangeData?.labels ?? integrationLabelsProp;
+
+  const setPreset = (preset: string) => {
+    const today = new Date();
+    const ymd = toIsoDate;
+    const daysAgo = (n: number) => ymd(new Date(today.getTime() - n * 86_400_000));
+    switch (preset) {
+      case 'page':
+        setDateFrom(dateFromProp);
+        setDateTo(dateToProp);
+        break;
+      case '7':
+      case '30':
+      case '90':
+        setDateFrom(daysAgo(Number(preset) - 1));
+        setDateTo(ymd(today));
+        break;
+      case 'month':
+        setDateFrom(`${ymd(today).slice(0, 8)}01`);
+        setDateTo(ymd(today));
+        break;
+      case 'year':
+        setDateFrom(`${today.getFullYear()}-01-01`);
+        setDateTo(ymd(today));
+        break;
+      case 'all':
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        break;
+    }
+  };
+  const pickerPresets: DateRangePreset[] = (() => {
+    const today = new Date();
+    const range = (from: Date | null, to: Date | null) => ({ from, to });
+    const list: DateRangePreset[] = [
+      ...([7, 30, 90] as const).map((n) => ({
+        id: String(n),
+        label: t(`crm.marketingChannelAnalytics.preset${n}`, { defaultValue: `Последние ${n} дней` }),
+        range: lastDays(n),
+      })),
+      { id: 'month', label: t('crm.marketingChannelAnalytics.presetMonth', { defaultValue: 'Этот месяц' }), range: range(new Date(today.getFullYear(), today.getMonth(), 1), today) },
+      { id: 'year', label: t('crm.marketingChannelAnalytics.presetYear', { defaultValue: 'Этот год' }), range: range(new Date(today.getFullYear(), 0, 1), today) },
+      { id: 'all', label: t('crm.marketingChannelAnalytics.presetAll', { defaultValue: 'Весь период' }), range: range(null, null) },
+    ];
+    if (rangeChanged)
+      list.push({
+        id: 'page',
+        label: t('crm.marketingChannelAnalytics.presetPage', { defaultValue: 'Как на странице' }),
+        range: range(fromIsoDate(dateFromProp), fromIsoDate(dateToProp)),
+      });
+    return list;
+  })();
+
+  /** Валюта окна: по умолчанию — как на странице; пересчёт по курсам Frankfurter / ECB. */
+  const [cur, setCur] = useState<{
+    mode: MarketingCurrencyMode;
+    display: string;
+    rates: Record<string, number>;
+    available?: string[];
+  }>({ mode: currencyModeProp, display: displayCurrencyProp, rates: ratesProp });
+  useEffect(() => {
+    setCur((prev) => ({ ...prev, mode: currencyModeProp, display: displayCurrencyProp, rates: ratesProp }));
+  }, [currencyModeProp, displayCurrencyProp, ratesProp]);
+  const [fxLoading, setFxLoading] = useState(false);
+  const onCurrencyChange = (value: string) => {
+    if (value === 'native') {
+      setCur((prev) => ({ ...prev, mode: 'native' }));
+      return;
+    }
+    setFxLoading(true);
+    fetchMarketingFxRates(value)
+      .then((fx) =>
+        setCur({
+          mode: 'converted',
+          display: value,
+          rates: { ...fx.multiplyToDisplay },
+          available: fx.availableDisplayCurrencies,
+        }),
+      )
+      .catch(() => setCur((prev) => ({ ...prev, mode: 'converted', display: value })))
+      .finally(() => setFxLoading(false));
+  };
+  const currencyMode = cur.mode;
+  const displayCurrency = cur.display;
+  const rates = cur.rates;
+  const currencyChoices = useMemo(() => {
+    const list = cur.available?.length ? cur.available : [...MARKETING_ALLOWED_CURRENCIES];
+    return [...new Set([displayCurrency, ...list])].sort();
+  }, [cur.available, displayCurrency]);
+  /** Выбранный кабинет внутри окна ('' — все кабинеты). */
+  const [account, setAccount] = useState(integrationId ?? '');
+  useEffect(() => {
+    setAccount(integrationId ?? '');
+  }, [integrationId]);
+  const accountOptions = useMemo(() => {
+    const ids = [...new Set(allRows.map((r) => r.integrationId).filter((id): id is string => !!id))];
+    return ids
+      .map((id) => ({ id, label: integrationLabels?.[id] || id }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [allRows, integrationLabels]);
+  /** Поиск по названию кампании и фильтр по стране внутри окна. */
+  const [search, setSearch] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  useEffect(() => {
+    const id = window.setTimeout(() => setSearchQ(search.trim()), 300);
+    return () => window.clearTimeout(id);
+  }, [search]);
+  /** '' — все страны, '-' — страна не определена, иначе ISO2. */
+  const [countryFilter, setCountryFilter] = useState('');
+  const accountParam = account || undefined;
+  const searchParam = searchQ || undefined;
+  const countryParam = countryFilter || undefined;
+  const filtersActive = Boolean(
+    account ||
+      searchQ ||
+      countryFilter ||
+      rangeChanged ||
+      cur.mode !== currencyModeProp ||
+      cur.display !== displayCurrencyProp,
+  );
   const [series, setSeries] = useState<MarketingTrafficDailyPoint[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [geoRows, setGeoRows] = useState<MarketingTrafficCountryRow[]>([]);
+  const [geoDetails, setGeoDetails] = useState<MarketingTrafficCountryDetail[]>([]);
+  /** Раскрытая строка страны ('' — «страна не определена»). */
+  const [geoExpanded, setGeoExpanded] = useState<string | null>(null);
+  const rows = useMemo((): Item[] => {
+    const byAccount = account ? allRows.filter((r) => r.integrationId === account) : allRows;
+    if (countryFilter) {
+      // Строки канала не разбиты по странам — при выбранной стране берём разбивку страна×кампания с API
+      // (она уже учитывает кабинет и поиск).
+      return geoDetails
+        .filter((d) => (d.country ?? '-') === countryFilter)
+        .map((d) => ({
+          dataSource: dataSourceKey,
+          integrationId: d.integrationId,
+          source: d.source ?? null,
+          medium: d.medium ?? null,
+          campaign: d.campaign,
+          sessions: d.sessions || 0,
+          clicks: d.clicks || 0,
+          leads: d.leads || 0,
+          revenue: d.revenue || 0,
+          impressions: d.impressions || 0,
+          cost: d.cost || 0,
+          currency: d.currency,
+        }));
+    }
+    const q = foldTr(searchQ);
+    return q ? byAccount.filter((r) => foldTr(r.campaign ?? '').includes(q)) : byAccount;
+  }, [allRows, account, countryFilter, geoDetails, searchQ, dataSourceKey]);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('cost');
@@ -289,6 +522,18 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
     }
     return best;
   }, [rows]);
+
+  /** Дневной ряд расходов/выручки в валюте окна (API отдаёт суммы в валюте канала). */
+  const seriesMoneyCurrency = convertMarketingAmount(0, provCur, currencyMode, displayCurrency, rates).currency;
+  const seriesMoney = useMemo(
+    () =>
+      series.map((p) => ({
+        ...p,
+        cost: Math.round(convertMarketingAmount(p.cost || 0, provCur, currencyMode, displayCurrency, rates).value * 100) / 100,
+        revenue: Math.round(convertMarketingAmount(p.revenue || 0, provCur, currencyMode, displayCurrency, rates).value * 100) / 100,
+      })),
+    [series, provCur, currencyMode, displayCurrency, rates],
+  );
 
   const fmtMoneyCell = useCallback(
     (amount: number, fromCur?: string | null) => {
@@ -433,15 +678,31 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
   }, [geoRows]);
 
   const mapUsesApi = trafficByCountryFromApi.size > 0;
-  const mapByCountry = mapUsesApi ? trafficByCountryFromApi : trafficByCountryInferred;
+  /** Meta Ads — страна показа из статистики кабинета, а не веб-аналитика. */
+  const isMetaAds = dataSourceKey === 'meta_ads';
+  const mapByCountryAll = mapUsesApi ? trafficByCountryFromApi : trafficByCountryInferred;
+  /** При выбранной стране на карте подсвечиваем только её (шкала — по ней одной). */
+  const mapByCountry = useMemo(() => {
+    if (!countryFilter) return mapByCountryAll;
+    const one = new Map<string, CountryTrafficAgg>();
+    const hit = mapByCountryAll.get(countryFilter);
+    if (hit) one.set(countryFilter, hit);
+    return one;
+  }, [mapByCountryAll, countryFilter]);
 
   const mapTitle = mapUsesApi
-    ? t('crm.marketingChannelAnalytics.mapTitleGa4', {
+    ? isMetaAds
+      ? t('crm.marketingChannelAnalytics.mapTitleMeta', { defaultValue: 'География показов (данные Meta Ads)' })
+      : t('crm.marketingChannelAnalytics.mapTitleGa4', {
         defaultValue: 'География (данные из Google Analytics)',
       })
     : undefined;
   const mapHint = mapUsesApi
-    ? t('crm.marketingChannelAnalytics.mapHintGa4', {
+    ? isMetaAds
+      ? t('crm.marketingChannelAnalytics.mapHintMeta', {
+          defaultValue: 'Страна показа рекламы — из статистики рекламного кабинета Meta (разбивка по странам).',
+        })
+      : t('crm.marketingChannelAnalytics.mapHintGa4', {
         defaultValue:
           'Страна — из поля countryId при синке GA4. Интенсивность по сессиям. Это агрегаты веб-аналитики, не список отдельных людей в CRM.',
       })
@@ -488,7 +749,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
     [regionNames, t],
   );
 
-  const geoTableRows = useMemo(() => {
+  const geoTableRows = useMemo((): MarketingTrafficCountryRow[] => {
     if (geoRows.length > 0) {
       return [...geoRows].sort((a, b) => (b.sessions || 0) - (a.sessions || 0));
     }
@@ -501,6 +762,28 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
       }))
       .sort((a, b) => b.sessions - a.sessions);
   }, [geoRows, trafficByCountryInferred]);
+
+  const geoHasCost = geoRows.some((r) => (r.cost || 0) > 0);
+  /** Весь расход в таблице стран (с учётом кабинета и поиска) — база для «Доли расхода». */
+  const geoCostTotal = geoRows.reduce((sum, r) => sum + (r.cost || 0), 0);
+  const countryOptions = useMemo(
+    () =>
+      geoRows
+        .filter((r) => (r.sessions || 0) + (r.impressions || 0) + (r.cost || 0) > 0)
+        .map((r) => ({ value: r.country ?? '-', label: countryLabel(r.country) }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [geoRows, countryLabel],
+  );
+  const geoDetailsByCountry = useMemo(() => {
+    const m = new Map<string, MarketingTrafficCountryDetail[]>();
+    for (const d of geoDetails) {
+      const k = d.country ?? '';
+      const arr = m.get(k) ?? [];
+      arr.push(d);
+      m.set(k, arr);
+    }
+    return m;
+  }, [geoDetails]);
 
   const barTopCampaigns = useMemo(() => {
     return [...rows]
@@ -517,6 +800,82 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
       }));
   }, [rows, t]);
 
+  const noAccountLabel = t('crm.marketingChannelAnalytics.noAccount', {
+    defaultValue: 'Без метки кабинета',
+  });
+  const accountLabel = useCallback(
+    (id: string | null | undefined) => (id ? integrationLabels?.[id] || id : noAccountLabel),
+    [integrationLabels, noAccountLabel],
+  );
+
+  /** Суммы по рекламным кабинетам — только когда в выборке их несколько (режим «Все кабинеты»). */
+  const byAccount = useMemo(() => {
+    const m = new Map<
+      string,
+      { id: string | null; campaigns: number; impressions: number; clicks: number; sessions: number; leads: number; cost: number; revenue: number; currency: string }
+    >();
+    for (const r of rows) {
+      const key = r.integrationId || '';
+      const cur = m.get(key) ?? {
+        id: r.integrationId || null,
+        campaigns: 0,
+        impressions: 0,
+        clicks: 0,
+        sessions: 0,
+        leads: 0,
+        cost: 0,
+        revenue: 0,
+        currency: r.currency || 'EUR',
+      };
+      cur.campaigns += 1;
+      cur.impressions += r.impressions || 0;
+      cur.clicks += r.clicks || 0;
+      cur.sessions += r.sessions || 0;
+      cur.leads += r.leads || 0;
+      cur.cost += r.cost || 0;
+      cur.revenue += r.revenue || 0;
+      m.set(key, cur);
+    }
+    const list = [...m.values()];
+    if (list.length < 2 || !list.some((a) => a.id)) return [];
+    return list.sort((a, b) => b.cost - a.cost || b.impressions - a.impressions);
+  }, [rows]);
+  const showAccounts = byAccount.length > 1;
+  /** Раскрытая строка кабинета ('' — строки без метки кабинета). */
+  const [accExpanded, setAccExpanded] = useState<string | null>(null);
+  /** Кампании каждого кабинета (строки канала агрегируются по названию кампании). */
+  const campaignsByAccount = useMemo(() => {
+    const m = new Map<
+      string,
+      Map<string, { campaign: string | null; impressions: number; clicks: number; leads: number; cost: number; currency: string }>
+    >();
+    for (const r of rows) {
+      const ak = r.integrationId || '';
+      const byCamp = m.get(ak) ?? new Map();
+      const ck = r.campaign ?? '';
+      const cur = byCamp.get(ck) ?? {
+        campaign: r.campaign,
+        impressions: 0,
+        clicks: 0,
+        leads: 0,
+        cost: 0,
+        currency: r.currency || 'EUR',
+      };
+      cur.impressions += r.impressions || 0;
+      cur.clicks += r.clicks || 0;
+      cur.leads += r.leads || 0;
+      cur.cost += r.cost || 0;
+      byCamp.set(ck, cur);
+      m.set(ak, byCamp);
+    }
+    const out = new Map<string, Array<{ campaign: string | null; impressions: number; clicks: number; leads: number; cost: number; currency: string }>>();
+    for (const [k, v] of m) {
+      out.set(k, [...v.values()].sort((a, b) => b.cost - a.cost || b.impressions - a.impressions));
+    }
+    return out;
+  }, [rows]);
+  const accountsCostTotal = byAccount.reduce((s, a) => s + a.cost, 0);
+
   const sortedRows = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
     const list = [...rows];
@@ -532,6 +891,8 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                 formatMarketingChannelDimension(t, sanitizeMarketingDimension(b.campaign), 'campaign'),
               )
           );
+        case 'account':
+          return dir * accountLabel(a.integrationId).localeCompare(accountLabel(b.integrationId));
         case 'impressions':
           va = a.impressions || 0;
           vb = b.impressions || 0;
@@ -562,7 +923,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
       return dir * (va - vb);
     });
     return list;
-  }, [rows, sortKey, sortDir, t]);
+  }, [rows, sortKey, sortDir, t, accountLabel]);
 
   useEffect(() => {
     if (!open) return;
@@ -572,7 +933,9 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
     fetchMarketingTrafficDaily({
       from: dateFrom,
       to: dateTo,
-      ...(onlyUnattributed ? { onlyUnattributed: true } : { dataSource: dataSourceKey }),
+      ...(onlyUnattributed ? { onlyUnattributed: true } : { dataSource: dataSourceKey, integrationId: accountParam }),
+      q: searchParam,
+      country: countryParam,
     })
       .then((res) => {
         if (!alive) return;
@@ -589,7 +952,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
     return () => {
       alive = false;
     };
-  }, [open, dateFrom, dateTo, dataSourceKey, onlyUnattributed]);
+  }, [open, dateFrom, dateTo, dataSourceKey, accountParam, searchParam, countryParam, onlyUnattributed]);
 
   useEffect(() => {
     if (!open) return;
@@ -599,16 +962,19 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
     fetchMarketingTrafficByCountry({
       from: dateFrom,
       to: dateTo,
-      ...(onlyUnattributed ? { onlyUnattributed: true } : { dataSource: dataSourceKey }),
+      ...(onlyUnattributed ? { onlyUnattributed: true } : { dataSource: dataSourceKey, integrationId: accountParam }),
+      q: searchParam,
     })
       .then((res) => {
         if (!alive) return;
         setGeoRows(Array.isArray(res.rows) ? res.rows : []);
+        setGeoDetails(Array.isArray(res.details) ? res.details : []);
       })
       .catch((e: unknown) => {
         if (!alive) return;
         setGeoError(e instanceof Error ? e.message : 'Error');
         setGeoRows([]);
+        setGeoDetails([]);
       })
       .finally(() => {
         if (alive) setGeoLoading(false);
@@ -616,7 +982,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
     return () => {
       alive = false;
     };
-  }, [open, dateFrom, dateTo, dataSourceKey, onlyUnattributed]);
+  }, [open, dateFrom, dateTo, dataSourceKey, accountParam, searchParam, onlyUnattributed]);
 
   useEffect(() => {
     if (!open) return;
@@ -687,7 +1053,9 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
               {channelTitle}
             </div>
             <div className="flex items-center gap-3 mt-0.5">
-              <span className="text-[10.5px] text-[#888] font-mono truncate">{dataSourceKey}</span>
+              <span className="text-[11px] text-[#888] truncate" title={dataSourceKey}>
+                {marketingProviderFamilyLabel(dataSourceKey)}
+              </span>
               <span className="text-[10px] text-[#aaa]">·</span>
               <span className="text-[10.5px] text-[#888] font-mono">{periodLabel}</span>
             </div>
@@ -699,6 +1067,124 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
           >
             {t('crm.marketingChannelAnalytics.close', { defaultValue: 'Закрыть' })}
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#ececec] bg-[#fafafa] px-3 py-2.5 sm:px-5">
+          <div className="relative min-w-[180px] flex-1 sm:max-w-[320px]">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[#999]">⌕</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('crm.marketingChannelAnalytics.searchCampaign', { defaultValue: 'Поиск кампании…' })}
+              className="w-full rounded-lg border border-[#222222]/15 bg-white py-1.5 pl-7 pr-2.5 text-[12px] text-[#222222] placeholder:text-[#999]"
+            />
+          </div>
+          <DateRangePicker
+            value={{ from: fromIsoDate(dateFrom), to: fromIsoDate(dateTo) }}
+            presets={pickerPresets}
+            onChange={(v) => {
+              if (v.presetId) return setPreset(v.presetId);
+              setDateFrom(v.from ? toIsoDate(v.from) : undefined);
+              setDateTo(v.to ? toIsoDate(v.to) : undefined);
+            }}
+          />
+          <select
+            className="rounded-lg border border-[#222222]/15 bg-white px-2.5 py-1.5 text-[12px] text-[#222222]"
+            value={currencyMode === 'native' ? 'native' : displayCurrency}
+            onChange={(e) => onCurrencyChange(e.target.value)}
+            disabled={fxLoading}
+            title={t('crm.marketingChannelAnalytics.currencyHint', {
+              defaultValue: 'Пересчёт по курсам Frankfurter / ECB',
+            })}
+            aria-label={t('crm.marketingChannelAnalytics.currency', { defaultValue: 'Валюта' })}
+          >
+            <option value="native">{t('crm.marketingChannelAnalytics.currencyNative', { defaultValue: 'Исходная валюта' })}</option>
+            {currencyChoices.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          {(rangeLoading || fxLoading) && (
+            <span className="text-[11px] text-[#888]">
+              {t('crm.marketingChannelAnalytics.loadingShort', { defaultValue: 'Загрузка…' })}
+            </span>
+          )}
+          {countryOptions.length > 1 && (
+            <select
+              className="max-w-[46vw] sm:max-w-[220px] rounded-lg border border-[#222222]/15 bg-white px-2.5 py-1.5 text-[12px] text-[#222222]"
+              value={countryFilter}
+              onChange={(e) => {
+                setCountryFilter(e.target.value);
+                // строка «страна не определена» в таблице стран имеет ключ ''
+                setGeoExpanded(e.target.value ? (e.target.value === '-' ? '' : e.target.value) : null);
+              }}
+              aria-label={t('crm.marketingChannelAnalytics.geoColCountry', { defaultValue: 'Страна' })}
+            >
+              <option value="">
+                {t('crm.marketingChannelAnalytics.allCountries', {
+                  defaultValue: 'Все страны ({{count}})',
+                  count: countryOptions.length,
+                })}
+              </option>
+              {countryOptions.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {accountOptions.length > 1 && (
+            <select
+              className="max-w-[46vw] sm:max-w-[240px] rounded-lg border border-[#222222]/15 bg-white px-2.5 py-1.5 text-[12px] text-[#222222]"
+              value={account}
+              onChange={(e) => {
+                setAccount(e.target.value);
+                onIntegrationChange?.(e.target.value);
+              }}
+              aria-label={t('crm.marketingChannelBlocks.accountFilter', { defaultValue: 'Рекламный кабинет' })}
+            >
+              <option value="">
+                {t('crm.marketingChannelBlocks.allAccounts', {
+                  defaultValue: 'Все кабинеты ({{count}})',
+                  count: accountOptions.length,
+                })}
+              </option>
+              {accountOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setSearchQ('');
+                setCountryFilter('');
+                setGeoExpanded(null);
+                setAccount('');
+                onIntegrationChange?.('');
+                setDateFrom(dateFromProp);
+                setDateTo(dateToProp);
+                setCur((prev) => ({ ...prev, mode: currencyModeProp, display: displayCurrencyProp, rates: ratesProp }));
+              }}
+              className="rounded-lg px-2.5 py-1.5 text-[12px] text-[#0b4fc2] hover:bg-[#0866FF]/10"
+            >
+              {t('crm.marketingChannelAnalytics.resetFilters', { defaultValue: 'Сбросить' })}
+            </button>
+          )}
+          {filtersActive && (
+            <span className="ml-auto text-[11px] text-[#888]">
+              {t('crm.marketingChannelAnalytics.filteredCampaigns', {
+                defaultValue: 'Кампаний: {{count}}',
+                count: new Set(rows.map((r) => `${r.integrationId ?? ''}|${r.campaign ?? ''}`)).size,
+              })}
+            </span>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 sm:px-5 sm:py-5 space-y-6 sm:space-y-8">
@@ -799,13 +1285,14 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                 </div>
                 <div className={`${marketingCard} p-3 min-h-[260px] min-w-0`}>
                   <div className="text-[11px] font-semibold text-[#222222]/70 mb-2">
-                    {t('crm.marketingChannelAnalytics.chartCostRevenue', {
-                      defaultValue: 'Расход и выручка (сырые суммы по дням)',
+                    {t('crm.marketingChannelAnalytics.chartCostRevenueCur', {
+                      defaultValue: 'Расход и выручка по дням, {{currency}}',
+                      currency: seriesMoneyCurrency,
                     })}
                   </div>
                   <div className="h-[220px] w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <LineChart data={seriesMoney} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#64748b' }} tickMargin={6} />
                         <YAxis tick={{ fontSize: 9, fill: '#64748b' }} />
@@ -815,6 +1302,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                             fontSize: 11,
                             border: '1px solid rgba(34,34,34,0.1)',
                           }}
+                          formatter={(v: number | string) => `${formatMoney(Number(v) || 0)} ${seriesMoneyCurrency}`}
                         />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Line
@@ -1048,10 +1536,15 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                   })}
                 </div>
                 <p className={marketingSectionSub}>
-                  {t('crm.marketingChannelAnalytics.geoTableHint', {
-                    defaultValue:
-                      'Как в отчёте Geo в Google Analytics: сессии и просмотры по стране. Отдельных пользователей CRM здесь нет — только агрегаты веб-аналитики.',
-                  })}
+                  {isMetaAds
+                    ? t('crm.marketingChannelAnalytics.geoTableHintMeta', {
+                        defaultValue:
+                          'Показы и клики по стране показа — из статистики рекламного кабинета Meta. Это агрегаты рекламы, не отдельные пользователи CRM.',
+                      })
+                    : t('crm.marketingChannelAnalytics.geoTableHint', {
+                        defaultValue:
+                          'Как в отчёте Geo в Google Analytics: сессии и просмотры по стране. Отдельных пользователей CRM здесь нет — только агрегаты веб-аналитики.',
+                      })}
                 </p>
                 <div className={`${modalTableOuter} ${modalTableDensity}`}>
                   <div className={`${modalTableInner} max-h-[min(340px,45vh)] overflow-y-auto`}>
@@ -1070,12 +1563,37 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                           <th className={`${marketingThNumeric} whitespace-nowrap`}>
                             {t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}
                           </th>
+                          {geoHasCost && (
+                            <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                              {t('crm.marketingChannelBlocks.thCost', { defaultValue: 'Расход' })}
+                            </th>
+                          )}
+                          {geoHasCost && (
+                            <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                              {t('crm.marketingChannelAnalytics.costShare', { defaultValue: 'Доля расхода' })}
+                            </th>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
-                        {geoTableRows.map((r, idx) => (
-                          <tr key={`${r.country ?? 'none'}-${idx}`} className={marketingTr}>
-                            <td className={`${marketingTd} font-medium max-w-[140px] sm:max-w-none truncate`} title={countryLabel(r.country)}>
+                        {geoTableRows
+                          .filter((r) => !countryFilter || (r.country ?? '-') === countryFilter)
+                          .map((r, idx) => {
+                          const gk = r.country ?? '';
+                          const det = geoDetailsByCountry.get(gk) ?? [];
+                          const canExpand = det.length > 0;
+                          const expanded = canExpand && geoExpanded === gk;
+                          return (
+                          <React.Fragment key={`${r.country ?? 'none'}-${idx}`}>
+                          <tr
+                            className={`${marketingTr} ${canExpand ? 'cursor-pointer hover:bg-[#222222]/[0.03]' : ''}`}
+                            onClick={canExpand ? () => setGeoExpanded(expanded ? null : gk) : undefined}
+                            title={canExpand ? t('crm.marketingChannelAnalytics.geoExpandHint', { defaultValue: 'Показать кабинеты и кампании этой страны' }) : undefined}
+                          >
+                            <td className={`${marketingTd} font-medium max-w-[160px] sm:max-w-none truncate`} title={countryLabel(r.country)}>
+                              {canExpand && (
+                                <span className="inline-block w-3.5 text-[#888]">{expanded ? '▾' : '▸'}</span>
+                              )}
                               {countryLabel(r.country)}
                             </td>
                             <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
@@ -1087,8 +1605,59 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                             <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
                               {formatNumber(r.impressions || 0)}
                             </td>
+                            {geoHasCost && (
+                              <td className={`${marketingTd} text-right tabular-nums font-medium whitespace-nowrap`}>
+                                {fmtMoneyCell(r.cost || 0, r.currency)}
+                              </td>
+                            )}
+                            {geoHasCost && (
+                              <td className={`${marketingTd} whitespace-nowrap`}>
+                                <ShareCell share={geoCostTotal > 0 ? ((r.cost || 0) / geoCostTotal) * 100 : 0} />
+                              </td>
+                            )}
                           </tr>
-                        ))}
+                          {expanded &&
+                            det.slice(0, 50).map((d, j) => {
+                              const camp = formatMarketingChannelDimension(
+                                t,
+                                sanitizeMarketingDimension(d.campaign),
+                                'campaign',
+                              );
+                              return (
+                                <tr key={`${gk}-d-${j}`} className="bg-[#f7f7f5]">
+                                  <td className={`${marketingTd} pl-7 max-w-[160px] sm:max-w-[420px]`}>
+                                    {d.integrationId && (
+                                      <span className="mr-1.5 inline-block rounded bg-[#0866FF]/10 px-1.5 py-px text-[10px] text-[#0b4fc2]">
+                                        {accountLabel(d.integrationId)}
+                                      </span>
+                                    )}
+                                    <span className="text-[#222222]/80" title={camp}>{camp}</span>
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {formatNumber(d.sessions || 0)}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {formatNumber(d.clicks || 0)}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {formatNumber(d.impressions || 0)}
+                                  </td>
+                                  {geoHasCost && (
+                                    <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                      {fmtMoneyCell(d.cost || 0, d.currency)}
+                                    </td>
+                                  )}
+                                  {geoHasCost && (
+                                    <td className={`${marketingTd} whitespace-nowrap`}>
+                                      <ShareCell share={geoCostTotal > 0 ? ((d.cost || 0) / geoCostTotal) * 100 : 0} muted />
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1096,6 +1665,133 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
               </>
             )}
           </section>
+
+          {showAccounts && (
+            <section className="space-y-2">
+              <div className={marketingSectionTitle}>
+                {t('crm.marketingChannelAnalytics.byAccount', { defaultValue: 'По кабинетам' })}
+              </div>
+              <div className={`${modalTableOuter} ${modalTableDensity}`}>
+                <div className={`${modalTableInner} max-h-[320px] overflow-y-auto`}>
+                  <table className="w-full min-w-[720px] text-left text-[10px] sm:text-[11px] border-separate border-spacing-0">
+                    <thead className={`${marketingThead} sticky top-0 z-[1]`}>
+                      <tr>
+                        <th className={marketingTh}>
+                          {t('crm.marketingChannelBlocks.accountFilter', { defaultValue: 'Рекламный кабинет' })}
+                        </th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                          {t('crm.marketingChannelAnalytics.campaignsCount', { defaultValue: 'Кампаний' })}
+                        </th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                          {t('crm.marketingChannelBlocks.thImpressions', { defaultValue: 'Показы' })}
+                        </th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                          {t('crm.marketingChannelBlocks.thClicks', { defaultValue: 'Клики' })}
+                        </th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>CTR</th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>CPC</th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                          {t('crm.marketingChannelBlocks.thLeads', { defaultValue: 'Лиды' })}
+                        </th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                          {t('crm.marketingChannelBlocks.thCost', { defaultValue: 'Расход' })}
+                        </th>
+                        <th className={`${marketingThNumeric} whitespace-nowrap`}>
+                          {t('crm.marketingChannelAnalytics.costShare', { defaultValue: 'Доля расхода' })}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {byAccount.map((a) => {
+                        const share = accountsCostTotal > 0 ? (a.cost / accountsCostTotal) * 100 : 0;
+                        const ak = a.id ?? '';
+                        const camps = campaignsByAccount.get(ak) ?? [];
+                        const expanded = accExpanded === ak;
+                        return (
+                          <React.Fragment key={a.id ?? '_none'}>
+                          <tr
+                            className={`${marketingTr} ${camps.length ? 'cursor-pointer hover:bg-[#222222]/[0.03]' : ''}`}
+                            onClick={camps.length ? () => setAccExpanded(expanded ? null : ak) : undefined}
+                            title={camps.length ? t('crm.marketingChannelAnalytics.accountExpandHint', { defaultValue: 'Показать кампании кабинета' }) : undefined}
+                          >
+                            <td className={`${marketingTd} max-w-[240px] truncate font-medium`} title={accountLabel(a.id)}>
+                              {camps.length > 0 && (
+                                <span className="inline-block w-3.5 text-[#888]">{expanded ? '▾' : '▸'}</span>
+                              )}
+                              {accountLabel(a.id)}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
+                              {formatNumber(camps.length || a.campaigns)}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
+                              {formatNumber(a.impressions)}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
+                              {formatNumber(a.clicks)}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
+                              {a.impressions > 0 ? `${((a.clicks / a.impressions) * 100).toFixed(2)}%` : '—'}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
+                              {a.clicks > 0 && a.cost > 0 ? fmtMoneyCell(a.cost / a.clicks, a.currency) : '—'}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap`}>
+                              {formatNumber(a.leads)}
+                            </td>
+                            <td className={`${marketingTd} text-right tabular-nums font-medium whitespace-nowrap`}>
+                              {fmtMoneyCell(a.cost, a.currency)}
+                            </td>
+                            <td className={`${marketingTd} whitespace-nowrap`}>
+                              <ShareCell share={share} />
+                            </td>
+                          </tr>
+                          {expanded &&
+                            camps.slice(0, 100).map((c, j) => {
+                              const campLabel = formatMarketingChannelDimension(
+                                t,
+                                sanitizeMarketingDimension(c.campaign),
+                                'campaign',
+                              );
+                              const cShare = accountsCostTotal > 0 ? (c.cost / accountsCostTotal) * 100 : 0;
+                              return (
+                                <tr key={`${ak}-c-${j}`} className="bg-[#f7f7f5]">
+                                  <td className={`${marketingTd} pl-7 max-w-[240px] sm:max-w-[420px] truncate text-[#222222]/80`} title={campLabel}>
+                                    {campLabel}
+                                  </td>
+                                  <td className={marketingTd} />
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {formatNumber(c.impressions)}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {formatNumber(c.clicks)}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {c.impressions > 0 ? `${((c.clicks / c.impressions) * 100).toFixed(2)}%` : '—'}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {c.clicks > 0 && c.cost > 0 ? fmtMoneyCell(c.cost / c.clicks, c.currency) : '—'}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {formatNumber(c.leads)}
+                                  </td>
+                                  <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap text-[#222222]/70`}>
+                                    {fmtMoneyCell(c.cost, c.currency)}
+                                  </td>
+                                  <td className={`${marketingTd} whitespace-nowrap`}>
+                                    <ShareCell share={cShare} muted />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0">
             <div className="space-y-2">
@@ -1212,6 +1908,18 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                           </span>
                         </button>
                       </th>
+                      {showAccounts && (
+                        <th className={`${marketingTh} min-w-[110px]`}>
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('account')}
+                            className="font-semibold text-left w-full min-w-0 hover:text-[#111827] inline-flex items-center gap-0.5 whitespace-nowrap"
+                          >
+                            {t('crm.marketingChannelAnalytics.accountCol', { defaultValue: 'Кабинет' })}
+                            {sortKey === 'account' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                          </button>
+                        </th>
+                      )}
                       {(
                         [
                           ['impressions', t('crm.marketingChannelBlocks.thImpressions', { defaultValue: 'Показы' })],
@@ -1255,6 +1963,14 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                               {campLabel}
                             </span>
                           </td>
+                          {showAccounts && (
+                            <td
+                              className={`${marketingTd} max-w-[160px] truncate align-top text-[#222222]/70`}
+                              title={accountLabel(row.integrationId)}
+                            >
+                              {accountLabel(row.integrationId)}
+                            </td>
+                          )}
                           <td className={`${marketingTd} text-right tabular-nums whitespace-nowrap align-top`}>
                             {formatNumber(row.impressions || 0)}
                           </td>
@@ -1280,22 +1996,6 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
                 </table>
               </div>
             </div>
-          </section>
-
-          <section
-            className={`${marketingCard} border-dashed border-amber-200/90 bg-amber-50/35 p-4 space-y-2`}
-          >
-            <div className="text-[12px] font-semibold text-amber-950">
-              {t('crm.marketingChannelAnalytics.roadmapTitle', {
-                defaultValue: 'Страницы и воронка (в разработке)',
-              })}
-            </div>
-            <p className="text-[11px] text-amber-950/85 leading-relaxed">
-              {t('crm.marketingChannelAnalytics.roadmapBody', {
-                defaultValue:
-                  'Гео по сессиям для каналов GA4 подтягивается при синке (countryId). Отчёты по URL страниц, городам и шагам воронки — в планах после расширения схемы и импорта.',
-              })}
-            </p>
           </section>
         </div>
       </div>

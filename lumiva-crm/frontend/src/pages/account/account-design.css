@@ -90,6 +90,7 @@
 .acc-card-head .sub{font-size:11.5px;color:var(--fg-3);margin-top:3px;line-height:1.45;max-width:520px}
 .acc-body{padding:15px 16px}
 .acc-body.tight{padding:0}
+.acc-sessions-list{position:relative;overscroll-behavior:contain}
 .acc-foot{padding:11px 16px;border-top:1px solid var(--line-3);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--fg-3)}
 
 /* checklist */

@@ -30,6 +30,7 @@
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
     "framer-motion": "^12.23.25",
+    "html-to-image": "^1.11.13",
     "i18next": "^24.0.0",
     "jsbarcode": "^3.12.3",
     "lottie-react": "^3.0.0",

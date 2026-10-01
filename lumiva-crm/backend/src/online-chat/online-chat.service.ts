@@ -15,7 +15,7 @@ import {
 } from 'typeorm';
 import { randomUUID } from 'crypto';
 
-import { ChatSession } from './chat-session.entity';
+import { ChatSession, type ChatSessionStatus } from './chat-session.entity';
 import { ChatMessage, ChatAttachment } from './chat-message.entity';
 import { Tenant } from '../tenants/tenant.entity';
 import { Lead } from '../leads/lead.entity';
@@ -108,6 +108,24 @@ export class OnlineChatService {
     private readonly leadsService: LeadsService,
   ) {}
 
+  /**
+   * Подписчик на входящие сообщения посетителей — ИИ-онлайн-консультант (OnlineChatAiService)
+   * регистрируется сам, чтобы не было циклической зависимости между сервисами.
+   */
+  private visitorMessageHook: ((session: ChatSession, message: ChatMessage) => void) | null = null;
+
+  setVisitorMessageHook(fn: (session: ChatSession, message: ChatMessage) => void) {
+    this.visitorMessageHook = fn;
+  }
+
+  /** Оператор выключил/вернул ИИ в конкретном диалоге. */
+  async setSessionAiPaused(tenantId: string, sessionId: string, paused: boolean) {
+    const session = await this.getSessionOrFail(tenantId, sessionId);
+    session.aiPaused = !!paused;
+    await this.sessionsRepo.save(session);
+    return { id: session.id, aiPaused: session.aiPaused };
+  }
+
   /* =========================================================
    * helpers
    * =======================================================*/
@@ -170,7 +188,10 @@ export class OnlineChatService {
     return {
       id: m.id,
       text: m.text || '',
-      from: (m.sender === 'staff' ? 'manager' : 'client') as 'manager' | 'client',
+      // assistant (AI) replies are also "ours" from the visitor's point of view
+      from: (m.sender === 'visitor' ? 'client' : 'manager') as 'manager' | 'client',
+      sender_name: m.senderName ?? null,
+      is_ai: m.sender === 'assistant',
       file_url: a?.url ?? null,
       fileName: a?.name ?? null,
       // дублируем snake_case, чтобы старые фронты/виджет не ломались
@@ -274,7 +295,7 @@ export class OnlineChatService {
       .andWhere("coalesce(s.visitorEmail, '') <> ''")
       .orderBy('s.lastMessageAt', 'DESC')
       .addOrderBy('s.createdAt', 'DESC')
-      .take(50);
+      .take(200);
 
     if (status) qb = qb.andWhere('s.status = :status', { status });
 
@@ -314,6 +335,27 @@ export class OnlineChatService {
     const lastStaffMap = new Map<string, Date>();
     lastStaff.forEach((row) => lastStaffMap.set(row.sessionId, new Date(row.lastStaffAt)));
 
+    // Превью последнего видимого посетителю сообщения (внутренние заметки/черновики ИИ не показываем)
+    const lastMsgMap = new Map<string, { text: string; sender: ChatMessage['sender']; createdAt: Date; hasFile: boolean }>();
+    if (sessions.length) {
+      const rows: Array<{ sessionId: string; text: string; sender: ChatMessage['sender']; createdAt: Date; attachments: any }> =
+        await this.messagesRepo.query(
+          `SELECT DISTINCT ON ("sessionId") "sessionId", "text", "sender", "createdAt", "attachments"
+             FROM chat_messages
+            WHERE "tenantId" = $1 AND "sessionId" = ANY($2::uuid[]) AND "isInternal" = false
+            ORDER BY "sessionId", "createdAt" DESC`,
+          [tenantId, sessions.map((s) => s.id)],
+        );
+      rows.forEach((m) =>
+        lastMsgMap.set(m.sessionId, {
+          text: (m.text || '').slice(0, 160),
+          sender: m.sender,
+          createdAt: m.createdAt,
+          hasFile: Array.isArray(m.attachments) && m.attachments.length > 0,
+        }),
+      );
+    }
+
     return sessions.map((s) => {
       const v = lastVisitorMap.get(s.id);
       const st = lastStaffMap.get(s.id);
@@ -322,6 +364,7 @@ export class OnlineChatService {
         ...s,
         lastSender: unread ? ('visitor' as ChatMessage['sender']) : null,
         unread,
+        lastMessage: lastMsgMap.get(s.id) ?? null,
       } as any;
     });
   }
@@ -362,6 +405,10 @@ export class OnlineChatService {
     siteHost: string;
     visitorName: string | null;
     visitorEmail: string | null;
+    status: ChatSessionStatus;
+    aiPaused: boolean;
+    createdAt: Date;
+    utm: Record<'source' | 'medium' | 'campaign' | 'content' | 'term', string | null>;
   }> {
     const session = await this.getSessionOrFail(tenantId, sessionId);
 
@@ -378,7 +425,25 @@ export class OnlineChatService {
       siteHost: session.siteHost,
       visitorName: session.visitorName,
       visitorEmail: session.visitorEmail,
+      status: session.status,
+      aiPaused: session.aiPaused,
+      createdAt: session.createdAt,
+      utm: {
+        source: session.utmSource,
+        medium: session.utmMedium,
+        campaign: session.utmCampaign,
+        content: session.utmContent,
+        term: session.utmTerm,
+      },
     };
+  }
+
+  /** Оператор закрыл / снова открыл диалог. */
+  async setSessionStatus(tenantId: string, sessionId: string, status: ChatSessionStatus) {
+    const session = await this.getSessionOrFail(tenantId, sessionId);
+    session.status = status === 'closed' ? 'closed' : 'open';
+    await this.sessionsRepo.save(session);
+    return { id: session.id, status: session.status };
   }
 
   async sendStaffMessage(
@@ -404,6 +469,8 @@ export class OnlineChatService {
     const saved = await this.messagesRepo.save(message);
 
     session.lastMessageAt = new Date();
+    // человек ответил сам — ИИ-консультант в этом диалоге замолкает (вернуть можно кнопкой в /chat)
+    if (!saved.isInternal) session.aiPaused = true;
     await this.sessionsRepo.save(session);
 
     return this.mapStaffMessage(saved);
@@ -536,7 +603,15 @@ export class OnlineChatService {
     const saved = await this.messagesRepo.save(message);
 
     session.lastMessageAt = new Date();
+    // посетитель написал в закрытый диалог — снова открываем, иначе оператор его не увидит
+    if (session.status === 'closed') session.status = 'open';
     await this.sessionsRepo.save(session);
+
+    try {
+      this.visitorMessageHook?.(session, saved);
+    } catch (e) {
+      this.logger.warn(`visitorMessageHook failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     const a = this.pickFirstAttachment(saved);
 
@@ -704,7 +779,8 @@ export class OnlineChatService {
     const session = await this.getSessionById(sessionId);
 
     const messages = await this.messagesRepo.find({
-      where: { sessionId: session.id },
+      // internal staff notes must never reach the visitor
+      where: { sessionId: session.id, isInternal: false },
       order: { createdAt: 'ASC' },
       take: limit,
     });
@@ -739,7 +815,7 @@ export class OnlineChatService {
 
     const session = await this.getSessionById(sessionId);
 
-    let where: any = { sessionId: session.id };
+    let where: any = { sessionId: session.id, isInternal: false };
 
     if (after && Number(after) > 0) {
       const dt = new Date(Number(after));

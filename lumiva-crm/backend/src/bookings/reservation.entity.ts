@@ -45,7 +45,8 @@ export type ReservationSource =
   | 'manual'
   | 'api'
   | 'import'
-  | 'telegram';
+  | 'telegram'
+  | 'whatsapp';
 
 /** Открытые (не финальные) статусы — участвуют в проверке конфликтов ресурса/мастера. */
 export const RESERVATION_ACTIVE_STATUSES: ReservationStatus[] = [

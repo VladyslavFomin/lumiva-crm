@@ -7,8 +7,10 @@ import { LeadsService } from './leads.service';
 import { LeadsController } from './leads.controller';
 import { PublicLeadsController } from './public-leads.controller';
 import { LeadsMeetingsReminderService } from './leads-meetings-reminder.service';
+import { LeadsTrashPurgeService } from './leads-trash-purge.service';
 import { LeadAccessGrant } from './lead-access-grant.entity';
 import { LeadAccessService } from './lead-access.service';
+import { LeadsManagerRoiService } from './leads-manager-roi.service';
 import { Department } from '../departments/department.entity';
 
 import { Site } from '../sites/site.entity';
@@ -69,7 +71,7 @@ import { CompaniesModule } from '../companies/companies.module';
     CompaniesModule,
   ],
   controllers: [LeadsController, PublicLeadsController],
-  providers: [LeadsService, LeadActivityService, LeadsMeetingsReminderService, LeadAccessService],
+  providers: [LeadsService, LeadActivityService, LeadsMeetingsReminderService, LeadsTrashPurgeService, LeadAccessService, LeadsManagerRoiService],
   exports: [LeadsService, LeadActivityService, LeadAccessService],
 })
 export class LeadsModule {}

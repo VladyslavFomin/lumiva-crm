@@ -1,0 +1,8 @@
+.mai-pause{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:7px 8px 7px 12px;border:1px solid #F5D08A;background:#FFF8EA;border-radius:10px;font-size:12.5px;line-height:1.35;color:#6B4A0E}
+.mai-pause .dot{flex:none;width:7px;height:7px;border-radius:50%;background:#E0A21B}
+.mai-pause .txt{flex:1;min-width:0}
+.mai-pause .err{color:#B42318}
+.mai-pause button{flex:none;border:1px solid #E6BE6A;background:#fff;color:#5A3D08;border-radius:8px;padding:5px 10px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.mai-pause button:hover:not(:disabled){background:#FFF1D2}
+.mai-pause button:disabled{opacity:.6;cursor:default}
+@media (max-width:560px){.mai-pause{flex-wrap:wrap}.mai-pause button{margin-left:17px}}

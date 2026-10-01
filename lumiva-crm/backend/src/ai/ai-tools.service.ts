@@ -1,3 +1,4 @@
+import { MarketingRoiService } from '../marketing/marketing-roi.service';
 import { Inject, Injectable, Logger, forwardRef, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { randomUUID } from 'crypto';
@@ -189,12 +190,12 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника данных. Либо конкретный аккаунт (google_ads_<cid>, ga4_<id> и т.д.) — данные только по нему; либо родовое имя провайдера (google_ads, yandex_direct, meta_ads, vk_ads) БЕЗ суффикса — тогда суммируются ВСЕ аккаунты этого провайдера у тенанта (у Google Ads/MCC их может быть несколько, каждый под своим CID). Для вопроса «сколько потрачено в Google Ads» (без уточнения конкретного аккаунта) — передавай именно "google_ads", не выдумывай один CID из списка. Если не задан вовсе — агрегат по всем источникам сразу.',
+              'Опционально: ключ источника данных. Либо конкретный аккаунт (google_ads_<cid>, кабинет Meta meta_ads_<id кабинета>, ga4_<id> и т.д.) — данные только по нему; либо родовое имя провайдера (google_ads, yandex_direct, meta_ads, vk_ads) БЕЗ суффикса — тогда суммируются ВСЕ аккаунты этого провайдера у тенанта (у Google Ads/MCC их может быть несколько, каждый под своим CID). Для вопроса «сколько потрачено в Google Ads» (без уточнения конкретного аккаунта) — передавай именно "google_ads", не выдумывай один CID из списка. Если не задан вовсе — агрегат по всем источникам сразу.',
           },
           market: {
             type: 'string',
             description:
-              'Опционально: страна/рынок для фильтрации (например "GB", "Великобритания", "UK"). ВАЖНО: у большинства рекламных источников (кроме GA4) нет отдельного поля страны — рынок определяется по тегу в начале названия кампании или по названию страны в тексте. Если инструмент вернул ok:false/unknownMarket или matchedRows:0, НЕ показывай пользователю общие данные под видом отчёта по этой стране — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков, и сверься с пользователем.',
+              'Опционально: страна/рынок для фильтрации (например "GB", "Великобритания", "UK"). ВАЖНО: у Meta Ads страна — реальная страна показа из рекламного кабинета (точные данные); у остальных рекламных источников (кроме GA4) отдельного поля страны нет — рынок определяется по тегу в начале названия кампании или по названию страны в тексте. Если инструмент вернул ok:false/unknownMarket или matchedRows:0, НЕ показывай пользователю общие данные под видом отчёта по этой стране — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков, и сверься с пользователем.',
           },
           displayCurrency: {
             type: 'string',
@@ -221,7 +222,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid> или кабинет Meta meta_ads_<id кабинета>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
           },
         },
       },
@@ -235,7 +236,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
         'Дневной ряд метрик маркетинга для построения тренда: за каждый день возвращает sessions, clicks, impressions, cost, leads. ' +
         'Используй, когда пользователь спрашивает о динамике / тренде по времени или хочет сравнить периоды день-к-дню. ' +
         'Для разбивки РАСХОДОВ ПО МЕСЯЦАМ (и тем более по месяцам В РАЗРЕЗЕ нескольких аккаунтов/каналов, например "сколько по каждой стране/аккаунту по месяцам") — НЕ суммируй дневные точки сам, это частый источник ошибок (неверные суммы, додуманные нули); вместо этого используй crm_marketing_monthly_breakdown — он отдаёт уже готовую посчитанную в БД таблицу. ' +
-        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, ga4_<id>) или по всему провайдеру сразу (google_ads, yandex_direct и т.д. без суффикса — см. описание параметра). ' +
+        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, meta_ads_<id кабинета>, ga4_<id>) или по всему провайдеру сразу (google_ads, yandex_direct и т.д. без суффикса — см. описание параметра). ' +
         'Опционально market — см. описание в crm_marketing_overview; так же требует проверки через crm_marketing_markets при неуверенности.',
       parameters: {
         type: 'object',
@@ -245,7 +246,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid> или кабинет Meta meta_ads_<id кабинета>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
           },
           market: {
             type: 'string',
@@ -278,7 +279,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads) — сужает выборку независимо от groupBy (например groupBy:"market" + dataSource:"google_ads" = разбивка по странам только для Google Ads). Если не задан — все источники тенанта.',
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid> или кабинет Meta meta_ads_<id кабинета>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads) — сужает выборку независимо от groupBy (например groupBy:"market" + dataSource:"google_ads" = разбивка по странам только для Google Ads). Если не задан — все источники тенанта.',
           },
           market: {
             type: 'string',
@@ -301,9 +302,53 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
       description:
         'Детальный список маркетинговых интеграций: провайдер, имя, активность, primaryId, режим аккаунта. ' +
         'Для Google Ads в режиме MCC включает список sub-аккаунтов (managedAccounts) с именами и ключами dataSource. ' +
+        'У Meta Ads каждый рекламный кабинет — отдельное подключение со своим ключом dataSourceKey вида meta_ads_<id кабинета> (родовой meta_ads суммирует все кабинеты) — используй его для вопросов «по каждому кабинету» / «только по кабинету X». ' +
         'Также возвращает dataSources — все ключи, под которыми есть данные в трафике, с человекочитаемыми именами (dataSourceLabels). ' +
         'Используй, чтобы понять, какие рекламные аккаунты подключены и под каким ключом искать их данные.',
       parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_marketing_roi',
+      description:
+        'ROI по клиентам (компаниям CRM): расход привязанных рекламных кабинетов (Google Ads, Meta, Директ, VK) против выручки клиента по месяцам — ROI %, ROAS, конверсии, CPA, CPC; всё в одной валюте по курсу ECB. ' +
+        'Клиент = компания CRM, к которой на странице «ROI по клиентам» привязаны его кабинеты (у одного клиента может быть несколько кабинетов разных площадок). ' +
+        'Источники выручки (sources): manual — введённая/импортированная выручка клиента по месяцам; ads — ценность конверсий по данным площадок (Google Ads conversions_value, Meta purchase value); ga4 — выручка покупок сайта клиента (GA4); crm — подтверждённые продажи CRM (по UTM-кампании лида или полю «Отель»). По умолчанию все. ' +
+        'Используй для вопросов «какой ROI/ROAS у клиента X», «сколько стоит конверсия», «окупается ли реклама». Если unassigned содержит расход — часть кабинетов не привязана к клиентам, скажи об этом.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'Месяц начала YYYY-MM (по умолчанию 12 месяцев назад)' },
+          to: { type: 'string', description: 'Месяц конца YYYY-MM (по умолчанию текущий)' },
+          displayCurrency: { type: 'string', description: 'Валюта отчёта (EUR, TRY, USD…)' },
+          sources: {
+            type: 'array',
+            items: { type: 'string', enum: ['manual', 'ads', 'ga4', 'crm'] },
+            description: 'Какую выручку учитывать; по умолчанию все.',
+          },
+          client: { type: 'string', description: 'Опционально: название компании-клиента — вернуть только её (с разбивкой по месяцам).' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_workspace_create_roi_table',
+      description:
+        'Создать в рабочей области автообновляемую таблицу «ROI по клиентам»: строка = клиент × месяц; колонки расход, выручка (итого и по источникам), ROI %, ROAS, конверсии, CPA, CPC. Обновляется каждую ночь (скользящие последние monthsBack месяцев). Подходит для дашбордов и формул в аналитике рабочей области.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tableName: { type: 'string' },
+          displayCurrency: { type: 'string', description: 'Валюта (EUR, TRY…)' },
+          monthsBack: { type: 'integer', description: 'Сколько последних месяцев держать в таблице (1–36, по умолчанию 12)' },
+          sources: { type: 'array', items: { type: 'string', enum: ['manual', 'ads', 'ga4', 'crm'] } },
+        },
+        required: ['tableName'],
+      },
     },
   },
   {
@@ -587,7 +632,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid> или кабинет Meta meta_ads_<id кабинета>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
           },
           market: {
             type: 'string',
@@ -627,7 +672,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description:
-              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads) — сужает выборку независимо от groupBy. Если не задан — все источники тенанта.',
+              'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid> или кабинет Meta meta_ads_<id кабинета>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads) — сужает выборку независимо от groupBy. Если не задан — все источники тенанта.',
           },
           market: {
             type: 'string',
@@ -686,7 +731,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           tableName: { type: 'string' },
           description: { type: 'string' },
           providers: { type: 'array', items: { type: 'string', enum: ['google_ads', 'meta_ads', 'yandex_direct', 'vk_ads', 'ga4', 'yandex_metrika'] }, description: 'Один или несколько провайдеров — их строки сведутся в одну таблицу.' },
-          grain: { type: 'string', enum: ['daily', 'campaign', 'channel'], description: 'daily — дата × кампания (по умолчанию), campaign — итог по кампании за период, channel — по каналу.' },
+          grain: { type: 'string', enum: ['daily', 'campaign', 'channel'], description: 'campaign — итог по кампании за период (ПО УМОЛЧАНИЮ), channel — по каналу, daily — дата × кампания × страна: только если пользователь ЯВНО просит по дням, и лучше с коротким периодом — за весь период по нескольким кабинетам это десятки тысяч строк (лимит 20000 на источник, остальное обрезается, таблица и аналитика становятся тяжёлыми).' },
           from: { type: 'string', description: 'YYYY-MM-DD' },
           to: { type: 'string', description: 'YYYY-MM-DD; не передавай, чтобы период всегда доходил до сегодняшнего дня (новые данные подхватываются сами)' },
           market: { type: 'string', description: 'Страна/рынок (ISO2 или название) — эвристический фильтр' },
@@ -714,7 +759,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           groupBy: { type: 'string', enum: ['dataSource', 'market'], description: 'Только для marketing_monthly.' },
           dataSource: { type: 'string', description: 'Только для marketing_monthly: провайдер/аккаунт.' },
           providers: { type: 'array', items: { type: 'string', enum: ['google_ads', 'meta_ads', 'yandex_direct', 'vk_ads', 'ga4', 'yandex_metrika'] }, description: 'Один или несколько провайдеров — их строки сведутся в одну таблицу.' },
-          grain: { type: 'string', enum: ['daily', 'campaign', 'channel'], description: 'daily — дата × кампания (по умолчанию), campaign — итог по кампании за период, channel — по каналу.' },
+          grain: { type: 'string', enum: ['daily', 'campaign', 'channel'], description: 'campaign — итог по кампании за период (ПО УМОЛЧАНИЮ), channel — по каналу, daily — дата × кампания × страна: только если пользователь ЯВНО просит по дням, и лучше с коротким периодом — за весь период по нескольким кабинетам это десятки тысяч строк (лимит 20000 на источник, остальное обрезается, таблица и аналитика становятся тяжёлыми).' },
           from: { type: 'string', description: 'YYYY-MM-DD' },
           to: { type: 'string', description: 'YYYY-MM-DD; не передавай, чтобы период всегда доходил до сегодняшнего дня (новые данные подхватываются сами)' },
           market: { type: 'string', description: 'Страна/рынок (ISO2 или название) — эвристический фильтр' },
@@ -1081,6 +1126,7 @@ export class AiToolsService {
     @InjectRepository(AiMemoryChunk)
     private readonly memoryRepo: Repository<AiMemoryChunk>,
     private readonly marketing: MarketingService,
+    private readonly roi: MarketingRoiService,
     @Inject(forwardRef(() => LeadsService))
     private readonly leadsService: LeadsService,
     private readonly notesService: NotesService,
@@ -1441,6 +1487,14 @@ export class AiToolsService {
         case 'crm_marketing_monthly_breakdown': {
           const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketingMonthlyBreakdown(ctx.tenantId, args));
+        }
+        case 'crm_marketing_roi': {
+          const g = await gate('marketing'); if (g) return g;
+          return JSON.stringify(await this.toolMarketingRoi(ctx.tenantId, args));
+        }
+        case 'crm_workspace_create_roi_table': {
+          const g = await gate('custom_objects'); if (g) return g;
+          return JSON.stringify(await this.createRoiWorkspaceTable(ctx.tenantId, args));
         }
         case 'crm_marketing_integrations': {
           const g = await gate('marketing'); if (g) return g;
@@ -3084,6 +3138,7 @@ export class AiToolsService {
       dataSourceFilter,
       500,
       marketCode,
+      { splitMetaAccounts: true },
     );
 
     let fx: {
@@ -3339,7 +3394,7 @@ export class AiToolsService {
     const [integrations, stats] = await Promise.all([
       this.marketing.listMarketingIntegrations(tenantId),
       this.marketing
-        .getTrafficChannelsStats(tenantId, undefined, undefined, undefined, 1)
+        .getTrafficChannelsStats(tenantId, undefined, undefined, undefined, 1, undefined, { splitMetaAccounts: true })
         .catch(() => null),
     ]);
 
@@ -3393,8 +3448,17 @@ export class AiToolsService {
         entry.dataSourceKey = key;
         entry.label = dataSourceLabels[key] || m.name;
         entry.hasTrafficData = existingDataSources.has(key);
+      } else if (m.provider === 'meta_ads') {
+        // Каждый кабинет Meta — свой ключ meta_ads_<id кабинета> (как google_ads_<cid>);
+        // родовой "meta_ads" по-прежнему суммирует все кабинеты.
+        const act = String(m.primaryId || '').replace(/\D/g, '');
+        const key = act ? `meta_ads_${act}`.slice(0, 80) : 'meta_ads';
+        entry.dataSourceKey = key;
+        entry.adAccountId = act || null;
+        entry.label = dataSourceLabels[key] || m.name;
+        entry.hasTrafficData = existingDataSources.has(key);
       } else {
-        // meta_ads, yandex_metrika, etc.
+        // yandex_metrika, etc.
         const key = m.provider;
         entry.dataSourceKey = key;
         entry.hasTrafficData = existingDataSources.has(key);
@@ -4144,6 +4208,7 @@ export class AiToolsService {
       dataSourceFilter,
       itemsLimit,
       marketCode,
+      { splitMetaAccounts: true },
     );
 
     const items = (stats.items || []).slice(0, maxRows);
@@ -4365,6 +4430,66 @@ export class AiToolsService {
   }
 
   /** Новая таблица рабочей области с источником marketing_rows (несколько провайдеров, автообновление). */
+  private async toolMarketingRoi(tenantId: string, args: Record<string, unknown>) {
+    const sources = Array.isArray(args.sources) ? (args.sources as unknown[]).map(String) : [];
+    const report = await this.roi.getRoi(tenantId, {
+      fromMonth: args.from ? String(args.from) : undefined,
+      toMonth: args.to ? String(args.to) : undefined,
+      displayCurrency: args.displayCurrency ? String(args.displayCurrency) : undefined,
+      sources: sources.filter((x): x is 'manual' | 'ads' | 'ga4' | 'crm' => ['manual', 'ads', 'ga4', 'crm'].includes(x)),
+    });
+    const want = String(args.client || '').trim().toLocaleLowerCase('tr');
+    const clients = want
+      ? report.clients.filter((c) => (c.name || '').toLocaleLowerCase('tr').includes(want))
+      : report.clients;
+    return {
+      period: `${report.fromMonth}…${report.toMonth}`,
+      currency: report.displayCurrency,
+      revenueSources: report.sources,
+      total: report.total,
+      clients: clients.map((c) => ({
+        client: c.name,
+        accounts: c.accounts.map((a) => a.label),
+        total: c.total,
+        // По месяцам — только для одного клиента или когда их немного, чтобы не раздувать ответ.
+        ...(want || clients.length <= 3
+          ? {
+              months: Object.fromEntries(
+                Object.entries(c.months).map(([m, v]) => [m, { spend: v.spend, revenue: v.revenue, roi: v.roi, roas: v.roas, conversions: v.conversions, cpa: v.cpa, revenueBySource: v.revenueBySource }]),
+              ),
+            }
+          : {}),
+      })),
+      unassignedSpend: report.unassigned?.total.spend ?? 0,
+      unassignedAccounts: report.unassigned?.accounts.map((a) => a.label) ?? [],
+      crmUnattributed: report.crmUnattributed,
+      ...(want && !clients.length ? { hint: `Клиент «${args.client}» не найден среди клиентов с привязанными кабинетами.` } : {}),
+    };
+  }
+
+  /** Таблица «ROI по клиентам» в рабочей области (инструмент ИИ и кнопка на странице ROI). */
+  async createRoiWorkspaceTable(tenantId: string, args: Record<string, unknown>) {
+    const tableName = String(args.tableName || '').trim() || 'ROI по клиентам';
+    const dtoBase: CreateCustomObjectDto = {
+      name: tableName,
+      description: 'ROI по клиентам: расход кабинетов против выручки (обновляется автоматически каждую ночь)',
+      meta: { enabledViews: ['table', 'analytics'] },
+      fields: [],
+    };
+    const { dto, workspaceAreaId } = await this.workspaceAreaForNewTable(tenantId, dtoBase);
+    const created = await this.customObjects.createObject(tenantId, dto);
+    const params: Record<string, any> = {};
+    if (args.displayCurrency) params.displayCurrency = String(args.displayCurrency).trim().toUpperCase().slice(0, 3);
+    if (args.monthsBack) params.monthsBack = Number(args.monthsBack);
+    if (Array.isArray(args.sources) && args.sources.length) params.sources = (args.sources as unknown[]).map(String);
+    const res = await this.sync.addSource(tenantId, created.id, { kind: 'marketing_roi', params, autoRefresh: true });
+    if (!res.ok) {
+      try { await this.customObjects.deleteObject(tenantId, created.id); } catch { /* ignore */ }
+      return res;
+    }
+    return { ...res, objectId: created.id, name: created.name, ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, null) };
+  }
+
   private async toolWorkspaceCreateMarketingTable(tenantId: string, args: Record<string, unknown>) {
     const tableName = String(args.tableName || '').trim();
     if (!tableName) return { ok: false, error: 'tableName_required' };
@@ -4401,6 +4526,10 @@ export class AiToolsService {
     }
     if (Array.isArray(args.providers)) params.providers = args.providers.map((x) => String(x).trim()).filter(Boolean);
     if (args.maxRows != null) params.maxRows = Number(args.maxRows);
+    // Из чата по умолчанию — итог по кампаниям: «по дням» за весь период по нескольким кабинетам
+    // даёт десятки тысяч строк (реальный случай: 49 644 строки, обрезано до 20 000, аналитика
+    // грузилась полторы минуты). По дням — только если пользователь явно попросил.
+    if (kind === 'marketing_rows' && !params.grain) params.grain = 'campaign';
     return {
       kind,
       params,

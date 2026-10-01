@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { postAiEnrich, type AiEnrichSuggestion, type AiEnrichResult } from '../../api/ai';
 
 interface Props {
@@ -8,7 +9,6 @@ interface Props {
 }
 
 const CONF_COLOR: Record<string, string> = { high: '#16a34a', medium: '#d97706' };
-const CONF_LABEL: Record<string, string> = { high: 'Высокая', medium: 'Средняя' };
 
 function lsKey(entityType: string, entityId: string) {
   return `ai_enrich_${entityType}_${entityId}`;
@@ -25,7 +25,12 @@ function saveCached(entityType: string, entityId: string, result: AiEnrichResult
   try { localStorage.setItem(lsKey(entityType, entityId), JSON.stringify(result)); } catch {}
 }
 
+function uiLocale(lang: string) {
+  return lang.startsWith('tr') ? 'tr-TR' : lang.startsWith('en') ? 'en-US' : 'ru-RU';
+}
+
 export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }) => {
+  const { t, i18n } = useTranslation();
   const [result, setResult] = useState<AiEnrichResult | null>(() => loadCached(entityType, entityId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,14 +53,14 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
     setError(null);
     try {
       const r = await postAiEnrich(entityType, entityId);
-      if (!r.ok) { setError('Не удалось получить подсказки'); return; }
+      if (!r.ok) { setError(r.error || t('crm.aiCards.enrich.failed')); return; }
       const SKIP = new Set(['score', 'priority', 'aiScore', 'leadScore', 'rating', 'id', 'tenantId']);
       const filtered = { ...r, suggestions: r.suggestions?.filter(s => !SKIP.has(s.field)) };
       setResult(filtered);
       saveCached(entityType, entityId, filtered);
       setApplied(new Set());
     } catch {
-      setError('Ошибка запроса');
+      setError(t('crm.aiCards.requestError'));
     } finally {
       setLoading(false);
     }
@@ -74,7 +79,7 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
     <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, fontFamily: FF }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3 }}>
-          ✦ AI Инсайты
+          ✦ {t('crm.aiCards.enrich.title')}
         </span>
         <button
           type="button"
@@ -82,7 +87,7 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
           disabled={loading}
           style={{ fontFamily: FM, fontSize: 10, color: '#7c3aed', background: 'none', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: '0.06em' }}
         >
-          {loading ? 'Анализ...' : result ? '↻ Обновить' : 'Обогатить данные'}
+          {loading ? t('crm.aiCards.analyzing') : result ? `↻ ${t('crm.aiCards.refresh')}` : t('crm.aiCards.enrich.run')}
         </button>
       </div>
 
@@ -90,14 +95,14 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
 
       {!result && !loading && (
         <div style={{ fontSize: 12, color: FG3, fontStyle: 'italic' }}>
-          AI проанализирует доступные данные и предложит дополнения
+          {t('crm.aiCards.enrich.empty')}
         </div>
       )}
 
       {loading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #e7e7e7', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: FG3 }}>AI обогащает данные…</span>
+          <span style={{ fontSize: 12, color: FG3 }}>{t('crm.aiCards.enrich.working')}</span>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
@@ -117,7 +122,7 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
                     <div style={{ fontFamily: FM, fontSize: 9.5, color: FG3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.label}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <span style={{ fontSize: 9.5, color: CONF_COLOR[s.confidence] ?? FG3 }}>
-                        ● {CONF_LABEL[s.confidence] ?? s.confidence}
+                        ● {s.confidence === 'high' || s.confidence === 'medium' ? t(`crm.aiCards.enrich.confidence.${s.confidence}`) : s.confidence}
                       </span>
                       {!applied.has(s.field) && onApply ? (
                         <button
@@ -125,10 +130,10 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
                           onClick={() => handleApply(s)}
                           style={{ fontSize: 10, color: '#7c3aed', background: 'none', border: '1px solid #7c3aed40', borderRadius: 4, padding: '1px 7px', cursor: 'pointer', fontFamily: FM }}
                         >
-                          Применить
+                          {t('crm.aiCards.enrich.apply')}
                         </button>
                       ) : applied.has(s.field) ? (
-                        <span style={{ fontSize: 10, color: '#16a34a', fontFamily: FM }}>✓ Применено</span>
+                        <span style={{ fontSize: 10, color: '#16a34a', fontFamily: FM }}>✓ {t('crm.aiCards.enrich.applied')}</span>
                       ) : null}
                     </div>
                   </div>
@@ -138,11 +143,11 @@ export const AiEnrichPanel: React.FC<Props> = ({ entityType, entityId, onApply }
               ))}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: FG3, fontStyle: 'italic' }}>Предложений нет — данные уже заполнены</div>
+            <div style={{ fontSize: 12, color: FG3, fontStyle: 'italic' }}>{t('crm.aiCards.enrich.none')}</div>
           )}
           {result.updatedAt && (
             <div style={{ fontFamily: FM, fontSize: 9.5, color: '#b5b5b5' }}>
-              Обновлено: {new Date(result.updatedAt).toLocaleString('ru-RU')}
+              {t('crm.aiCards.updated', { date: new Date(result.updatedAt).toLocaleString(uiLocale(i18n.language || 'ru')) })}
             </div>
           )}
         </div>

@@ -50,6 +50,10 @@ export class ChatMessage {
   @Column({ type: 'boolean', default: false })
   isInternal: boolean;
 
+  /** Подпись отправителя для посетителя (ИИ-консультант: «Nova · AI»). */
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  senderName: string | null;
+
   @Column({ type: 'jsonb', nullable: true })
   attachments: ChatAttachment[] | null;
 

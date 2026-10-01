@@ -25,6 +25,7 @@ import '../contacts/crm-lists-design.css';
 import './seo-design.css';
 import './seo-ai.css';
 import { SeoAiSection } from './SeoAiPanel';
+import { DateRangePicker, fromIsoDate, toIsoDate } from '../../components/ui/DateRangePicker';
 
 type MetricKey = 'clicks' | 'impressions' | 'ctr' | 'position';
 type Preset = '7' | '30' | '90' | 'custom';
@@ -923,34 +924,26 @@ export const SeoPage: React.FC = () => {
           ) : (
           <>
           <div className="seo-bar">
-            <div className="seo-seg">
-              {(['7', '30', '90', 'custom'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className={cl(preset === p && 'active')}
-                  onClick={() => (p === 'custom' ? setPreset('custom') : applyPreset(p))}
-                  disabled={busy && p !== 'custom'}
-                >
-                  {t(`crm.marketingSeo.ui.range.${p === 'custom' ? 'custom' : `d${p}`}`)}
-                </button>
-              ))}
-            </div>
-            {preset === 'custom' && (
-              <div className="seo-dates">
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                <span style={{ color: 'var(--fg-4)' }}>→</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => void runSync({ from: dateFrom, to: dateTo })}
-                  disabled={!dateFrom || !dateTo || busy}
-                >
-                  {t('crm.marketingSeo.ui.range.apply')}
-                </button>
-              </div>
-            )}
+            {/* Данные Search Console есть только по вчерашний день. */}
+            <DateRangePicker
+              value={{ from: fromIsoDate(dateFrom), to: fromIsoDate(dateTo) }}
+              presetId={preset === 'custom' ? null : preset}
+              maxDate={fromIsoDate(buildRange(1).to)}
+              presets={(['7', '30', '90'] as const).map((p) => {
+                const r = buildRange(Number(p));
+                return { id: p, label: t(`crm.marketingSeo.ui.range.d${p}`), range: { from: fromIsoDate(r.from), to: fromIsoDate(r.to) } };
+              })}
+              onChange={(v) => {
+                if (busy) return;
+                if (v.presetId) return applyPreset(v.presetId as Exclude<Preset, 'custom'>);
+                if (!v.from || !v.to) return;
+                const range = { from: toIsoDate(v.from), to: toIsoDate(v.to) };
+                setDateFrom(range.from);
+                setDateTo(range.to);
+                setPreset('custom');
+                void runSync(range);
+              }}
+            />
             <div className="seo-bar-spacer" />
             <span className="seo-sync">
               {gsc ? `${gsc.dateFrom} → ${gsc.dateTo}` : ''}

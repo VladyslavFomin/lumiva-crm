@@ -19,6 +19,7 @@ import { getPresetDefinition } from './presetCatalog';
 import { DASH_BTN_PRIMARY } from './dashboardUi';
 import type { ProjectsAnalyticsWidgetConfig } from './analyticsStorage';
 import { ProjectsAnalyticsWidgetEmbed } from './projectsAnalyticsWidgetEmbed';
+import { NativeAnalyticsBlock, canRenderNativeBlock } from './NativeAnalyticsBlock';
 import { loadAnalyticsItemsForSource } from './analyticsPresetData';
 import { loadWorkspaceAnalyticsItems } from './workspaceAnalyticsItems';
 import { loadClientAccountAnalyticsItems } from './clientAccountAnalyticsItems';
@@ -72,6 +73,23 @@ function isWonProject(p: Project): boolean {
   );
 }
 
+/** Если «родной» блок упал с ошибкой — не роняем всю главную, показываем понятное сообщение. */
+class NativeBlockBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error('Native analytics block failed, falling back', error);
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
 export const DashboardPresetWidget: React.FC<{
   instance: DashboardPresetInstance;
   /** Переданные с главной «мои» проекты (для projects совпадает с дашбордом) */
@@ -83,11 +101,17 @@ export const DashboardPresetWidget: React.FC<{
   const locale = resolveLocale(i18n.language);
   const wc = instance.widgetConfig as ProjectsAnalyticsWidgetConfig | undefined;
   const hasEmbed = !!(wc && wc.type);
+  // Блок рисуется тем же кодом, что на странице аналитики (свои данные грузит сам).
+  const native = hasEmbed && canRenderNativeBlock(instance);
   const def = getPresetDefinition(instance.source, instance.slug);
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (native) {
+      setLoading(false);
+      return;
+    }
     if (variant === 'preview') {
       if (projectsFromDashboard != null) {
         setItems(projectsFromDashboard);
@@ -168,7 +192,7 @@ export const DashboardPresetWidget: React.FC<{
     return () => {
       alive = false;
     };
-  }, [instance.source, instance.slug, instance.sourceRef, projectsFromDashboard, variant, t]);
+  }, [instance.source, instance.slug, instance.sourceRef, projectsFromDashboard, variant, t, native]);
 
   const filteredItems = useMemo(
     () => filterByDateRange(items, instance.filters),
@@ -397,6 +421,31 @@ export const DashboardPresetWidget: React.FC<{
     return <div className="text-[11px] text-neutral-500">—</div>;
   }, [hasEmbed, loading, def, instance.slug, filteredItems, periodLabel, t, locale, currency, variant]);
 
+  if (native) {
+    return (
+      <div className="flex flex-col gap-3 min-h-0 h-full">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <NativeBlockBoundary
+            fallback={
+              <div className="flex h-full min-h-[120px] items-center justify-center px-3 text-center text-[11px] text-neutral-500">
+                {t('crm.dashboard.presets.renderFailed', {
+                  defaultValue: 'Не удалось показать блок — откройте аналитику',
+                })}
+              </div>
+            }
+          >
+            <NativeAnalyticsBlock instance={instance} />
+          </NativeBlockBoundary>
+        </div>
+        {variant !== 'preview' && (
+          <Link to={analyticsHref} className={`${DASH_BTN_PRIMARY} w-full shrink-0`}>
+            {t('crm.dashboard.presets.openAnalytics')}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   if (loading && variant !== 'preview') {
     return (
       <div className="flex flex-col gap-3 min-h-0 h-full">
@@ -421,6 +470,7 @@ export const DashboardPresetWidget: React.FC<{
             t={t}
             compact={variant === 'preview'}
             isWorkspaceMode={instance.source === 'workspace' || instance.source === 'client-account'}
+            workspaceObjectId={instance.source === 'workspace' ? instance.sourceRef || undefined : undefined}
           />
         </div>
         {variant !== 'preview' && (

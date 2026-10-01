@@ -1038,10 +1038,12 @@ export const LeadsListPage: React.FC = () => {
           : lead,
       ),
     );
+    // PATCH заменяет meta целиком — шлём полный объект, иначе стираются встречи и прочие данные лида.
+    const metaById = new Map(leads.map((lead) => [lead.id, lead.meta ?? {}]));
     await Promise.all(
       ids.map((id) =>
         updateLead(id, {
-          meta: { archived: true, archivedAt },
+          meta: { ...(metaById.get(id) ?? {}), archived: true, archivedAt },
         }).catch(() => null),
       ),
     );
@@ -1065,10 +1067,12 @@ export const LeadsListPage: React.FC = () => {
           : lead,
       ),
     );
+    // PATCH заменяет meta целиком — шлём полный объект, иначе стираются встречи и прочие данные лида.
+    const metaById = new Map(leads.map((lead) => [lead.id, lead.meta ?? {}]));
     await Promise.all(
       ids.map((id) =>
         updateLead(id, {
-          meta: { deleted: true, deletedAt },
+          meta: { ...(metaById.get(id) ?? {}), deleted: true, deletedAt },
         }).catch(() => null),
       ),
     );

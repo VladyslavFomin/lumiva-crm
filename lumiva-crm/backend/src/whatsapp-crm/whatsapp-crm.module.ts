@@ -11,6 +11,7 @@ import { Lead } from '../leads/lead.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { LeadsModule } from '../leads/leads.module';
 import { NotesModule } from '../notes/notes.module';
+import { AutomationsModule } from '../automations/automations.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { NotesModule } from '../notes/notes.module';
     RbacModule,
     forwardRef(() => LeadsModule),
     forwardRef(() => NotesModule),
+    // Входящее WhatsApp → событие для автоматизаций и ИИ-сотрудников (как у Telegram)
+    forwardRef(() => AutomationsModule),
   ],
   controllers: [WhatsappCrmController],
   providers: [WhatsappCrmService, WhatsappCloudService],

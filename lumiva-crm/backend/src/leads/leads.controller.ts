@@ -23,6 +23,7 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { ConvertLeadDto } from './dto/convert-lead.dto';
 import { LeadActivityService } from './lead-activity.service';
+import { LeadsManagerRoiService } from './leads-manager-roi.service';
 import { LeadAccessService, EffectiveTier } from './lead-access.service';
 import { LeadAccessGrant, LeadAccessScopeType, LeadAccessTier } from './lead-access-grant.entity';
 
@@ -84,6 +85,7 @@ export class LeadsController {
     private readonly staffUsersService: StaffUsersService,
     private readonly rbac: RbacService,
     private readonly dataVisibility: DataVisibilityService,
+    private readonly managerRoi: LeadsManagerRoiService,
   ) {}
 
   /**
@@ -323,6 +325,27 @@ export class LeadsController {
     });
   }
 
+  // ====================== GET /leads/roi/managers ======================
+  // Итоги лидов по менеджерам: выиграно/проиграно, выручка и повторные покупки (помесячно)
+  @Get('roi/managers')
+  @RequirePermission('leads_view_roi', 'read')
+  async roiByManagers(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('source') source?: 'sales' | 'projects',
+    @Query('currency') currency?: string,
+  ) {
+    const restrictToLeadIds = await this.getAnalyticsLeadIds(user);
+    return this.managerRoi.getManagerRoi(user.tenantId, {
+      fromMonth: from,
+      toMonth: to,
+      source: source === 'projects' ? 'projects' : 'sales',
+      displayCurrency: currency,
+      restrictToLeadIds,
+    });
+  }
+
   // ====================== GET /leads/:id/history ======================
   // full access -> любую историю; остальные -> только видимые им лиды (свои/по гранту)
   @Get('funnel-today')
@@ -469,6 +492,21 @@ export class LeadsController {
       );
       if (!canEditAmount) {
         throw new ForbiddenException('Недостаточно прав для изменения суммы лида');
+      }
+    }
+
+    // Корзина/архив: фиксируем, кто и когда перенёс лид (показывается на /leads/trash и /leads/archive).
+    if (dto.meta && typeof dto.meta === 'object') {
+      const prev = (lead.meta ?? {}) as { deleted?: unknown; archived?: unknown };
+      const next = dto.meta as Record<string, unknown>;
+      const actorName = ctx.staff?.fullName ?? (user as { email?: string }).email ?? null;
+      if (next.deleted === true && prev.deleted !== true) {
+        next.deletedAt = next.deletedAt ?? new Date().toISOString();
+        next.deletedBy = next.deletedBy ?? actorName;
+      }
+      if (next.archived === true && prev.archived !== true) {
+        next.archivedAt = next.archivedAt ?? new Date().toISOString();
+        next.archivedBy = next.archivedBy ?? actorName;
       }
     }
 

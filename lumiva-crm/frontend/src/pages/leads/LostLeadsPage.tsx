@@ -19,8 +19,9 @@ import {
   Tooltip,
   Cell,
 } from 'recharts';
+import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../components/ui/DateRangePicker';
 
-type PeriodPreset = '7d' | '30d' | '90d' | 'all';
+type PeriodPreset = '7d' | '30d' | '90d' | 'all' | 'custom';
 
 interface DateRange {
   from?: string;
@@ -136,26 +137,20 @@ export const LostLeadsPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1">
-            <span className="text-[11px] text-slate-600 pl-1">
-              {t('crm.leads.lost.periodLabel')}
-            </span>
-            {(['7d', '30d', '90d', 'all'] as PeriodPreset[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className={
-                  'px-3 py-1.5 rounded-xl text-[11px] transition ' +
-                  (preset === p
-                    ? 'bg-rose-500 text-white font-semibold shadow-[0_10px_30px_rgba(244,63,94,0.25)]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-                }
-              >
-                {presetLabel(p)}
-              </button>
-            ))}
-          </div>
+          <DateRangePicker
+            value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
+            presetId={preset === 'custom' ? null : preset}
+            presets={(['7d', '30d', '90d', 'all'] as const).map((p) => ({
+              id: p,
+              label: presetLabel(p),
+              range: p === 'all' ? { from: null, to: null } : lastDays(Number(p.replace('d', ''))),
+            }))}
+            onChange={(v) => {
+              if (v.presetId) return applyPreset(v.presetId as PeriodPreset);
+              setPreset('custom');
+              setRange({ from: v.from ? toIsoDate(v.from) : undefined, to: v.to ? toIsoDate(v.to) : undefined });
+            }}
+          />
         </section>
 
         {loading && (

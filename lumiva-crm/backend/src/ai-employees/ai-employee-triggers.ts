@@ -90,6 +90,7 @@ export const AI_TRIGGER_CATALOG: AiTriggerCatalogItem[] = [
   { event: 'contact.created', group: 'clients', entity: 'contact', defaultScope: 'all' },
   { event: 'company.created', group: 'clients', entity: 'company', defaultScope: 'all' },
   { event: 'telegram.message_received', group: 'messages', entity: 'telegram_message', defaultScope: 'mine' },
+  { event: 'whatsapp.message_received', group: 'messages', entity: 'whatsapp_message', defaultScope: 'mine' },
   { event: 'email.received', group: 'messages', entity: 'email', defaultScope: 'mine' },
   { event: 'booking.reservation_created', group: 'bookings', entity: 'reservation', defaultScope: 'all' },
   { event: 'booking.reservation_status_changed', group: 'bookings', entity: 'reservation', defaultScope: 'all' },
@@ -109,6 +110,7 @@ export const AI_ASSIGNEE_IMPLICIT_EVENTS = new Set([
   'project.status_changed',
   'task.status_changed',
   'telegram.message_received',
+  'whatsapp.message_received',
   'custom_object.status_changed',
 ]);
 

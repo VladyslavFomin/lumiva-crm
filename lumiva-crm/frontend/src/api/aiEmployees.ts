@@ -10,6 +10,8 @@ export type AiEmployeeRoleKey =
   | 'smm_manager'
   | 'seo_manager'
   | 'reviews_manager'
+  | 'chat_operator'
+  | 'messenger_operator'
   | 'email_assistant'
   | 'crm_analyst'
   | 'reservation_assistant';
@@ -655,3 +657,59 @@ export interface AiMissedWork {
   }>;
 }
 export const fetchAiMissedWork = (days = 7) => api.get<AiMissedWork>(`/ai-missed-work?days=${days}`);
+
+// ───────── ИИ-онлайн-консультант (роль chat_operator): бриф и проверка ответа ─────────
+/** Ответ «Проверить ответ»; bookingTrace — какие шаги записи ИИ сделал бы (в тесте бронь не создаётся). */
+export interface ConsultantTestReply {
+  reply: string;
+  handoff: boolean;
+  handoffReason: string | null;
+  bookingTrace?: string[];
+}
+export interface ChatOperatorConfig {
+  brief: string;
+  maxRepliesPerChat: number;
+  collectContacts: boolean;
+}
+export const fetchChatOperatorConfig = (id: string) => api.get<ChatOperatorConfig>(`/ai-agents/${encodeURIComponent(id)}/online-chat`);
+export const updateChatOperatorConfig = (id: string, patch: Partial<ChatOperatorConfig>) =>
+  api.patch<ChatOperatorConfig>(`/ai-agents/${encodeURIComponent(id)}/online-chat`, patch);
+export const testChatOperatorReply = (id: string, question: string, brief?: string) =>
+  api.post<ConsultantTestReply>(`/ai-agents/${encodeURIComponent(id)}/online-chat/test`, { question, brief });
+
+// ───────── ИИ-консультант мессенджеров (роль messenger_operator): каналы, брифы, проверка ─────────
+export type MessengerChannel = 'whatsapp' | 'telegram';
+export interface MessengerOperatorConfig {
+  channels: Record<MessengerChannel, { enabled: boolean; brief: string }>;
+  maxRepliesPerChat: number;
+}
+export const fetchMessengerOperatorConfig = (id: string) => api.get<MessengerOperatorConfig>(`/ai-agents/${encodeURIComponent(id)}/messenger`);
+export const updateMessengerOperatorConfig = (id: string, patch: Partial<MessengerOperatorConfig>) =>
+  api.patch<MessengerOperatorConfig>(`/ai-agents/${encodeURIComponent(id)}/messenger`, patch);
+export const testMessengerOperatorReply = (id: string, channel: MessengerChannel, question: string, brief?: string) =>
+  api.post<ConsultantTestReply>(`/ai-agents/${encodeURIComponent(id)}/messenger/test`, {
+    channel,
+    question,
+    brief,
+  });
+
+// ───────── Запись в «Бронирования» ИИ-консультантом (сайт и мессенджеры) ─────────
+export interface AiBookingConfig {
+  enabled: boolean;
+  serviceIds: string[];
+  allowChanges: boolean;
+}
+export interface AiBookingSettings {
+  config: AiBookingConfig;
+  status: {
+    componentEnabled: boolean;
+    ready: boolean;
+    reason: 'component_disabled' | 'no_locations' | 'no_services' | 'unavailable' | null;
+    timezone: string | null;
+    confirmationMode: 'auto' | 'manual' | null;
+    services: Array<{ id: string; name: string; category: string | null; minutes: number; price: number; currency: string; staffCount: number }>;
+  };
+}
+export const fetchAiBookingSettings = (id: string) => api.get<AiBookingSettings>(`/ai-agents/${encodeURIComponent(id)}/booking`);
+export const updateAiBookingSettings = (id: string, patch: Partial<AiBookingConfig>) =>
+  api.patch<AiBookingSettings>(`/ai-agents/${encodeURIComponent(id)}/booking`, patch);

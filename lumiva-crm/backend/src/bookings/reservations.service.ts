@@ -323,6 +323,31 @@ export class ReservationsService {
     return { leadId: lead.id, contactId: contact.id };
   }
 
+  /** Известный лид из переписки: берём его контакт (или находим/создаём контакт и привязываем);
+   * лида нет/чужой — обычный поиск-или-создание по телефону/e-mail. */
+  private async resolveForKnownLead(
+    tenantId: string,
+    leadId: string | undefined,
+    input: ResolveLeadAndContactInput,
+  ): Promise<{ leadId: string; contactId: string }> {
+    const lead = leadId ? await this.leadsRepo.findOne({ where: { id: leadId, tenantId } }) : null;
+    if (!lead) return this.resolveLeadAndContact(tenantId, input);
+    if (lead.contactId) return { leadId: lead.id, contactId: lead.contactId };
+    const phone = input.phone?.trim() || lead.phone || null;
+    const email = input.email?.trim().toLowerCase() || lead.email || null;
+    let contact: Contact | null = null;
+    if (phone) contact = await this.contactsRepo.findOne({ where: { tenantId, phone } });
+    if (!contact && email) contact = await this.contactsRepo.findOne({ where: { tenantId, email } });
+    if (!contact) {
+      const name = input.name?.trim() || lead.name || null;
+      contact = await this.contactsRepo.save(
+        this.contactsRepo.create({ tenantId, fullName: name, firstName: name, phone, email, status: 'active' }),
+      );
+    }
+    await this.leadsRepo.update({ id: lead.id, tenantId }, { contactId: contact.id });
+    return { leadId: lead.id, contactId: contact.id };
+  }
+
   /* ---------- создание / изменение ---------- */
 
   /**
@@ -371,6 +396,9 @@ export class ReservationsService {
       currency?: string;
       customFields?: Record<string, any>;
       assignedUserId?: string;
+      /** Лид, с которым уже идёт переписка (ИИ-консультант в WhatsApp/Telegram/чате) — бронь
+       * привязывается к нему, а не к лиду, найденному/созданному по телефону. */
+      leadId?: string;
     },
     actingStaffUserId: string | null,
     options: { skipValidation?: boolean } = {},
@@ -410,7 +438,7 @@ export class ReservationsService {
       if (!conflict.ok) throw new BadRequestException(conflict.reason);
     }
 
-    const { leadId, contactId } = await this.resolveLeadAndContact(tenantId, {
+    const { leadId, contactId } = await this.resolveForKnownLead(tenantId, dto.leadId, {
       name: dto.customerName,
       phone: dto.customerPhone,
       email: dto.customerEmail,
@@ -565,6 +593,15 @@ export class ReservationsService {
 
   confirm(tenantId: string, id: string, actingStaffUserId: string | null) {
     return this.transition(tenantId, id, 'confirmed', actingStaffUserId, 'Бронь подтверждена');
+  }
+
+  cancelByCustomer(tenantId: string, id: string, description = 'Бронь отменена клиентом') {
+    return this.transition(tenantId, id, 'cancelled_by_customer', null, description);
+  }
+
+  /** Запись в журнал брони от имени не-сотрудника (ИИ-консультант и т.п.). */
+  addNote(tenantId: string, id: string, description: string) {
+    return this.logActivity(tenantId, id, 'note_added', null, description);
   }
 
   cancelByBusiness(tenantId: string, id: string, actingStaffUserId: string | null) {

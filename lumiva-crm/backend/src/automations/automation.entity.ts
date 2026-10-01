@@ -52,6 +52,9 @@ export enum TriggerEvent {
   
   // Telegram
   TELEGRAM_MESSAGE_RECEIVED = 'telegram.message_received',
+
+  // WhatsApp (Cloud API, входящее от клиента)
+  WHATSAPP_MESSAGE_RECEIVED = 'whatsapp.message_received',
   
   // Заметки
   NOTE_CREATED = 'note.created',

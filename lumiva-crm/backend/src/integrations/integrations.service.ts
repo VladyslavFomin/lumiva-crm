@@ -750,23 +750,28 @@ export class IntegrationsService {
       offset += pageLimit;
     }
     const toUpsert = applyWorkspaceImportAggregation(collected, mapping);
+    let firstSkipError: string | undefined;
     for (const flat of toUpsert) {
-      const wr = await this.customObjectsService.upsertRecordFromWooMapped(
+      const wr = await this.customObjectsService.upsertRecordFromWorkspaceMapped(
         tenantId,
         customObjectId,
         flat,
         {
-          enabledWooColumns: mapping.enabledWooColumns,
-          wooColumnToFieldKey: mapping.wooColumnToFieldKey,
-          statusFieldKey: mapping.statusFieldKey ?? null,
+          enabledColumns: mapping.enabledWooColumns,
+          columnToFieldKey: mapping.wooColumnToFieldKey,
         },
       );
-      if (wr === 'created') workspaceCreated++;
-      else if (wr === 'updated') workspaceUpdated++;
-      else workspaceSkipped++;
+      if (wr.status === 'created') workspaceCreated++;
+      else if (wr.status === 'updated') workspaceUpdated++;
+      else {
+        workspaceSkipped++;
+        firstSkipError ||= wr.error;
+      }
     }
     const capped = totalImported >= maxRows;
     const message = `GA4 → таблица: создано ${workspaceCreated}, обновлено ${workspaceUpdated}, пропущено ${workspaceSkipped}${
+      firstSkipError ? ` (первая ошибка: ${firstSkipError})` : ''
+    }${
       capped ? ` (лимит за один запрос: ${maxRows} строк; при необходимости повторите импорт).` : '.'
     }`;
     return {

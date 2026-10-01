@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Put,
   Post,
   Query,
   Req,
@@ -23,6 +24,7 @@ import type { CurrentUserPayload } from '../common/decorators/current-user.inter
 
 import { MarketingService } from './marketing.service';
 import { MetaAdsOauthService } from './meta-ads-oauth.service';
+import { MarketingRoiService, type RoiRevenueSource } from './marketing-roi.service';
 import { MetaAdsConnectDto, MetaAdsOAuthStartDto } from './dto/meta-ads-oauth.dto';
 import { CreateUtmLinkDto, CreateUtmTemplateDto, UpdateUtmTemplateDto } from './dto/utm-template.dto';
 import { CreateAutomationDto } from './dto/create-automation.dto';
@@ -38,13 +40,98 @@ export class MarketingController {
   constructor(
     private readonly marketing: MarketingService,
     private readonly metaAdsOauth: MetaAdsOauthService,
+    private readonly roi: MarketingRoiService,
   ) {}
+
+  /** Кабинеты, синхронизация которых идёт прямо сейчас (защита от параллельного запуска). */
+  private static readonly syncRunning = new Set<string>();
 
   private requireTenant(user: CurrentUserPayload): string {
     if (!user?.tenantId) {
       throw new BadRequestException('No tenant in auth payload');
     }
     return user.tenantId;
+  }
+
+  // --- ROI по клиентам (кабинет → компания CRM, выручка по месяцам) ---
+
+  @Get('roi')
+  @UseGuards(JwtAuthGuard)
+  getRoi(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('currency') currency?: string,
+    @Query('sources') sources?: string,
+  ) {
+    const list = (sources || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s): s is RoiRevenueSource => ['manual', 'ads', 'ga4', 'crm'].includes(s));
+    return this.roi.getRoi(this.requireTenant(user), {
+      fromMonth: from?.trim(),
+      toMonth: to?.trim(),
+      displayCurrency: currency?.trim(),
+      sources: list,
+    });
+  }
+
+  @Get('roi/accounts')
+  @UseGuards(JwtAuthGuard)
+  getRoiAccounts(@CurrentUser() user: CurrentUserPayload) {
+    return this.roi.listAccounts(this.requireTenant(user));
+  }
+
+  @Put('roi/accounts')
+  @UseGuards(JwtAuthGuard)
+  setRoiAccountClient(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { accountKey?: string; companyId?: string | null },
+  ) {
+    return this.roi.setAccountClient(this.requireTenant(user), String(body?.accountKey || ''), body?.companyId || null);
+  }
+
+  @Put('roi/accounts/meta-actions')
+  @UseGuards(JwtAuthGuard)
+  setRoiMetaActions(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { accountKey?: string; conversionAction?: string[]; revenueAction?: string[] },
+  ) {
+    return this.roi.setMetaActions(
+      this.requireTenant(user),
+      String(body?.accountKey || ''),
+      body?.conversionAction || [],
+      body?.revenueAction || [],
+    );
+  }
+
+  @Get('roi/revenue')
+  @UseGuards(JwtAuthGuard)
+  getRoiRevenue(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.roi.listRevenue(this.requireTenant(user), from?.trim(), to?.trim());
+  }
+
+  @Put('roi/revenue')
+  @UseGuards(JwtAuthGuard)
+  upsertRoiRevenue(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body()
+    body: { companyId: string; month: string; amount: number | string | null; currency?: string; note?: string | null },
+  ) {
+    return this.roi.upsertRevenue(this.requireTenant(user), body);
+  }
+
+  @Post('roi/revenue/import')
+  @UseGuards(JwtAuthGuard)
+  importRoiRevenue(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { rows?: Array<{ company?: string; companyId?: string; month?: string; amount?: number | string; currency?: string }> },
+  ) {
+    return this.roi.importRevenue(this.requireTenant(user), body?.rows || []);
   }
 
   // --- Traffic ---
@@ -80,6 +167,9 @@ export class MarketingController {
     @Query('to') to?: string,
     @Query('dataSource') dataSource?: string,
     @Query('onlyUnattributed') onlyUnattributedRaw?: string,
+    @Query('integrationId') integrationId?: string,
+    @Query('q') q?: string,
+    @Query('country') country?: string,
   ) {
     const onlyUnattributed =
       onlyUnattributedRaw === '1' ||
@@ -91,6 +181,9 @@ export class MarketingController {
       to?.trim() || undefined,
       dataSource?.trim() || undefined,
       onlyUnattributed,
+      undefined,
+      integrationId?.trim() || undefined,
+      { q, country },
     );
   }
 
@@ -102,6 +195,9 @@ export class MarketingController {
     @Query('to') to?: string,
     @Query('dataSource') dataSource?: string,
     @Query('onlyUnattributed') onlyUnattributedRaw?: string,
+    @Query('integrationId') integrationId?: string,
+    @Query('q') q?: string,
+    @Query('country') country?: string,
   ) {
     const onlyUnattributed =
       onlyUnattributedRaw === '1' ||
@@ -113,6 +209,8 @@ export class MarketingController {
       to?.trim() || undefined,
       dataSource?.trim() || undefined,
       onlyUnattributed,
+      integrationId?.trim() || undefined,
+      { q, country },
     );
   }
 
@@ -487,6 +585,13 @@ export class MarketingController {
     return this.marketing.deleteMarketingIntegration(this.requireTenant(user), id);
   }
 
+  /** Те же курсы ЕЦБ без авторизации — для публичных ссылок на аналитику (данных клиента тут нет).
+   * Без force: только кэш/плановое обновление, чтобы анонимный запрос не дёргал внешний API. */
+  @Get('public-fx-rates')
+  publicMarketingFxRates(@Query('display') display?: string) {
+    return this.marketing.getMarketingFxRates(display?.trim() || 'EUR', { force: false });
+  }
+
   /** Курсы Frankfurter (ECB): полный набор валют для пересчёта в выбранную валюту отчёта. */
   @Get('fx-rates')
   @UseGuards(JwtAuthGuard)
@@ -505,10 +610,34 @@ export class MarketingController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const rowsSaved = await this.marketing.syncMarketingIntegrationById(
-      this.requireTenant(user),
-      id,
-    );
+    const tenantId = this.requireTenant(user);
+    // Большой кабинет (Meta за 2 года × кампании × страны) синхронизируется дольше таймаута nginx
+    // (60 с) — раньше браузер получал 504, хотя синк на сервере успешно завершался. Ждём до 45 с,
+    // дальше отвечаем «продолжается в фоне». Повторный запуск того же кабинета, пока идёт первый,
+    // не стартуем: два параллельных синка удаляли/вставляли бы одни и те же строки.
+    if (MarketingController.syncRunning.has(id)) {
+      return { ok: true as const, background: true, rowsSaved: 0, message: 'Синхронизация этого кабинета уже идёт — данные появятся после её завершения.' };
+    }
+    MarketingController.syncRunning.add(id);
+    const job = this.marketing
+      .syncMarketingIntegrationById(tenantId, id)
+      .finally(() => MarketingController.syncRunning.delete(id));
+    const outcome = await Promise.race([
+      job.then((n) => ({ done: true as const, n })),
+      new Promise<{ done: false }>((resolve) => setTimeout(() => resolve({ done: false }), 45_000)),
+    ]);
+    if (!outcome.done) {
+      job.catch((e: unknown) =>
+        console.warn(`Marketing sync ${id} (фон) не удался: ${e instanceof Error ? e.message : e}`),
+      );
+      return {
+        ok: true as const,
+        background: true,
+        rowsSaved: 0,
+        message: 'Синхронизация большого кабинета продолжается в фоне — данные появятся через 1–2 минуты.',
+      };
+    }
+    const rowsSaved = outcome.n;
     res.setHeader('X-Marketing-Sync-Rows', String(rowsSaved));
     const message = `Синхронизировано строк: ${rowsSaved}`;
     // Дублируем поля + готовая строка: внешние оболочки (pl1, виджеты) часто показывают только t('…{{count}}') без count.

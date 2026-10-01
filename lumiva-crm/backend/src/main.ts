@@ -108,6 +108,22 @@ async function bootstrap() {
   expressApp.use('/v1/uploads', serveLegacyUploadsIfPresent(uploadsRoot));
   expressApp.use('/v1/uploads', express.static(uploadsRoot));
 
+  // Вебхук WhatsApp (Meta) подписан HMAC-SHA256 от СЫРЫХ байт тела (X-Hub-Signature-256). Meta
+  // экранирует кириллицу как \uXXXX, поэтому JSON.stringify(req.body) подпись не повторит —
+  // сохраняем исходный буфер до того, как тело распарсит Nest.
+  expressApp.use(
+    '/v1/webhooks/whatsapp',
+    express.json({
+      limit: '2mb',
+      verify: (req, _res, buf) => {
+        (req as any).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
+
+  // Отчёт аналитики на почту несёт снимки блоков (PNG base64) — стандартные 100kb не хватит.
+  expressApp.use('/v1/custom-objects/:objectId/analytics-report-email', express.json({ limit: '20mb' }));
+
   const adapter = new ExpressAdapter(expressApp);
   const app = await NestFactory.create(AppModule, adapter);
 
@@ -122,6 +138,7 @@ async function bootstrap() {
     ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
     : [
         'https://lumiva.agency',
+        'https://www.lumiva.agency',
         'https://crm.lumiva.agency',
         'https://pl1.lumiva.agency',
         'http://localhost:5173',

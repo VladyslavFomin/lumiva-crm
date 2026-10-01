@@ -508,7 +508,9 @@
       "file": "File",
       "confirmDelete": "Delete this conversation? Messages will be removed permanently.",
       "errors": {
-        "deleteFailed": "Could not delete chat"
+        "deleteFailed": "Could not delete chat",
+        "statusFailed": "Failed to change conversation status",
+        "sendFailed": "Failed to send the message"
       },
       "dialogTitle": "Conversation #{{id}}",
       "title": "Online chat",
@@ -530,7 +532,96 @@
       "listHeading": "Conversations",
       "siteLabel": "Site",
       "openLead": "Open lead",
-      "noLeadYet": "No lead yet (widget form not submitted)."
+      "noLeadYet": "No lead yet (widget form not submitted).",
+      "ai": {
+        "mode": {
+          "auto": "{{name}} replies to visitors itself",
+          "draft": "{{name}} drafts replies — you send them",
+          "off": "{{name}} is in Suggest mode — does not write in the chat"
+        },
+        "noBrief": "The brief is empty — the consultant does not know your services and prices",
+        "settings": "Set up the consultant",
+        "notHired": "An AI consultant can answer visitors 24/7 about your services and prices.",
+        "activate": "Activate {{name}}",
+        "hire": "Hire an AI consultant",
+        "noSeats": "No free AI employee seats",
+        "badgeAi": "AI",
+        "badgeHuman": "Operator",
+        "pause": "Turn AI off in this chat",
+        "resume": "Bring AI back to this chat",
+        "pauseHint": "The AI stops replying in this chat",
+        "resumeHint": "The AI will answer new visitor messages again",
+        "toggleFailed": "Could not switch the AI",
+        "draftLabel": "Draft · {{name}} — visitor can’t see it",
+        "useDraft": "Use as reply",
+        "takeOver": "Take over from AI",
+        "giveBack": "Return to AI",
+        "offTitle": "AI consultant is not connected — operators reply",
+        "modeHint": {
+          "auto": "When you write in a conversation, AI turns off there automatically",
+          "draft": "Drafts are visible to staff only — the visitor does not see them",
+          "off": "New messages wait for an operator reply"
+        }
+      },
+      "kicker": "Customer communication",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "noMatches": "No conversations found",
+      "noMessages": "No messages",
+      "youPrefix": "You: ",
+      "aiPrefix": "AI: ",
+      "waitingReply": "Awaiting reply",
+      "operator": "Operator",
+      "internalNote": "Internal note",
+      "back": "Back to list",
+      "panelToggle": "Visitor details",
+      "closedBar": "Conversation closed",
+      "reopen": "Reopen",
+      "reopenDialog": "Reopen conversation",
+      "closeDialog": "Close conversation",
+      "enterHint": "Enter to send",
+      "deleteTitle": "Delete chat?",
+      "deleteText": "The conversation with {{name}} (#{{id}}) will be permanently deleted.",
+      "deleteConfirm": "Delete",
+      "cancel": "Cancel",
+      "stats": {
+        "open": "Open",
+        "waiting": "Awaiting reply",
+        "ai": "Handled by AI"
+      },
+      "filters": {
+        "all": "All",
+        "ai": "AI",
+        "op": "Operator",
+        "closed": "Closed"
+      },
+      "quick": {
+        "greet": "Hello! How can I help you?",
+        "handoff": "I will pass your question to a manager",
+        "askContact": "Please leave your phone number"
+      },
+      "note": {
+        "aiPrefix": "Currently answering:",
+        "aiSuffix": "Your message will turn off AI in this conversation.",
+        "draft": "{{name}} prepares drafts — you send them",
+        "human": "You are handling this conversation"
+      },
+      "info": {
+        "visitor": "Visitor",
+        "name": "Name",
+        "email": "Email",
+        "started": "Started",
+        "messages": "Messages",
+        "status": "Status",
+        "source": "Source",
+        "site": "Website",
+        "channel": "Channel",
+        "campaign": "Campaign",
+        "content": "Ad",
+        "term": "Keyword",
+        "noUtm": "Direct visit",
+        "lead": "Lead"
+      }
     },
     "clientAccounts": {
       "title": "Client accounts",
@@ -1227,7 +1318,8 @@
       "marketingUtmLinks": "Tagged links",
       "aiEmployeesKnowledge": "Knowledge base",
       "aiEmployeesInsights": "Impact",
-      "marketingReviews": "Reviews"
+      "marketingReviews": "Reviews",
+      "marketingRoi": "ROI by client"
     },
     "aiEmployees": {
       "badge": {
@@ -1869,6 +1961,34 @@
             "Review topics and trends",
             "Tasks for bad reviews"
           ]
+        },
+        "chat_operator": {
+          "title": "AI Online Chat Consultant",
+          "shortTitle": "Chat Consultant",
+          "department": "Customer Service",
+          "jobTitle": "AI Online Chat Consultant",
+          "description": "Answers visitors in your website chat 24/7 about services, prices and terms from your brief, collects contacts into leads and calls a manager when needed.",
+          "functions": [
+            "24/7 website chat replies",
+            "Services and prices from your brief",
+            "Contacts → leads",
+            "Hand-off to a manager",
+            "Replies in the visitor’s language"
+          ]
+        },
+        "messenger_operator": {
+          "title": "AI Messenger Consultant",
+          "shortTitle": "Messenger Consultant",
+          "department": "Customer Service",
+          "jobTitle": "AI Messenger Consultant",
+          "description": "Answers clients in WhatsApp and Telegram 24/7 about services, prices and terms — a separate brief for each channel, replies in the client’s language and calls a manager when needed.",
+          "functions": [
+            "24/7 WhatsApp and Telegram replies",
+            "Separate brief per channel",
+            "Services and prices from your brief",
+            "Hand-off to a manager",
+            "Replies in the client’s language"
+          ]
         }
       },
       "departments": {
@@ -1979,6 +2099,10 @@
           "title": "Send to Telegram",
           "hint": "Really replies to clients in existing Telegram bot conversations."
         },
+        "send_whatsapp": {
+          "title": "Send WhatsApp messages",
+          "hint": "Actually replies to clients in existing WhatsApp conversations (within 24 hours of their last message)."
+        },
         "create_project": {
           "title": "Create projects",
           "hint": "Creates projects in the Projects module."
@@ -1998,6 +2122,14 @@
         "create_meeting": {
           "title": "Meetings",
           "hint": "Creates a real meeting (date, link, attendees) — visible on the team calendar."
+        },
+        "reply_online_chat": {
+          "title": "Reply in the website chat",
+          "hint": "The reply goes to the visitor right away (in Auto mode). Off — the AI writes a draft only the operator sees."
+        },
+        "read_products": {
+          "title": "Catalog and prices",
+          "hint": "Products and online-booking services with prices — so the consultant quotes current prices."
         }
       },
       "config": {
@@ -2078,6 +2210,10 @@
           "telegram_message_received": {
             "title": "Client message in Telegram",
             "hint": "A client wrote to the bot. The employee drafts or sends a reply according to approval rules."
+          },
+          "whatsapp_message_received": {
+            "title": "Client message in WhatsApp",
+            "hint": "A client wrote on WhatsApp. The employee reads the thread, replies or drafts a reply per approval rules, leaves a note and tasks."
           },
           "email_received": {
             "title": "Email from a client",
@@ -2362,7 +2498,148 @@
           "hotel_reservation_status_changed": "reservation changes",
           "email_received": "incoming emails",
           "telegram_message_received": "Telegram messages",
-          "handoff": "handed over by colleagues"
+          "whatsapp_message_received": "WhatsApp messages",
+          "handoff": "handed over by colleagues",
+          "online_chat_message_received": "online chat messages"
+        }
+      },
+      "chatOperator": {
+        "tab": "Online chat",
+        "briefTitle": "What the consultant knows",
+        "briefHint": "Describe your services, prices, timelines, terms, address and contacts, FAQs and tone. The consultant answers only from this text, the knowledge base and the catalog — and honestly calls a manager when the answer is not there.",
+        "briefPlaceholder": "Example:\nWe are Lumiva, a digital agency in Antalya.\n\nServices and prices:\n— Landing page — from €900, 2–3 weeks\n— Corporate website — from €2,500\n— SEO — from €600/month\n\nTerms: 50% prepayment, contract; clients in Turkey, Russia and the EU.\nContacts: +90 …, hello@…\n\nFAQ:\n— Do you do design? Yes, it is included.\n\nTone: friendly, short.",
+        "sourcesHint": "Besides the brief the consultant uses the shared AI knowledge base and (with the “Catalog and prices” permission) products and services with prices.",
+        "knowledgeLink": "Knowledge base →",
+        "modeTitle": "How it works",
+        "mode": {
+          "auto": {
+            "t": "Replies to visitors itself",
+            "d": "Auto mode and the “Reply in the website chat” permission are on. If an operator replies in a chat, the AI goes quiet in it."
+          },
+          "draft": {
+            "t": "Writes drafts for the operator",
+            "d": "The visitor does not see AI replies: a draft appears in /chat and the operator sends it in one click. To let the AI reply itself, choose Auto mode and enable “Reply in the website chat” on the Access tab."
+          },
+          "off": {
+            "t": "Does not reply",
+            "d": "In Suggest mode the consultant does not write in the chat. Choose Assistant (drafts) or Auto on the Access tab."
+          }
+        },
+        "collectContacts": "Ask for name and phone/e-mail when the visitor is interested (creates a lead)",
+        "maxReplies": "Max AI replies per chat",
+        "humanNote": "When a question is outside the brief, a discount is needed, the visitor asks for a person or wants to order — the AI calls a manager: owners get a notification with a link to the chat.",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "saveError": "Could not save",
+        "loadError": "Could not load settings",
+        "openInbox": "Open online chat",
+        "testTitle": "Test a reply",
+        "testHint": "Ask a question as a visitor — the consultant answers from the current brief (even unsaved). Nothing is sent.",
+        "testPlaceholder": "How much is a website and how long does it take?",
+        "testBtn": "Ask",
+        "testing": "Thinking…",
+        "testError": "Could not get a reply",
+        "wouldHandoff": "In a real chat it would call a manager: {{reason}}"
+      },
+      "messengerOperator": {
+        "tab": "Channels & briefs",
+        "channelsTitle": "Channels",
+        "channelsHint": "Each messenger has its own brief: services, prices, terms, tone. The consultant answers only from it, the knowledge base and the Products catalog.",
+        "state": {
+          "off": "off",
+          "auto": "replies itself",
+          "draft": "drafts"
+        },
+        "enable": "Reply to clients in {{channel}}",
+        "mode": {
+          "off": {
+            "t": "Channel off",
+            "d": "The consultant doesn't reply in {{channel}}."
+          },
+          "auto": {
+            "t": "Replies itself",
+            "d": "Replies go to clients in {{channel}} right away."
+          },
+          "draft": {
+            "t": "Drafts",
+            "d": "You get the reply as a notification and send it yourself. To reply on its own: “Auto” mode and the “Send {{channel}} messages” permission on the access tab."
+          }
+        },
+        "briefTitle": "Brief for {{channel}}",
+        "briefPlaceholder": {
+          "whatsapp": "Who you are, services and prices, payment terms and timelines, address and opening hours, how to book, which questions go to a manager, tone…",
+          "telegram": "Who you are, services and prices, payment terms and timelines, how to book, which questions go to a manager, tone…"
+        },
+        "testTitle": "Test a reply",
+        "testPlaceholder": "A question as a client would ask, e.g. how much is…",
+        "testBtn": "Test",
+        "testing": "Thinking…",
+        "openInbox": "{{channel}} conversations",
+        "wouldHandoff": "Would call a manager: {{reason}}",
+        "maxReplies": "Max AI replies per conversation per day",
+        "rulesNote": "If a teammate replies to the client, the consultant stays silent in that chat for 12 hours. While the consultant runs a channel, other AI employees don't message clients there. In Telegram the consultant replaces the bot's built-in AI; if the bot runs a flow, the flow replies. Keep shared facts in the",
+        "knowledgeLink": "knowledge base",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "saveError": "Could not save",
+        "loadError": "Could not load settings",
+        "testError": "Could not get a reply"
+      },
+      "aiBooking": {
+        "title": "Booking into Bookings",
+        "hint": "The AI checks free time against staff schedules and existing bookings, books the client and creates the reservation in the Bookings module. Works everywhere this employee replies.",
+        "enable": "Book clients into Bookings",
+        "state": {
+          "off": {
+            "t": "Booking is off",
+            "d": "The AI only answers questions and hands clients who want to book over to a manager."
+          },
+          "on": {
+            "t": "The AI books clients",
+            "auto": "New bookings are confirmed immediately. Timezone: {{tz}}.",
+            "manual": "New bookings wait for an administrator's confirmation — you'll get a notification. Timezone: {{tz}}."
+          },
+          "notReady": {
+            "t": "Booking doesn't work yet"
+          }
+        },
+        "reason": {
+          "component_disabled": "The Bookings module is turned off for your company.",
+          "no_locations": "There are no active locations in Bookings.",
+          "no_services": "There are no active bookable services in Bookings.",
+          "unavailable": "The Bookings module is unavailable right now."
+        },
+        "reasonLink": {
+          "no_locations": "Add a location",
+          "no_services": "Add services"
+        },
+        "settingsLink": "Booking settings",
+        "servicesTitle": "Which services the AI may book",
+        "servicesAll": "All active services ({{count}})",
+        "servicesSelected": "Only selected",
+        "pickService": "Select at least one service",
+        "minutes": "{{n}} min",
+        "priceOnRequest": "price on request",
+        "masters_one": "{{count}} master",
+        "masters_other": "{{count}} masters",
+        "noMasters": "no master",
+        "allowChanges": "Let clients cancel and reschedule their bookings via the AI",
+        "howItWorks": "Free time follows the location's opening hours, staff schedules and time off, existing bookings and your booking rules (minimum notice, booking horizon, buffers). Before booking, the AI always asks the client to confirm the service, date and time. You get a notification for every booking, cancellation and reschedule.",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "saveError": "Couldn't save",
+        "loadError": "Couldn't load booking settings",
+        "trace": {
+          "find_slots": "Checked free time",
+          "book": "Would book the client",
+          "my_bookings": "Looked up the client's bookings",
+          "cancel": "Would cancel a booking",
+          "reschedule": "Would reschedule a booking",
+          "other": "Booking step",
+          "testNote": "This is a test: no bookings are created or changed."
         }
       }
     },
@@ -3169,6 +3446,14 @@
         "stepDone": "Import",
         "fileSectionTitle": "File",
         "fileSectionHint": "Excel (.xlsx) or CSV. The first row is the column headers.",
+        "aiReshapeOfferTitle": "This looks like a pivot report",
+        "aiReshapeManualTitle": "Table structure",
+        "aiReshapeButton": "Analyze with AI",
+        "aiReshapeLoading": "AI is analyzing...",
+        "aiReshapeOfferHint": "AI can group rows and expand repeated values into separate columns.",
+        "aiReshapeAlreadyFlat": "The table already has a flat structure.",
+        "aiReshapeDone": "The structure was transformed. Grouping: {{groupBy}}. Columns: {{columns}}.",
+        "aiReshapeError": "Could not analyze the table structure with AI.",
         "fileColumn": "File column",
         "nextStepHint": "Next step — push the rows into the main table: that's where statuses, owners and due dates live.",
         "chooseFile": "Choose file",
@@ -3479,6 +3764,14 @@
         "prev": "Back",
         "next": "Forward",
         "searchEvents": "Search events...",
+        "dateField": "Date field",
+        "dateFieldAuto": "Date: automatic",
+        "showTime": "Show time",
+        "displayColumns": "Display columns",
+        "upcomingTitle": "Upcoming records",
+        "upcomingDate": "Date",
+        "upcomingRecord": "Record",
+        "upcomingEmpty": "No records with dates.",
         "noDatedRecords": "No records with dates yet.",
         "moreCount": "+{{count}} more"
       },
@@ -3503,7 +3796,8 @@
         "kinds": {
           "monthly": "Monthly spend",
           "rows": "Ad accounts",
-          "import": "Integration import"
+          "import": "Integration import",
+          "roi": "ROI by client"
         },
         "dialog": {
           "title": "Add a source from ad accounts",
@@ -3546,7 +3840,36 @@
         "aiExpand": "Show report",
         "aiNoAgents": "No hired AI employees have access to this table",
         "aiError": "Could not compute",
-        "aiComputedBy": "{{name}} · {{date}}"
+        "aiComputedBy": "{{name}} · {{date}}",
+        "aiLastReport": "last report {{date}}",
+        "aiPanelExpand": "Expand",
+        "aiPanelCollapse": "Collapse"
+      },
+      "report": {
+        "button": "Email report",
+        "title": "Email the report",
+        "subtitle": "Analytics blocks (as on screen), the AI analysis and your comment — in one email.",
+        "to": "To",
+        "subject": "Subject",
+        "comment": "Comment",
+        "commentPlaceholder": "E.g. key takeaways for the month and what we suggest",
+        "includeAi": "Include the table's AI analysis",
+        "aiFrom": "Latest report: {{name}}, {{date}}",
+        "noAi": "No AI analysis yet — run it in the “AI table analysis” panel",
+        "blocks": "Blocks: {{selected}} of {{total}}",
+        "all": "Select all",
+        "none": "Clear all",
+        "noBlocks": "No blocks on this tab",
+        "blocksHint": "Tab “{{tab}}”, period: {{period}}, currency {{currency}} — as currently on screen.",
+        "send": "Send",
+        "capturing": "Preparing blocks…",
+        "sending": "Sending…",
+        "sentOk": "Report sent ({{count}})",
+        "sentPartial": "Sent: {{sent}}. Failed: {{failed}}",
+        "close": "Done",
+        "needEmail": "Enter at least one email",
+        "failed": "Could not send the report",
+        "defaultSubject": "Report: {{name}} · {{period}}"
       }
     },
     "sidebar": {
@@ -5890,6 +6213,8 @@
       "allUnattributedHidden": "All rows are hidden: only records without an integration channel remain. Clear the filter below or set dataSource on import.",
       "hideUnattributed": "Hide “no integration channel”",
       "moreDetails": "Details",
+      "allAccounts": "All accounts ({{count}})",
+      "accountFilter": "Ad account",
       "unknownExplain": "Rows without a data source in CRM: often imports from n8n/analytics without an integration tag. Impressions and spend here may overlap Meta/Google session slices without UTMs—do not add them to neighbors as “more ads.”",
       "ctr": "CTR",
       "cpc": "CPC",
@@ -5899,7 +6224,13 @@
       "title": "Traffic & campaigns",
       "titleCampaigns": "Campaigns",
       "subtitleTraffic": "Summary of sessions, clicks, and spend.",
-      "subtitleCampaigns": "Top campaigns and performance."
+      "subtitleCampaigns": "Top campaigns and performance.",
+      "conversions": "Conversions",
+      "conversionValue": "Conversion value",
+      "conversionValueShort": "Value",
+      "platformValueHint": "+ platform conversion value: {{v}}",
+      "placeholderValue": "placeholder value, not revenue",
+      "placeholderValueHint": "Less than 10 per conversion on average: conversions carry a placeholder value (usually 1 — calls, clicks, forms), this is not revenue."
     },
     "marketingCampaigns": {
       "kicker": "Marketing · Campaigns",
@@ -6071,7 +6402,8 @@
           "revenueAction": "Revenue action (optional)",
           "source": "Source (optional)",
           "medium": "Medium (optional)",
-          "currency": "Currency (optional)"
+          "currency": "Currency (optional)",
+          "tokenHint": "Permanent system-user token from your own Meta app: business.facebook.com/settings → Users → System users → assign the ad account → “Generate token” with the ads_read permission and “Never” expiry. Starts with EAA…. Pick the same currency as the ad account — spend arrives in it."
         },
         "note": "“Client secret”, refresh/access tokens, and the Yandex OAuth token are credentials required by Google, Meta, or Yandex—not an arbitrary “CRM secret”. They are stored encrypted. Other fields are IDs, UTMs, etc. You can then use these connections in reports and automations.",
         "pickCurrency": "Choose currency",
@@ -6194,7 +6526,8 @@
           "soon": "{{count}} d left · {{date}}",
           "expired": "expired {{date}}"
         }
-      }
+      },
+      "syncBackground": "A large account is still syncing in the background — data will appear in 1–2 minutes."
     },
     "marketingAutomations": {
       "kicker": "Marketing · Automations",
@@ -7424,6 +7757,30 @@
       "dimEmpty": "(not set)",
       "other": "Other",
       "mapTitleGa4": "Geography (Google Analytics data)",
+      "mapTitleMeta": "Impressions by country (Meta Ads data)",
+      "mapHintMeta": "Country where the ad was shown — from the Meta ad account statistics (country breakdown).",
+      "geoTableHintMeta": "Impressions and clicks by country where the ad was shown — from Meta ad account statistics. Ad aggregates, not individual CRM users.",
+      "geoExpandHint": "Show ad accounts and campaigns for this country",
+      "accountExpandHint": "Show this account’s campaigns",
+      "periodPreset": "Period",
+      "preset7": "Last 7 days",
+      "preset30": "Last 30 days",
+      "preset90": "Last 90 days",
+      "presetMonth": "This month",
+      "presetYear": "This year",
+      "presetAll": "All time",
+      "presetPage": "Same as page",
+      "dateFrom": "From",
+      "dateTo": "To",
+      "currency": "Currency",
+      "currencyNative": "Original currency",
+      "currencyHint": "Converted at Frankfurter / ECB rates",
+      "loadingShort": "Loading…",
+      "chartCostRevenueCur": "Spend and revenue by day, {{currency}}",
+      "searchCampaign": "Search campaign…",
+      "allCountries": "All countries ({{count}})",
+      "resetFilters": "Reset",
+      "filteredCampaigns": "Campaigns: {{count}}",
       "mapHintGa4": "Country comes from countryId when syncing GA4. Intensity by sessions. These are web analytics aggregates, not individual CRM contacts.",
       "mapEmptyNoInfer": "No geo in the database for the period and country could not be inferred from campaign names. For GA4 channels, sync the integration after updating.",
       "geoUnknownCountry": "Country unknown",
@@ -7445,6 +7802,11 @@
       "geoTableHint": "Like the Geo report in Google Analytics: sessions and views by country. No individual CRM users—web analytics aggregates only.",
       "geoColCountry": "Country",
       "fullTable": "All campaigns in selection",
+      "byAccount": "By ad account",
+      "campaignsCount": "Campaigns",
+      "costShare": "Spend share",
+      "accountCol": "Account",
+      "noAccount": "No account tag",
       "fullTableHint": "Sort by column. Data matches the period aggregate on the traffic page.",
       "mapTitle": "Geography (estimated from campaign names)",
       "mapHint": "Colored by sessions. Country is guessed from keywords in campaign names (e.g. “Almanya”, “Polonya”). Without a match, data does not appear on the map.",
@@ -8992,6 +9354,12 @@
       "otherHubConnectionsHeading": "Sheets, stores, and more",
       "connectionTurnOn": "Turn on",
       "connectionTurnOff": "Turn off",
+      "connectionEdit": "Edit",
+      "connectionDelete": "Delete",
+      "connectionDeleteConfirm": "Delete this connection?",
+      "connectionDeleteYes": "Yes, delete",
+      "connectionDeleteNo": "Cancel",
+      "connectionDeleted": "Connection deleted",
       "toggleBusy": "Saving…",
       "toggleSaved": "Connection state updated",
       "tabs": {
@@ -9789,6 +10157,11 @@
           "connectPhoneNumberIdHint": "From your Meta WhatsApp Cloud API settings (numeric ID).",
           "connectWhatsappVerifyToken": "WhatsApp · Verify token (Meta webhook)",
           "connectWhatsappVerifyTokenHint": "Choose a string and enter the same in Meta → Webhook → Verify token.",
+          "connectWhatsappAppSecret": "WhatsApp · App Secret (Meta app)",
+          "connectWhatsappAppSecretHint": "Meta → your app → App settings → Basic → App secret. Used to verify webhook signatures: without it incoming messages are rejected.",
+          "connectEditTitle": "Edit: {{name}}",
+          "connectSave": "Save",
+          "connectSecretKeep": "Saved — leave empty to keep",
           "whatsappInboundUrlTitle": "Callback URL for inbound (Meta)",
           "whatsappInboundUrlHint": "Paste into WhatsApp webhook settings in Meta. Subscribe to “messages”.",
           "whatsappInboundUrlMissingEnv": "Public callback URL is not available yet — ask your administrator to verify API settings.",
@@ -9949,7 +10322,43 @@
           "nextStepLabel": "After connecting:",
           "nextStepCreateLink": "Create scenario →",
           "viaConnector": "Connector: {{name}}",
-          "webhookUrlDetails": "Technical details"
+          "webhookUrlDetails": "Technical details",
+          "connectWhatsappIntro": "Connect a WhatsApp Business number through Meta's official WhatsApp Cloud API: client messages arrive in the CRM, you can reply from the lead card, and AI employees can hold the conversation. Below is a step-by-step guide on where to find each value.",
+          "connectWhatsappToken": "Meta access token (system user)",
+          "connectWhatsappTokenHint": "Permanent system-user token starting with EAA… (step 4). The temporary token from the “Try it” page won't do — it stops working within a day.",
+          "connectWhatsappWabaId": "WhatsApp · WhatsApp Business Account ID",
+          "connectWhatsappWabaIdHint": "Next to the Phone number ID: “WhatsApp” use case → “Step 1. Try it”. The CRM uses it to subscribe the app to incoming messages automatically.",
+          "waGuide": {
+            "title": "📘 Step-by-step guide: where to find the data (30–40 minutes)",
+            "intro": "You need a Facebook account and a phone number for WhatsApp. The number must not be in use in the WhatsApp app on a phone: use a separate number (a landline works too) or delete the WhatsApp account on it in the app. Company documents are not needed to receive messages and reply to clients.",
+            "fieldsTitle": "What to enter in the form",
+            "fields": {
+              "token": "Access token — required (step 4)",
+              "phoneNumberId": "Phone number ID — required (step 3). Not the phone number itself but a long numeric ID",
+              "wabaId": "WhatsApp Business Account ID — recommended (step 3): the CRM subscribes the app to messages itself",
+              "verifyToken": "Verify token — required: make up any Latin string without spaces, e.g. company-wa-2026, and write it down",
+              "appSecret": "App Secret — required (step 5): without it incoming messages are rejected",
+              "label": "Name in CRM — optional",
+              "notNeeded": "Webhook URL and Email are not needed for WhatsApp"
+            },
+            "step1Title": "Meta business portfolio",
+            "step1Body": "Open business.facebook.com and log in with Facebook. If your company has no portfolio yet, create one: company name, your name, work email.",
+            "step2Title": "Meta app",
+            "step2Body": "developers.facebook.com → “My Apps” → “Create app” → use case “Connect with customers through WhatsApp” → pick your business portfolio → “Create”. Meta creates a WhatsApp Business Account and gives you a test number.",
+            "step3Title": "Phone number ID and WhatsApp Business Account ID",
+            "step3Body": "In the app: “Use cases” → “Connect on WhatsApp” → “Step 1. Try it”. Under the number you'll see “Phone Number ID” and “WhatsApp Business Account ID” — copy both.\nYour own number instead of the test one: “Add phone number” on the same page → display name (your company name as on the website), category → number → code from SMS or call. Then “Step 2. Set up your workspace” → “Register your WhatsApp phone number” → set a 6-digit PIN and keep it. Enter the ID of your own number in the form.",
+            "step4Title": "Access token (permanent)",
+            "step4Body": "business.facebook.com/settings → “Users” → “System users” → “Add”: any name, role “Admin”.\nOpen the user → “Assign assets”: “Apps” → your app → “Full control”. “Assign assets” again: “WhatsApp accounts” → your account → “Full control”.\nClick “Generate token”: app — yours, expiry — “Never”, permissions — whatsapp_business_messaging and whatsapp_business_management. Copy the string starting with EAA: Meta won't show it again.",
+            "step5Title": "App Secret and privacy policy",
+            "step5Body": "developers.facebook.com → your app → “App settings” → “Basic” → “App secret” → “Show” (Facebook asks for your password) — that's the App Secret.\nOn the same page fill in “Privacy Policy URL” (the policy page on your website) and “Category”, then “Save changes” — the app can't be published without them.",
+            "step6Title": "Save the connection in the CRM",
+            "step6Body": "Fill in this form and click “Save and test”. The CRM checks the token and number with Meta and subscribes the app to messages. The connection card will show the webhook address (Callback URL) — you need it in the next step.",
+            "step7Title": "Webhook in Meta",
+            "step7Body": "In the app: “Connect on WhatsApp” → “Step 2. Set up your workspace” → “Configure webhooks”.\n“Callback URL” — the address from the connection card in the CRM. “Verify token” — the same Verify token as in the form, character for character.\n“Verify and save” → in the webhook fields list, subscribe to messages.",
+            "step8Title": "Publish and test",
+            "step8Body": "On the left, “Publish” → “Publish”: until the app is published, real client messages are not delivered.\nWrite to the number from your phone — the message appears in the WhatsApp section and on the lead card (a new lead is created if the number isn't in the CRM yet). The Meta test number can only chat with numbers on its recipient list (up to 5).",
+            "pricing": "💬 Pricing: client messages and your replies within 24 hours of their last message are free. Writing to a client first is only possible with Meta templates and needs a payment method in WhatsApp Manager. Business verification with documents is only needed if you message more than 250 new clients first per day."
+          }
         },
         "usage": {
           "title": "Automation usage",
@@ -11367,7 +11776,10 @@
         "addToDashboard": "Add to home",
         "previewHint": "Preview",
         "embedFallback": "No data for this widget type",
-        "formulaOnFullPage": "Open full analytics to configure the formula"
+        "formulaOnFullPage": "Open full analytics to configure the formula",
+        "renderFailed": "Could not show this block — open the analytics",
+        "loadFailed": "Could not load data",
+        "sourceMissing": "The source was deleted — remove this block"
       },
       "salesOrderStatus": {
         "new": "New",
@@ -11673,7 +12085,8 @@
           "contactCreated": "Contact created and linked to lead",
           "meetingCreated": "Meeting created",
           "noteCreated": "Note created",
-          "leadConverted": "Lead converted to client"
+          "leadConverted": "Lead converted to client",
+          "meetingCreatedEmailFailed": "Meeting created, but the invitation email to the client failed to send"
         },
         "errors": {
           "loadLead": "Failed to load lead",
@@ -11739,7 +12152,22 @@
           "telegramWith": "Conversation with {{name}}",
           "telegramNoMessages": "No messages yet.",
           "telegramPlaceholder": "Write a message…",
-          "telegramSend": "Send"
+          "telegramSend": "Send",
+          "whatsappTitle": "WhatsApp conversation",
+          "whatsappCount": "{{count}} msg.",
+          "whatsappEmpty": "This lead has no WhatsApp conversation yet.",
+          "whatsappWith": "Conversation with {{name}}",
+          "whatsappNoMessages": "No messages yet.",
+          "whatsappPlaceholder": "Write in WhatsApp…",
+          "whatsappSend": "Send",
+          "whatsappNoConnection": "No WhatsApp connection for this conversation",
+          "meetingsCancelled": "Cancelled",
+          "meetingsEmpty": "No meetings scheduled yet.",
+          "meetingsFallbackTitle": "Meeting",
+          "meetingsNotified": "notification sent {{date}}",
+          "meetingsPast": "Past",
+          "meetingsTitle": "MEETINGS",
+          "meetingsUpcoming": "Upcoming"
         },
         "journey": {
           "title": "Customer journey",
@@ -11893,7 +12321,11 @@
           "save": "Save",
           "closeMeeting": "Close meeting",
           "delete": "Delete",
-          "edit": "Edit"
+          "edit": "Edit",
+          "link": "Link"
+        },
+        "labels": {
+          "team": "Team:"
         }
       },
       "access": {
@@ -11938,6 +12370,119 @@
         "forbiddenReassign": "Only \"Owner\" tier access can reassign the lead",
         "forbiddenEditSome": "Some selected leads can't be edited by you and were skipped",
         "fullAccessNote": "The owner, managers and department heads always see all leads — no grant is needed for them."
+      },
+      "roiManagers": {
+        "kicker": "Leads",
+        "title": "Lead ROI",
+        "lead": "How many leads each manager won and lost, how much revenue they brought and which customers bought again.",
+        "noManager": "Unassigned",
+        "leads": "Leads",
+        "won": "Won",
+        "conv": "Conversion",
+        "colManager": "Manager",
+        "topLeads": "Leads with revenue",
+        "empty": "No new leads and no lead revenue in this period.",
+        "srcSales": "Sales",
+        "srcProjects": "Projects",
+        "allManagers": "All managers",
+        "managers": "Managers",
+        "paybackTitle": "Results by manager",
+        "searchPh": "Manager or department",
+        "inactive": "inactive",
+        "footnote": "Leads, won and lost — leads created in the period, by current status and owner. Revenue — {{src}} of leads in the period (cancellations and refunds excluded); repeat — the second and later purchases of the same lead. Amounts in {{cur}} at the ECB rate{{asOf}}.",
+        "srcSalesGen": "sales",
+        "srcProjectsGen": "projects",
+        "lost": "Lost",
+        "inWork": "In progress",
+        "repeat": "Repeat",
+        "repeatRevenue": "Repeat revenue",
+        "kpiNew": "New leads",
+        "newHint": "in progress: {{n}}",
+        "wonHint": "conversion {{v}}",
+        "lostHint": "{{v}} of new leads",
+        "repeatHint": "{{n}} leads bought again · {{share}} of {{total}}",
+        "repeatBadge": "repeat ×{{n}}",
+        "noRevenue": "This manager's leads brought no revenue in the period.",
+        "outcomes": "New lead outcomes"
+      },
+      "bin": {
+        "kicker": "Leads",
+        "tabTrash": "Trash",
+        "tabArchive": "Archive",
+        "trashLead": "Deleted leads. They are erased automatically {{count}} days after deletion — until then you can restore them.",
+        "archiveLead": "Closed and postponed leads. They stay out of the kanban and reports, are kept indefinitely, and their full history is preserved.",
+        "soonCount_one": "{{count}} lead will be deleted",
+        "soonCount_other": "{{count}} leads will be deleted",
+        "soonTail": "within the next 3 days.",
+        "soonNone": "No automatic deletions in the next 3 days.",
+        "emptyTrash": "Empty trash",
+        "selected": "Selected: {{count}}",
+        "restore": "Restore",
+        "returnToWork": "Return to work",
+        "toArchive": "Archive",
+        "toTrash": "Move to trash",
+        "deleteForever": "Delete forever",
+        "clearSelection": "Clear selection",
+        "searchPlaceholder": "Search by name, email or phone",
+        "allStatuses": "All statuses",
+        "count_one": "{{count}} lead",
+        "count_other": "{{count}} leads",
+        "selectAll": "Select all",
+        "selectOne": "Select {{name}}",
+        "colDeleted": "Deleted",
+        "colArchived": "Archived on",
+        "colTtl": "Deleted in",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "notFound": "Nothing found",
+        "notFoundHint": "Change your search or filters",
+        "trashEmptyHint": "Deleted leads will appear here",
+        "archiveEmptyHint": "Closed and postponed leads end up here",
+        "range": "{{from}}–{{to}} of {{total}}",
+        "prev": "Previous",
+        "next": "Next",
+        "confirmEmptyTitle": "Empty the trash?",
+        "confirmDeleteTitle": "Delete forever?",
+        "confirmOne": "Lead “{{name}}” and its entire history will be deleted permanently.",
+        "confirmMany_one": "{{count}} lead and its entire history will be deleted permanently.",
+        "confirmMany_other": "{{count}} leads and their entire history will be deleted permanently.",
+        "cancel": "Cancel",
+        "undo": "Undo",
+        "toast": {
+          "restored_one": "{{count}} lead restored",
+          "restored_other": "{{count}} leads restored",
+          "returned_one": "{{count}} lead returned to work",
+          "returned_other": "{{count}} leads returned to work",
+          "archived_one": "{{count}} lead moved to archive",
+          "archived_other": "{{count}} leads moved to archive",
+          "trashed_one": "{{count}} lead moved to trash",
+          "trashed_other": "{{count}} leads moved to trash",
+          "purged_one": "{{count}} lead deleted forever",
+          "purged_other": "{{count}} leads deleted forever",
+          "purgeFailed_one": "Could not delete {{count}} lead.",
+          "purgeFailed_other": "Could not delete {{count}} leads.",
+          "failed_one": "Could not save {{count}} lead — please reload the page.",
+          "failed_other": "Could not save {{count}} leads — please reload the page."
+        },
+        "errors": {
+          "loadFailed": "Failed to load leads"
+        }
+      },
+      "trash": {
+        "title": "Leads trash",
+        "loading": "Loading trash...",
+        "empty": "Trash is empty",
+        "columns": {
+          "name": "Lead",
+          "status": "Status",
+          "created": "Created",
+          "actions": "Actions"
+        }
+      },
+      "archive": {
+        "title": "Leads archive",
+        "loading": "Loading archive...",
+        "empty": "Archive is empty"
       }
     },
     "companies": {
@@ -12321,7 +12866,8 @@
         "metrics": {
           "revenue": "Revenue",
           "projects": "Projects",
-          "leads": "Leads"
+          "leads": "Leads",
+          "marketing": "Marketing"
         },
         "kpis": {
           "companies": "Companies",
@@ -12391,6 +12937,20 @@
           "title": "Revenue distribution",
           "hint": "number of companies in the group and its share of total revenue",
           "revenueShare": "{{pct}} of revenue"
+        },
+        "marketing": {
+          "hint": "client revenue from ads · spend · ROI",
+          "revenue": "Client revenue",
+          "spend": "Spend",
+          "totalRevenue": "Client revenue from ads",
+          "notYourRevenue": "clients' turnover, not your revenue",
+          "totalSpend": "Ad spend",
+          "clientsCount": "{{count}} clients with linked ad accounts",
+          "roiHint": "(revenue − spend) / spend",
+          "openRoi": "Open client ROI",
+          "empty": "No ad data for this period. Link ad accounts to companies on the ROI page.",
+          "loadFailed": "Failed to load client ROI",
+          "source": "source · marketing → client ROI"
         }
       },
       "bulk": {
@@ -13010,7 +13570,9 @@
           "empty": "No comments yet",
           "newPlaceholder": "New comment… you can @mention a manager",
           "draftTitle": "Draft with @mentions",
-          "draftPlaceholder": "Draft message…"
+          "draftPlaceholder": "Draft message…",
+          "reply": "Reply",
+          "replyPlaceholder": "Reply..."
         },
         "actions": {
           "save": "Save",
@@ -13106,7 +13668,8 @@
             "bar": "Chart",
             "table": "Table",
             "formula": "Formula",
-            "pivot": "Pivot table"
+            "pivot": "Pivot table",
+            "map": "Map"
           }
         },
         "ownersTable": {
@@ -13201,6 +13764,23 @@
             "count": "Count",
             "percent": "Percent",
             "sum": "Sum"
+          },
+          "group": {
+            "count": "count",
+            "max": "Top “{{dim}}” by: {{measure}}",
+            "min": "Bottom “{{dim}}” by: {{measure}}",
+            "maxOption": "Top group…",
+            "minOption": "Bottom group…",
+            "dim": "Group",
+            "measure": "Measure"
+          },
+          "measure": {
+            "label": "What to count",
+            "count": "Number of rows"
+          },
+          "diffOutput": {
+            "value": "Difference (number)",
+            "percent": "% change vs right side"
           }
         },
         "reset": {
@@ -13251,6 +13831,199 @@
           "extraSection": "Extra columns",
           "maxColumnsHint": "Maximum columns: {{max}}",
           "removeColumn": "Remove column"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "add": "Tab",
+          "menu": "Tab actions",
+          "renameHint": "Double-click to rename",
+          "rename": "Rename",
+          "moveLeft": "Move left",
+          "moveRight": "Move right",
+          "delete": "Delete",
+          "createTitle": "New tab",
+          "renameTitle": "Rename tab",
+          "deleteTitle": "Delete tab?",
+          "deleteMessage": "Tab “{{name}}” and all its blocks will be deleted. Project data is not affected.",
+          "name": "Name",
+          "namePlaceholder": "e.g. Q4 sales",
+          "source": "Start from",
+          "sourceEmpty": "Empty",
+          "sourceEmptyHint": "Build blocks from scratch",
+          "sourceCopy": "Copy of current",
+          "sourceCopyHint": "Same blocks and filters as the open tab",
+          "sourceDefault": "Default set",
+          "sourceDefaultHint": "Basic KPIs, charts and tables",
+          "cancel": "Cancel",
+          "create": "Create",
+          "save": "Save"
+        },
+        "dataCurrency": {
+          "label": "Data currency",
+          "hint": "Currency the amounts in this table are recorded in — they are converted from it to the report currency",
+          "missingRate": "Could not get an exchange rate for some records — their amounts are shown in the original currency and may distort the total."
+        },
+        "tooltip": {
+          "sum": "Sum",
+          "count": "Count"
+        },
+        "share": {
+          "title": "Share analytics",
+          "subtitle": "The recipient will only see this table's analytics — no CRM menu, no table, no AI.",
+          "link": "Link",
+          "copy": "Copy",
+          "copied": "Copied",
+          "statusActive": "Active",
+          "statusExpired": "Expired",
+          "withPassword": "Password-protected",
+          "withoutPassword": "No password",
+          "until": "until {{date}}",
+          "protect": "Protect with a password",
+          "passwordSet": "Password is set.",
+          "changePassword": "Change",
+          "passwordPlaceholder": "Viewing password (min. 4 characters)",
+          "passwordTooShort": "Password must be at least 4 characters",
+          "expiry": "Expires",
+          "expiryNever": "Never",
+          "expiry1d": "1 day",
+          "expiry7d": "7 days",
+          "expiry30d": "30 days",
+          "expiryCustom": "On date",
+          "pickDate": "Pick an expiry date",
+          "viewerNote": "Viewers can switch tabs, filters, period and currency, but cannot save or change anything. Blocks and tabs are the same as in your analytics, changes show up immediately.",
+          "disable": "Turn off access",
+          "submit": "Share",
+          "update": "Save",
+          "emptyTab": "No blocks on this tab yet.",
+          "publicTitle": "Analytics",
+          "expiredTitle": "This link has expired",
+          "expiredText": "Ask the owner to send you a new link.",
+          "unavailableTitle": "Link unavailable",
+          "unavailableText": "Access via this link is turned off or the link is wrong.",
+          "passwordPrompt": "This page is password-protected.",
+          "password": "Password",
+          "wrongPassword": "Wrong password",
+          "tooManyAttempts": "Too many attempts. Try again in a minute.",
+          "open": "Open",
+          "signIn": "Sign in",
+          "headerNoExpiry": "Link never expires",
+          "headerUntil": "Access until {{date}} · {{days}} days left"
+        },
+        "map": {
+          "scope": "Map area",
+          "regions": "Regions",
+          "countries": "Single country",
+          "hint": "The “Data” column must contain country names (English, Russian or Turkish) or codes — e.g. “Germany”, “Германия”, “DE”.",
+          "loading": "Loading map…",
+          "loadError": "Could not load the map",
+          "share": "Share: {{share}}%",
+          "rank": "Rank {{rank}} of {{total}}",
+          "noData": "No data for this country",
+          "reset": "Reset zoom",
+          "unmatched": "Not on map: {{count}}",
+          "scopes": {
+            "world": "Whole world",
+            "europe": "Europe",
+            "asia": "Asia",
+            "north_america": "North America",
+            "south_america": "South America",
+            "africa": "Africa",
+            "oceania": "Australia & Oceania"
+          },
+          "mode": "Show",
+          "modes": {
+            "countries": "Countries",
+            "countriesHint": "Countries shaded by value",
+            "points": "Cities & addresses",
+            "pointsHint": "Points on the map, sized by value"
+          },
+          "pointsHint": "The “Data” column holds cities or addresses (“Istanbul”, “Antalya”, “Berlin”). Coordinates are found automatically (OpenStreetMap) and cached. For accuracy, pick a country in “Map area”.",
+          "pointsUnavailable": "Points are only available for workspace tables",
+          "geocodeFailed": "Could not resolve coordinates",
+          "geocoding": "Locating: {{count}} left"
+        },
+        "aiBuild": {
+          "title": "Build with AI",
+          "subtitle": "Describe the analytics you want — AI builds blocks from the table's real data.",
+          "placeholder": "E.g. 4 metrics with totals on top, a full-width monthly trend line below, then a table by country and a map of Europe; finish with a note of key takeaways.",
+          "chipsLabel": "Quick hints",
+          "footnote": "You can undo with “Reset”.",
+          "submit": "Build",
+          "building": "AI is building blocks…",
+          "mode": {
+            "append": "Add to current",
+            "appendHint": "New blocks go after the existing ones",
+            "replace": "Replace blocks",
+            "replaceHint_tab": "This tab's current blocks ({{count}}) will be replaced",
+            "replaceHint_all": "Blocks on all tabs ({{count}}) will be replaced"
+          },
+          "chips": {
+            "kpi": {
+              "label": "KPI metrics",
+              "text": "4 KPI metrics with key totals on top"
+            },
+            "line": {
+              "label": "Trend line",
+              "text": "a monthly trend line"
+            },
+            "bar": {
+              "label": "Bars",
+              "text": "a bar chart by the main category"
+            },
+            "donut": {
+              "label": "Donut",
+              "text": "a donut with the share breakdown"
+            },
+            "table": {
+              "label": "Table",
+              "text": "a detailed table"
+            },
+            "pivot": {
+              "label": "Pivot",
+              "text": "a pivot table by two dimensions"
+            },
+            "formula": {
+              "label": "Comparison",
+              "text": "a formula comparing the last month to the previous one"
+            },
+            "mapWorld": {
+              "label": "World map",
+              "text": "a world map by country"
+            },
+            "mapEurope": {
+              "label": "Europe map",
+              "text": "a map of Europe by country"
+            },
+            "mapCountry": {
+              "label": "Country map",
+              "text": "a single-country map by city"
+            },
+            "note": {
+              "label": "Takeaways note",
+              "text": "finish with a note of key takeaways"
+            }
+          },
+          "noteTitle": "AI built the blocks, but not everything you asked for"
+        },
+        "noteText": {
+          "label": "Note text",
+          "placeholder": "Takeaways, comments, next steps. Empty — an automatic data summary."
+        },
+        "fieldHint": {
+          "notSuitable": "not suitable for grouping",
+          "deleted": "column deleted",
+          "deletedLong": "This column no longer exists in the table — pick another one.",
+          "values": "{{count}} values — good for grouping",
+          "kind": {
+            "unique": "Almost every value is different (names, IDs) — the chart would be single rows. Pick a category instead.",
+            "number": "These are numbers — pick them under “Value” and group by a category.",
+            "date": "These are dates — use a “Line” block for trends.",
+            "longtext": "Long text (comments) — not suitable for grouping.",
+            "constant": "The whole table has the same value — grouping shows nothing.",
+            "empty": "The column is empty — nothing to group by."
+          },
+          "brokenTitle": "This block refers to a column that no longer exists",
+          "brokenText": "Not found: {{fields}}. Open “Configure” and pick another column."
         }
       },
       "dotsMenuAria": "Menu"
@@ -15251,7 +16024,8 @@
         "walkin": "Walk-in",
         "manual": "Manual",
         "api": "API",
-        "telegram": "Telegram"
+        "telegram": "Telegram",
+        "whatsapp": "WhatsApp"
       },
       "list": {
         "error": "Failed to load bookings",
@@ -18496,6 +19270,488 @@
         "REVIEWS_PLACES_LIMIT": "Up to 10 places can be watched.",
         "REVIEWS_NO_EMPLOYEE": "An active “Reviews Manager” AI employee is required."
       }
+    },
+    "chatInbox": {
+      "kicker": "Channel · {{channel}}",
+      "title": "{{channel}} conversations",
+      "settings": {
+        "telegram": "Bots & flows",
+        "whatsapp": "Connections"
+      },
+      "searchPlaceholder": {
+        "telegram": "Name or @username",
+        "whatsapp": "Name or number"
+      },
+      "filter": {
+        "all": "All",
+        "unread": "Unread",
+        "nolead": "No lead"
+      },
+      "allSenders": {
+        "telegram": "All bots",
+        "whatsapp": "All numbers"
+      },
+      "emptyList": {
+        "telegram": "No conversations yet. They appear when clients message your bot.",
+        "whatsapp": "No conversations yet. They appear when clients message your connected WhatsApp number."
+      },
+      "emptyFilter": "No conversations match the filter",
+      "loading": "Loading…",
+      "selectDialog": "Select a conversation on the left",
+      "noMessages": "No messages yet",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "via": "via {{sender}}",
+      "openLead": "Open lead",
+      "createLead": "Create lead",
+      "refresh": "Refresh",
+      "card": "Card",
+      "back": "Back",
+      "aiReply": "AI reply",
+      "botReply": "Bot flow",
+      "src": {
+        "manual": "You",
+        "ai": "AI",
+        "flow": "Bot"
+      },
+      "type": {
+        "photo": "Photo",
+        "document": "Document",
+        "voice": "Voice message",
+        "video": "Video",
+        "location": "Location",
+        "other": "Attachment"
+      },
+      "open": "Open",
+      "attach": "Attach file",
+      "removeFile": "Remove file",
+      "dropFile": "Drop the file to attach",
+      "captionPlaceholder": "File caption (optional)…",
+      "messagePlaceholder": "Message in {{channel}}…",
+      "send": "Send",
+      "sendingFrom": "Sending from",
+      "noSender": {
+        "telegram": "No bot connected",
+        "whatsapp": "No number connected"
+      },
+      "keyboardHint": "Enter — send · Shift+Enter — new line",
+      "lead": "Lead",
+      "noLead": "No lead",
+      "stage": "Stage",
+      "owner": "Owner",
+      "notAssigned": "not assigned",
+      "noLeadNote": "This conversation isn't linked to a lead yet. Create one — the thread will be kept in its history.",
+      "crmContact": "CRM contact",
+      "contact": "Contact",
+      "company": "Company",
+      "notLinked": "not linked",
+      "channel": "Channel",
+      "senderLabel": {
+        "telegram": "Bot",
+        "whatsapp": "Number"
+      },
+      "idLabel": {
+        "telegram": "Telegram ID",
+        "whatsapp": "Phone"
+      },
+      "firstMessage": "First message",
+      "messages": "Messages",
+      "leadStatus": {
+        "new": "New",
+        "in_progress": "In progress",
+        "waiting": "Waiting",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "errors": {
+        "send": "Could not send",
+        "lead": "Could not create lead",
+        "fileType": "Only PDF, Word, Excel, JPEG and PNG can be sent",
+        "fileSize": "File is larger than 50 MB",
+        "fileUnavailable": "File is unavailable"
+      }
+    },
+    "leadCard": {
+      "more": "More",
+      "loading": "Loading…",
+      "contactFallback": "Contact",
+      "saveFirst": "Save the lead to see conversations, comments and history.",
+      "kicker": {
+        "lead": "Lead",
+        "created": "created {{date}}",
+        "source": "source {{source}}"
+      },
+      "status": {
+        "since": "for {{v}}",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "duration": {
+        "m": "{{count}}m",
+        "h": "{{count}}h",
+        "d": "{{count}}d"
+      },
+      "strip": {
+        "amount": "Amount",
+        "owner": "Owner",
+        "noOwner": "Unassigned",
+        "moreOwners": "+ {{count}} more",
+        "nextStep": "Next step",
+        "allDone": "All steps done",
+        "noSteps": "No steps yet",
+        "until": "by {{date}}",
+        "noDeadline": "no deadline",
+        "lastContact": "Last contact",
+        "incoming": "incoming from client",
+        "outgoing": "team reply",
+        "noContact": "No conversation yet",
+        "notScored": "not scored",
+        "priority": {
+          "high": "high priority",
+          "medium": "medium priority",
+          "low": "low priority"
+        }
+      },
+      "sec": {
+        "contact": "Contact",
+        "deal": "Deal",
+        "links": "Links",
+        "ccp": "Client cabinet",
+        "external": "External systems"
+      },
+      "noChannel": {
+        "whatsapp": "WhatsApp not connected",
+        "telegram": "Telegram not connected",
+        "email": "No email"
+      },
+      "links": {
+        "all": "All",
+        "sales": "Sales",
+        "bookings": "Bookings"
+      },
+      "ccp": {
+        "goTo": "Open account"
+      },
+      "custom": {
+        "notSelected": "Not selected"
+      },
+      "resStatus": {
+        "draft": "Draft",
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "checked_in": "Checked in",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled_by_customer": "Cancelled by customer",
+        "cancelled_by_business": "Cancelled by us",
+        "rejected": "Rejected",
+        "no_show": "No-show"
+      },
+      "tabs": {
+        "chat": "Conversation",
+        "comments": "Comments",
+        "history": "History"
+      },
+      "comments": {
+        "send": "Send"
+      },
+      "tasks": {
+        "title": "Checklist"
+      },
+      "meetings": {
+        "add": "Schedule"
+      },
+      "owners": {
+        "title": "Owners",
+        "main": "primary"
+      },
+      "savebar": {
+        "dirty": "You have unsaved changes",
+        "discard": "Discard"
+      },
+      "confirmDelete": {
+        "title": "Delete",
+        "ok": "Delete"
+      },
+      "comms": {
+        "ch": {
+          "whatsapp": "WhatsApp",
+          "telegram": "Telegram",
+          "email": "Email"
+        },
+        "allChannels": "All channels",
+        "loading": "Loading conversation…",
+        "loadError": "Failed to load",
+        "noAccess": "No access to this channel — ask the assignee.",
+        "noMailbox": "No mailbox connected for sending",
+        "sendError": "Failed to send the message",
+        "aiNoIncoming": "There is no incoming message to reply to",
+        "aiError": "AI could not prepare a draft",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "src": {
+          "ai": "AI reply",
+          "flow": "Bot flow",
+          "system": "System",
+          "manual": "Manual"
+        },
+        "att": {
+          "voice": "Voice message",
+          "photo": "Photo",
+          "video": "Video",
+          "file": "File",
+          "message": "message",
+          "inMailbox": "File is available in the mailbox"
+        },
+        "noSubject": "(no subject)",
+        "noBody": "Email has no text",
+        "you": "You",
+        "collapse": "Collapse",
+        "expand": "Show full",
+        "reply": "Reply",
+        "inMailbox": "In mailbox",
+        "emptyAll": "No conversation with this client yet. Write first — the message goes to the selected channel and is saved here.",
+        "emptyEmail": "No emails with this client yet",
+        "noLeadEmail": "The lead has no email",
+        "emptyChannel": "No messages in this channel yet",
+        "noDialog": {
+          "whatsapp": "No WhatsApp chat is linked to this lead — it appears once the client writes to your connected number.",
+          "telegram": "No Telegram chat is linked to this lead — it appears once the client writes to your bot.",
+          "email": "The lead has no email"
+        },
+        "markRead": "Mark read",
+        "synced": "Synced {{time}}",
+        "refresh": "Refresh",
+        "via": "via {{from}}",
+        "openSection": "Open in section",
+        "newMessages": "New messages",
+        "newBelow": "{{count}} new",
+        "to": "To",
+        "fromMailbox": "Sender mailbox",
+        "subjectPh": "Subject",
+        "attach": "Attachment",
+        "removeFile": "Remove file",
+        "ph": {
+          "whatsapp": "Message on WhatsApp…",
+          "telegram": "Message on Telegram…",
+          "email": "Email text…"
+        },
+        "noChannels": "No connected channel to reply",
+        "aiDraft": "Draft",
+        "aiDrafting": "Writing…",
+        "aiDraftHint": "AI draft reply to the client’s last message",
+        "send": "Send",
+        "lastReplyIn": "Client last replied in",
+        "switch": "switch",
+        "savedHint": "The message is saved to the lead history",
+        "kbEmail": "Ctrl/⌘ + Enter to send",
+        "kbChat": "Enter to send · Shift+Enter for new line"
+      }
+    },
+    "aiCards": {
+      "requestError": "Request failed",
+      "analyzing": "Analyzing…",
+      "analyzingLead": "AI is analyzing the lead…",
+      "refresh": "Refresh",
+      "updated": "Updated: {{date}}",
+      "score": {
+        "failed": "Could not get a score",
+        "analyze": "Analyze",
+        "empty": "Click “Analyze” to let AI rate this lead’s priority",
+        "priority": {
+          "high": "High priority",
+          "medium": "Medium priority",
+          "low": "Low priority"
+        }
+      },
+      "next": {
+        "failed": "Could not get a recommendation",
+        "title": "Next step",
+        "recommend": "Recommend",
+        "empty": "AI will suggest the most important action for this lead",
+        "urgency": {
+          "hot": "Hot",
+          "warm": "Warm",
+          "cold": "Cold"
+        }
+      },
+      "outreach": {
+        "failed": "Could not generate the email",
+        "title": "Email to client",
+        "collapse": "Collapse",
+        "expand": "Expand",
+        "generating": "Generating…",
+        "another": "New version",
+        "create": "Write email",
+        "empty": "AI will write a personal email based on the lead’s data",
+        "writing": "AI is writing…",
+        "subject": "Subject",
+        "body": "Text",
+        "done": "Done",
+        "edit": "Edit",
+        "copied": "Copied",
+        "copy": "Copy",
+        "toComposer": "Use in reply"
+      },
+      "enrich": {
+        "failed": "Could not get suggestions",
+        "title": "AI insights",
+        "run": "Enrich data",
+        "empty": "AI will review the available data and suggest additions",
+        "working": "AI is enriching data…",
+        "confidence": {
+          "high": "High",
+          "medium": "Medium"
+        },
+        "apply": "Apply",
+        "applied": "Applied",
+        "none": "No suggestions — the data is already complete"
+      }
+    },
+    "messengerAiPause": {
+      "text": "{{name}} is paused until {{time}}: a team member replied manually in this chat, so the AI consultant stays silent.",
+      "resume": "Bring AI back",
+      "resuming": "Resuming…",
+      "resumeHint": "Lift the pause — the AI will immediately answer the client's unanswered message",
+      "error": "Couldn't bring the AI back"
+    },
+    "marketingRoi": {
+      "unassigned": "No client",
+      "revenueInputHint": "Client revenue for the month in {{cur}}",
+      "kicker": "Marketing",
+      "title": "ROI by client",
+      "lead": "Client ad account spend vs. client revenue: ROI, ROAS and cost per click by month. Ad accounts are linked to CRM companies.",
+      "currencyHint": "All amounts are converted at ECB (Frankfurter) rates",
+      "accountsButton": "Accounts & clients",
+      "importButton": "Import revenue",
+      "unassignedBanner": "Spend of {{sum}} in {{n}} accounts is not linked to clients and is excluded from ROI.",
+      "assignNow": "Link",
+      "accountsTitle": "Accounts & clients",
+      "accountsHint": "Choose which client company owns each ad account. Several accounts from different platforms can belong to one company.",
+      "acceptSuggestions": "Accept suggestions ({{n}})",
+      "colPlatform": "Platform",
+      "colAccount": "Account",
+      "colSpendAll": "Spend (all time)",
+      "colClient": "Client",
+      "notAssigned": "— not linked —",
+      "newCompany": "+ New company…",
+      "newCompanyPrompt": "Client company name",
+      "create": "Create",
+      "suggested": "Suggested: {{name}}",
+      "noAccounts": "No ad account data — connect Google Ads, Meta Ads, Yandex Direct or VK Ads.",
+      "importTitle": "Import client revenue",
+      "importHint": "Paste a table from Excel/Google Sheets or CSV: Company · Month (YYYY-MM or MM.YYYY) · Amount · Currency. Companies are matched by name in the CRM; existing values for the month are replaced.",
+      "importRun": "Import ({{n}} rows)",
+      "imported": "Imported: {{n}}",
+      "skippedRow": "Row {{row}}: {{reason}}",
+      "kpiSpend": "Spend",
+      "kpiRevenue": "Revenue",
+      "roiHint": "(revenue − spend) / spend",
+      "roasHint": "revenue / spend",
+      "missingRates": "No rate for: {{list}} — these amounts are not converted.",
+      "clientsTitle": "Clients",
+      "empty": "No spend in this period.",
+      "footnote": "Enter revenue from the client’s report with the ✎ button in a month row (expand a client) or import a table. Amounts in {{cur}} at ECB rates{{asOf}}.",
+      "colConversions": "Conversions",
+      "sourcesHint": "Which revenue counts toward ROI",
+      "srcManual": "Manual/import",
+      "srcAds": "Platform conversion value",
+      "metaActionsBtn": "Conversions: {{list}}",
+      "metaActionsSaved": "Saved — the account is re-syncing (up to a minute)",
+      "metaConvTitle": "Count as conversion",
+      "metaValueTitle": "Value as platform revenue",
+      "metaNoActions": "The action list appears after the account syncs.",
+      "save": "Save",
+      "metaActionsHint": "Meta reports the same event under several names (lead, onsite_web_lead…) — tick only one of the duplicates.",
+      "srcGa4": "Website revenue (GA4)",
+      "srcCrm": "CRM sales",
+      "notCounted": "not counted",
+      "crmUnattributed": "CRM sales of {{sum}} ({{n}}) are not attributed to clients: the lead has no UTM campaign from a linked account and the “Hotel” field does not match a company.",
+      "toWorkspace": "To workspace",
+      "toWorkspaceHint": "Create an auto-updating “client × month” table for dashboards and formulas",
+      "overlapBadge": "possible double counting",
+      "overlapHint": "In {{n}} months revenue exists both in platform conversion value and in GA4. If Google Ads/Meta import purchases from GA4, these are the same bookings — turn off one of the two sources.",
+      "noPrev": "no data for the previous period",
+      "pp_points": "pp",
+      "vsPrev": "vs previous period",
+      "srcOf": "{{n}} of 4 sources",
+      "autoAds": "Platforms",
+      "dynamics": "Trend",
+      "byMonth": "By month",
+      "modeSr": "Spend / revenue",
+      "cabinets": "Accounts",
+      "spendFrom": "Where spend comes from",
+      "ofSpend": "of spend",
+      "convShort": "conv.",
+      "siteSource": "Website revenue source · no spend",
+      "month": "Month",
+      "auto": "Auto",
+      "noSpend": "no spend",
+      "currency": "Currency",
+      "revenueFrom": "Revenue from",
+      "reviewSale": "Review sale",
+      "pp": {
+        "monthsShort": "mo",
+        "last3": "Last 3 months",
+        "last6": "Last 6 months",
+        "last12": "Last 12 months",
+        "ytd": "Since the start of {{y}}",
+        "year": "Year {{y}}",
+        "all": "All time",
+        "title": "Period",
+        "pickLast": "Pick the last month",
+        "pickFirst": "Pick the first month"
+      },
+      "allClients": "All clients",
+      "paybackTitle": "Payback by client",
+      "searchPh": "Client or account",
+      "collapse": "Collapse",
+      "expand": "Expand",
+      "noMatch": "Nothing found.",
+      "noClients": "No clients with linked accounts in this period.",
+      "totalRow": "Total",
+      "cancel": "Cancel",
+      "apply": "Apply",
+      "mln": "M",
+      "thousand": "K",
+      "breakEven": "break-even 1×",
+      "importIntro": "Upload a CSV (Excel → “Save as CSV”) or paste a table: one row per client and month. Matching months overwrite manually entered amounts. Clients are matched by CRM company name.",
+      "fileTooBig": "File is larger than 5 MB",
+      "dropHint": "Choose a file on your computer",
+      "upTo5mb": "up to 5 MB",
+      "pastePlaceholder": "…or paste table rows here",
+      "downloadTemplate": "Download template",
+      "close": "Close",
+      "accountsKick": "Linking to CRM companies",
+      "manualShort": "Manual",
+      "editManual": "Edit entered revenue",
+      "addManual": "Enter the month’s revenue manually (from the client’s report)",
+      "placeholderBadge": "placeholder conversion value",
+      "placeholderHint": "In {{list}} conversions carry a placeholder value (≈1 per conversion — calls, clicks, forms), not the booking amount. It is not counted as revenue. For a real ROI, enter revenue from the hotel’s report or send booking values to Google Ads.",
+      "placeholderLine": "Placeholder conversion value {{v}} — not revenue, excluded",
+      "accountsButtonShort": "Accounts",
+      "toWorkspaceShort": "Workspace",
+      "importButtonShort": "Import",
+      "sortBy": "Sort",
+      "cabinetsShort": "acc."
+    },
+    "dateRange": {
+      "title": "Period",
+      "pickFirst": "Pick the first day",
+      "pickLast": "Pick the last day",
+      "cancel": "Cancel",
+      "apply": "Apply",
+      "daysShort": "d",
+      "allTime": "All time",
+      "last7": "Last 7 days",
+      "last14": "Last 14 days",
+      "last30": "Last 30 days",
+      "last90": "Last 90 days",
+      "last365": "Last 12 months",
+      "thisMonth": "This month",
+      "prevMonth": "Last month",
+      "ytd": "Year to date",
+      "custom": "Custom range"
     }
   },
   "landing": {

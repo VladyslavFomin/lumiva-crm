@@ -95,3 +95,25 @@ export async function loadClientAccountAnalyticsItems(clientId: string, t: TFunc
   const data = await ccpApi.clientAnalytics(clientId, { fresh: 0 });
   return mapCcpDataToItems(data, t);
 }
+
+/** Колонки и подписи аналитики клиентского аккаунта — общие для страницы и блоков на главной. */
+export function clientAccountAnalyticsFields(t: TFunction) {
+  const ca = (key: string) => t(`crm.clientAccounts.analytics.${key}`) as string;
+  return [
+    { key: 'source', label: ca('fields.source'), type: 'select' },
+    { key: 'financialCategory', label: ca('fields.financialCategory'), type: 'select' },
+    { key: 'amountUsd', label: ca('fields.amountUsd'), type: 'number' },
+    { key: 'amountEur', label: ca('fields.amountEur'), type: 'number' },
+    { key: 'ccpStatus', label: ca('fields.ccpStatus'), type: 'text' },
+  ];
+}
+
+export function clientAccountAnalyticsLabels(t: TFunction) {
+  const ca = (key: string) => t(`crm.clientAccounts.analytics.${key}`) as string;
+  return {
+    total: ca('labels.total'),
+    line: ca('labels.line'),
+    table: ca('labels.table'),
+    record: ca('labels.record'),
+  };
+}

@@ -19,6 +19,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiAssistantService } from './ai-assistant.service';
+import { AiToolsService } from './ai-tools.service';
 import { WorkspaceSyncService, type SyncSourceKind } from '../workspace-sync/workspace-sync.service';
 import { AiQuotaService } from './ai-quota.service';
 import { AiOpenAiService } from './ai-openai.service';
@@ -33,6 +34,7 @@ import { isDefaultAiChatTitle } from './ai-chat-title.util';
 export class AiController {
   constructor(
     private readonly assistant: AiAssistantService,
+    private readonly tools: AiToolsService,
     private readonly sync: WorkspaceSyncService,
     private readonly quota: AiQuotaService,
     private readonly openai: AiOpenAiService,
@@ -60,6 +62,16 @@ export class AiController {
       configured: platformConfigured || Boolean(tenantOverride),
       quota,
     };
+  }
+
+  /** Кнопка «В рабочую область» на странице «ROI по клиентам» — та же логика, что у инструмента ИИ. */
+  @Post('workspace-tables/roi')
+  @RequirePermission('custom_objects', 'write')
+  async createRoiTable(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { tableName?: string; displayCurrency?: string; monthsBack?: number; sources?: string[] },
+  ) {
+    return this.tools.createRoiWorkspaceTable(user.tenantId, body || {});
   }
 
   /* ── Источники синхронизации таблицы рабочей области (см. workspace-sync) ── */
@@ -434,7 +446,7 @@ export class AiController {
   @Post('analytics/build-dashboard')
   async buildAnalyticsDashboard(
     @CurrentUser() user: CurrentUserPayload,
-    @Body() body: { module?: string; workspaceObjectId?: string; periodFrom?: string; periodTo?: string },
+    @Body() body: { module?: string; workspaceObjectId?: string; periodFrom?: string; periodTo?: string; instructions?: string },
   ) {
     return this.assistant.buildAnalyticsDashboard(user.tenantId, user.userId!, body || {});
   }

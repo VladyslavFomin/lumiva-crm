@@ -32,6 +32,7 @@ import { BookingAnalyticsController } from './booking-analytics.controller';
 import { BookingLogsController } from './booking-logs.controller';
 import { ReservationsImportController } from './reservations-import.controller';
 
+import { BookingsAiService } from './bookings-ai.service';
 import { ApiTokensModule } from '../api-tokens/api-tokens.module';
 import { ApiTokenGuard } from '../api-tokens/api-token.guard';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -85,9 +86,11 @@ import { StaffUsersModule } from '../staff/staff-users.module';
     BookingsWaitlistService,
     BookingsAnalyticsService,
     ReservationsImportService,
+    BookingsAiService,
     ApiTokenGuard,
   ],
   exports: [
+    BookingsAiService,
     ReservationsService,
     BookingsProjectsService,
     BookingsAnalyticsService,

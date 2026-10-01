@@ -197,6 +197,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   const [mccIncludeDraft, setMccIncludeDraft] = useState<Record<string, string>>({});
   const [mccExcludeDraft, setMccExcludeDraft] = useState<Record<string, string>>({});
   const [lastSyncRows, setLastSyncRows] = useState<number | null>(null);
+  const [syncInBackground, setSyncInBackground] = useState(false);
 
   const [provider, setProvider] = useState<ProviderKey>('google_ads');
   const [name, setName] = useState('');
@@ -566,7 +567,15 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
     setLastSyncRows(null);
     try {
       const res = await syncMarketingIntegration(id);
+      setSyncInBackground(Boolean(res.background));
       setLastSyncRows(res.rowsSaved);
+      if (res.background) {
+        // Досинхронизируется на сервере — подтягиваем свежие данные чуть позже.
+        window.setTimeout(() => {
+          void refreshList();
+          onMarketingDataChanged?.();
+        }, 75_000);
+      }
       await refreshList();
       onMarketingDataChanged?.();
     } catch (e: unknown) {
@@ -838,7 +847,9 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
             background: 'rgba(34, 34, 34, 0.045)',
           }}
         >
-          {lastSyncRows > 0 ? (
+          {syncInBackground ? (
+            <span>{t('crm.marketingIntegrations.syncBackground', { defaultValue: 'Синхронизация большого кабинета продолжается в фоне — данные появятся через 1–2 минуты.' })}</span>
+          ) : lastSyncRows > 0 ? (
             <span>{t('crm.marketingIntegrations.syncResult', { count: lastSyncRows })}</span>
           ) : (
             <span>{t('crm.marketingIntegrations.syncZero')}</span>
@@ -1191,14 +1202,15 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                     </div>
                   )}
                   {/* Meta creds */}
-                  {activeAddProvider === 'meta_ads' && metaPlatformApp && <div className={`${credentialsShell} text-[11px] text-[#222222]/70 leading-relaxed`}>{t('crm.marketingIntegrations.form.meta.platformAppBanner')}</div>}
+                  {/* Meta creds: синхронизация берёт только токен, ID кабинета и валюту — поля конверсии/выручки/источника
+                      она не читала (source/medium всегда meta/paid), поэтому убраны из формы */}
                   {activeAddProvider === 'meta_ads' && (
                     <div className={credentialsGrid}>
-                      <div className="sm:col-span-2"><label className={labelCls}>{t('crm.marketingIntegrations.form.meta.accessToken')}</label><input type="password" autoComplete="new-password" className={inputCls} value={metaToken} onChange={(e) => setMetaToken(e.target.value)}/></div>
-                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.meta.conversionAction')}</label><input className={inputCls} value={metaConv} onChange={(e) => setMetaConv(e.target.value)}/></div>
-                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.meta.revenueAction')}</label><input className={inputCls} value={metaRevAct} onChange={(e) => setMetaRevAct(e.target.value)}/></div>
-                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.meta.source')}</label><input className={inputCls} value={metaSource} onChange={(e) => setMetaSource(e.target.value)}/></div>
-                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.meta.medium')}</label><input className={inputCls} value={metaMedium} onChange={(e) => setMetaMedium(e.target.value)}/></div>
+                      <div className="sm:col-span-2">
+                        <label className={labelCls}>{t('crm.marketingIntegrations.form.meta.accessToken')}</label>
+                        <input type="password" autoComplete="new-password" className={inputCls} value={metaToken} onChange={(e) => setMetaToken(e.target.value)}/>
+                        <p className="mt-1 text-[10px] text-[#222222]/55 leading-relaxed">{t('crm.marketingIntegrations.form.meta.tokenHint')}</p>
+                      </div>
                     </div>
                   )}
                   {/* Yandex Metrika creds */}
@@ -1552,15 +1564,6 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
               </div>
             )}
 
-            {provider === 'meta_ads' && metaPlatformApp && (
-              <div
-                className={`${credentialsShell} text-[11px] text-[#222222]/70 leading-relaxed`}
-                role="status"
-              >
-                {t('crm.marketingIntegrations.form.meta.platformAppBanner')}
-              </div>
-            )}
-
             {provider === 'meta_ads' && (
               <div className={credentialsGrid}>
                 <div className="sm:col-span-2">
@@ -1572,22 +1575,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                     value={metaToken}
                     onChange={(e) => setMetaToken(e.target.value)}
                   />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('crm.marketingIntegrations.form.meta.conversionAction')}</label>
-                  <input className={inputCls} value={metaConv} onChange={(e) => setMetaConv(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('crm.marketingIntegrations.form.meta.revenueAction')}</label>
-                  <input className={inputCls} value={metaRevAct} onChange={(e) => setMetaRevAct(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('crm.marketingIntegrations.form.meta.source')}</label>
-                  <input className={inputCls} value={metaSource} onChange={(e) => setMetaSource(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('crm.marketingIntegrations.form.meta.medium')}</label>
-                  <input className={inputCls} value={metaMedium} onChange={(e) => setMetaMedium(e.target.value)} />
+                  <p className="mt-1 text-[10px] text-[#222222]/55 leading-relaxed">{t('crm.marketingIntegrations.form.meta.tokenHint')}</p>
                 </div>
               </div>
             )}

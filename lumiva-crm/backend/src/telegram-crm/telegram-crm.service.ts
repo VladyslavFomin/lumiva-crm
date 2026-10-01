@@ -12,6 +12,8 @@ import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import axios from 'axios';
+import { normalizeChatFile, type ChatUpload } from '../common/chat-file.util';
+import { enrichChatContacts } from '../common/chat-contact-enrich.util';
 import { TelegramBot } from './telegram-bot.entity';
 import { TelegramContact } from './telegram-contact.entity';
 import { TelegramMessage } from './telegram-message.entity';
@@ -850,7 +852,7 @@ export class TelegramCrmService {
         date: new Date(sent.date * 1000),
         isRead: true,
         rawData: sent,
-        meta: { source: 'manual' },
+        meta: { source: options?.source || 'manual' },
       }));
     } catch (error: any) {
       bot.status = 'error';
@@ -942,6 +944,56 @@ export class TelegramCrmService {
     return { items: await qb.getMany(), total };
   }
 
+  /** Отправить клиенту файл: JPEG/PNG — фото (sendPhoto, до 10 МБ), остальное — документом (sendDocument, до 50 МБ).
+   * В attachments сохраняется file_id из ответа Telegram — по нему файл потом открывается в CRM
+   * через fetchAttachmentFile, как и входящие. */
+  async sendFile(
+    tenantId: string,
+    botId: string,
+    telegramUserId: string,
+    upload: ChatUpload | undefined,
+    caption?: string,
+    options?: { contactId?: string; companyId?: string; leadId?: string; saleId?: string },
+  ): Promise<TelegramMessage> {
+    const file = normalizeChatFile(upload);
+    const bot = await this.findBot(tenantId, botId);
+    const contact = await this.contactRepo.findOne({ where: { tenantId, telegramUserId } });
+    if (!contact) throw new NotFoundException('Telegram contact not found');
+    const asPhoto = file.kind === 'image' && file.size <= 10 * 1024 * 1024;
+    const method = asPhoto ? 'sendPhoto' : 'sendDocument';
+    const form = new FormData();
+    form.append('chat_id', telegramUserId);
+    const text = (caption || '').trim();
+    if (text) form.append('caption', text.slice(0, 1024));
+    form.append(asPhoto ? 'photo' : 'document', new Blob([new Uint8Array(file.buffer)], { type: file.mime }), file.fileName);
+    const res = await fetch(`https://api.telegram.org/bot${bot.botToken}/${method}`, { method: 'POST', body: form });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) {
+      throw new BadRequestException(`Failed to send file: ${data?.description || res.status}`);
+    }
+    const sent = data.result;
+    const attachments = this.extractAttachments(sent)?.map((a: any) => ({ ...a, fileName: a.fileName || file.fileName })) ?? null;
+    return this.messageRepo.save(this.messageRepo.create({
+      tenantId,
+      contactId: contact.id,
+      botId: bot.id,
+      messageId: String(sent.message_id),
+      chatId: String(sent.chat.id),
+      direction: 'outgoing',
+      text: text || null,
+      messageType: asPhoto ? 'photo' : 'document',
+      attachments,
+      linkedContactId: options?.contactId || null,
+      linkedCompanyId: options?.companyId || null,
+      linkedLeadId: options?.leadId || contact.leadId || null,
+      linkedSaleId: options?.saleId || null,
+      date: new Date(sent.date * 1000),
+      isRead: true,
+      rawData: sent,
+      meta: { source: 'manual' },
+    }));
+  }
+
   /** Downloads one attachment (photo/document/voice/video) of a stored message through the
    * owning bot's token. Telegram's `file_id` has no public URL — `getFile` returns a `file_path`
    * good for ~1h and only fetchable with the bot token attached, so this can't be exposed to the
@@ -983,7 +1035,7 @@ export class TelegramCrmService {
   async findContacts(
     tenantId: string,
     options?: { search?: string; botId?: string; leadId?: string },
-  ): Promise<Array<TelegramContact & { lastMessage: TelegramMessage | null; unreadCount: number }>> {
+  ): Promise<Array<TelegramContact & { lastMessage: TelegramMessage | null; unreadCount: number } & Record<string, unknown>>> {
     const qb = this.contactRepo.createQueryBuilder('contact')
       .where('contact.tenantId = :tenantId', { tenantId });
     if (options?.botId) qb.andWhere('contact.botId = :botId', { botId: options.botId });
@@ -1018,7 +1070,7 @@ export class TelegramCrmService {
       .getRawMany<{ contactId: string; count: string }>();
     const unreadByContact = new Map(unreadRows.map((r) => [r.contactId, parseInt(r.count, 10)]));
 
-    return contacts
+    const rows = contacts
       .map((c) => ({
         ...c,
         lastMessage: lastByContact.get(c.id) ?? null,
@@ -1029,6 +1081,7 @@ export class TelegramCrmService {
         const bd = b.lastMessage ? new Date(b.lastMessage.date).getTime() : new Date(b.createdAt).getTime();
         return bd - ad;
       });
+    return enrichChatContacts(this.contactRepo.manager, tenantId, rows, 'telegram_messages');
   }
 
   async markContactMessagesRead(tenantId: string, contactId: string): Promise<void> {
@@ -2088,6 +2141,21 @@ export class TelegramCrmService {
     const activeFlowId = bot.meta?.activeFlowId as string | null | undefined;
 
     if (!activeFlowId) {
+      // Без активного сценария: если Telegram ведёт ИИ-консультант мессенджеров (свой бриф канала,
+      // пауза при ответе человека), встроенный ИИ бота уступает ему — иначе клиент получил бы два ответа.
+      if (!lower.startsWith('/')) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { OnlineChatAiService } = require('../online-chat/online-chat-ai.service');
+          const consultant = this.moduleRef.get(OnlineChatAiService, { strict: false });
+          if (await consultant.messengerHandles(bot.tenantId, 'telegram')) {
+            consultant.onTelegramMessage(bot.tenantId, contact.id);
+            return;
+          }
+        } catch (e) {
+          this.log.warn(`messenger consultant check failed: ${(e as Error).message}`);
+        }
+      }
       if (capabilities.aiAutoReply === false) return;
       return this.handleExternalUserMessage(bot, contact, chatId, text);
     }
@@ -2160,5 +2228,24 @@ export class TelegramCrmService {
     const state: FlowState = { flowId: 'freeform', nodeId: 'ai', collected: {}, visited: [], recentMessages: [] };
     const result = await this.runAiTurn(bot, fakeContact, state, input.message, true);
     return { reply: result.reply, trace: result.trace };
+  }
+
+  /** «Создать лид» из диалога: новый лид с источником telegram, диалог и его сообщения привязываются к нему. */
+  async createLeadForContact(tenantId: string, contactId: string): Promise<{ leadId: string }> {
+    const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
+    if (!contact) throw new NotFoundException('Contact not found');
+    if (contact.leadId) return { leadId: contact.leadId };
+    const phone = contact.telegramPhone || undefined;
+    const lead = await this.leadsService.createForTenant(tenantId, {
+      name: [contact.telegramFirstName, contact.telegramLastName].filter(Boolean).join(' ').trim() || (contact.telegramUsername ? `@${contact.telegramUsername}` : `Telegram ${contact.telegramUserId}`),
+      ...(phone ? { phone } : {}),
+      source: 'telegram',
+      status: 'new',
+      meta: { telegramUserId: contact.telegramUserId, telegramUsername: contact.telegramUsername || null, telegramBotId: contact.botId || null },
+    } as any);
+    contact.leadId = lead.id;
+    await this.contactRepo.save(contact);
+    await this.messageRepo.update({ tenantId, contactId: contact.id }, { linkedLeadId: lead.id });
+    return { leadId: lead.id };
   }
 }

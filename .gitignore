@@ -45,3 +45,14 @@ ystemctl enable nginx
 .profile
 .wget-hsts
 .selected_editor
+
+# --- Local backups, builds and tool state (2026-10-01 cleanup) ---
+deploy-backups/
+lumiva-crm/deploy-backups/
+*.sql.gz
+*.apk
+.ngrok2/
+.claude.json.tmp.*
+dups.json
+n8n-backups/
+lumiva-crm-recovery/

@@ -26,6 +26,10 @@ export type IntegrationConnectionCardProps = {
   /** WordPress CF7: подгрузить полный URL с секретом (GET /integrations/:id) */
   fetchCf7PasteUrl?: (connectionId: string) => Promise<string | null>;
   footer?: React.ReactNode;
+  /** Открыть форму редактирования (только для подключений, у которых она есть) */
+  onEdit?: (connection: IntegrationConnectionDto) => void;
+  /** Удалить подключение; подтверждение — на самой кнопке */
+  onDelete?: (connection: IntegrationConnectionDto) => Promise<void>;
 };
 
 export const IntegrationConnectionCard: React.FC<
@@ -43,8 +47,12 @@ export const IntegrationConnectionCard: React.FC<
   showInboundWebhookBlocks = true,
   fetchCf7PasteUrl,
   footer,
+  onEdit,
+  onDelete,
 }) => {
   const [cf7CopyHint, setCf7CopyHint] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const copyText = useCallback(
     async (text: string) => {
@@ -314,6 +322,61 @@ export const IntegrationConnectionCard: React.FC<
         )}
 
       {footer ? <div className="mt-3">{footer}</div> : null}
+
+      {onEdit || onDelete ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={() => onEdit(c)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-800 hover:bg-slate-50"
+            >
+              {t('crm.integrationsHub.connectionEdit')}
+            </button>
+          ) : null}
+          {onDelete ? (
+            confirmDelete ? (
+              <span className="flex flex-wrap items-center gap-2 text-[11px] text-rose-800">
+                {t('crm.integrationsHub.connectionDeleteConfirm')}
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() =>
+                    void (async () => {
+                      setDeleting(true);
+                      try {
+                        await onDelete(c);
+                      } finally {
+                        setDeleting(false);
+                        setConfirmDelete(false);
+                      }
+                    })()
+                  }
+                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {deleting ? t('crm.integrationsHub.toggleBusy') : t('crm.integrationsHub.connectionDeleteYes')}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  {t('crm.integrationsHub.connectionDeleteNo')}
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-50"
+              >
+                {t('crm.integrationsHub.connectionDelete')}
+              </button>
+            )
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 };

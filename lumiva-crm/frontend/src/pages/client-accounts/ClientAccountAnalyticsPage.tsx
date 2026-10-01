@@ -6,7 +6,11 @@ import { ccpApi, type CcpClientAnalytics } from '../../api/ccp';
 import { MainLayout } from '../../layout/MainLayout';
 import { ProjectsAnalyticsPage } from '../projects/ProjectsAnalyticsPage';
 import type { Project } from '../projects/projectTypes';
-import { mapCcpDataToItems } from '../../dashboard/clientAccountAnalyticsItems';
+import {
+  clientAccountAnalyticsFields,
+  clientAccountAnalyticsLabels,
+  mapCcpDataToItems,
+} from '../../dashboard/clientAccountAnalyticsItems';
 
 function s(value: any) {
   return String(value ?? '').trim();
@@ -332,24 +336,13 @@ const ClientAccountAnalyticsPage: React.FC = () => {
     <ProjectsAnalyticsPage
       externalItems={items}
       storageNamespace={`client_account_operations_analytics_v3_${clientId}`}
-      analyticsFields={[
-        { key: 'source', label: ca('fields.source'), type: 'select' },
-        { key: 'financialCategory', label: ca('fields.financialCategory'), type: 'select' },
-        { key: 'amountUsd', label: ca('fields.amountUsd'), type: 'number' },
-        { key: 'amountEur', label: ca('fields.amountEur'), type: 'number' },
-        { key: 'ccpStatus', label: ca('fields.ccpStatus'), type: 'text' },
-      ]}
+      analyticsFields={clientAccountAnalyticsFields(t)}
       header={{
         kicker: ca('header.kicker'),
         title: ca('header.titleFormat', { name: title }),
         subtitle: ca('header.subtitle'),
       }}
-      analyticsLabels={{
-        total: ca('labels.total'),
-        line: ca('labels.line'),
-        table: ca('labels.table'),
-        record: ca('labels.record'),
-      }}
+      analyticsLabels={clientAccountAnalyticsLabels(t)}
       defaultWidgetsOverride={[
         {
           id: 'metric-total-operations',

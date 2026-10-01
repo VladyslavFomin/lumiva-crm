@@ -79,7 +79,7 @@ export const BookingAnalyticsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
-  const sourceLabel = (s: string) => (s === 'website' || s === 'phone' || s === 'walkin' || s === 'manual' || s === 'api' || s === 'telegram' ? t(`crm.bookings.source.${s}`) : s);
+  const sourceLabel = (s: string) => (s === 'website' || s === 'phone' || s === 'walkin' || s === 'manual' || s === 'api' || s === 'telegram' || s === 'whatsapp' ? t(`crm.bookings.source.${s}`) : s);
 
   const { from, to } = useMemo(() => {
     const toDate = new Date();

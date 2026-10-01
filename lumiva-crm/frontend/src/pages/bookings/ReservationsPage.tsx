@@ -250,7 +250,7 @@ export const ReservationsPage: React.FC = () => {
 
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const statusLabel = (s: ReservationStatus) => t(`crm.bookings.status.${s}`);
-  const sourceLabel = (s: string) => (s === 'website' || s === 'phone' || s === 'walkin' || s === 'manual' || s === 'api' || s === 'telegram' ? t(`crm.bookings.source.${s}`) : s);
+  const sourceLabel = (s: string) => (s === 'website' || s === 'phone' || s === 'walkin' || s === 'manual' || s === 'api' || s === 'telegram' || s === 'whatsapp' ? t(`crm.bookings.source.${s}`) : s);
 
   const currentUserEmail = getStoredUser()?.email as string | undefined;
   const myStaffUserId = staff.find((s) => s.staffUser?.email?.toLowerCase() === currentUserEmail?.toLowerCase())?.staffUserId;
@@ -413,6 +413,7 @@ export const ReservationsPage: React.FC = () => {
             <option value="manual">{t('crm.bookings.source.manual')}</option>
             <option value="api">{t('crm.bookings.source.api')}</option>
             <option value="telegram">{t('crm.bookings.source.telegram')}</option>
+            <option value="whatsapp">{t('crm.bookings.source.whatsapp')}</option>
           </select>
         </div>
 

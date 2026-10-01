@@ -1,3 +1,5 @@
+import { fromIsoDate, type DateRangePreset } from '../../components/ui/DateRangePicker';
+
 /** UTC calendar date YYYY-MM-DD for marketing traffic APIs. */
 export function marketingTrafficUtcTodayYmd(): string {
   const t = new Date();
@@ -42,4 +44,14 @@ export function marketingTrafficClampDateRange(range: {
     to = swap;
   }
   return { from, to };
+}
+
+/** Пресеты для общего DateRangePicker (тот же набор, что был в сегменте; «custom» — это сам календарь). */
+export function marketingTrafficPickerPresets(labels: Record<MarketingTrafficPeriodPreset, string>): DateRangePreset[] {
+  return (['7d', '30d', '90d'] as const)
+    .map((p) => {
+      const r = marketingTrafficPresetRange(p);
+      return { id: p as string, label: labels[p], range: { from: fromIsoDate(r.from), to: fromIsoDate(r.to) } };
+    })
+    .concat({ id: 'all', label: labels.all, range: { from: null, to: null } });
 }

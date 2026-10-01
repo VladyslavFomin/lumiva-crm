@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import type { MarketingTrafficStats } from '../../api/marketing';
-import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
+import { marketingDataSourceLabel, marketingProviderFamilyLabel } from '../../utils/marketingDataSourceLabel';
 import {
   formatMarketingChannelDimension,
   sanitizeMarketingDimension,
@@ -48,6 +48,8 @@ function sumMetrics(rows: Item[]) {
   let revenue = 0;
   let cost = 0;
   let impressions = 0;
+  let conversions = 0;
+  let conversionValue = 0;
   for (const r of rows) {
     sessions += r.sessions || 0;
     clicks += r.clicks || 0;
@@ -55,12 +57,17 @@ function sumMetrics(rows: Item[]) {
     revenue += r.revenue || 0;
     cost += r.cost || 0;
     impressions += r.impressions || 0;
+    conversions += r.conversions || 0;
+    conversionValue += r.conversionValue || 0;
   }
   /** Для GA4 «показы» = просмотры страниц (как клики) — отношение 1:1, не рекламный CTR. */
   const ctrPct =
     impressions > 0 && clicks !== impressions ? (clicks / impressions) * 100 : null;
-  return { sessions, clicks, leads, revenue, cost, impressions, ctrPct };
+  return { sessions, clicks, leads, revenue, cost, impressions, ctrPct, conversions, conversionValue };
 }
+
+/** Рекламные площадки: у них вместо лидов/выручки CRM — конверсии и их ценность по данным кабинета. */
+const isAdsSource = (ds: string) => /^(google_ads|meta_ads|yandex_direct|vk_ads)/.test(ds);
 
 function dominantCurrency(rows: Item[]): string {
   const cw: Record<string, number> = {};
@@ -91,6 +98,8 @@ export type MarketingChannelBlocksProps = {
   title: string;
   subtitle: string;
   dataSourceLabels?: Record<string, string>;
+  /** integrationId → название подключения: переключатель кабинетов в карточке, если их несколько. */
+  integrationLabels?: Record<string, string>;
   /** Скрыть строки без dataSource (колонка «без канала») — только на странице кампаний. */
   unattributedControl?: {
     hidden: boolean;
@@ -112,11 +121,14 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
   title,
   subtitle,
   dataSourceLabels,
+  integrationLabels,
   unattributedControl,
   trafficDateFrom,
   trafficDateTo,
 }) => {
-  const [detailModal, setDetailModal] = useState<null | { ds: string; title: string; rows: Item[] }>(
+  /** Выбранный кабинет в карточке канала: ds → integrationId ('' — все кабинеты). */
+  const [accountByDs, setAccountByDs] = useState<Record<string, string>>({});
+  const [detailModal, setDetailModal] = useState<null | { ds: string; title: string; rows: Item[]; integrationId?: string }>(
     null,
   );
   const hasUnattributed = useMemo(
@@ -137,7 +149,15 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
   /** Сортировки и суммы по каналам только при смене данных, не при каждом рендере (курсы/валюта). */
   const columnPrepared = useMemo(
     () =>
-      columns.map(([ds, rows]) => {
+      columns.map(([ds, allRows]) => {
+        const accounts = [
+          ...new Set(allRows.map((r) => r.integrationId).filter((id): id is string => !!id)),
+        ]
+          .map((id) => ({ id, label: integrationLabels?.[id] || id }))
+          .sort((a, b) => a.label.localeCompare(b.label));
+        const picked = accountByDs[ds] || '';
+        const account = accounts.length > 1 && accounts.some((a) => a.id === picked) ? picked : '';
+        const rows = account ? allRows.filter((r) => r.integrationId === account) : allRows;
         const agg = sumMetrics(rows);
         const provCur = dominantCurrency(rows);
         const top = [...rows]
@@ -149,9 +169,9 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
               b.sessions - a.sessions,
           )
           .slice(0, 8);
-        return { ds, rows, agg, provCur, top };
+        return { ds, rows, allRows, agg, provCur, top, accounts, account };
       }),
-    [columns],
+    [columns, accountByDs, integrationLabels],
   );
 
   const fmtMoney = (amount: number, fromCur?: string | null) => {
@@ -205,7 +225,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch [content-visibility:auto]">
-        {columnPrepared.map(({ ds, rows, agg, provCur, top }) => {
+        {columnPrepared.map(({ ds, allRows, agg, provCur, top, accounts, account }) => {
           const theme = marketingChannelCardTheme(ds);
           const costConv = convertMarketingAmount(
             agg.cost,
@@ -214,8 +234,12 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
             displayCurrency,
             rates,
           );
+          const ads = isAdsSource(ds);
+          /** У рекламных площадок «выручка» = ценность конверсий из кабинета, «лиды» = конверсии. */
+          const revenueRaw = ads ? agg.conversionValue : agg.revenue;
+          const leadsRaw = ads ? agg.conversions : agg.leads;
           const revConv = convertMarketingAmount(
-            agg.revenue,
+            revenueRaw,
             provCur,
             currencyMode,
             displayCurrency,
@@ -230,7 +254,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
           const roasCh =
             costConv.value > 0 && revConv.value > 0 ? revConv.value / costConv.value : null;
           const cplCh =
-            agg.leads > 0 && agg.cost > 0 ? costConv.value / agg.leads : null;
+            leadsRaw > 0 && agg.cost > 0 ? costConv.value / leadsRaw : null;
           const rateStar =
             costConv.missingRate && currencyMode === 'converted' ? '*' : '';
 
@@ -243,12 +267,16 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
             { l: t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' }), v: formatNumber(agg.impressions), color: undefined },
             { l: t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики / просмотры' }), v: formatNumber(agg.clicks || agg.sessions), color: '#5a45a8' },
             { l: t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии / визиты' }), v: formatNumber(agg.sessions), color: undefined },
-            { l: t('crm.marketingChannels.kpi.leads'), v: formatNumber(agg.leads), color: '#c08319' },
+            {
+              l: ads ? t('crm.marketingChannelBlocks.conversions', { defaultValue: 'Конверсии' }) : t('crm.marketingChannels.kpi.leads'),
+              v: formatNumber(Math.round(leadsRaw * 10) / 10),
+              color: '#c08319',
+            },
             { l: 'CTR', v: agg.ctrPct != null ? `${agg.ctrPct.toFixed(2)}%` : '—', color: undefined },
             { l: 'CPC', v: cpc != null && cpc > 0 ? `${formatMoney(cpc)} ${costConv.currency}${rateStar}` : '—', color: undefined },
             { l: 'CPM', v: cpm != null && cpm > 0 ? `${formatMoney(cpm)} ${costConv.currency}${rateStar}` : '—', color: undefined },
             { l: 'ROAS', v: roasCh != null && roasCh > 0 ? roasCh.toFixed(2) : '—', color: roasCh ? '#1f8a5e' : undefined },
-            { l: 'CPL', v: cplCh != null && cplCh > 0 ? `${formatMoney(cplCh)} ${costConv.currency}${rateStar}` : '—', color: undefined },
+            { l: ads ? 'CPA' : 'CPL', v: cplCh != null && cplCh > 0 ? `${formatMoney(cplCh)} ${costConv.currency}${rateStar}` : '—', color: undefined },
           ];
 
           return (
@@ -269,9 +297,32 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                   <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', color: INK }}>
                     {marketingDataSourceLabel(t, ds, dataSourceLabels)}
                   </div>
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, marginTop: 2, letterSpacing: '0.02em' }}>
-                    {ds}
+                  <div
+                    style={{ fontSize: 11, color: FG3, marginTop: 2 }}
+                    title={ds}
+                  >
+                    {marketingProviderFamilyLabel(ds)}
                   </div>
+                  {accounts.length > 1 && (
+                    <select
+                      className="mt-2 max-w-full rounded-lg border border-[#222222]/12 bg-white px-2 py-1 text-[12px] text-[#222222]"
+                      value={account}
+                      onChange={(e) => setAccountByDs((prev) => ({ ...prev, [ds]: e.target.value }))}
+                      aria-label={t('crm.marketingChannelBlocks.accountFilter', { defaultValue: 'Рекламный кабинет' })}
+                    >
+                      <option value="">
+                        {t('crm.marketingChannelBlocks.allAccounts', {
+                          defaultValue: 'Все кабинеты ({{count}})',
+                          count: accounts.length,
+                        })}
+                      </option>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -279,7 +330,9 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                     setDetailModal({
                       ds,
                       title: marketingDataSourceLabel(t, ds, dataSourceLabels),
-                      rows,
+                      // Все кабинеты канала — выбор кабинета внутри окна фильтрует их сам.
+                      rows: allRows,
+                      integrationId: account || undefined,
                     })
                   }
                   style={{ padding: '6px 13px', border: `1px solid ${LINE}`, background: '#fff', color: INK, borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .12s', flexShrink: 0 }}
@@ -332,10 +385,23 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                 </div>
                 <div style={{ padding: '13px 16px', borderBottom: `1px solid ${LINE3}` }}>
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
-                    {t('crm.marketingCampaigns.table.headers.revenue')}
+                    {ads
+                      ? t('crm.marketingChannelBlocks.conversionValue', { defaultValue: 'Ценность конверсий' })
+                      : t('crm.marketingCampaigns.table.headers.revenue')}
                   </div>
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#1f8a5e', marginTop: 6, letterSpacing: '-0.02em' }}>
-                    {fmtMoney(agg.revenue, provCur)}
+                    {fmtMoney(revenueRaw, provCur)}
+                    {ads && agg.conversions > 0 && agg.conversionValue > 0 && agg.conversionValue / agg.conversions < 10 ? (
+                      <div
+                        style={{ fontFamily: 'inherit', fontSize: 10.5, fontWeight: 400, color: '#888', marginTop: 4, letterSpacing: 0 }}
+                        title={t('crm.marketingChannelBlocks.placeholderValueHint', {
+                          defaultValue:
+                            'В среднем меньше 10 за конверсию: конверсиям присвоена условная ценность (обычно 1 — звонки, клики, формы), это не выручка.',
+                        })}
+                      >
+                        {t('crm.marketingChannelBlocks.placeholderValue', { defaultValue: 'условная ценность, не выручка' })}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -374,9 +440,9 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                             })}
                           </th>
                           <th className={`${marketingThNumeric} tabular-nums align-bottom w-px`}>
-                            {t('crm.marketingChannelBlocks.thLeads', {
-                              defaultValue: 'Лиды',
-                            })}
+                            {ads
+                              ? t('crm.marketingChannelBlocks.conversions', { defaultValue: 'Конверсии' })
+                              : t('crm.marketingChannelBlocks.thLeads', { defaultValue: 'Лиды' })}
                           </th>
                           <th className={`${marketingThNumeric} tabular-nums align-bottom w-px px-3`}>
                             {t('crm.marketingChannelBlocks.thCost', {
@@ -384,9 +450,9 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                             })}
                           </th>
                           <th className={`${marketingThNumeric} tabular-nums align-bottom w-px px-3`}>
-                            {t('crm.marketingChannelBlocks.thRevenue', {
-                              defaultValue: 'Выручка',
-                            })}
+                            {ads
+                              ? t('crm.marketingChannelBlocks.conversionValueShort', { defaultValue: 'Ценность' })
+                              : t('crm.marketingChannelBlocks.thRevenue', { defaultValue: 'Выручка' })}
                           </th>
                         </tr>
                       </thead>
@@ -428,7 +494,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                             <td
                               className={`${marketingTd} text-right tabular-nums whitespace-nowrap px-2.5`}
                             >
-                              {formatNumber(row.leads || 0)}
+                              {formatNumber(ads ? Math.round((row.conversions || 0) * 10) / 10 : row.leads || 0)}
                             </td>
                             <td
                               className={`${marketingTd} text-right tabular-nums font-medium whitespace-nowrap px-3`}
@@ -438,7 +504,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                             <td
                               className={`${marketingTd} text-right tabular-nums text-emerald-800/90 whitespace-nowrap px-3`}
                             >
-                              {fmtMoney(row.revenue || 0, row.currency)}
+                              {fmtMoney((ads ? row.conversionValue : row.revenue) || 0, row.currency)}
                             </td>
                           </tr>
                         ))}
@@ -472,6 +538,9 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
           open
           onClose={() => setDetailModal(null)}
           dataSourceKey={detailModal.ds}
+          integrationId={detailModal.integrationId}
+          onIntegrationChange={(id) => setAccountByDs((prev) => ({ ...prev, [detailModal.ds]: id }))}
+          integrationLabels={integrationLabels}
           channelTitle={detailModal.title}
           rows={detailModal.rows}
           dateFrom={trafficDateFrom}

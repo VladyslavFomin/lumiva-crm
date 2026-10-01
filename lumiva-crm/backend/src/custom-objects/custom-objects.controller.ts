@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseFilters,
@@ -23,6 +24,10 @@ import { MulterWorkspaceUploadFilter } from './multer-workspace-upload.filter';
 import { WorkspaceAreaAccessGuard } from '../workspace-areas/workspace-area-access.guard';
 import { RequireAreaRole } from '../workspace-areas/require-area-role.decorator';
 import { CustomObjectsService } from './custom-objects.service';
+import { WorkspaceSharesService } from './workspace-shares.service';
+import { GeocodeService } from './geocode.service';
+import { AnalyticsReportMailService } from './analytics-report-mail.service';
+import { Throttle } from '@nestjs/throttler';
 import { CustomObjectImportAiService } from './custom-object-import-ai.service';
 import { WORKSPACE_ATTACHMENT_MAX_BYTES } from './workspace-attachment.constants';
 import { CreateCustomObjectDto } from './dto/create-custom-object.dto';
@@ -50,6 +55,9 @@ export class CustomObjectsController {
   constructor(
     private readonly service: CustomObjectsService,
     private readonly importAi: CustomObjectImportAiService,
+    private readonly shares: WorkspaceSharesService,
+    private readonly geocode: GeocodeService,
+    private readonly reportMail: AnalyticsReportMailService,
   ) {}
 
   @Get()
@@ -108,6 +116,55 @@ export class CustomObjectsController {
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
   ) {
     return this.service.deleteObject(user.tenantId, objectId);
+  }
+
+  /** Отчёт аналитики на почту: снимки блоков + ИИ-анализ + комментарий. */
+  @Post(':objectId/analytics-report-email')
+  @RequireAreaRole(...AREA_READ)
+  @Throttle({ long: { limit: 6, ttl: 60000 } })
+  async sendAnalyticsReport(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const sender = String((user as any).name || (user as any).fullName || user.email || '').trim();
+    return this.reportMail.send(user.tenantId, sender, objectId, body || {});
+  }
+
+  /** Координаты городов/адресов для блока «Карта» (режим «точки»), с кэшем. */
+  @Post(':objectId/geocode')
+  @RequireAreaRole(...AREA_READ)
+  async geocodeValues(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Body() body: { queries?: string[]; country?: string },
+  ) {
+    await this.service.getObject(user.tenantId, objectId);
+    return this.geocode.geocodeMany(body?.queries, body?.country);
+  }
+
+  /** Публичная ссылка «только аналитика» на таблицу. */
+  @Get(':objectId/share')
+  @RequireAreaRole(...AREA_EDIT)
+  async getShare(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+  ) {
+    return this.shares.getSettings(user.tenantId, objectId);
+  }
+
+  @Put(':objectId/share')
+  @RequireAreaRole(...AREA_EDIT)
+  async saveShare(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Body() body: { enabled?: boolean; password?: string | null; expiresAt?: string | null },
+  ) {
+    return this.shares.saveSettings(user.tenantId, user.userId!, objectId, {
+      enabled: typeof body?.enabled === 'boolean' ? body.enabled : undefined,
+      password: body?.password === null ? null : typeof body?.password === 'string' ? body.password : undefined,
+      expiresAt: body?.expiresAt === null ? null : typeof body?.expiresAt === 'string' ? body.expiresAt : undefined,
+    });
   }
 
   @Get(':objectId/fields')
@@ -252,6 +309,21 @@ export class CustomObjectsController {
       search,
       enrichColumnBindings: ec,
     });
+  }
+
+  /**
+   * Все строки таблицы одним компактным ответом для аналитики: [id, values, createdAt, updatedAt]
+   * без служебных полей. `?v=<версия>` — если таблица не менялась, отдаём { unchanged: true }
+   * без строк (браузер берёт их из своего кэша).
+   */
+  @Get(':objectId/records/compact')
+  @RequireAreaRole(...AREA_READ)
+  async listRecordsCompact(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Query('v') knownVersion?: string,
+  ) {
+    return this.service.listRecordsCompact(user.tenantId, objectId, knownVersion);
   }
 
   @Post(':objectId/records')

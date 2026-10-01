@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { postAiNextAction, type AiNextActionResult } from '../../api/ai';
 
 interface Props {
@@ -7,7 +8,6 @@ interface Props {
 
 const URGENCY_COLOR = { hot: '#dc2626', warm: '#d97706', cold: '#3b82f6' };
 const URGENCY_BG = { hot: '#fef2f2', warm: '#fffbeb', cold: '#eff6ff' };
-const URGENCY_LABEL = { hot: 'Горячий', warm: 'Тёплый', cold: 'Холодный' };
 
 const CHANNEL_ICON: Record<string, React.ReactNode> = {
   phone: (
@@ -42,7 +42,12 @@ function saveCached(leadId: string, r: AiNextActionResult) {
   try { localStorage.setItem(lsKey(leadId), JSON.stringify(r)); } catch {}
 }
 
+function uiLocale(lang: string) {
+  return lang.startsWith('tr') ? 'tr-TR' : lang.startsWith('en') ? 'en-US' : 'ru-RU';
+}
+
 export const AiNextActionCard: React.FC<Props> = ({ leadId }) => {
+  const { t, i18n } = useTranslation();
   const [result, setResult] = useState<AiNextActionResult | null>(() => loadCached(leadId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +64,10 @@ export const AiNextActionCard: React.FC<Props> = ({ leadId }) => {
     setError(null);
     try {
       const r = await postAiNextAction(leadId);
-      if (!r.ok) { setError('Не удалось получить рекомендацию'); return; }
+      if (!r.ok) { setError(r.error || t('crm.aiCards.next.failed')); return; }
       setResult(r);
       saveCached(leadId, r);
-    } catch { setError('Ошибка запроса'); }
+    } catch { setError(t('crm.aiCards.requestError')); }
     finally { setLoading(false); }
   }
 
@@ -73,11 +78,11 @@ export const AiNextActionCard: React.FC<Props> = ({ leadId }) => {
     <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, fontFamily: FF }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3 }}>
-          ✦ Следующий шаг
+          ✦ {t('crm.aiCards.next.title')}
         </span>
         <button type="button" onClick={analyze} disabled={loading}
           style={{ fontFamily: FM, fontSize: 10, color: '#7c3aed', background: 'none', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: '0.06em' }}>
-          {loading ? 'Анализ...' : result ? '↻ Обновить' : 'Рекомендовать'}
+          {loading ? t('crm.aiCards.analyzing') : result ? `↻ ${t('crm.aiCards.refresh')}` : t('crm.aiCards.next.recommend')}
         </button>
       </div>
 
@@ -85,21 +90,20 @@ export const AiNextActionCard: React.FC<Props> = ({ leadId }) => {
 
       {!result && !loading && (
         <div style={{ fontSize: 12, color: FG3, fontStyle: 'italic' }}>
-          AI определит приоритетное действие для этого лида
+          {t('crm.aiCards.next.empty')}
         </div>
       )}
 
       {loading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #e7e7e7', borderTopColor: '#7c3aed', animation: 'spin2 0.8s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: FG3 }}>AI анализирует лид…</span>
+          <span style={{ fontSize: 12, color: FG3 }}>{t('crm.aiCards.analyzingLead')}</span>
           <style>{`@keyframes spin2{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
 
       {result?.ok && !loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Action header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -111,7 +115,7 @@ export const AiNextActionCard: React.FC<Props> = ({ leadId }) => {
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#111', lineHeight: 1.3 }}>{result.action}</div>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3, padding: '1px 7px', borderRadius: 999, background: URGENCY_BG[urgency], border: `1px solid ${URGENCY_COLOR[urgency]}30`, fontSize: 10, fontWeight: 600, color: URGENCY_COLOR[urgency] }}>
-                ● {URGENCY_LABEL[urgency]}
+                ● {t(`crm.aiCards.next.urgency.${urgency}`)}
               </div>
             </div>
           </div>
@@ -135,7 +139,7 @@ export const AiNextActionCard: React.FC<Props> = ({ leadId }) => {
 
           {result.updatedAt && (
             <div style={{ fontFamily: FM, fontSize: 9.5, color: '#b5b5b5' }}>
-              Обновлено: {new Date(result.updatedAt).toLocaleString('ru-RU')}
+              {t('crm.aiCards.updated', { date: new Date(result.updatedAt).toLocaleString(uiLocale(i18n.language || 'ru')) })}
             </div>
           )}
         </div>

@@ -1235,6 +1235,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         children: [
           { label: t('crm.nav.marketingTraffic'), path: '/app/marketing/traffic' },
           { label: t('crm.nav.marketingCampaigns'), path: '/app/marketing/campaigns' },
+          { label: t('crm.nav.marketingRoi'), path: '/app/marketing/roi' },
           {
             label: t('crm.nav.marketingBroadcasts'),
             path: '/app/marketing/broadcasts',

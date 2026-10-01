@@ -150,12 +150,23 @@ export class AccountService {
 
   // ============== ПРЕДПОЧТЕНИЯ ==============
 
+  async getPreferences(userId: string) {
+    const user = await this.requireUser(userId);
+    return { preferences: user.preferences || {}, timezone: user.timezone };
+  }
+
   async updatePreferences(userId: string, patch: Record<string, any>) {
     const user = await this.requireUser(userId);
     const current = this.prefs(user);
     const merged = { ...current, ...patch };
     if (patch.notifications) {
       merged.notifications = { ...current.notifications, ...patch.notifications };
+    }
+    if (patch.analyticsLayouts) {
+      merged.analyticsLayouts = {
+        ...(current.analyticsLayouts || {}),
+        ...patch.analyticsLayouts,
+      };
     }
     user.preferences = merged;
     if (patch.timezone !== undefined) {

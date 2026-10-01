@@ -149,6 +149,16 @@ function pickDefaultGroupColumns(columns: string[]): string[] {
   return columns[0] ? [columns[0]] : [];
 }
 
+function pickDefaultGroupColumnsForMode(
+  columns: string[],
+  mode: WorkspaceTableImportMode | null,
+): string[] {
+  // Для GA4 сводка по странам должна складывать все источники, каналы и кампании
+  // внутри страны. Остальные измерения пользователь может добавить вручную.
+  if (mode === 'ga4' && columns.includes('country_id')) return ['country_id'];
+  return pickDefaultGroupColumns(columns);
+}
+
 function emptyChannelImport(): ChannelImportState {
   return {
     preview: null,
@@ -292,6 +302,7 @@ export const WorkspaceImportPage: React.FC = () => {
   const [targetGroup, setTargetGroup] = useState('');
   const [existingGroups, setExistingGroups] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [importCompleted, setImportCompleted] = useState(false);
   const [applyErrors, setApplyErrors] = useState<Array<{ row: number; reason: string }>>([]);
   /** Эвристика при handlePreview заподозрила "сырую" структуру файла (merged-колонки и т.п.) */
   const [aiReshapeOffer, setAiReshapeOffer] = useState(false);
@@ -546,7 +557,16 @@ export const WorkspaceImportPage: React.FC = () => {
     if (v.includes('date') || v.includes('дата')) return 'date';
     if (v.includes('status') || v.includes('статус')) return 'status';
     if (v.includes('priority') || v.includes('приоритет')) return 'select';
-    if (v.includes('sum') || v.includes('amount') || v.includes('value') || v.includes('сумм')) return 'number';
+    if (
+      v.includes('sum') ||
+      v.includes('amount') ||
+      v.includes('value') ||
+      v.includes('сумм') ||
+      v.includes('session') ||
+      v.includes('view') ||
+      v.includes('click') ||
+      v.includes('impression')
+    ) return 'number';
     return 'text';
   };
 
@@ -669,7 +689,7 @@ export const WorkspaceImportPage: React.FC = () => {
         columnToField: nextMap,
         statusFieldKey: st?.key || '',
         importMode: 'full',
-        aggregateGroupByColumns: pickDefaultGroupColumns(res.columns),
+        aggregateGroupByColumns: pickDefaultGroupColumnsForMode(res.columns, mode),
       });
     } catch (e: any) {
       mergeCh(c.id, {
@@ -712,7 +732,7 @@ export const WorkspaceImportPage: React.FC = () => {
         columnToField: nextMap,
         statusFieldKey: st?.key || '',
         importMode: 'full',
-        aggregateGroupByColumns: pickDefaultGroupColumns(res.columns),
+        aggregateGroupByColumns: pickDefaultGroupColumnsForMode(res.columns, 'meta_ads'),
       });
     } catch (e: any) {
       mergeCh(key, {
@@ -992,8 +1012,8 @@ export const WorkspaceImportPage: React.FC = () => {
         columnImport: nextImport,
         columnToField: nextMap,
         statusFieldKey: st?.key || '',
-        importMode: 'full',
-        aggregateGroupByColumns: pickDefaultGroupColumns(res.columns),
+        importMode: 'aggregate',
+        aggregateGroupByColumns: pickDefaultGroupColumnsForMode(res.columns, 'ga4'),
       });
     } catch (e: any) {
       mergeCh(key, {
@@ -1078,6 +1098,7 @@ export const WorkspaceImportPage: React.FC = () => {
     if (!file) return;
     setLoading(true);
     setMessage(null);
+    setImportCompleted(false);
     setAiReshapeNote(null);
     setAiReshapeError(null);
     try {
@@ -1236,15 +1257,18 @@ export const WorkspaceImportPage: React.FC = () => {
         );
       }
       setMessage(parts.join(' '));
+      setImportCompleted(true);
       setApplyErrors(res.errors || []);
     } catch (e: any) {
+      setImportCompleted(false);
       setMessage(e?.message || t('crm.workspace.import.applyFailed'));
     } finally {
       setApplying(false);
     }
   };
 
-  const importStep: 'file' | 'map' | 'done' = !file ? 'file' : !preview ? 'file' : message ? 'done' : 'map';
+  const importStep: 'file' | 'map' | 'done' =
+    !file ? 'file' : !preview ? 'file' : importCompleted ? 'done' : 'map';
 
   return (
     <MainLayout>
@@ -2285,7 +2309,11 @@ export const WorkspaceImportPage: React.FC = () => {
                     <td style={{ textAlign: 'right' }}>
                       <button
                         type="button"
-                        onClick={() => void createFieldFromColumn(column)}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void createFieldFromColumn(column);
+                        }}
                         disabled={creatingForColumn === column}
                         className="tb-icon-btn"
                       >

@@ -410,11 +410,17 @@ export const WorkspaceNewTablePage: React.FC = () => {
             ? sourcePick.targetObjectId
             : null;
       if (objectIdToCopyFieldsFrom) {
-        const fields = await fetchCustomObjectFields(objectIdToCopyFieldsFrom);
-        copiedFields = fields
-          .filter((f) => f.isActive)
-          .sort((a, b) => a.order - b.order)
-          .map((f) => ({ key: f.key, label: f.label, type: f.type, required: f.required, options: f.options || undefined }));
+        try {
+          const fields = await fetchCustomObjectFields(objectIdToCopyFieldsFrom);
+          copiedFields = fields
+            .filter((f) => f.isActive)
+            .sort((a, b) => a.order - b.order)
+            .map((f) => ({ key: f.key, label: f.label, type: f.type, required: f.required, options: f.options || undefined }));
+        } catch {
+          // A workspace integration can retain a targetObjectId of a deleted table.
+          // Do not block creating a new table; the import page can configure the source again.
+          copiedFields = null;
+        }
       }
       // «Из источника» с нативным CRM-модулем (Лиды/Продажи/Проекты/Бронирования/Отели/Товары) —
       // реальные ключи полей этих модулей + актуальные пользовательские поля тенанта.
@@ -473,12 +479,21 @@ export const WorkspaceNewTablePage: React.FC = () => {
           await createCustomObjectRecord(created.id, { values });
         });
       } else if (template === 'source' && sourcePick?.kind === 'integration') {
-        const records = await fetchAllCustomObjectRecords(sourcePick.targetObjectId);
-        await runInChunks(records, 6, async (rec) => {
-          await createCustomObjectRecord(created.id, { values: rec.values });
-        });
+        try {
+          const records = await fetchAllCustomObjectRecords(sourcePick.targetObjectId);
+          await runInChunks(records, 6, async (rec) => {
+            await createCustomObjectRecord(created.id, { values: rec.values });
+          });
+        } catch {
+          // The selected binding may point to a deleted table. The new table remains usable;
+          // GA4/Woo/Meta can be configured from its import page.
+        }
       }
       if (template === 'file') {
+        navigate(`/workspace/${created.id}/import`);
+        return;
+      }
+      if (template === 'source' && sourcePick?.kind === 'integration' && !copiedFields) {
         navigate(`/workspace/${created.id}/import`);
         return;
       }

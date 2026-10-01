@@ -31,6 +31,8 @@ import {
 import { InsightsView, KnowledgeView } from './AiKnowledgeInsightsViews';
 import { AiAgentWorkPanel } from './AiAgentWorkPanel';
 import { AiAnalystReportPanel } from './AiAnalystReportPanel';
+import { AiChatOperatorPanel } from './AiChatOperatorPanel';
+import { AiMessengerOperatorPanel } from './AiMessengerOperatorPanel';
 import {
   approveAiAction,
   createAiEmployee,
@@ -101,6 +103,7 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
       'read_messages',
       'read_notes',
       'read_reports',
+      'read_products',
     ],
   },
   {
@@ -109,7 +112,7 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
   },
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.communications',
-    keys: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram', 'create_meeting'],
+    keys: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp', 'reply_online_chat', 'create_meeting'],
   },
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.workspace',
@@ -120,8 +123,10 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
 /** Права, после которых сообщение реально уходит клиенту / меняются данные CRM — помечаем бейджем. */
 const PERMISSION_BADGE: Record<string, 'external' | 'writes'> = {
   send_email: 'external',
+  reply_online_chat: 'external',
   send_bulk_email: 'external',
   send_telegram: 'external',
+  send_whatsapp: 'external',
   create_task: 'writes',
   update_task: 'writes',
   create_note: 'writes',
@@ -135,6 +140,7 @@ const PERMISSION_BADGE: Record<string, 'external' | 'writes'> = {
 const approvalKeys = [
   'send_email',
   'send_telegram',
+  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
   'create_task',
@@ -149,7 +155,7 @@ const approvalKeys = [
 const TEAM_DEPARTMENTS: Array<{ key: string; roles: AiEmployeeRoleKey[] }> = [
   { key: 'sales', roles: ['lead_manager', 'sales_manager', 'email_assistant'] },
   { key: 'marketing', roles: ['marketing_manager', 'marketing_analyst', 'smm_manager', 'seo_manager'] },
-  { key: 'service', roles: ['support_manager', 'reviews_manager', 'reservation_assistant'] },
+  { key: 'service', roles: ['chat_operator', 'messenger_operator', 'support_manager', 'reviews_manager', 'reservation_assistant'] },
   { key: 'projects', roles: ['project_manager'] },
   { key: 'management', roles: ['crm_analyst'] },
 ];
@@ -159,6 +165,7 @@ const REAL_EXECUTABLE_ACTIONS = new Set([
   'send_email',
   'send_bulk_email',
   'send_telegram',
+  'send_whatsapp',
   'update_lead_status',
   'assign_lead',
   'create_task',
@@ -190,7 +197,7 @@ type AccessModuleDef = { key: string; labelKey: string; acts: string[] };
 const ACCESS_MODULES: AccessModuleDef[] = [
   { key: 'leads', labelKey: 'crm.aiEmployees.v2.groups.leads', acts: ['update_lead_status', 'assign_lead'] },
   { key: 'tasks', labelKey: 'crm.aiEmployees.v2.groups.tasks', acts: ['create_task', 'update_task', 'create_note'] },
-  { key: 'mail', labelKey: 'crm.aiEmployees.v2.groups.mail', acts: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram'] },
+  { key: 'mail', labelKey: 'crm.aiEmployees.v2.groups.mail', acts: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp'] },
   { key: 'work', labelKey: 'crm.aiEmployees.v2.groups.work', acts: ['create_meeting', 'create_project'] },
   { key: 'data', labelKey: 'crm.aiEmployees.v2.groups.data', acts: ['create_report', 'create_workspace_table', 'manage_workspace_data'] },
 ];
@@ -239,6 +246,7 @@ const AVATAR_SWATCH_BG: Record<AiAvatarAccent, string> = {
 /* ---------------------------------------------------------------- icons */
 const ICON = {
   back: <path d="M15 6l-6 6 6 6" />,
+  chat: <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />,
   chevR: <path d="M9 6l6 6-6 6" />,
   check: <path d="M5 12l4 4 10-10" />,
   plus: (
@@ -2290,7 +2298,7 @@ export function AiEmployeeProfilePage() {
   const [openaiConnectionId, setOpenaiConnectionId] = useState('');
   const [allConnections, setAllConnections] = useState<IntegrationConnectionDto[]>([]);
   const [assignments, setAssignments] = useState<AiAgentAssignmentItem[]>([]);
-  const [tab, setTab] = useState<'overview' | 'access' | 'work' | 'journal'>('overview');
+  const [tab, setTab] = useState<'overview' | 'chat' | 'access' | 'work' | 'journal'>('overview');
   const [journalFilter, setJournalFilter] = useState<'all' | 'appr' | 'log' | 'rep' | 'err'>('all');
   const [accessOpen, setAccessOpen] = useState(true);
   const [cfg, setCfg] = useState<AiAgentConfig | null>(null);
@@ -2396,6 +2404,12 @@ export function AiEmployeeProfilePage() {
   const tabs = agent
     ? [
         { key: 'overview' as const, label: t('crm.aiEmployees.profile.tabs.overview'), icon: ICON.eye, badge: 0 },
+        // онлайн-консультант: бриф (услуги/цены/правила) и проверка ответа
+        ...(agent.role === 'chat_operator'
+          ? [{ key: 'chat' as const, label: t('crm.aiEmployees.chatOperator.tab'), icon: ICON.chat, badge: 0 }]
+          : agent.role === 'messenger_operator'
+            ? [{ key: 'chat' as const, label: t('crm.aiEmployees.messengerOperator.tab'), icon: ICON.chat, badge: 0 }]
+            : []),
         {
           key: 'access' as const,
           // у аналитика вместо «Доступов» — настройка отчёта (какие данные и когда)
@@ -2625,6 +2639,20 @@ export function AiEmployeeProfilePage() {
               </div>
             ) : null}
 
+            {tab === 'chat' && agent && agent.role === 'messenger_operator' ? (
+              <AiMessengerOperatorPanel
+                agentId={agent.id}
+                autonomyMode={detail?.agent.autonomyMode || agent.autonomyMode}
+                permissions={detail?.permissions as Record<string, boolean> | undefined}
+              />
+            ) : null}
+            {tab === 'chat' && agent && agent.role !== 'messenger_operator' ? (
+              <AiChatOperatorPanel
+                agentId={agent.id}
+                autonomyMode={detail?.agent.autonomyMode || agent.autonomyMode}
+                canReply={!!detail?.permissions?.reply_online_chat}
+              />
+            ) : null}
             {tab === 'access' && detail?.role?.reportOnly && agent ? <AiAnalystReportPanel agentId={agent.id} /> : null}
             {tab === 'access' && !detail?.role?.reportOnly ? (
               <>
