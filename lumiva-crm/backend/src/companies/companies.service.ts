@@ -21,6 +21,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StaffUsersService } from '../staff/staff-users.service';
 import { CurrencyRatesService } from '../currency/currency-rates.service';
 import { Tenant } from '../tenants/tenant.entity';
+import { Sale } from '../sales/sale.entity';
 
 // Статусы проекта, которые ещё "в работе" (не имеют финального исхода) — считаются в
 // pipeline/"потенциале", а не в выручке и не в потерях.
@@ -41,6 +42,20 @@ function sumProjectsByCurrency(projects: Project[]): Record<string, number> {
   return map;
 }
 
+/** Статусы продаж (в т.ч. из интеграций магазинов), которые уже являются выручкой. */
+const SALE_REVENUE_STATUSES = ['confirmed', 'paid', 'complete', 'completed'];
+/** Продажа ещё не завершена — идёт в «Потенциал». Отмены/возвраты/ошибки не считаются. */
+const SALE_OPEN_STATUSES = ['new', 'pending', 'processing', 'on_hold'];
+
+function sumSalesByCurrency(sales: Sale[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const s of sales) {
+    const cur = (s.currency || 'EUR').toUpperCase();
+    out[cur] = (out[cur] || 0) + (Number(s.amount) || 0);
+  }
+  return out;
+}
+
 @Injectable()
 export class CompaniesService {
   constructor(
@@ -56,6 +71,8 @@ export class CompaniesService {
     private readonly taskRepo: Repository<CompanyTask>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(Sale)
+    private readonly saleRepo: Repository<Sale>,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
     private readonly auditLog: AuditLogService,
@@ -551,6 +568,40 @@ export class CompaniesService {
       lostAmountByCurrency: sumProjectsByCurrency(projects.filter((p) => PROJECT_LOST_STATUSES.includes(p.status))),
     };
 
+    // Продажи (модуль «Продажи») — тоже выручка компании: привязаны через контакт или лид
+    // компании. Продажа, привязанная к проекту этой компании, пропускается — сумма проекта уже
+    // учтена выше, иначе одна сделка посчиталась бы дважды.
+    const projectIds = projects.map((p) => p.id);
+    let sales: Sale[] = [];
+    if (contactIds.length > 0 || leadIds.length > 0) {
+      const salesQb = this.saleRepo
+        .createQueryBuilder('sale')
+        .where('sale.tenantId = :tenantId', { tenantId })
+        .andWhere(
+          `(${[
+            contactIds.length > 0 ? 'sale.contactId IN (:...contactIds)' : null,
+            leadIds.length > 0 ? 'sale.leadId IN (:...leadIds)' : null,
+          ]
+            .filter(Boolean)
+            .join(' OR ')})`,
+          { contactIds, leadIds },
+        );
+      if (projectIds.length > 0) {
+        salesQb.andWhere('(sale.projectId IS NULL OR sale.projectId NOT IN (:...projectIds))', { projectIds });
+      }
+      sales = await salesQb.getMany();
+    }
+    const saleStatus = (s: Sale) => String(s.status || '').toLowerCase();
+    const wonSales = sales.filter((s) => SALE_REVENUE_STATUSES.includes(saleStatus(s)));
+    const openSales = sales.filter((s) => SALE_OPEN_STATUSES.includes(saleStatus(s)));
+    const salesStats = {
+      total: sales.length,
+      won: wonSales.length,
+      open: openSales.length,
+      revenueByCurrency: sumSalesByCurrency(wonSales),
+      pipelineByCurrency: sumSalesByCurrency(openSales),
+    };
+
     // Конверсия лидов в проекты
     const conversionRate = allLeads.length > 0
       ? (projects.length / allLeads.length) * 100
@@ -581,8 +632,12 @@ export class CompaniesService {
     const conv = (byCur: Record<string, number>) =>
       this.currencyRates.convertMapToSingleWithRates(byCur, primaryCurrency, rates);
 
-    const totalRevenueConverted = conv(projectsStats.closedAmountByCurrency);
-    const pipelineRevenueConverted = conv(projectsStats.pipelineAmountByCurrency);
+    const projectsRevenueConverted = conv(projectsStats.closedAmountByCurrency);
+    const salesRevenueConverted = conv(salesStats.revenueByCurrency);
+    const salesPipelineConverted = conv(salesStats.pipelineByCurrency);
+    const totalRevenueConverted = Math.round((projectsRevenueConverted + salesRevenueConverted) * 100) / 100;
+    const pipelineRevenueConverted =
+      Math.round((conv(projectsStats.pipelineAmountByCurrency) + salesPipelineConverted) * 100) / 100;
     const lostRevenueConverted = conv(projectsStats.lostAmountByCurrency);
     const totalAmountConverted = conv(projectsStats.totalAmountByCurrency);
     const avgProjectValueConverted = projects.length
@@ -599,6 +654,7 @@ export class CompaniesService {
       },
       leads: leadsStats,
       projects: projectsStats,
+      sales: salesStats,
       metrics: {
         conversionRate: Math.round(conversionRate * 100) / 100,
         avgProjectValue: Math.round(avgProjectValue * 100) / 100,
@@ -608,7 +664,11 @@ export class CompaniesService {
         // Сконвертированные в primaryCurrency тенанта — единое число для показа в UI вместо
         // "N EUR + M TRY". "Потенциал" = pipeline (открытые, без исхода) сделки.
         currency: primaryCurrency,
+        // Выручка = закрытые проекты + оплаченные/подтверждённые продажи (без двойного счёта).
         totalRevenueConverted,
+        projectsRevenueConverted,
+        salesRevenueConverted,
+        salesPipelineConverted,
         potentialRevenueConverted: pipelineRevenueConverted,
         pipelineRevenueConverted,
         lostRevenueConverted,
@@ -636,6 +696,8 @@ export class CompaniesService {
     const totalRevenue = analytics.reduce((sum, a) => sum + a.metrics.totalRevenueConverted, 0);
     const totalPotentialRevenue = analytics.reduce((sum, a) => sum + a.metrics.pipelineRevenueConverted, 0);
     const totalWonLeads = analytics.reduce((sum, a) => sum + a.leads.byStatus.won, 0);
+    const totalSales = analytics.reduce((sum, a) => sum + a.sales.won, 0);
+    const totalSalesRevenue = analytics.reduce((sum, a) => sum + a.metrics.salesRevenueConverted, 0);
 
     // Топ компаний по выручке
     const topByRevenue = [...analytics]
@@ -670,6 +732,8 @@ export class CompaniesService {
         totalPotentialRevenue: Math.round(totalPotentialRevenue * 100) / 100,
         currency: primaryCurrency,
         totalWonLeads,
+        totalSales,
+        totalSalesRevenue: Math.round(totalSalesRevenue * 100) / 100,
         avgConversionRate: totalLeads > 0
           ? Math.round((totalProjects / totalLeads) * 10000) / 100
           : 0,
@@ -691,6 +755,8 @@ export class CompaniesService {
         avgProjectValue: a.metrics.avgProjectValueConverted,
         currency: a.metrics.currency,
         wonLeads: a.leads.byStatus.won,
+        sales: a.sales.won,
+        salesRevenue: a.metrics.salesRevenueConverted,
       })),
     };
   }

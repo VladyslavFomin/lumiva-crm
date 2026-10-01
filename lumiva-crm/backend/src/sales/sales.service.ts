@@ -1338,14 +1338,22 @@ export class SalesService {
     return saved;
   }
 
-  async getRecent(tenantId: string, limit = 10): Promise<{ sales: Array<{ id: string; name: string | null; amount: number | null; currency: string | null; status: string; createdAt: Date }> }> {
-    const rows = await this.saleRepo.find({
-      where: { tenantId },
-      order: { createdAt: 'DESC' },
-      take: Math.min(limit, 50),
-    });
+  async getRecent(
+    tenantId: string,
+    limit = 10,
+    ownScopeFilter?: { sql: string; params: Record<string, unknown> },
+  ): Promise<{ sales: Array<{ id: string; name: string | null; amount: number | null; currency: string | null; status: string; createdAt: Date; leadId: string | null; contactId: string | null }> }> {
+    const qb = this.saleRepo
+      .createQueryBuilder('s')
+      .where('s.tenantId = :tenantId', { tenantId })
+      .orderBy('s.createdAt', 'DESC')
+      .take(Math.min(Math.max(limit || 10, 1), 50));
+    if (ownScopeFilter) qb.andWhere(ownScopeFilter.sql, ownScopeFilter.params);
+    const rows = await qb.getMany();
     const sales = rows.map((s) => ({
       id: s.id,
+      leadId: s.leadId ?? null,
+      contactId: s.contactId ?? null,
       name: s.guestName || s.agentName || null,
       amount: s.amount ?? null,
       currency: s.currency ?? null,

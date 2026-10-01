@@ -767,31 +767,6 @@ export class OnlineChatService {
     };
   }
 
-  async debugListByTenantKey(tenantKey: string) {
-    if (!tenantKey) throw new BadRequestException('tenantKey is required');
-
-    const tenant = await this.tenantsRepo.findOne({
-      where: { clientKey: tenantKey },
-    });
-
-    if (!tenant) {
-      this.logger.warn(`debugListByTenantKey: tenant not found for key=${tenantKey}`);
-      return [];
-    }
-
-    const sessions = await this.sessionsRepo.find({
-      where: { tenantId: tenant.id },
-      order: { createdAt: 'DESC' },
-      take: 50,
-    });
-
-    this.logger.log(
-      `debugListByTenantKey: tenantKey=${tenantKey}, tenantId=${tenant.id}, sessions=${sessions.length}`,
-    );
-
-    return sessions;
-  }
-
   /* =========================================================
    * 4. Optional cleanup
    * =======================================================*/

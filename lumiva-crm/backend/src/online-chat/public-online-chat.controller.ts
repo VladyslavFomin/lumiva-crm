@@ -173,12 +173,4 @@ export class PublicOnlineChatController {
       after: Number(after || 0),
     });
   }
-
-  /* ================== DEBUG ================== */
-
-  // GET /v1/public/online-chat/debug-sessions?tenantKey=demo-client
-  @Get('debug-sessions')
-  async debugSessions(@Query('tenantKey') tenantKey: string) {
-    return this.chat.debugListByTenantKey(tenantKey);
-  }
 }

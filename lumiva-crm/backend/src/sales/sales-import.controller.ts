@@ -40,8 +40,9 @@ export class SalesImportController {
   @UseInterceptors(FileInterceptor('file'))
   async preview(
     @UploadedFile() file: any, // без Express.Multer.File, чтобы не ломать isolatedModules
+    @CurrentUser() user: CurrentUserPayload,
   ): Promise<ImportPreviewResponse> {
-    return this.importService.preview(file);
+    return this.importService.preview(file, user?.tenantId || null);
   }
 
   /**

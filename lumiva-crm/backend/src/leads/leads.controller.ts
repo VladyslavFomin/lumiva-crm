@@ -325,6 +325,27 @@ export class LeadsController {
 
   // ====================== GET /leads/:id/history ======================
   // full access -> любую историю; остальные -> только видимые им лиды (свои/по гранту)
+  @Get('funnel-today')
+  async funnelToday(@CurrentUser() user: CurrentUserPayload) {
+    const restrictToLeadIds = await this.getAnalyticsLeadIds(user);
+    return this.leadsService.getFunnelToday(user.tenantId, restrictToLeadIds);
+  }
+
+  @Get('sources-weekly')
+  async sourcesWeekly(@CurrentUser() user: CurrentUserPayload) {
+    const restrictToLeadIds = await this.getAnalyticsLeadIds(user);
+    return this.leadsService.getSourcesWeekly(user.tenantId, restrictToLeadIds);
+  }
+
+  @Get('access-grants')
+  async listAccessGrants(@CurrentUser() user: CurrentUserPayload) {
+    const ctx = await this.getAccessContext(user);
+    if (!ctx.fullAccess) {
+      throw new ForbiddenException('Недостаточно прав для просмотра настроек доступа');
+    }
+    return this.leadAccess.listAllGrants(user.tenantId);
+  }
+
   @Get(':id/history')
   async getLeadHistory(
     @Param('id') id: string,
@@ -522,30 +543,11 @@ export class LeadsController {
   }
 
   // ====================== GET /leads/funnel-today ======================
-  @Get('funnel-today')
-  async funnelToday(@CurrentUser() user: CurrentUserPayload) {
-    const restrictToLeadIds = await this.getAnalyticsLeadIds(user);
-    return this.leadsService.getFunnelToday(user.tenantId, restrictToLeadIds);
-  }
 
   // ====================== GET /leads/sources-weekly ======================
-  @Get('sources-weekly')
-  async sourcesWeekly(@CurrentUser() user: CurrentUserPayload) {
-    const restrictToLeadIds = await this.getAnalyticsLeadIds(user);
-    return this.leadsService.getSourcesWeekly(user.tenantId, restrictToLeadIds);
-  }
 
   // ====================== ACCESS GRANTS (управление доступом к лидам) ======================
   // Кто может видеть/менять: только full-access (owner/manager/руководитель отдела).
-
-  @Get('access-grants')
-  async listAccessGrants(@CurrentUser() user: CurrentUserPayload) {
-    const ctx = await this.getAccessContext(user);
-    if (!ctx.fullAccess) {
-      throw new ForbiddenException('Недостаточно прав для просмотра настроек доступа');
-    }
-    return this.leadAccess.listAllGrants(user.tenantId);
-  }
 
   @Post('access-grants')
   async createAccessGrant(

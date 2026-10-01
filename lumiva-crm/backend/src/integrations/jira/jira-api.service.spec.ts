@@ -38,7 +38,7 @@ describe('JiraApiService', () => {
     it('uses Basic auth header with base64 credentials', async () => {
       const spy = jest.spyOn(require('axios'), 'get').mockResolvedValueOnce({ data: {} });
       await svc.testConnection(cfg);
-      const headers = spy.mock.calls[0][1]?.headers;
+      const headers = (spy.mock.calls[0][1] as any)?.headers;
       const expected = 'Basic ' + Buffer.from(`${cfg.email}:${cfg.apiToken}`).toString('base64');
       expect(headers?.Authorization).toBe(expected);
     });
@@ -70,7 +70,7 @@ describe('JiraApiService', () => {
         data: { id: '10001', key: 'PROJ-1' },
       });
       await svc.createIssue(cfg, { summary: 'Bug from CRM', projectKey: 'PROJ', issueType: 'Bug' });
-      const body = spy.mock.calls[0][1];
+      const body = spy.mock.calls[0][1] as any;
       expect(body?.fields?.summary ?? JSON.stringify(body)).toContain('Bug from CRM');
     });
 

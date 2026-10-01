@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Patch, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Param, Post, UseGuards } from '@nestjs/common';
+import { PlatformAdminGuard } from '../platform-admin/platform-admin.guard';
 import { DemoRequestsService } from './demo-requests.service';
 
 @Controller('public/demo-requests')
@@ -42,6 +43,8 @@ export class DemoRequestsPublicController {
   }
 }
 
+// Список заявок с контактами потенциальных клиентов — только для админа платформы (pl1).
+@UseGuards(PlatformAdminGuard)
 @Controller('platform/demo-requests')
 export class DemoRequestsPlatformController {
   constructor(private readonly demoRequests: DemoRequestsService) {}

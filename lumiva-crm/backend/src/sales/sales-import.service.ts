@@ -304,7 +304,7 @@ export class SalesImportService {
     };
   }
 
-  async preview(file: any): Promise<ImportPreviewResponse> {
+  async preview(file: any, tenantId: string | null = null): Promise<ImportPreviewResponse> {
     if (!file) {
       throw new BadRequestException('Файл не передан');
     }
@@ -324,6 +324,7 @@ export class SalesImportService {
     const suggestedMapping = buildSuggestedMapping(columns);
 
     const session = this.sessionRepo.create({
+      tenantId,
       originalFileName: originalName,
       rawContent: raw,
       columns,
@@ -352,12 +353,13 @@ export class SalesImportService {
       where: { id: payload.importId },
     });
 
-    if (!session) {
-      throw new NotFoundException('Сессия импорта не найдена');
-    }
-
     if (!tenantId) {
       throw new BadRequestException('Не удалось определить tenantId');
+    }
+
+    // Старые сессии (до колонки tenantId) — null; чужую сессию не отдаём.
+    if (!session || (session.tenantId && session.tenantId !== tenantId)) {
+      throw new NotFoundException('Сессия импорта не найдена');
     }
 
     const { columns, rawContent } = session;

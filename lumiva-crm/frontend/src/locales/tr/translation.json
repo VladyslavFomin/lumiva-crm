@@ -5494,7 +5494,8 @@
         "clearRowsBtn": "Satırları temizle",
         "deleteTableTitle": "Tabloyu sil",
         "deleteTableHint": "Tüm satırlar, kolonlar ve veri tablosu bağlantıları silinir. Geri alınamaz.",
-        "deleteTableBtn": "Tabloyu sil"
+        "deleteTableBtn": "Tabloyu sil",
+        "bindingMultiSourceEditElsewhere": "Bu alanın birden fazla kaynağı var — bağlantıyı tablo sayfasındaki sütun ayarlarından düzenleyin."
       },
       "kindBadge": {
         "board": "Main table",
@@ -5641,7 +5642,13 @@
         "aiColumnPersonModeHint": "Sorumlu atama modu: YZ, kiracının personel listesinden gerçek bir isim seçmek zorundadır — asla uydurma bir isim yazmaz.",
         "aiRefreshAllButton": "Tüm satırları yeniden hesapla",
         "aiRefreshAllRunning": "Hesaplanıyor…",
-        "aiRefreshAllResult": "Tamamlandı: {{total}} üzerinden {{succeeded}}"
+        "aiRefreshAllResult": "Tamamlandı: {{total}} üzerinden {{succeeded}}",
+        "columnBindingNoDataTables": "Bu çalışma alanında veri tablosu yok.",
+        "columnBindingMultiSourceHint": "Birden fazla tablo seçebilirsiniz — değerleri birleştirilir.",
+        "columnBindingPreviewLoading": "Önizleme yükleniyor…",
+        "columnBindingPreviewEmpty": "Bu ayarlar için eşleşen veri yok.",
+        "columnBindingPreviewTitleRollup": "Toplam önizlemesi · grup: {{count}}",
+        "columnBindingPreviewTitlePick": "Seçenek önizlemesi · değer: {{count}}"
       },
       "kanban": {
         "title": "Kanban",
@@ -9828,7 +9835,8 @@
       "sync": "Senkronizasyon",
       "all": "Tümü",
       "done": "Tamam",
-      "template": "Şablon"
+      "template": "Şablon",
+      "copy": "Kopyala"
     },
     "marketingCurrency": {
       "fxError": "Döviz kurları yüklenemedi",
@@ -11910,7 +11918,8 @@
         "backToLeads": "Potansiyel müşterilere dön",
         "forbiddenEdit": "Bu potansiyel müşteriyi düzenlemek için yeterli erişiminiz yok",
         "forbiddenReassign": "Yalnızca \"Sahip\" seviyesi erişim sorumluyu değiştirebilir",
-        "forbiddenEditSome": "Seçilen bazı potansiyel müşteriler sizin tarafınızdan düzenlenemez ve atlandı"
+        "forbiddenEditSome": "Seçilen bazı potansiyel müşteriler sizin tarafınızdan düzenlenemez ve atlandı",
+        "fullAccessNote": "Sahip, yöneticiler ve departman müdürleri tüm potansiyel müşterileri her zaman görür — onlara erişim vermeye gerek yok."
       }
     },
     "companies": {
@@ -12003,7 +12012,7 @@
         },
         "header": {
           "title": "Şirketler",
-          "subtitle": "Veritabanındaki kuruluşlar: sektör, bilgiler, kişi sayısı ve para — kapanan projelerden gelir ve aktif anlaşmalardaki potansiyel."
+          "subtitle": "Veritabanındaki kuruluşlar: sektör, bilgiler, kişi sayısı ve para — kapanan projelerden ve satışlardan gelir ve aktif anlaşmalardaki potansiyel."
         },
         "actions": {
           "analytics": "Analitik",
@@ -12018,7 +12027,7 @@
           },
           "revenue": {
             "label": "Gelir",
-            "hint": "kapanan projelerden"
+            "hint": "projeler + satışlar"
           },
           "potential": {
             "label": "Potansiyel",
@@ -12303,7 +12312,7 @@
           "leadsHint": "{{count}} müşteriye dönüştü",
           "projects": "Projeler",
           "projectsHint": "{{count}} şirkette",
-          "revenueHint": "kapanan projelerden",
+          "revenueHint": "kapanan projelerden ve satışlardan",
           "potential": "Potansiyel",
           "potentialHint": "{{count}} şirkette devam ediyor",
           "avgConversion": "Ort. dönüşüm",

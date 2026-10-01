@@ -1054,7 +1054,7 @@ export const ProjectFormPage: React.FC = () => {
   }, [id, isNew]);
 
   useEffect(() => {
-    if (isNew || !project.id) return;
+    if (isNew || !project.id || project.id === 'new') return;
     let alive = true;
     setActivitiesLoading(true);
     setActivitiesError(null);

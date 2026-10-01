@@ -84,7 +84,7 @@ describe('OneCApiService', () => {
       const since = new Date('2024-01-01T00:00:00Z');
       await svc.fetchOrders(cfg, since);
       const callArgs = spy.mock.calls[0];
-      expect(callArgs[1]?.params?.dateFrom ?? callArgs[1]?.params?.sinceDate ?? callArgs[0]).toBeTruthy();
+      expect((callArgs[1] as any)?.params?.dateFrom ?? (callArgs[1] as any)?.params?.sinceDate ?? callArgs[0]).toBeTruthy();
     });
   });
 });

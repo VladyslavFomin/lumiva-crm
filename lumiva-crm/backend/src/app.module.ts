@@ -187,9 +187,11 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
 
     ThrottlerModule.forRoot({
       throttlers: [
-        { name: 'short', ttl: 1000, limit: 20 },
-        { name: 'medium', ttl: 10000, limit: 100 },
-        { name: 'long', ttl: 60000, limit: 400 },
+        // Одна страница CRM грузит ~25 запросов за секунду, а сотрудники офиса часто за одним IP —
+        // 20/с резало обычное открытие проекта (429). Auth-эндпоинты ограничены отдельно (AUTH_THROTTLE).
+        { name: 'short', ttl: 1000, limit: 60 },
+        { name: 'medium', ttl: 10000, limit: 300 },
+        { name: 'long', ttl: 60000, limit: 1200 },
       ],
       storage: new RedisThrottlerStorage(),
     }),

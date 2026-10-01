@@ -11,6 +11,10 @@ export class SalesImportSession {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  /** Чей файл: apply принимает importId только от того же тенанта. */
+  @Column({ type: 'uuid', nullable: true })
+  tenantId: string | null;
+
   @Column({ type: 'text', nullable: true })
   originalFileName: string | null;
 

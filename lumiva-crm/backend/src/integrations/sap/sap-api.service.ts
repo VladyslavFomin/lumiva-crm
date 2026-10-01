@@ -29,7 +29,7 @@ export class SapApiService {
     }
     const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
     const hint = base
-      ? ` Настройте в SAP отправку данных на: {URL подключения}/webhooks/sap/{connectionId} с заголовком X-SAP-Token: {ваш apiKey}.`
+      ? ` Настройте в SAP отправку данных на: ${base}/v1/webhooks/sap/{connectionId} с заголовком X-SAP-Token: {ваш apiKey}.`
       : ' Укажите PUBLIC_API_URL в env — тогда в карточке подключения появится готовый Inbound URL.';
     return {
       ok: true,

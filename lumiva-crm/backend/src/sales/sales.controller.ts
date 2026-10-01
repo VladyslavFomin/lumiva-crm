@@ -127,6 +127,27 @@ export class SalesController {
     return res.send(result.body);
   }
 
+  @Get('recent')
+  async recent(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    // Виджет дашборда подчиняется тем же правилам видимости, что и список продаж.
+    const visibility = await this.resolveVisibility(user);
+    const result = await this.salesService.getRecent(user.tenantId, parsedLimit, visibility.ownScopeFilter);
+    if (!visibility.maskAmount) return result;
+    const sales = await Promise.all(
+      result.sales.map(async (sale) => {
+        const isOwn = visibility.staffId
+          ? await this.dataVisibility.isSaleOwnedByStaff(sale, visibility.staffId)
+          : false;
+        return isOwn ? sale : { ...sale, amount: null };
+      }),
+    );
+    return { sales };
+  }
+
   @Get(':id')
   async getOne(
     @CurrentUser() user: CurrentUserPayload,
@@ -144,15 +165,6 @@ export class SalesController {
       return { ...detail, sale: { ...detail.sale, amount: null } };
     }
     return detail;
-  }
-
-  @Get('recent')
-  async recent(
-    @CurrentUser() user: CurrentUserPayload,
-    @Query('limit') limit?: string,
-  ) {
-    const parsedLimit = limit ? parseInt(limit, 10) : 10;
-    return this.salesService.getRecent(user.tenantId, parsedLimit);
   }
 
   @Patch(':id')

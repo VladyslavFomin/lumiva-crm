@@ -17,9 +17,11 @@ import { DataVisibilityModule } from '../data-visibility/data-visibility.module'
 import { CurrencyModule } from '../currency/currency.module';
 import { Tenant } from '../tenants/tenant.entity';
 
+import { Sale } from '../sales/sale.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Company, CompanyTask, Lead, Project, Contact, Tenant]),
+    TypeOrmModule.forFeature([Company, CompanyTask, Lead, Project, Contact, Tenant, Sale]),
     RbacModule,
     forwardRef(() => AutomationsModule),
     AuditLogModule,

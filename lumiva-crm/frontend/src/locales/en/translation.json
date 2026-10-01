@@ -3337,7 +3337,8 @@
         "clearRowsBtn": "Clear rows",
         "deleteTableTitle": "Delete table",
         "deleteTableHint": "Deletes all rows, columns and data-table bindings. This cannot be undone.",
-        "deleteTableBtn": "Delete table"
+        "deleteTableBtn": "Delete table",
+        "bindingMultiSourceEditElsewhere": "This field has several sources — edit its binding in the column settings on the table page."
       },
       "table": {
         "mondayBoardSubtitle": "Monday-style board: rows grouped by status. Columns and data sources are configured in table settings.",
@@ -3451,7 +3452,13 @@
         "aiColumnPersonModeHint": "Person-assignment mode: the AI must pick a real name from the tenant's staff list — it will never write a made-up name.",
         "aiRefreshAllButton": "Recompute all rows",
         "aiRefreshAllRunning": "Computing…",
-        "aiRefreshAllResult": "Done: {{succeeded}} of {{total}}"
+        "aiRefreshAllResult": "Done: {{succeeded}} of {{total}}",
+        "columnBindingNoDataTables": "There are no data tables in this workspace.",
+        "columnBindingMultiSourceHint": "You can pick several tables — their values will be combined.",
+        "columnBindingPreviewLoading": "Loading preview…",
+        "columnBindingPreviewEmpty": "No matching data for these settings.",
+        "columnBindingPreviewTitleRollup": "Totals preview · groups: {{count}}",
+        "columnBindingPreviewTitlePick": "Options preview · values: {{count}}"
       },
       "kanban": {
         "title": "Kanban",
@@ -7385,7 +7392,8 @@
       "sync": "Sync",
       "all": "All",
       "done": "Done",
-      "template": "Template"
+      "template": "Template",
+      "copy": "Copy"
     },
     "marketingCurrency": {
       "fxError": "Could not load exchange rates",
@@ -11928,7 +11936,8 @@
         "backToLeads": "Back to leads",
         "forbiddenEdit": "You don't have enough access to edit this lead",
         "forbiddenReassign": "Only \"Owner\" tier access can reassign the lead",
-        "forbiddenEditSome": "Some selected leads can't be edited by you and were skipped"
+        "forbiddenEditSome": "Some selected leads can't be edited by you and were skipped",
+        "fullAccessNote": "The owner, managers and department heads always see all leads — no grant is needed for them."
       }
     },
     "companies": {
@@ -12021,7 +12030,7 @@
         },
         "header": {
           "title": "Companies",
-          "subtitle": "Organizations in the database: industry, requisites, contact count and money — revenue from closed projects and potential in active deals."
+          "subtitle": "Organizations in the database: industry, requisites, contact count and money — revenue from closed projects and sales and potential in active deals."
         },
         "actions": {
           "analytics": "Analytics",
@@ -12036,7 +12045,7 @@
           },
           "revenue": {
             "label": "Revenue",
-            "hint": "from closed projects"
+            "hint": "projects + sales"
           },
           "potential": {
             "label": "Potential",
@@ -12321,7 +12330,7 @@
           "leadsHint": "{{count}} converted to a client",
           "projects": "Projects",
           "projectsHint": "across {{count}} companies",
-          "revenueHint": "from closed projects",
+          "revenueHint": "from closed projects and sales",
           "potential": "Potential",
           "potentialHint": "across {{count}} companies in progress",
           "avgConversion": "Avg conversion",

@@ -107,14 +107,4 @@ export class OnlineChatController {
     if (!user?.tenantId) return [];
     return this.chat.listSessions(user.tenantId, {});
   }
-
-  /* ============================================================
-   * 2. DEBUG по tenantKey (без авторизации)
-   * Итоговый путь: /v1/online-chat/debug-sessions?tenantKey=xxxx
-   * ==========================================================*/
-
-  @Get('online-chat/debug-sessions')
-  async debugSessions(@Query('tenantKey') tenantKey: string) {
-    return this.chat.debugListByTenantKey(tenantKey);
-  }
 }

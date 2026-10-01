@@ -46,11 +46,11 @@ export class Sale {
   @Column({ type: 'uuid', name: 'lead_id', nullable: true })
   leadId: string | null;
 
-  @ManyToOne(() => Project, { nullable: true })
+  @ManyToOne(() => Project, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'project_id' })
   project: Project | null;
 
-  @ManyToOne(() => Contact, { nullable: true })
+  @ManyToOne(() => Contact, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'contact_id' })
   contact: Contact | null;
 

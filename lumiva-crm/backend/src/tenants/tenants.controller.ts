@@ -31,6 +31,7 @@ import {
 } from '../common/decorators/current-user.decorator';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UserSessionsService } from '../auth/user-sessions.service';
+import { PlatformAdminGuard } from '../platform-admin/platform-admin.guard';
 import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 @Controller('tenants')
@@ -42,6 +43,8 @@ export class TenantsController {
     private readonly storageQuota: StorageQuotaService,
   ) {}
 
+  /** Все компании платформы (владельцы, реквизиты, Stripe ID) — только админ платформы. */
+  @UseGuards(PlatformAdminGuard)
   @Get()
   async getTenants() {
     return this.tenantsService.findAll();
