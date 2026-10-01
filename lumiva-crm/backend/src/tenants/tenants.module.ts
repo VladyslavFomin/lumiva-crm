@@ -28,6 +28,7 @@ import { ChatMessage } from '../online-chat/chat-message.entity';
 import { EmailMessage } from '../email/email-message.entity';
 import { TelegramMessage } from '../telegram-crm/telegram-message.entity';
 import { CustomObjectRecord } from '../custom-objects/custom-object-record.entity';
+import { EsignDocument } from '../esign/esign-document.entity';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { CustomObjectRecord } from '../custom-objects/custom-object-record.entit
       EmailMessage,
       TelegramMessage,
       CustomObjectRecord,
+      EsignDocument,
     ]),
 
     UserSessionsModule,

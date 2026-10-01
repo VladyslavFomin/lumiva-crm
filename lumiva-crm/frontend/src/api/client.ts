@@ -4,6 +4,7 @@ import {
   getAccessToken,
   persistSessionExpired,
 } from '../auth/session';
+import i18n from '../i18n';
 
 // БАЗОВЫЙ URL API:
 export const API_BASE =
@@ -216,6 +217,10 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
       clearSession();
       window.location.href = '/tenant-inactive';
       return new Promise<T>(() => {});
+    }
+
+    if (data?.code === 'STORAGE_FULL') {
+      throw new ApiError(i18n.t('crm.errors.storageFull', { defaultValue: msg }), res.status, data.code, data);
     }
 
     throw new ApiError(msg, res.status, data?.code, data);

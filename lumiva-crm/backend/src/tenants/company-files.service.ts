@@ -23,6 +23,7 @@ import {
   unlinkUploadsRelative,
 } from '../common/uploads-root.util';
 import { CustomObjectRecord } from '../custom-objects/custom-object-record.entity';
+import { EsignDocument } from '../esign/esign-document.entity';
 
 function numBytes(v: string | bigint | null | undefined): number {
   if (v === undefined || v === null) return 0;
@@ -66,7 +67,15 @@ export type CompanyFileSource =
   | 'email'
   | 'telegram'
   | 'workspace'
-  | 'tenant_disk';
+  | 'tenant_disk'
+  | 'esign'
+  | 'hotels'
+  | 'products'
+  | 'user_avatar';
+
+/** Файлы модулей: видны и считаются в объёме, но удаляются только в своём модуле —
+ * иначе товар/отель/подписанный документ останется со ссылкой на пустоту. */
+type ModuleFileSource = 'esign' | 'hotels' | 'products' | 'user_avatar';
 
 export interface AggregatedCompanyFile {
   id: string;
@@ -76,6 +85,8 @@ export interface AggregatedCompanyFile {
   createdAt: string;
   relativePath: string | null;
   uploadedByEmail: string | null;
+  /** false — удалять можно только в модуле-владельце (см. ModuleFileSource). */
+  deletable: boolean;
 }
 
 @Injectable()
@@ -95,6 +106,8 @@ export class CompanyFilesService {
     private readonly tgMsgRepo: Repository<TelegramMessage>,
     @InjectRepository(CustomObjectRecord)
     private readonly customObjectRecordRepo: Repository<CustomObjectRecord>,
+    @InjectRepository(EsignDocument)
+    private readonly esignDocRepo: Repository<EsignDocument>,
     private readonly tenantStorage: TenantStorageService,
   ) {}
 
@@ -111,7 +124,8 @@ export class CompanyFilesService {
    */
   async listAggregated(tenantId: string): Promise<AggregatedCompanyFile[]> {
     const byPath = new Map<string, AggregatedCompanyFile>();
-    const push = (row: AggregatedCompanyFile) => {
+    const push = (input: Omit<AggregatedCompanyFile, 'deletable'> & { deletable?: boolean }) => {
+      const row: AggregatedCompanyFile = { ...input, deletable: input.deletable ?? true };
       if (!row.relativePath) return;
       if (!pathBelongsToTenant(tenantId, row.relativePath)) return;
       const prev = byPath.get(row.relativePath);
@@ -128,6 +142,7 @@ export class CompanyFilesService {
       byPath.set(row.relativePath, {
         ...pick,
         uploadedByEmail: email,
+        deletable: prev.deletable && row.deletable,
       });
     };
 
@@ -352,6 +367,8 @@ export class CompanyFilesService {
       );
     }
 
+    await this.pushModuleFiles(tenantId, push);
+
     const coRecords = await this.customObjectRecordRepo.find({
       where: { tenantId },
     });
@@ -389,6 +406,96 @@ export class CompanyFilesService {
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
+  }
+
+  /** Файлы модулей `<dir>/<tenantId>/...` (e-sign, отели, товары, аватары) — только просмотр. */
+  private async pushModuleFiles(
+    tenantId: string,
+    push: (row: Omit<AggregatedCompanyFile, 'deletable'> & { deletable?: boolean }) => void,
+  ): Promise<void> {
+    const dirs: Array<[string, ModuleFileSource]> = [
+      ['esign', 'esign'],
+      ['hotels', 'hotels'],
+      ['products', 'products'],
+      ['users', 'user_avatar'],
+    ];
+    const found: Array<{ rel: string; name: string; size: number; mtime: Date; source: ModuleFileSource }> = [];
+    const seen = new Set<string>();
+    for (const uploadsRoot of candidateUploadRoots()) {
+      for (const [dir, source] of dirs) {
+        const walk = async (absDir: string): Promise<void> => {
+          let entries;
+          try {
+            entries = await readdir(absDir, { withFileTypes: true });
+          } catch {
+            return;
+          }
+          for (const e of entries) {
+            const abs = join(absDir, e.name);
+            if (e.isDirectory()) {
+              await walk(abs);
+            } else if (e.isFile()) {
+              const rel = relative(uploadsRoot, abs).replace(/\\/g, '/');
+              if (!rel || rel.startsWith('..') || seen.has(rel)) continue;
+              seen.add(rel);
+              const st = await stat(abs);
+              found.push({ rel, name: e.name, size: st.size, mtime: st.mtime, source });
+            }
+          }
+        };
+        await walk(join(uploadsRoot, dir, tenantId));
+      }
+    }
+    if (found.length === 0) return;
+
+    // e-sign: файл `<documentId>-draft|signed.pdf` → название документа и автор.
+    const esignIds = found
+      .filter((f) => f.source === 'esign')
+      .map((f) => /^([0-9a-f-]{36})-(draft|signed)\.pdf$/i.exec(f.name)?.[1])
+      .filter((id): id is string => Boolean(id));
+    const docs = esignIds.length
+      ? await this.esignDocRepo.find({ where: { tenantId, id: In([...new Set(esignIds)]) } })
+      : [];
+    const docById = new Map(docs.map((d) => [d.id, d]));
+
+    // аватар: `users/<tenantId>/<userId>/...`
+    const avatarUserIds = found
+      .filter((f) => f.source === 'user_avatar')
+      .map((f) => f.rel.split('/')[2])
+      .filter(Boolean);
+    const uploaderIds = [
+      ...new Set([...avatarUserIds, ...docs.map((d) => d.createdByUserId).filter((x): x is string => Boolean(x))]),
+    ];
+    const users = uploaderIds.length
+      ? await this.userRepo.find({ where: { id: In(uploaderIds), tenantId } })
+      : [];
+    const emailById = new Map(users.map((u) => [u.id, u.email]));
+
+    for (const f of found) {
+      let originalName = f.name;
+      let uploadedByEmail: string | null = null;
+      if (f.source === 'esign') {
+        const m = /^([0-9a-f-]{36})-(draft|signed)\.pdf$/i.exec(f.name);
+        const doc = m ? docById.get(m[1]) : undefined;
+        if (doc) {
+          const base = (doc.fileName || doc.title || '').trim().replace(/\.pdf$/i, '');
+          if (base) originalName = `${base}${m![2].toLowerCase() === 'signed' ? ' (signed)' : ''}.pdf`;
+          uploadedByEmail = doc.createdByUserId ? emailById.get(doc.createdByUserId) ?? null : null;
+        }
+      } else if (f.source === 'user_avatar') {
+        uploadedByEmail = emailById.get(f.rel.split('/')[2]) ?? null;
+      }
+      push({
+        id: `module|${encodeURIComponent(f.rel)}`,
+        source: f.source,
+        originalName,
+        sizeBytes: f.size,
+        createdAt: f.mtime.toISOString(),
+        relativePath: f.rel,
+        uploadedByEmail,
+        deletable: false,
+      });
+    }
   }
 
   async deleteAggregated(
@@ -526,6 +633,10 @@ export class CompanyFilesService {
       await unlinkUploadsRelative(rel);
       await this.clearWorkspaceFileRefs(tenantId, rel);
       return;
+    }
+
+    if (kind === 'module') {
+      throw new ForbiddenException('Delete this file in its own module (e-sign, hotels, products, profile)');
     }
 
     throw new BadRequestException('Unknown file id');

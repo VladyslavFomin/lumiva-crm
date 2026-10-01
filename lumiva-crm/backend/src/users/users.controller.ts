@@ -22,10 +22,14 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { getUploadsRoot } from '../common/uploads-root.util';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly storageQuota: StorageQuotaService,
+  ) {}
 
   // ==============================
   // 1) Временно: список всех пользователей (owner)
@@ -104,6 +108,7 @@ export class UsersController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
+    await this.storageQuota.assertAfterWrite(tenantId, file.path);
     return this.usersService.setAvatarFromFile(userId, tenantId, file);
   }
 

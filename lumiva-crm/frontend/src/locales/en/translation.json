@@ -1112,7 +1112,8 @@
       "appFailedTitle": "The app could not load",
       "accessDeniedTitle": "Access denied",
       "accessDeniedText": "Ask your owner or administrator to grant access to this section.",
-      "inlineForbidden": "You don't have access to this data. Ask the assignee for access."
+      "inlineForbidden": "You don't have access to this data. Ask the assignee for access.",
+      "storageFull": "Company storage is full. Delete unneeded files or buy more space in Company settings → Storage."
     },
     "nav": {
       "dashboard": "Home",
@@ -2576,7 +2577,7 @@
           "extraHint": "Extra gigabytes are added via payment. File tracking by module is being rolled out gradually.",
           "buyMore": "Buy more space / upgrade plan",
           "filesTitle": "Company files",
-          "filesHint": "Files uploaded to the CRM across sections (shared storage, logo, workspaces, chat, mail, etc). View and delete only (subject to permissions).",
+          "filesHint": "All company files in the CRM: shared storage, logo, workspaces, chat, email, e-sign documents, hotel and product photos, avatars. Module files are deleted in their own modules.",
           "deleteRolesHint": "Only the company owner and IT department staff (by department name in the directory) can delete files.",
           "colSource": "Source",
           "colFile": "File",
@@ -2595,8 +2596,14 @@
             "email": "Mail",
             "telegram": "Telegram",
             "workspace": "Workspaces",
-            "tenant_disk": "Tenant directory (uploads)"
-          }
+            "tenant_disk": "Tenant directory (uploads)",
+            "esign": "Documents (e-sign)",
+            "hotels": "Hotels",
+            "products": "Products",
+            "user_avatar": "Staff avatar"
+          },
+          "deleteInModule": "In its module",
+          "deleteInModuleHint": "This file is used by a module (document, hotel, product or profile). Delete it there so nothing is left with a broken link."
         },
         "errors": {
           "load": "Failed to load company settings",

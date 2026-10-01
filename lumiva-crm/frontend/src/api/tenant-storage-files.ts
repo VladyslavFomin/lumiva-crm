@@ -7,7 +7,11 @@ export type CompanyFileSource =
   | 'email'
   | 'telegram'
   | 'workspace'
-  | 'tenant_disk';
+  | 'tenant_disk'
+  | 'esign'
+  | 'hotels'
+  | 'products'
+  | 'user_avatar';
 
 export interface TenantCompanyFileRow {
   id: string;
@@ -17,6 +21,8 @@ export interface TenantCompanyFileRow {
   createdAt: string;
   relativePath: string | null;
   uploadedByEmail: string | null;
+  /** false — файл модуля (e-sign/отели/товары/аватар): удаляется только в своём модуле. */
+  deletable?: boolean;
 }
 
 /** Агрегат файлов с диска (разные модули CRM), не отдельная загрузка с этой страницы. */

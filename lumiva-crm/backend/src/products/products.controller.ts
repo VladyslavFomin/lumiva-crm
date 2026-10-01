@@ -27,6 +27,7 @@ import type { CurrentUserPayload } from '../common/decorators/current-user.decor
 import { RbacGuard } from '../rbac/rbac.guard';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { ProductsService } from './products.service';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 const PRODUCT_IMAGE_ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
@@ -34,7 +35,10 @@ const PRODUCT_IMAGE_ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 @UseGuards(JwtAuthGuard, RbacGuard)
 @RequirePermission('products', 'read')
 export class ProductsController {
-  constructor(private readonly service: ProductsService) {}
+  constructor(
+    private readonly service: ProductsService,
+    private readonly storageQuota: StorageQuotaService,
+  ) {}
 
   /* ---------- categories ---------- */
 
@@ -265,11 +269,12 @@ export class ProductsController {
     }),
   )
   @RequirePermission('products', 'write')
-  uploadImage(
+  async uploadImage(
     @CurrentUser() user: CurrentUserPayload,
     @UploadedFile() file: { filename: string } | undefined,
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
+    await this.storageQuota.assertAfterWrite(user.tenantId, (file as { path?: string }).path);
     return { url: `/v1/uploads/products/${user.tenantId}/${file.filename}` };
   }
 

@@ -25,6 +25,7 @@ import { MailService } from '../mail/mail.service';
 import { renderEsignPdf } from './esign-pdf.util';
 import { signEsignToken, verifyEsignToken } from './esign-token.util';
 import { joinUploadsAbsolute } from '../common/uploads-root.util';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 export type EsignLinkType = 'lead' | 'company' | 'project';
 
@@ -64,6 +65,7 @@ export class EsignService {
     @InjectRepository(BookingService) private readonly bookingServiceRepo: Repository<BookingService>,
     @InjectRepository(StaffUser) private readonly staffUserRepo: Repository<StaffUser>,
     private readonly mail: MailService,
+    private readonly storageQuota: StorageQuotaService,
   ) {}
 
   private get secret(): string {
@@ -72,9 +74,21 @@ export class EsignService {
     return s;
   }
 
-  private async writePdf(tenantId: string, documentId: string, suffix: 'draft' | 'signed', buffer: Buffer): Promise<string> {
+  /** enforceQuota=false только для подписи контрагентом: внешний подписант не должен упираться в лимит компании. */
+  private async writePdf(
+    tenantId: string,
+    documentId: string,
+    suffix: 'draft' | 'signed',
+    buffer: Buffer,
+    enforceQuota = true,
+  ): Promise<string> {
     const relPath = `esign/${tenantId}/${documentId}-${suffix}.pdf`;
     const absPath = joinUploadsAbsolute(relPath);
+    if (enforceQuota) {
+      // Перезапись черновика заменяет старый файл — считаем только прирост.
+      const prev = await fs.stat(absPath).then((st) => st.size).catch(() => 0);
+      await this.storageQuota.assertCanAdd(tenantId, buffer.length - prev);
+    }
     await fs.mkdir(dirname(absPath), { recursive: true });
     await fs.writeFile(absPath, buffer);
     return `/v1/uploads/${relPath}`;
@@ -717,7 +731,7 @@ export class EsignService {
       ip: doc.signatureIp,
       userAgent: doc.signatureUserAgent,
     });
-    doc.signedPdfUrl = await this.writePdf(doc.tenantId, doc.id, 'signed', pdf.buffer);
+    doc.signedPdfUrl = await this.writePdf(doc.tenantId, doc.id, 'signed', pdf.buffer, false);
     doc.pageCount = pdf.pageCount;
     doc.fileSizeBytes = pdf.buffer.length;
 

@@ -1098,7 +1098,14 @@ export const SettingsCompanyPage: React.FC = () => {
                               <td className="mono">{f.uploadedByEmail || '—'}</td>
                               <td className="mono">{new Date(f.createdAt).toLocaleString(locale)}</td>
                               <td>
-                                {data?.canDeleteTenantStorage ? (
+                                {f.deletable === false ? (
+                                  <span
+                                    style={{ color: 'var(--fg-4)', fontSize: 12 }}
+                                    title={t('crm.settings.company.storage.deleteInModuleHint')}
+                                  >
+                                    {t('crm.settings.company.storage.deleteInModule')}
+                                  </span>
+                                ) : data?.canDeleteTenantStorage ? (
                                   <button
                                     type="button"
                                     onClick={() => void handleStorageDelete(f.id)}

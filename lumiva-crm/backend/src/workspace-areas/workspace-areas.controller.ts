@@ -30,6 +30,7 @@ import { CreateWorkspaceAreaDto } from './dto/create-workspace-area.dto';
 import { UpdateWorkspaceAreaDto } from './dto/update-workspace-area.dto';
 import { CreateWorkspaceAreaMemberDto } from './dto/create-workspace-area-member.dto';
 import { UpdateWorkspaceAreaMemberDto } from './dto/update-workspace-area-member.dto';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 @Controller('workspace-areas')
 @UseGuards(JwtAuthGuard, RbacGuard)
@@ -39,6 +40,7 @@ export class WorkspaceAreasController {
     private readonly service: WorkspaceAreasService,
     private readonly membersService: WorkspaceAreaMembersService,
     private readonly activityLogService: WorkspaceAreaActivityLogService,
+    private readonly storageQuota: StorageQuotaService,
   ) {}
 
   @Get()
@@ -135,6 +137,7 @@ export class WorkspaceAreasController {
     if (!file?.filename) {
       throw new BadRequestException('file is required');
     }
+    await this.storageQuota.assertAfterWrite(user.tenantId, (file as { path?: string }).path);
     return this.service.setCoverFromUpload(user.tenantId, id, file);
   }
 

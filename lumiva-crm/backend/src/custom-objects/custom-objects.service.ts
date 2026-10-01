@@ -54,6 +54,7 @@ import {
 import { WorkspaceAreaMembersService } from '../workspace-areas/workspace-area-members.service';
 import { WorkspaceAreaActivityLogService } from '../workspace-areas/workspace-area-activity-log.service';
 import { currentAiActor } from '../ai-employees/ai-employee-context';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 export interface ImportPreviewResponse {
   importId: string;
@@ -78,6 +79,7 @@ export class CustomObjectsService {
   private readonly logger = new Logger(CustomObjectsService.name);
 
   constructor(
+    private readonly storageQuota: StorageQuotaService,
     @InjectRepository(CustomObject)
     private readonly objectRepo: Repository<CustomObject>,
     @InjectRepository(CustomObjectField)
@@ -1046,6 +1048,7 @@ export class CustomObjectsService {
     const relDir = `workspace-files/${tenantId}/${objectId}`;
     const filename = `${id}${ext}`;
     const relativePath = `${relDir}/${filename}`;
+    await this.storageQuota.assertCanAdd(tenantId, file.buffer.length);
     const absDir = joinUploadsAbsolute(relDir);
     await mkdir(absDir, { recursive: true });
     await writeFile(joinUploadsAbsolute(relativePath), file.buffer);

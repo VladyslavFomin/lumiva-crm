@@ -3302,7 +3302,8 @@
       "appFailedTitle": "Uygulama yüklenemedi",
       "accessDeniedTitle": "Erişim reddedildi",
       "accessDeniedText": "Bu bölüme erişim için sahibinizden veya yöneticinizden izin isteyin.",
-      "inlineForbidden": "Bu verilere erişiminiz yok. Erişim için sorumlu kişiden talep edin."
+      "inlineForbidden": "Bu verilere erişiminiz yok. Erişim için sorumlu kişiden talep edin.",
+      "storageFull": "Şirket depolama alanı dolu. Gereksiz dosyaları silin veya Şirket ayarları → Depolama bölümünden ek alan satın alın."
     },
     "nav": {
       "dashboard": "Ana sayfa",
@@ -4766,7 +4767,7 @@
           "extraHint": "Ek gigabaytlar ödeme yoluyla eklenir. Modüle göre dosya takibi kademeli olarak devreye alınıyor.",
           "buyMore": "Daha fazla alan al / planı yükselt",
           "filesTitle": "Şirket dosyaları",
-          "filesHint": "CRM'e bölümler genelinde yüklenen dosyalar (ortak depolama, logo, çalışma alanları, sohbet, e-posta vb). Sadece görüntüleme ve silme (yetkiye bağlı).",
+          "filesHint": "CRM'deki tüm şirket dosyaları: ortak depolama, logo, çalışma alanları, sohbet, e-posta, e-imza belgeleri, otel ve ürün fotoğrafları, avatarlar. Modül dosyaları kendi modüllerinde silinir.",
           "deleteRolesHint": "Dosyaları yalnızca şirket sahibi ve BT departmanı personeli (dizindeki departman adına göre) silebilir.",
           "colSource": "Kaynak",
           "colFile": "Dosya",
@@ -4785,8 +4786,14 @@
             "email": "E-posta",
             "telegram": "Telegram",
             "workspace": "Çalışma alanları",
-            "tenant_disk": "Kiracı dizini (uploads)"
-          }
+            "tenant_disk": "Kiracı dizini (uploads)",
+            "esign": "Belgeler (e-imza)",
+            "hotels": "Oteller",
+            "products": "Ürünler",
+            "user_avatar": "Çalışan avatarı"
+          },
+          "deleteInModule": "Kendi modülünde",
+          "deleteInModuleHint": "Bu dosya bir modül tarafından kullanılıyor (belge, otel, ürün veya profil). Kırık bağlantı kalmaması için orada silin."
         },
         "errors": {
           "load": "Şirket ayarları yüklenemedi",

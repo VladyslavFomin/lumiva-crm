@@ -170,6 +170,8 @@ import { AiAgentAction } from './ai-employees/ai-agent-action.entity';
 import { AiAgentLog } from './ai-employees/ai-agent-log.entity';
 import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
 
+import { StorageQuotaModule } from './storage-quota/storage-quota.module';
+
 @Module({
   imports: [
     SentryModule.forRoot(),
@@ -291,6 +293,7 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
 
     HealthModule,
     TenantsModule,
+    StorageQuotaModule,
     UsersModule,
     DashboardModule,
     BiDashboardModule,

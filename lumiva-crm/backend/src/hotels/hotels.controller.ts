@@ -30,6 +30,7 @@ import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
 import { HotelsFactsheetService } from './hotels-factsheet.service';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 const IMAGE_ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 const imageFileFilter = (_req: any, file: any, cb: any) => {
@@ -51,6 +52,7 @@ export class HotelsController {
     private readonly agencies: HotelsAgenciesService,
     private readonly gallery: HotelsGalleryService,
     private readonly factsheet: HotelsFactsheetService,
+    private readonly storageQuota: StorageQuotaService,
   ) {}
 
   /* ---------- fixed literal routes — must come before hotels/:id ---------- */
@@ -136,12 +138,13 @@ export class HotelsController {
       fileFilter: imageFileFilter,
     }),
   )
-  uploadRoomTypeCover(
+  async uploadRoomTypeCover(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: { filename: string } | undefined,
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
+    await this.storageQuota.assertAfterWrite(user.tenantId, (file as { path?: string }).path);
     return this.roomTypes.setCoverFromUpload(user.tenantId, id, file.filename);
   }
 
@@ -408,12 +411,13 @@ export class HotelsController {
       fileFilter: imageFileFilter,
     }),
   )
-  replaceGalleryPhoto(
+  async replaceGalleryPhoto(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: { filename: string } | undefined,
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
+    await this.storageQuota.assertAfterWrite(user.tenantId, (file as { path?: string }).path);
     return this.gallery.replacePhotoFile(user.tenantId, id, file.filename);
   }
 
@@ -587,7 +591,7 @@ export class HotelsController {
       fileFilter: imageFileFilter,
     }),
   )
-  uploadGalleryPhoto(
+  async uploadGalleryPhoto(
     @CurrentUser() user: CurrentUserPayload,
     @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
     @Query('categoryId') categoryId: string | undefined,
@@ -595,6 +599,7 @@ export class HotelsController {
     @UploadedFile() file: { filename: string } | undefined,
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
+    await this.storageQuota.assertAfterWrite(user.tenantId, (file as { path?: string }).path);
     return this.gallery.createPhotoFromUpload(user.tenantId, hotelId, categoryId || null, file.filename, roomTypeId || null);
   }
 
@@ -687,12 +692,13 @@ export class HotelsController {
       fileFilter: imageFileFilter,
     }),
   )
-  uploadHotelCover(
+  async uploadHotelCover(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: { filename: string } | undefined,
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
+    await this.storageQuota.assertAfterWrite(user.tenantId, (file as { path?: string }).path);
     return this.hotels.setCoverFromUpload(user.tenantId, id, file.filename);
   }
 

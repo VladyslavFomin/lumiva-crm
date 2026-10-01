@@ -139,6 +139,9 @@ async function sumFilesInDirRecursive(absDir: string): Promise<number> {
 }
 
 /** Сумма байт по каталогам тенанта на диске (учёт legacy-путей). */
+/** Папки модулей вида `<dir>/<tenantId>/...`, которые не входят в общее хранилище, но занимают объём. */
+export const TENANT_MODULE_UPLOAD_DIRS = ['esign', 'hotels', 'products', 'users'] as const;
+
 export async function sumTenantUploadsBytesOnDisk(
   tenantId: string,
 ): Promise<number> {
@@ -148,6 +151,8 @@ export async function sumTenantUploadsBytesOnDisk(
     bases.add(join(root, 'tenants', tenantId));
     bases.add(join(root, 'workspace-files', tenantId));
     bases.add(join(root, 'tenant-files', tenantId));
+    // Модульные папки (документы e-sign, фото отелей/товаров, аватары) — тоже объём компании.
+    for (const dir of TENANT_MODULE_UPLOAD_DIRS) bases.add(join(root, dir, tenantId));
   }
   let total = 0;
   for (const b of bases) {

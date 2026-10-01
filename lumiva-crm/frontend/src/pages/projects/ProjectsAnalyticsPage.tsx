@@ -3515,7 +3515,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           </div>
         )}
 
-        <div className="sticky -top-4 z-30 -mx-3 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-top-6 md:-mx-6 md:px-6">
+        <div className="sticky -top-4 z-20 -mx-3 -mt-4 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-top-6 md:-mx-6 md:-mt-6 md:px-6">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 text-sm text-neutral-500">
               <span className="hidden sm:inline">
@@ -3839,7 +3839,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       gridColumn: isMobile ? 'span 12' : `span ${currentSpan}`,
                     }}
                     className={cx(
-                      'group relative flex flex-col overflow-hidden rounded-[18px] border bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.05)]',
+                      'group relative isolate flex flex-col overflow-hidden rounded-[18px] border bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.05)]',
                       !isResizing && 'transition-[border-color]',
                       isDragging
                         ? 'border-2 border-dashed border-blue-400 bg-blue-50/60 shadow-none [&>*]:opacity-0'

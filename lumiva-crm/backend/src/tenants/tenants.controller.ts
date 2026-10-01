@@ -31,6 +31,7 @@ import {
 } from '../common/decorators/current-user.decorator';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UserSessionsService } from '../auth/user-sessions.service';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 @Controller('tenants')
 export class TenantsController {
@@ -38,6 +39,7 @@ export class TenantsController {
     private readonly tenantsService: TenantsService,
     private readonly userSessions: UserSessionsService,
     private readonly companyFiles: CompanyFilesService,
+    private readonly storageQuota: StorageQuotaService,
   ) {}
 
   @Get()
@@ -161,6 +163,7 @@ export class TenantsController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
+    await this.storageQuota.assertAfterWrite(user.tenantId, file.path);
     return this.tenantsService.setLogoFromFile(user.tenantId, file);
   }
 

@@ -37,6 +37,7 @@ import { ReservationsService } from '../bookings/reservations.service';
 import { BookingsCatalogService } from '../bookings/bookings-catalog.service';
 import { HotelsPublicStorefrontService } from '../hotels/hotels-public-storefront.service';
 import { getUploadsRoot } from '../common/uploads-root.util';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -66,6 +67,7 @@ export class EmbedFormsService {
   private readonly jwtSecret: string;
 
   constructor(
+    private readonly storageQuota: StorageQuotaService,
     @InjectRepository(EmbedForm) private formsRepo: Repository<EmbedForm>,
     @InjectRepository(EmbedFormUpload) private uploadsRepo: Repository<EmbedFormUpload>,
     @InjectRepository(Site) private sitesRepo: Repository<Site>,
@@ -701,6 +703,14 @@ export class EmbedFormsService {
         // ignore
       }
       throw new BadRequestException('Invalid extension');
+    }
+
+    try {
+      const st = await fsp.stat(file.path);
+      await this.storageQuota.assertCanAdd(f.tenantId, st.size);
+    } catch (e) {
+      await fsp.unlink(file.path).catch(() => undefined);
+      throw e;
     }
 
     const root = getUploadsRoot();
