@@ -41,4 +41,7 @@ jobs:
             npm ci
             npm run build
 
+            echo "==> Публикуем сборку в webroot nginx"
+            rsync -a --delete dist/ /var/www/pl1.lumiva.agency/
+
             echo "==> PL1 панель обновлена"

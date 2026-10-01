@@ -11,13 +11,17 @@ services:
     environment:
       # Согласовано с volume ниже — иначе логотип и вложения теряются при пересборке контейнера (404 на /v1/uploads/...).
       UPLOADS_ROOT: /app/uploads
+      # Куча Node ниже лимита контейнера: GC успевает до OOM-kill, утечка роняет только API (он перезапустится).
+      NODE_OPTIONS: --max-old-space-size=768
+    # Только localhost: снаружи API доступен через nginx (443), а не напрямую по :3000.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - lumiva_crm_uploads:/app/uploads
     depends_on:
       - db
     restart: unless-stopped
+    mem_limit: 1g
 
   db:
     image: postgres:15
