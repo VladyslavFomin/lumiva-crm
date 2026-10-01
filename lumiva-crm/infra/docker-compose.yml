@@ -30,6 +30,10 @@ services:
       POSTGRES_USER: lumiva
       POSTGRES_PASSWORD: supersecret
       POSTGRES_DB: lumiva_crm
+    # Только localhost: бэкенд сайта агентства (PM2, вне Docker) ходит сюда по 127.0.0.1 —
+    # внутренний IP контейнера меняется при пересоздании сети и уже ломал сайт (DB_HOST=172.19.0.2).
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - lumiva_crm_db_data:/var/lib/postgresql/data
     restart: unless-stopped
