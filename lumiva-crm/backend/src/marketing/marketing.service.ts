@@ -1322,7 +1322,12 @@ export class MarketingService {
     from?: string,
     to?: string,
     dataSource?: string,
+    /** Множители «исходная валюта → валюта отображения» (getMarketingFxRates().multiplyToDisplay):
+     * если заданы, cost/revenue каждой строки пересчитываются ДО суммирования. */
+    fxMultiply?: Record<string, number> | null,
   ): Promise<{
+    /** Валюты исходных строк (до пересчёта) — больше одной значит, что без fxMultiply суммы смешаны. */
+    currencies: string[];
     markets: Array<{
       code: string;
       label: string;
@@ -1355,6 +1360,7 @@ export class MarketingService {
       .select('t.campaign', 'campaign')
       .addSelect('t.country', 'country')
       .addSelect('t.dataSource', 'dataSource')
+      .addSelect('t.currency', 'currency')
       .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
       .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
       .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
@@ -1364,6 +1370,7 @@ export class MarketingService {
       .groupBy('t.campaign')
       .addGroupBy('t.country')
       .addGroupBy('t.dataSource')
+      .addGroupBy('t.currency')
       .limit(20_000)
       .getRawMany();
 
@@ -1373,17 +1380,23 @@ export class MarketingService {
     >();
     const unclassified = { campaigns: 0, sessions: 0, cost: 0, sampleCampaigns: [] as string[] };
 
+    const currencies = new Set<string>();
     for (const r of raw as Record<string, unknown>[]) {
       const campaign = r.campaign != null ? String(r.campaign) : null;
       const country = r.country != null ? String(r.country) : null;
       const code = resolveRowMarket(campaign, country, r.dataSource != null ? String(r.dataSource) : null);
+      const cur = (r.currency != null ? String(r.currency) : 'EUR').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'EUR';
+      const rawCost = num(r.cost as string);
+      if (rawCost) currencies.add(cur);
+      const mult = fxMultiply ? fxMultiply[cur] : undefined;
+      const k = mult != null && Number.isFinite(mult) ? mult : 1;
       const row = {
         sessions: num(r.sessions as string),
         clicks: num(r.clicks as string),
         impressions: num(r.impressions as string),
         leads: num(r.leads as string),
-        revenue: num(r.revenue as string),
-        cost: num(r.cost as string),
+        revenue: num(r.revenue as string) * k,
+        cost: rawCost * k,
       };
       if (!code) {
         unclassified.campaigns += 1;
@@ -1417,7 +1430,7 @@ export class MarketingService {
       .map(([code, acc]) => ({ code, label: marketLabel(code), ...acc }))
       .sort((a, b) => b.cost - a.cost || b.sessions - a.sessions);
 
-    return { markets, unclassified };
+    return { currencies: [...currencies].sort(), markets, unclassified };
   }
 
   /** Имена ресурсов GA4 из настроек интеграций (ключ dataSource = ga4_{propertyId}). */

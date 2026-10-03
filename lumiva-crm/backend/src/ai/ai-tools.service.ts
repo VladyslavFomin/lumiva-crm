@@ -11,7 +11,7 @@ import { Sale } from '../sales/sale.entity';
 import { Project } from '../projects/project.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { MarketingService } from '../marketing/marketing.service';
-import { resolveMarketQuery } from '../marketing/marketing-market-catalog';
+import { marketLabel, resolveMarketQuery, resolveRowMarket } from '../marketing/marketing-market-catalog';
 import { LeadsService } from '../leads/leads.service';
 import { NotesService } from '../notes/notes.service';
 import { ProjectsService } from '../projects/projects.service';
@@ -160,7 +160,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_sales_summary',
       description:
-        'Краткая сводка продаж за период: количество, сумма. Параметры from/to желательно в YYYY-MM-DD; если указан только месяц — возьми границы месяца в году из системной даты в системном промпте.',
+        'Сводка продаж за период (по дате продажи): количество, сумма всех продаж, чистая сумма без отмен/возвратов, разбивка по статусам и валютам, всё приведено к основной валюте. Параметры from/to в YYYY-MM-DD (to включительно); если указан только месяц — возьми границы месяца в году из системной даты в системном промпте.',
       parameters: {
         type: 'object',
         properties: {
@@ -223,6 +223,11 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
             type: 'string',
             description:
               'Опционально: ключ источника — конкретный аккаунт (google_ads_<cid> или кабинет Meta meta_ads_<id кабинета>) или родовое имя провайдера без суффикса (google_ads, yandex_direct, meta_ads, vk_ads), которое суммирует все аккаунты этого провайдера у тенанта.',
+          },
+          displayCurrency: {
+            type: 'string',
+            description:
+              'Опционально: код валюты (EUR, USD, TRY, …) — cost/revenue по рынкам будут пересчитаны в неё по реальному курсу (ECB). Передавай ВСЕГДА, когда пользователь просит сумму в конкретной валюте; сам курс не придумывай.',
           },
         },
       },
@@ -2028,9 +2033,14 @@ export class AiToolsService {
       }
     } catch (e: any) {
       this.log.warn(`Tool ${name} failed: ${e?.message || e}`);
+      const msg = String(e?.message || 'tool_failed');
       return JSON.stringify({
-        error: e?.message || 'tool_failed',
+        error: msg,
         tool: name,
+        // Частый случай: модель подставила имя/код/«0» вместо UUID — без подсказки она гадала дальше.
+        ...(/invalid input syntax for type uuid/i.test(msg)
+          ? { hint: 'В поле id передано не UUID. Сначала найди запись соответствующим инструментом списка/поиска и возьми её id; не подставляй имена, коды или числа.' }
+          : {}),
       });
     }
   }
@@ -2989,34 +2999,73 @@ export class AiToolsService {
     tenantId: string,
     args: Record<string, unknown>,
   ) {
+    const day = (v: unknown) => {
+      const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v ?? '').trim());
+      return m ? m[1] : undefined;
+    };
+    const from = day(args.from);
+    const to = day(args.to);
     const qb = this.salesRepo
       .createQueryBuilder('s')
+      // Те же продажи, что в списке «Продажи» (SalesService.applyListedSalesOnlyJoin): только
+      // с живым каналом — иначе ИИ считал продажи удалённых каналов, которых на странице нет.
+      .innerJoin('s.channel', 'ch', 'ch.isDeleted = false')
       .where('s.tenantId = :tenantId', { tenantId });
-    if (args.from) qb.andWhere('s.purchaseDate >= :from', { from: args.from });
-    if (args.to) qb.andWhere('s.purchaseDate <= :to', { to: args.to });
+    // Раньше фильтровало по несуществующему s.purchaseDate — любой вопрос «за период» падал
+    // ошибкой SQL. Дата продажи — saleDate; to включает весь день, как getStats страницы.
+    if (from) qb.andWhere('s.saleDate >= :from', { from: `${from}T00:00:00.000Z` });
+    if (to) qb.andWhere('s.saleDate <= :to', { to: `${to}T23:59:59.999Z` });
     // Продажи бывают в разных валютах — складывать amount числами нельзя. Группируем по валюте и
-    // приводим итог к основной валюте тенанта по курсу; разбивку по валютам отдаём тоже.
+    // статусу, приводим итог к основной валюте тенанта по курсу; разбивки отдаём тоже.
     const rows = await qb
       .select('s.currency', 'currency')
+      .addSelect('s.status', 'status')
       .addSelect('COUNT(s.id)', 'cnt')
       .addSelect('COALESCE(SUM(s.amount),0)', 'sum')
       .groupBy('s.currency')
-      .getRawMany<{ currency: string | null; cnt: string; sum: string }>();
+      .addGroupBy('s.status')
+      .getRawMany<{ currency: string | null; status: string | null; cnt: string; sum: string }>();
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'primaryCurrency'] });
     const currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
+    const CANCELLED = new Set(['cancelled', 'refunded']);
     const byCurrencyMap: Record<string, number> = {};
+    const netByCurrency: Record<string, number> = {};
+    const statusMap: Record<string, { count: number; byCurrency: Record<string, number> }> = {};
     let count = 0;
+    let cancelledCount = 0;
     for (const r of rows) {
       const cur = (r.currency || 'EUR').toUpperCase();
-      byCurrencyMap[cur] = (byCurrencyMap[cur] || 0) + Number(r.sum || 0);
-      count += Number(r.cnt || 0);
+      const st = r.status || 'other';
+      const sum = Number(r.sum || 0);
+      const cnt = Number(r.cnt || 0);
+      byCurrencyMap[cur] = (byCurrencyMap[cur] || 0) + sum;
+      count += cnt;
+      if (CANCELLED.has(st)) cancelledCount += cnt;
+      else netByCurrency[cur] = (netByCurrency[cur] || 0) + sum;
+      const sm = (statusMap[st] ??= { count: 0, byCurrency: {} });
+      sm.count += cnt;
+      sm.byCurrency[cur] = (sm.byCurrency[cur] || 0) + sum;
     }
-    const totalAmount = await this.currencyRates.convertMapToSingle(byCurrencyMap, currency);
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const totalAmount = round(await this.currencyRates.convertMapToSingle(byCurrencyMap, currency));
+    const netAmount = round(await this.currencyRates.convertMapToSingle(netByCurrency, currency));
+    const byStatus = await Promise.all(
+      Object.entries(statusMap).map(async ([status, v]) => ({
+        status,
+        count: v.count,
+        amount: round(await this.currencyRates.convertMapToSingle(v.byCurrency, currency)),
+      })),
+    );
     return {
+      period: { from: from ?? null, to: to ?? null, by: 'saleDate' },
       count,
       totalAmount,
       currency,
-      byCurrency: Object.entries(byCurrencyMap).map(([cur, amount]) => ({ currency: cur, amount })),
+      netAmount,
+      cancelledCount,
+      byStatus,
+      byCurrency: Object.entries(byCurrencyMap).map(([cur, amount]) => ({ currency: cur, amount: round(amount) })),
+      note: 'totalAmount — все продажи (как итог на странице «Продажи»); netAmount — без отменённых и возвратов (cancelled/refunded). На вопрос «сколько заработали / выручка» отвечай netAmount и упоминай отмены, если они есть. Суммы уже приведены к currency по курсу ECB — не пересчитывай сам.',
     };
   }
 
@@ -3041,18 +3090,35 @@ export class AiToolsService {
     const from = args.from ? String(args.from) : undefined;
     const to = args.to ? String(args.to) : undefined;
     const dataSource = args.dataSource ? String(args.dataSource).trim() : undefined;
-    const { markets, unclassified } = await this.marketing.getMarketingMarketsBreakdown(
+    const displayOpt = this.resolveDisplayCurrencyArg(args);
+    const { fx, fxError } = await this.loadMarketingFx(displayOpt);
+    const { currencies, markets, unclassified } = await this.marketing.getMarketingMarketsBreakdown(
       tenantId,
       from,
       to,
       dataSource,
+      fx ? fx.multiplyToDisplay : null,
     );
+    const r2 = (n: number) => Math.round(n * 100) / 100;
     const totalCost = markets.reduce((s, m) => s + m.cost, 0) + unclassified.cost;
+    const currency = fx ? fx.display : currencies.length === 1 ? currencies[0] : currencies.length ? 'MIXED' : null;
     return {
       from: from ?? null,
       to: to ?? null,
-      markets,
-      unclassified,
+      currency,
+      ...(fx
+        ? {
+            displayCurrency: fx.display,
+            fxAsOf: fx.asOf,
+            fxSource: fx.source,
+            fxNote: `Суммы cost/revenue уже пересчитаны в ${fx.display} (каждая строка из своей валюты) — отвечай ими, сам валюту НЕ пересчитывай.`,
+          }
+        : currencies.length > 1
+          ? { mixedCurrencyWarning: `Исходные суммы в разных валютах (${currencies.join(', ')}) — без displayCurrency суммы по рынку некорректны. Повтори вызов с displayCurrency.` }
+          : {}),
+      ...(displayOpt && !fx && fxError ? { fxConversionFailed: true, fxConversionError: fxError } : {}),
+      markets: markets.map((m) => ({ ...m, cost: r2(m.cost), revenue: r2(m.revenue) })),
+      unclassified: { ...unclassified, cost: r2(unclassified.cost) },
       note:
         unclassified.cost > 0
           ? `Расход по кампаниям без определённого рынка: ${unclassified.cost.toFixed(2)} из ${totalCost.toFixed(2)} суммарно — эти кампании НЕ входят ни в один market ниже.`
@@ -3207,16 +3273,61 @@ export class AiToolsService {
       label: stats.dataSourceLabels?.[ds] || ds,
     }));
 
+    // При displayCurrency итоги тоже должны быть в ней: раньше totalCost оставался «сырой» суммой
+    // в исходной валюте с currency: TRY рядом с уже пересчитанными строками, и модель брала его,
+    // деля на курс «из головы» (реальный случай: 858 857 TRY → «10 024 EUR» вместо 15 503 EUR).
+    // Считаем по ПОЛНОМУ providerBreakdown (не по срезу в 20 строк), каждую строку в её валюте.
+    const fullBreakdown = stats.providerBreakdown || [];
+    const fxTotals = fx
+      ? {
+          cost: Math.round(fullBreakdown.reduce((sum, p) => sum + conv(p.cost, p.currency), 0) * 100) / 100,
+          revenue: Math.round(fullBreakdown.reduce((sum, p) => sum + conv(p.revenue, p.currency), 0) * 100) / 100,
+        }
+      : null;
+
+    // Без displayCurrency итоги — сумма разных валют с пометкой MIXED (реальный случай: выручка
+    // GA4 8,29 млн TRY + 0,6 млн EUR → «8 863 744 MIXED»). Поэтому раскладываем по валютам и
+    // отдаём одно число только когда у метрики действительно одна валюта.
+    const perCurrency = (metric: 'cost' | 'revenue') => {
+      const m: Record<string, number> = {};
+      for (const p of fullBreakdown) {
+        const v = Number(p[metric]) || 0;
+        if (!v) continue;
+        const cur = String(p.currency || 'EUR').toUpperCase();
+        m[cur] = Math.round(((m[cur] || 0) + v) * 100) / 100;
+      }
+      return m;
+    };
+    const costByCurrency = fx ? null : perCurrency('cost');
+    const revenueByCurrency = fx ? null : perCurrency('revenue');
+    const single = (m: Record<string, number> | null) => (m && Object.keys(m).length <= 1 ? Object.keys(m)[0] ?? null : undefined);
+    const costCur = single(costByCurrency);
+    const revenueCur = single(revenueByCurrency);
+
     const out: Record<string, unknown> = {
       from: stats.from,
       to: stats.to,
-      currency: stats.currency,
+      currency: fxTotals && fx ? fx.display : stats.currency,
       totalSessions: stats.totalSessions,
       totalClicks: stats.totalClicks,
       totalImpressions: stats.totalImpressions,
       totalLeads: stats.totalLeads,
-      totalRevenue: stats.totalRevenue,
-      totalCost: stats.totalCost,
+      totalRevenue: fxTotals ? fxTotals.revenue : revenueCur !== undefined ? stats.totalRevenue : null,
+      totalCost: fxTotals ? fxTotals.cost : costCur !== undefined ? stats.totalCost : null,
+      ...(!fx
+        ? {
+            totalCostCurrency: costCur ?? null,
+            totalRevenueCurrency: revenueCur ?? null,
+            costByCurrency,
+            revenueByCurrency,
+            ...(costCur === undefined || revenueCur === undefined
+              ? { mixedCurrencyNote: 'Где total* = null — суммы в разных валютах, одним числом их не назвать. Покажи costByCurrency/revenueByCurrency или вызови заново с displayCurrency. Курс сам не оценивай.' }
+              : {}),
+          }
+        : {}),
+      ...(fxTotals
+        ? { totalCostOriginal: stats.totalCost, totalRevenueOriginal: stats.totalRevenue, originalCurrency: stats.currency }
+        : {}),
       providerBreakdown,
       topChannels,
       dataSources,
@@ -3235,7 +3346,7 @@ export class AiToolsService {
       out.fxAsOf = fx.asOf;
       out.fxSource = fx.source;
       out.financialTotalsNote =
-        'totalRevenue и totalCost — грубые суммы из БД; при смеси валют смотри providerBreakdown, где суммы в displayCurrency.';
+        `totalCost/totalRevenue уже пересчитаны в ${fx.display} по курсу на ${fx.asOf} (каждая строка из своей валюты) — отвечай этими числами. totalCostOriginal — та же сумма в исходной валюте. НИКОГДА не пересчитывай валюту сам.`;
     } else if (displayOpt && fxError) {
       out.fxConversionFailed = true;
       out.fxConversionError = fxError;
@@ -3294,6 +3405,19 @@ export class AiToolsService {
     const totalSessions = rows.reduce((s, r) => s + (r.sessions || 0), 0);
     const totalLeads = rows.reduce((s, r) => s + (r.leads || 0), 0);
 
+    // Дневной ряд складывает cost всех кабинетов без учёта валюты и раньше не сообщал её вовсе —
+    // ИИ называл TRY «евро». Валюты расхода берём из помесячной разбивки с теми же фильтрами.
+    const { rows: costRows } = await this.marketing.getTrafficMonthlyBreakdown(
+      tenantId, from, to, dataSource, marketCode, 'dataSource',
+    );
+    const costByCurrency: Record<string, number> = {};
+    for (const r of costRows) {
+      if (!r.totalCost) continue;
+      const cur = String(r.currency || 'EUR').toUpperCase();
+      costByCurrency[cur] = Math.round(((costByCurrency[cur] || 0) + r.totalCost) * 100) / 100;
+    }
+    const costCurrencies = Object.keys(costByCurrency);
+
     return {
       from: from ?? null,
       to: to ?? null,
@@ -3301,6 +3425,12 @@ export class AiToolsService {
       ...(marketCode ? { filteredByMarket: marketCode } : {}),
       totalDays: rows.length,
       totals: { sessions: totalSessions, cost: totalCost, leads: totalLeads },
+      ...(costCurrencies.length <= 1
+        ? { costCurrency: costCurrencies[0] ?? null }
+        : {
+            costByCurrency,
+            mixedCurrencyWarning: `cost в series и totals — сумма РАЗНЫХ валют (${costCurrencies.join(', ')}), её нельзя называть ни в одной валюте. Для денег используй costByCurrency или crm_marketing_monthly_breakdown с displayCurrency.`,
+          }),
       series: rows,
     };
   }
@@ -3359,8 +3489,17 @@ export class AiToolsService {
       };
     });
 
-    const grandTotal = convertedRows.reduce((s, r) => s + r.totalCost, 0);
-    const currencies = [...new Set(convertedRows.map((r) => r.currency).filter(Boolean))];
+    // Строки с нулевым расходом (напр. GA4 в EUR) валюту итога не определяют.
+    const currencies = [...new Set(convertedRows.filter((r) => r.totalCost).map((r) => r.currency).filter(Boolean))];
+    // Итог по валютам: строки, которые не удалось конвертировать, остаются в своей валюте —
+    // одна сумма «TRY + EUR» была бы бессмысленной (та же ошибка, что раньше в crm_marketing_overview).
+    const grandTotalByCurrency: Record<string, number> = {};
+    for (const r of convertedRows) {
+      if (!r.totalCost) continue;
+      const cur = String(r.currency || 'EUR');
+      grandTotalByCurrency[cur] = Math.round(((grandTotalByCurrency[cur] || 0) + r.totalCost) * 100) / 100;
+    }
+    const grandTotal = currencies.length <= 1 ? Math.round(convertedRows.reduce((s, r) => s + r.totalCost, 0) * 100) / 100 : null;
 
     return {
       from: from ?? null,
@@ -3371,6 +3510,8 @@ export class AiToolsService {
       months,
       rows: convertedRows,
       grandTotal,
+      ...(currencies.length === 1 ? { grandTotalCurrency: currencies[0] } : {}),
+      grandTotalByCurrency,
       ...(fx ? { displayCurrency: fx.display, fxAsOf: fx.asOf, fxSource: fx.source } : {}),
       ...(displayOpt && !fx && fxError
         ? {
@@ -3381,7 +3522,7 @@ export class AiToolsService {
         : {}),
       currencyNote:
         currencies.length > 1
-          ? `В строках смешаны валюты (${currencies.join(', ')}) — currency указана в каждой row отдельно, не складывай totalCost между строками разных валют напрямую.`
+          ? `В строках смешаны валюты (${currencies.join(', ')}) — grandTotal не считается, итоги по валютам в grandTotalByCurrency. Не складывай суммы разных валют и не конвертируй сам — вызови заново с displayCurrency.`
           : undefined,
       usageNote:
         groupBy === 'market'
@@ -4175,6 +4316,8 @@ export class AiToolsService {
   ) {
     const tableName = String(args.tableName || '').trim();
     if (!tableName) return { ok: false, error: 'tableName_required' };
+    const marketGuard = this.countryNamedTableWithoutMarket(args);
+    if (marketGuard) return marketGuard;
     const from = args.from ? String(args.from) : undefined;
     const to = args.to ? String(args.to) : undefined;
     const dataSourceFilter = args.dataSource ? String(args.dataSource).trim() : undefined;
@@ -4335,6 +4478,25 @@ export class AiToolsService {
    * там физически нет месяца как поля, поэтому построить помесячный вид в UI после импорта
    * невозможно), эта таблица уже в нужной пользователю форме — колонки не нужно досчитывать.
    */
+  /** Таблица названа по стране, а фильтр market не передан — данные будут по ВСЕМ странам под
+   * именем одной (реальный случай: «Meta Ads - Германия - 2026» = 140 414 EUR вместо 15 503 EUR
+   * по Германии). Отказываем с подсказкой, чтобы модель повторила вызов правильно. */
+  private countryNamedTableWithoutMarket(args: Record<string, unknown>): Record<string, unknown> | null {
+    const groupBy = String(args.groupBy || '').trim().toLowerCase();
+    if (groupBy === 'market' || (args.market != null && String(args.market).trim())) return null;
+    const detected = resolveRowMarket(String(args.tableName || ''), null);
+    if (!detected) return null;
+    return {
+      ok: false,
+      error: 'market_filter_missing',
+      detectedMarket: detected,
+      detectedMarketLabel: marketLabel(detected),
+      hint:
+        `Название таблицы указывает на рынок ${marketLabel(detected)} (${detected}), но параметр market не передан — таблица содержала бы расходы по ВСЕМ странам. ` +
+        `Повтори вызов с market: "${detected}". Если таблица про несколько стран — используй groupBy: "market" и не указывай страну в названии.`,
+    };
+  }
+
   private async toolWorkspaceImportMarketingMonthlyBreakdown(
     tenantId: string,
     args: Record<string, unknown>,
@@ -4342,6 +4504,8 @@ export class AiToolsService {
     const tableName = String(args.tableName || '').trim();
     if (!tableName) return { ok: false, error: 'tableName_required' };
     const description = args.description ? String(args.description).trim() : undefined;
+    const marketGuard = this.countryNamedTableWithoutMarket(args);
+    if (marketGuard) return marketGuard;
 
     const built = await this.sync.buildMonthlyBreakdownData(tenantId, args);
     if (!built.ok) return built.payload;
@@ -4431,12 +4595,16 @@ export class AiToolsService {
 
   /** Новая таблица рабочей области с источником marketing_rows (несколько провайдеров, автообновление). */
   private async toolMarketingRoi(tenantId: string, args: Record<string, unknown>) {
-    const sources = Array.isArray(args.sources) ? (args.sources as unknown[]).map(String) : [];
+    const ALL_SOURCES = ['manual', 'ads', 'ga4', 'crm'] as const;
+    const picked = (Array.isArray(args.sources) ? (args.sources as unknown[]).map(String) : [])
+      .filter((x): x is (typeof ALL_SOURCES)[number] => (ALL_SOURCES as readonly string[]).includes(x));
     const report = await this.roi.getRoi(tenantId, {
       fromMonth: args.from ? String(args.from) : undefined,
       toMonth: args.to ? String(args.to) : undefined,
       displayCurrency: args.displayCurrency ? String(args.displayCurrency) : undefined,
-      sources: sources.filter((x): x is 'manual' | 'ads' | 'ga4' | 'crm' => ['manual', 'ads', 'ga4', 'crm'].includes(x)),
+      // Как на странице «ROI по клиентам» и в таблице рабочей области: по умолчанию ВСЕ источники.
+      // Дефолт сервиса — только manual, и у клиентов без ручного ввода ИИ видел выручку 0.
+      sources: picked.length ? picked : [...ALL_SOURCES],
     });
     const want = String(args.client || '').trim().toLocaleLowerCase('tr');
     const clients = want
@@ -4451,6 +4619,16 @@ export class AiToolsService {
         client: c.name,
         accounts: c.accounts.map((a) => a.label),
         total: c.total,
+        revenueBySource: Object.values(c.months).reduce(
+          (acc, v) => {
+            for (const k of ALL_SOURCES) acc[k] = Math.round((acc[k] + (v.revenueBySource?.[k] || 0)) * 100) / 100;
+            return acc;
+          },
+          { manual: 0, ads: 0, ga4: 0, crm: 0 } as Record<(typeof ALL_SOURCES)[number], number>,
+        ),
+        ...(c.overlapMonths?.length
+          ? { overlapWarning: `В месяцах ${c.overlapMonths.join(', ')} есть и ads, и ga4 — это может быть одна и та же выручка, посчитанная дважды. Скажи об этом пользователю.` }
+          : {}),
         // По месяцам — только для одного клиента или когда их немного, чтобы не раздувать ответ.
         ...(want || clients.length <= 3
           ? {
@@ -5448,13 +5626,44 @@ export class AiToolsService {
     tenantId: string,
     args: Record<string, unknown>,
   ) {
-    const integrationId = String(args.integrationId || '').trim();
-    if (!integrationId) return { ok: false, error: 'integrationId_required' };
-    const rows = await this.marketing.syncMarketingIntegrationById(
-      tenantId,
-      integrationId,
-    );
-    return { ok: true, integrationId, rowsWritten: rows };
+    const raw = String(args.integrationId || '').trim();
+    if (!raw) return { ok: false, error: 'integrationId_required' };
+    // Модель часто передаёт ключ провайдера/источника («google_ads», «meta_ads_<id>») вместо UUID —
+    // раньше это падало ошибкой SQL «invalid input syntax for type uuid». Разрешаем в id интеграций.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let ids: string[];
+    if (UUID_RE.test(raw)) {
+      ids = [raw];
+    } else {
+      const key = raw.toLowerCase();
+      const all = await this.marketing.listMarketingIntegrations(tenantId);
+      const matched = all.filter((m: any) => {
+        const provider = String(m.provider || '').toLowerCase();
+        return provider === key || key.startsWith(`${provider}_`) || (key === 'ga4' && provider === 'google_analytics');
+      });
+      if (!matched.length) {
+        return {
+          ok: false,
+          error: 'integration_not_found',
+          hint: 'Передай UUID интеграции из crm_marketing_integrations (поле id).',
+          integrations: all.map((m: any) => ({ id: m.id, provider: m.provider, isActive: m.isActive })),
+        };
+      }
+      ids = matched.map((m: any) => String(m.id));
+    }
+    const results: Array<{ integrationId: string; rowsWritten?: number; error?: string }> = [];
+    for (const id of ids) {
+      try {
+        results.push({ integrationId: id, rowsWritten: await this.marketing.syncMarketingIntegrationById(tenantId, id) });
+      } catch (e: any) {
+        results.push({ integrationId: id, error: e?.message || 'sync_failed' });
+      }
+    }
+    if (results.length === 1) {
+      const r = results[0];
+      return r.error ? { ok: false, integrationId: r.integrationId, error: r.error } : { ok: true, ...r };
+    }
+    return { ok: results.some((r) => !r.error), synced: results };
   }
 
   private async toolListCompanyTasks(

@@ -428,12 +428,6 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
     const memoryBlock = await this.loadMemoryContext(input.tenantId, userContent);
     const system = this.buildSystemPrompt(memoryBlock);
 
-    const history = await this.messages.find({
-      where: { sessionId: session.id },
-      order: { createdAt: 'ASC' },
-      take: MAX_HISTORY,
-    });
-
     await this.messages.save(
       this.messages.create({
         sessionId: session.id,
@@ -446,11 +440,18 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
       }),
     );
 
-    const allRows = await this.messages.find({
+    // ПОСЛЕДНИЕ MAX_HISTORY сообщений. Раньше было ASC + take — брались ПЕРВЫЕ 24, и в длинном
+    // чате модель вообще не видела новый вопрос (отвечала «если есть вопросы — обращайтесь»).
+    const lastRows = await this.messages.find({
       where: { sessionId: session.id },
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'DESC' },
       take: MAX_HISTORY,
     });
+    lastRows.reverse();
+    // Окно не должно начинаться с середины вызова инструмента (tool без своего assistant.tool_calls
+    // — OpenAI отклоняет такой запрос целиком): начинаем с первого сообщения пользователя.
+    const firstUser = lastRows.findIndex((r) => r.role === 'user');
+    const allRows = firstUser > 0 ? lastRows.slice(firstUser) : lastRows;
 
     let messages = this.toOpenAiMessages(system, allRows);
     let totalPrompt = 0;
