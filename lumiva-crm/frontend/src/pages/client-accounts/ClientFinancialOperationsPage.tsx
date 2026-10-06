@@ -707,8 +707,8 @@ const ModalShell: React.FC<{
 }> = ({ title, busy, children, onClose, onSave }) => {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-2xl">
+    <div className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
+      <div className="lv-dialog w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
           <h2 className="cd-display text-[15px] font-semibold text-[#222]">{title}</h2>
           <button

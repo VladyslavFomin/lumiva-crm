@@ -1505,7 +1505,7 @@ export const DashboardPage: React.FC = () => {
 
             <section
               ref={gridRef}
-              className={`grid grid-cols-12 gap-4 md:gap-5 items-start rounded-xl${editMode ? ' bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]' : ''}`}
+              className={`lv-stagger grid grid-cols-12 gap-4 md:gap-5 items-start rounded-xl${editMode ? ' bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]' : ''}`}
             >
               {renderedGridIds.map((id) => {
                     const size = layout.sizes[id] || 'md';
@@ -1565,8 +1565,8 @@ export const DashboardPage: React.FC = () => {
 
           {/* ── MODALS ── */}
           {leadsModalOpen && data && createPortal(
-            <div className="fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm" role="presentation" onMouseDown={() => setLeadsModalOpen(false)}>
-              <div role="dialog" className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-[18px] border border-neutral-200/90 bg-white/98 backdrop-blur-md p-5 ring-1 ring-neutral-900/[0.08]" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="lv-backdrop fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm" role="presentation" onMouseDown={() => setLeadsModalOpen(false)}>
+              <div role="dialog" className="lv-dialog w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-[18px] border border-neutral-200/90 bg-white/98 backdrop-blur-md p-5 ring-1 ring-neutral-900/[0.08]" onMouseDown={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <h3 className="text-sm font-semibold text-[#222]">{t('crm.dashboard.recentLeads.title')}</h3>
                   <div className="flex items-center gap-2">
@@ -1625,14 +1625,14 @@ export const DashboardPage: React.FC = () => {
 
           {resetConfirmOpen && createPortal(
             <div
-              className="fixed inset-0 z-[10090] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
+              className="lv-backdrop fixed inset-0 z-[10090] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
               role="presentation"
               onClick={() => setResetConfirmOpen(false)}
             >
               <div
                 role="dialog"
                 aria-modal="true"
-                className="w-full max-w-sm rounded-[18px] border border-neutral-200/90 bg-white p-5 shadow-2xl text-[#222]"
+                className="lv-dialog w-full max-w-sm rounded-[18px] border border-neutral-200/90 bg-white p-5 shadow-2xl text-[#222]"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-sm font-semibold text-[#222]">{t('crm.dashboard.widgets.reset.title')}</h3>
@@ -1662,13 +1662,13 @@ export const DashboardPage: React.FC = () => {
 
           {widgetEditOpen && widgetEditId && createPortal(
             <div
-              className="fixed inset-0 z-[10085] flex items-center justify-center p-4 bg-black/45 backdrop-blur-md"
+              className="lv-backdrop fixed inset-0 z-[10085] flex items-center justify-center p-4 bg-black/45 backdrop-blur-md"
               onClick={() => { setWidgetEditOpen(false); setWidgetEditId(null); }}
               onKeyDown={(e) => { if (e.key === 'Escape') { setWidgetEditOpen(false); setWidgetEditId(null); } }}
               role="presentation"
             >
               <div role="dialog" aria-modal="true" aria-labelledby="widget-edit-title"
-                className="w-full max-w-md rounded-[18px] border border-neutral-200/90 bg-white p-6 text-[#222] shadow-2xl shadow-neutral-900/20 ring-1 ring-neutral-900/[0.06]"
+                className="lv-dialog w-full max-w-md rounded-[18px] border border-neutral-200/90 bg-white p-6 text-[#222] shadow-2xl shadow-neutral-900/20 ring-1 ring-neutral-900/[0.06]"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 id="widget-edit-title" className="text-base font-semibold tracking-tight text-[#222]">{t('crm.dashboard.widgets.editModalTitle')}</h3>

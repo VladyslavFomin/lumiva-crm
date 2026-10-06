@@ -43,7 +43,7 @@ export const ViewNameModal: React.FC<ViewNameModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="view-name-modal-title"
@@ -52,7 +52,7 @@ export const ViewNameModal: React.FC<ViewNameModalProps> = ({
       }}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-[0_24px_64px_rgba(15,23,42,0.18)] overflow-hidden"
+        className="lv-dialog w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-[0_24px_64px_rgba(15,23,42,0.18)] overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-5 pb-2">

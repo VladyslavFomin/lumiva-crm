@@ -631,14 +631,14 @@ export const ProjectsViewsBar: React.FC<Props> = ({
       )}
 
       {settingsOpen && (
-        <div className="fixed inset-0 z-[8500] bg-black/35">
+        <div className="lv-backdrop fixed inset-0 z-[8500] bg-black/35">
           <button
             type="button"
             aria-label={t('crm.projects.viewsBar.settings.close')}
             className="absolute inset-0 h-full w-full cursor-default"
             onClick={() => setSettingsOpen(false)}
           />
-          <div className="absolute right-0 top-0 h-screen w-full max-w-2xl border-l border-slate-200 bg-white shadow-2xl">
+          <div className="lv-sheet-right absolute right-0 top-0 h-screen w-full max-w-2xl border-l border-slate-200 bg-white shadow-2xl">
             <div className="h-full overflow-y-auto p-5">
             <div className="flex items-center justify-between gap-2 mb-4">
               <div>

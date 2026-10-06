@@ -1,0 +1,193 @@
+/* ─── MOTION ─────────────────────────────────────────────────────────────
+   Единый слой движения CRM. Правила (Emil Kowalski / skills: animate, review-animations):
+   – анимируем только opacity и transform-свойства (translate / scale);
+   – появление — сильный ease-out, панели — iOS-кривая, UI ≤ 300ms (панели до 320ms);
+   – индивидуальные свойства translate/scale, а не transform: они складываются с уже
+     существующими transform (центрирование translate(-50%,-50%), Tailwind translate-x-*),
+     и в конечном состоянии остаются `none` — не создают containing block для fixed-потомков;
+   – при prefers-reduced-motion остаётся только прозрачность, без сдвигов.
+   Селекторы существующих окон начинаются с `html` — CSS страниц грузится позже index.css,
+   и без этого их старые `animation: … ease` перебивали бы общий слой. */
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 160ms;
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-dialog: 220ms;
+  --dur-sheet: 320ms;
+}
+
+/* ── Затемнение под окнами и панелями ── */
+.lv-backdrop,
+html .bk-drawer-back, html .bk-modal-back, html .acc-modal-back, html .ul-modal-back,
+html .ul-back, html .tg-modal-back, html .md-overlay, html .seo-modal-bg, html .ld-modal-bg,
+html .pr-cat-modal-back, html .pxb-modal-back, html .pxb-drawer-back, html .sm-drawer-back,
+html .cl-dr-bd, html .e2-scrim {
+  animation: none;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+@starting-style {
+  .lv-backdrop,
+  html .bk-drawer-back, html .bk-modal-back, html .acc-modal-back, html .ul-modal-back,
+  html .ul-back, html .tg-modal-back, html .md-overlay, html .seo-modal-bg, html .ld-modal-bg,
+  html .pr-cat-modal-back, html .pxb-modal-back, html .pxb-drawer-back, html .sm-drawer-back,
+  html .cl-dr-bd, html .e2-scrim {
+    opacity: 0;
+  }
+}
+
+/* ── Диалоги: раскрываются из центра (модалки не привязаны к триггеру — origin center) ── */
+.lv-dialog,
+html .bk-modal, html .acc-modal, html .ul-modal, html .tg-modal, html .md-overlay-panel,
+html .seo-modal, html .ld-modal, html .pr-cat-modal, html .pxb-catalog {
+  animation: none;
+  transition:
+    opacity var(--dur-dialog) var(--ease-out),
+    scale var(--dur-dialog) var(--ease-out),
+    translate var(--dur-dialog) var(--ease-out);
+}
+@starting-style {
+  .lv-dialog,
+  html .bk-modal, html .acc-modal, html .ul-modal, html .tg-modal, html .md-overlay-panel,
+  html .seo-modal, html .ld-modal, html .pr-cat-modal, html .pxb-catalog {
+    opacity: 0;
+  }
+}
+
+/* ── Боковые панели ── */
+.lv-sheet-right, .lv-sheet-left,
+html .bk-drawer, html .e2-drawer, html .pxb-drawer, html .sm-drawer, html .ul-drawer, html .cl-dr {
+  animation: none;
+  transition: translate var(--dur-sheet) var(--ease-drawer), opacity var(--dur-base) var(--ease-out);
+}
+
+/* ── Всплывающие блоки, привязанные к кнопке (выпадающие панели в шапке) ── */
+.lv-pop {
+  transform-origin: var(--lv-pop-origin, top right);
+  transition: opacity var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out);
+}
+@starting-style {
+  .lv-pop { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @starting-style {
+    .lv-dialog,
+    html .bk-modal, html .acc-modal, html .ul-modal, html .tg-modal, html .md-overlay-panel,
+    html .seo-modal, html .ld-modal, html .pr-cat-modal, html .pxb-catalog {
+      scale: 0.96;
+      translate: 0 6px;
+    }
+    .lv-sheet-right,
+    html .bk-drawer, html .e2-drawer, html .pxb-drawer, html .sm-drawer, html .ul-drawer, html .cl-dr {
+      translate: 100% 0;
+    }
+    .lv-sheet-left { translate: -100% 0; }
+    .lv-pop { scale: 0.97; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @starting-style {
+    .lv-sheet-right, .lv-sheet-left,
+    html .bk-drawer, html .e2-drawer, html .pxb-drawer, html .sm-drawer, html .ul-drawer, html .cl-dr {
+      opacity: 0;
+    }
+  }
+}
+
+/* ── Появление контента раздела (запускается из MainLayout через WAAPI) и каскад ── */
+@keyframes lv-rise {
+  from { opacity: 0; translate: 0 6px; }
+}
+@keyframes lv-fade {
+  from { opacity: 0; }
+}
+@keyframes lv-drop {
+  from { opacity: 0; translate: 0 -4px; }
+}
+
+/* Каскад первых 8 детей (шаг 30ms, потолок 240ms) контейнера при монтировании. Декоративный — ничего не блокирует. */
+.lv-stagger > * {
+  animation: lv-rise 240ms var(--ease-out) backwards;
+}
+.lv-stagger > :nth-child(2) { animation-delay: 30ms; }
+.lv-stagger > :nth-child(3) { animation-delay: 60ms; }
+.lv-stagger > :nth-child(4) { animation-delay: 90ms; }
+.lv-stagger > :nth-child(5) { animation-delay: 120ms; }
+.lv-stagger > :nth-child(6) { animation-delay: 150ms; }
+.lv-stagger > :nth-child(7) { animation-delay: 180ms; }
+.lv-stagger > :nth-child(8) { animation-delay: 210ms; }
+.lv-stagger > :nth-child(n+9) { animation-delay: 240ms; }
+
+/* Раскрытие подпунктов меню: появляются сверху вниз, закрытие мгновенное */
+.lv-reveal {
+  animation: lv-drop var(--dur-base) var(--ease-out) backwards;
+}
+
+/* ── Канбан: карточка «поднимается» при захвате ── */
+@keyframes lv-lift {
+  to { scale: 1.03; rotate: -1.5deg; box-shadow: 0 18px 40px rgba(16, 24, 40, 0.2); }
+}
+.lv-drag-lift {
+  animation: lv-lift 180ms var(--ease-out) forwards;
+}
+
+/* ── Нажатие: универсальный отклик для кнопок вне .btn-* ── */
+.lv-press {
+  transition: scale var(--dur-press) var(--ease-out);
+}
+.lv-press:active:not(:disabled) { scale: 0.97; }
+
+/* ── Тосты ── */
+.lv-toast-stack {
+  position: fixed;
+  z-index: 9000;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .lv-toast-stack { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); align-items: stretch; }
+}
+.lv-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 380px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #1f1f1f;
+  color: #fff;
+  box-shadow: 0 16px 40px rgba(17, 24, 39, 0.24), 0 2px 6px rgba(17, 24, 39, 0.12);
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: opacity 400ms ease, translate 400ms ease, scale 400ms ease;
+}
+@starting-style {
+  .lv-toast { opacity: 0; }
+}
+.lv-toast[data-leaving] { opacity: 0; transition-duration: 200ms; }
+@media (prefers-reduced-motion: no-preference) {
+  @starting-style {
+    .lv-toast { translate: 0 100%; }
+  }
+  .lv-toast[data-leaving] { translate: 0 100%; }
+}
+.lv-toast-title { font-weight: 600; }
+.lv-toast-msg { color: rgba(255, 255, 255, 0.82); white-space: pre-wrap; word-break: break-word; }
+
+/* ── Reduced motion: каскад/подъём — только прозрачность ── */
+@media (prefers-reduced-motion: reduce) {
+  .lv-stagger > *, .lv-reveal { animation-name: lv-fade; }
+  .lv-drag-lift { animation: none; box-shadow: 0 18px 40px rgba(16, 24, 40, 0.2); }
+  .lv-press:active:not(:disabled) { scale: none; }
+}

@@ -51,7 +51,7 @@ export const CrmShellModal: React.FC<CrmShellModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[8500] flex items-end justify-center bg-slate-900/50 p-3 sm:items-center sm:p-6"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-end justify-center bg-slate-900/50 p-3 sm:items-center sm:p-6"
       role="dialog"
       aria-modal
       aria-labelledby="crm-shell-modal-title"
@@ -60,7 +60,7 @@ export const CrmShellModal: React.FC<CrmShellModalProps> = ({
       }}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="lv-dialog w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div

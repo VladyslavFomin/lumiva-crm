@@ -549,7 +549,7 @@ export const DashboardCalendarMini: React.FC<{
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 z-[10080] flex items-center justify-center p-3 sm:p-4 bg-black/30 backdrop-blur-sm"
+            className="lv-backdrop fixed inset-0 z-[10080] flex items-center justify-center p-3 sm:p-4 bg-black/30 backdrop-blur-sm"
             role="presentation"
             onMouseDown={() => {
               setComposeError(null);
@@ -560,7 +560,7 @@ export const DashboardCalendarMini: React.FC<{
               role="dialog"
               aria-modal="true"
               aria-labelledby="dashboard-calendar-sheet-title"
-              className="flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-xl shadow-neutral-900/10 ring-1 ring-neutral-900/[0.04] sm:max-w-lg"
+              className="lv-dialog flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-xl shadow-neutral-900/10 ring-1 ring-neutral-900/[0.04] sm:max-w-lg"
               onMouseDown={(e) => e.stopPropagation()}
             >
               {modal === 'compose' && selectedDay && (

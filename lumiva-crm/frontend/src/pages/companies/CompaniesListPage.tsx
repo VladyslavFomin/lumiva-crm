@@ -605,7 +605,7 @@ export const CompaniesListPage: React.FC = () => {
                       <th className="col-act r">{t('crm.companies.list.table.actions')}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="lv-stagger">
                     {pagedRows.map((c) => {
                       const s = statOf(c.id);
                       const pill = CST[c.type || 'lead'] || CST_DEFAULT;

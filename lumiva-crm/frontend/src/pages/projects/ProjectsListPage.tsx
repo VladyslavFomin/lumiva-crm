@@ -3977,8 +3977,8 @@ export const ProjectsListPage: React.FC = () => {
 
         {/* Bulk hint modal */}
         {showBulkHint && selectedProjectIds.length > 0 && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
-            <div className="relative w-full max-w-xl modal-panel p-6">
+          <div className="lv-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
+            <div className="lv-dialog relative w-full max-w-xl modal-panel p-6">
               <button
                 type="button"
                 onClick={() => {

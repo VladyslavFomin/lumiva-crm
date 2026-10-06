@@ -155,10 +155,10 @@ export const AutomationPanel: React.FC<AutomationPanelProps> = ({
   return (
     <div className="fixed inset-0 z-50">
       <div
-        className="absolute inset-0 bg-transparent backdrop-blur-[2px]"
+        className="lv-backdrop absolute inset-0 bg-transparent backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <div className="absolute right-0 top-0 h-full w-full sm:max-w-3xl bg-white text-slate-900 shadow-2xl">
+      <div className="lv-sheet-right absolute right-0 top-0 h-full w-full sm:max-w-3xl bg-white text-slate-900 shadow-2xl">
         <div className="h-full overflow-y-auto">
           <div className="border-b border-slate-200">
             <div className="flex items-center justify-between px-5 py-4">

@@ -117,9 +117,9 @@ export const WorkspaceShareModal: React.FC<{ objectId: string; onClose: () => vo
   const inputCls = 'w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400';
 
   return (
-    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl bg-white p-5 text-[#222] shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
+        className="lv-dialog w-full max-w-lg rounded-2xl bg-white p-5 text-[#222] shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

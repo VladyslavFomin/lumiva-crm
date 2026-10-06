@@ -226,11 +226,11 @@ export const WorkspaceAreaSwitcher: React.FC<Props> = ({ compact = false, active
         role="dialog"
         aria-modal="true"
         aria-labelledby="ws-area-delete-title"
-        className="fixed inset-0 z-[10080] flex items-center justify-center bg-neutral-900/20 p-4 backdrop-blur-sm"
+        className="lv-backdrop fixed inset-0 z-[10080] flex items-center justify-center bg-neutral-900/20 p-4 backdrop-blur-sm"
         onClick={() => !deleteSaving && setDeleteTarget(null)}
       >
         <div
-          className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xl"
+          className="lv-dialog w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div id="ws-area-delete-title" className="mb-2 text-sm font-semibold text-neutral-900">

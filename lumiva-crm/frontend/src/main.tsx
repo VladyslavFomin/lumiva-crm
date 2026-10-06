@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App.js';
 import './index.css';
+import './motion.css';
 import { ErrorBoundary } from './ErrorBoundary';
 import { i18nReady } from './i18n';
 

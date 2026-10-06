@@ -507,8 +507,8 @@ export const StaffListPage: React.FC = () => {
 
         {/* POPUP-ДИАЛОГ */}
         {dialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-xl p-4">
+          <div className="lv-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="lv-dialog w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-xl p-4">
               <div className="text-sm font-semibold text-slate-900 mb-1">
                 {dialog.title}
               </div>

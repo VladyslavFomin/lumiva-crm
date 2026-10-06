@@ -1419,14 +1419,14 @@ export const WorkspaceImportPage: React.FC = () => {
                     <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4 sm:p-6">
                       <button
                         type="button"
-                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                        className="lv-backdrop absolute inset-0 bg-black/40 backdrop-blur-sm"
                         aria-label={t('crm.workspace.import.areaChannelsClose')}
                         onClick={() => setAreaChannelsModalOpen(false)}
                       />
                       <div
                         role="dialog"
                         aria-modal="true"
-                        className="relative z-10 flex max-h-[min(90vh,880px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                        className="lv-dialog relative z-10 flex max-h-[min(90vh,880px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
                       >
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
                           <h3 className="text-base font-semibold text-slate-900">

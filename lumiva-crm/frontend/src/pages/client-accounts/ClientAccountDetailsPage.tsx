@@ -180,8 +180,8 @@ const ModalShell: React.FC<{
 }> = ({ title, subtitle, busy, onClose, onSave, children, saveLabel, saveDisabled }) => {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]">
-      <div className="w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.12)] p-6 max-h-[90vh] overflow-y-auto">
+    <div className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]">
+      <div className="lv-dialog w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.12)] p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 mb-5">
           <div>
             <div className="cd-display text-[15px] font-semibold text-[#222] tracking-[-0.01em]">{title}</div>

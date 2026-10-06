@@ -787,7 +787,7 @@ export const ContactsListPage: React.FC = () => {
                       <th className="col-act r">{t('crm.contacts.list.table.actions')}</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="lv-stagger">
                     {grp === 'none'
                       ? pagedRows.map(Row)
                       : groups.map((g) => {

@@ -960,7 +960,7 @@ export const SalesPage: React.FC = () => {
                       })}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="lv-stagger">
                     {list?.items.map((s: Sale) => (
                       <tr key={s.id} onClick={() => navigate(`/app/sales/${s.id}`)}>
                         {orderedColumns.map((col) => {

@@ -53,7 +53,7 @@ export const MarketingIsoCurrencyPickerModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/45 p-4"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/45 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="iso-cur-title"
@@ -62,7 +62,7 @@ export const MarketingIsoCurrencyPickerModal: React.FC<Props> = ({
       }}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-[#222222]/12 bg-white shadow-[0_24px_80px_rgba(34,34,34,0.18)] overflow-hidden"
+        className="lv-dialog w-full max-w-md rounded-2xl border border-[#222222]/12 bg-white shadow-[0_24px_80px_rgba(34,34,34,0.18)] overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="border-b border-[#222222]/10 px-5 py-4">

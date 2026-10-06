@@ -1014,7 +1014,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
 
   const modal = (
     <div
-      className="fixed inset-0 z-[8500] flex items-center justify-center p-2 sm:p-6 bg-[#0f172a]/45 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center p-2 sm:p-6 bg-[#0f172a]/45 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="mch-analytics-title"
@@ -1022,7 +1022,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex flex-col w-full min-w-0 max-w-[min(1720px,calc(100vw-16px))] sm:max-w-[min(1720px,calc(100vw-24px))] max-h-[min(940px,96dvh)] rounded-2xl border border-[#222222]/12 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.18)] overflow-hidden">
+      <div className="lv-dialog flex flex-col w-full min-w-0 max-w-[min(1720px,calc(100vw-16px))] sm:max-w-[min(1720px,calc(100vw-24px))] max-h-[min(940px,96dvh)] rounded-2xl border border-[#222222]/12 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.18)] overflow-hidden">
         <div
           className={`shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-[#e7e7e7] ${chTheme.headerBg}`}
         >

@@ -487,7 +487,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
         />
         <div
           role="menu"
-          className="fixed z-[10050] max-h-[min(70vh,480px)] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+          className="lv-pop fixed z-[10050] max-h-[min(70vh,480px)] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
           style={{ top: dotsMenu.top, left: dotsMenu.left, width: MENU_W }}
         >
           {objects
@@ -842,11 +842,11 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="workspace-rename-title"
-            className="fixed inset-0 z-[10070] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+            className="lv-backdrop fixed inset-0 z-[10070] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
             onClick={() => setRenameTarget(null)}
           >
             <div
-              className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden"
+              className="lv-dialog w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">

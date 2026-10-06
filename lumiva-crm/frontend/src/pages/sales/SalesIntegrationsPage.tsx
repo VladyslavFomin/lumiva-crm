@@ -1371,7 +1371,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
         {integrationModal && (
           <div
-            className="fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2px]"
+            className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2px]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="sales-integration-modal-title"
@@ -1380,7 +1380,7 @@ export const SalesIntegrationsPage: React.FC = () => {
             }}
           >
             <div
-              className={`modal-panel overflow-hidden max-w-lg w-full ${
+              className={`lv-dialog modal-panel overflow-hidden max-w-lg w-full ${
                 integrationModal.variant === 'error'
                   ? 'ring-1 ring-status-error/20'
                   : integrationModal.variant === 'success'

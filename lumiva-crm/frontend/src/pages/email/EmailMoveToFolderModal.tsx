@@ -42,7 +42,7 @@ export const EmailMoveToFolderModal: React.FC<EmailMoveToFolderModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[8500] flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-6"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-6"
       role="dialog"
       aria-modal
       onMouseDown={(e) => {
@@ -50,7 +50,7 @@ export const EmailMoveToFolderModal: React.FC<EmailMoveToFolderModalProps> = ({
       }}
     >
       <div
-        className="max-h-[min(70vh,480px)] w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="lv-dialog max-h-[min(70vh,480px)] w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="border-b border-slate-100 bg-slate-50/90 px-4 py-3">

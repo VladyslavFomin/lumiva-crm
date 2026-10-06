@@ -815,7 +815,7 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
             {/* DragOverlay portals to document.body, outside the .lv-kb scope its CSS classes rely on — re-establish it here (a real DOM ancestor, not just a class on the same node). */}
             {activeDragRecord ? (
               <div className="lv-kb">
-                <div className="kb-card" style={{ cursor: 'grabbing', width: 268, boxShadow: '0 12px 28px rgba(16,24,40,.18)' }}>
+                <div className="kb-card lv-drag-lift" style={{ cursor: 'grabbing', width: 268, boxShadow: '0 12px 28px rgba(16,24,40,.18)' }}>
                   <div className="kb-name">{getCardTitle(activeDragRecord)}</div>
                 </div>
               </div>

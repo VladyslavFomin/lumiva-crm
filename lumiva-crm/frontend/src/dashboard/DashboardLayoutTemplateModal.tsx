@@ -37,14 +37,14 @@ export const DashboardLayoutTemplateModal: React.FC<Props> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10090] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
+      className="lv-backdrop fixed inset-0 z-[10090] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
       role="presentation"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal
-        className="w-full max-w-md rounded-[18px] border border-neutral-200/90 bg-white p-5 shadow-2xl text-[#222]"
+        className="lv-dialog w-full max-w-md rounded-[18px] border border-neutral-200/90 bg-white p-5 shadow-2xl text-[#222]"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-sm font-semibold text-[#222]">

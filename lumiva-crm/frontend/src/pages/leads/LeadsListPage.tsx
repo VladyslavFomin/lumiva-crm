@@ -2197,7 +2197,7 @@ export const LeadsListPage: React.FC = () => {
                       })}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="lv-stagger">
                     {groupMode !== 'none'
                       ? groupedLeads.map((group) => {
                           const isCollapsed = collapsedGroups.includes(group.key);

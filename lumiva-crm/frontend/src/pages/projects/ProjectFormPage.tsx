@@ -3578,7 +3578,7 @@ export const ProjectFormPage: React.FC = () => {
 
         {emailOpen && createPortal(
           <div
-            className="fixed inset-0 z-[8500] flex items-center justify-center p-4"
+            className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center p-4"
             style={{ background: 'rgba(0,0,0,0.5)' }}
           >
             <div
@@ -3703,6 +3703,7 @@ export const ProjectFormPage: React.FC = () => {
                       resize: 'vertical',
                       minHeight: 200,
                       boxSizing: 'border-box',
+              className="lv-dialog"
                       fontFamily: 'inherit',
                     }}
                   />

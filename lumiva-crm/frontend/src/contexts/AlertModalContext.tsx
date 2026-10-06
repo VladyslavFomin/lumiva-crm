@@ -94,7 +94,7 @@ function AlertModalDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="global-alert-modal-title"
@@ -102,7 +102,7 @@ function AlertModalDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden">
+      <div className="lv-dialog w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
           <div className="flex items-center gap-2 min-w-0">
@@ -189,14 +189,14 @@ function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[8600] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[8600] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden">
+      <div className="lv-dialog w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
           <div className="flex items-center gap-2 min-w-0">
@@ -283,7 +283,7 @@ function PromptDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[8600] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[8600] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       onMouseDown={(e) => {
@@ -291,7 +291,7 @@ function PromptDialog({
       }}
     >
       <form
-        className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden"
+        className="lv-dialog w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -343,6 +343,49 @@ function PromptDialog({
   );
 }
 
+/* ── Success toasts ─────────────────────────────────────────────────────
+   Успешные действия («Сохранено», «Скопировано») не требуют реакции — показываем
+   тост вместо модалки с кнопкой OK. Въезжает снизу и уходит туда же; таймер
+   стоит, пока курсор над тостом или вкладка скрыта. */
+type ToastItem = { id: number; title?: string; message: string; leaving?: boolean };
+
+const toastDuration = (message: string) => Math.min(7000, Math.max(2800, 2000 + message.length * 40));
+
+function ToastStack({
+  toasts,
+  onDismiss,
+  onPause,
+  onResume,
+}: {
+  toasts: ToastItem[];
+  onDismiss: (id: number) => void;
+  onPause: (id: number) => void;
+  onResume: (id: number) => void;
+}) {
+  return (
+    <div className="lv-toast-stack" role="status" aria-live="polite">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className="lv-toast"
+          data-leaving={toast.leaving ? '' : undefined}
+          onClick={() => onDismiss(toast.id)}
+          onMouseEnter={() => onPause(toast.id)}
+          onMouseLeave={() => onResume(toast.id)}
+        >
+          <svg className="mt-[2px] h-4 w-4 shrink-0 text-emerald-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3.5 8.4l2.9 2.9 6.1-6.6" />
+          </svg>
+          <div className="min-w-0">
+            {toast.title ? <div className="lv-toast-title">{toast.title}</div> : null}
+            <div className={toast.title ? 'lv-toast-msg' : undefined}>{toast.message}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── Provider ──────────────────────────────────────────────────────────── */
 export function AlertModalProvider({
   children,
@@ -355,15 +398,56 @@ export function AlertModalProvider({
   const confirmResolveRef = useRef<((v: boolean) => void) | null>(null);
   const promptResolveRef = useRef<((v: string | null) => void) | null>(null);
 
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastTimersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const toastSeqRef = useRef(0);
+
+  const dismissToast = useCallback((id: number) => {
+    const timers = toastTimersRef.current;
+    clearTimeout(timers.get(id));
+    timers.delete(id);
+    setToasts((list) => list.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
+    setTimeout(() => setToasts((list) => list.filter((x) => x.id !== id)), 220);
+  }, []);
+
+  const scheduleToast = useCallback(
+    (id: number, ms: number) => {
+      const timers = toastTimersRef.current;
+      clearTimeout(timers.get(id));
+      const tick = () => {
+        // вкладка скрыта — человек тост не видел, откладываем
+        if (document.hidden) timers.set(id, setTimeout(tick, 1500));
+        else dismissToast(id);
+      };
+      timers.set(id, setTimeout(tick, ms));
+    },
+    [dismissToast],
+  );
+
+  const pauseToast = useCallback((id: number) => {
+    clearTimeout(toastTimersRef.current.get(id));
+  }, []);
+
+  useEffect(() => {
+    const timers = toastTimersRef.current;
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, []);
+
   const showAlert = useCallback(
     (message: string, options?: ShowAlertOptions) => {
+      if (options?.variant === 'success') {
+        const id = ++toastSeqRef.current;
+        setToasts((list) => [...list.slice(-2), { id, title: options.title, message }]);
+        scheduleToast(id, toastDuration(message));
+        return;
+      }
       setAlertState({
         message,
         title: options?.title,
         variant: options?.variant ?? 'info',
       });
     },
-    [],
+    [scheduleToast],
   );
 
   const showConfirm = useCallback(
@@ -448,6 +532,14 @@ export function AlertModalProvider({
           state={promptState}
           onConfirm={handlePromptConfirm}
           onCancel={handlePromptCancel}
+        />
+      ) : null}
+      {toasts.length > 0 ? (
+        <ToastStack
+          toasts={toasts}
+          onDismiss={dismissToast}
+          onPause={pauseToast}
+          onResume={(id) => scheduleToast(id, 1500)}
         />
       ) : null}
     </AlertModalContext.Provider>

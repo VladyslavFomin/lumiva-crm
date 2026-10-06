@@ -155,6 +155,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const [, bumpSessionUser] = useReducer((n: number) => n + 1, 0);
   const user = getStoredUser();
   const location = useLocation();
+
+  // Мягкое проявление контента при смене раздела. Только opacity: translate на обёртке
+  // сделал бы её containing block для fixed-окон страницы. Без сдвига вбок — по меню
+  // кликают десятки раз в день, длинный переход начал бы раздражать.
+  const pageContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    pageContentRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 220,
+      easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+    });
+  }, [location.pathname]);
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadChats, setUnreadChats] = useState(0);
@@ -1869,7 +1880,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                 </NavLink>
 
                 {hasChildren && open && !sidebarCollapsed && (
-                  <div className="mt-0.5 mb-1 ml-2 pl-2 border-l border-neutral-200/90 space-y-0.5">
+                  <div className="lv-reveal mt-0.5 mb-1 ml-2 pl-2 border-l border-neutral-200/90 space-y-0.5">
                     {item.children!.map((child) => (
                       <NavLink
                         key={child.path}
@@ -2141,7 +2152,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                 </button>
 
                 {notificationsPreviewOpen && (filteredNotifications.length > 0 || inAppUnread > 0) && (
-                  <div className="absolute right-0 z-[1000] mt-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-xl p-3 text-xs text-slate-700">
+                  <div className="lv-pop absolute right-0 z-[1000] mt-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-xl p-3 text-xs text-slate-700">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-2">
                       {t('crm.header.notifications')}
                     </div>
@@ -2238,12 +2249,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         {notificationsOpen && (
           <div className="fixed inset-0 z-[3000]">
             <div
-              className="absolute inset-0 bg-black/20"
+              className="lv-backdrop absolute inset-0 bg-black/20"
               onClick={() => setNotificationsOpen(false)}
             />
             <div
               ref={notificationsPanelRef}
-              className="absolute right-0 top-0 h-full w-full max-w-md bg-white border-l border-slate-200 shadow-2xl flex flex-col"
+              className="lv-sheet-right absolute right-0 top-0 h-full w-full max-w-md bg-white border-l border-slate-200 shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
                 <div>
@@ -2632,11 +2643,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           <div className="md:hidden fixed inset-0 z-[2500]">
             {/* затемнение */}
             <div
-              className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+              className="lv-backdrop absolute inset-0 bg-black/30 backdrop-blur-sm"
               onClick={closeMobile}
             />
             {/* панель */}
-            <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[80%] bg-[#fafafa] border-r border-neutral-200/90 px-4 py-4 flex flex-col shadow-[0_20px_60px_rgba(17,24,39,0.12)]">
+            <div className="lv-sheet-left absolute left-0 top-0 bottom-0 w-72 max-w-[80%] bg-[#fafafa] border-r border-neutral-200/90 px-4 py-4 flex flex-col shadow-[0_20px_60px_rgba(17,24,39,0.12)]">
               {/* шапка меню */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 min-w-0">
@@ -2744,7 +2755,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                         </NavLink>
 
                         {hasChildren && open && (
-                          <div className="mt-0.5 mb-1 ml-2 pl-2 border-l border-neutral-200/90 space-y-0.5">
+                          <div className="lv-reveal mt-0.5 mb-1 ml-2 pl-2 border-l border-neutral-200/90 space-y-0.5">
                             {item.children!.map((child) => (
                               <NavLink
                                 key={child.path}
@@ -2844,11 +2855,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             </div>
           ) : (
             <div className="relative">
-              <div className={billingLocked ? 'pointer-events-none blur-[2px] select-none' : ''}>
+              <div ref={pageContentRef} className={billingLocked ? 'pointer-events-none blur-[2px] select-none' : ''}>
                 {children}
               </div>
               {billingLocked && location.pathname !== '/app/billing' && (
-                <div className="fixed inset-0 z-[8500] flex items-start justify-center bg-slate-950/45 px-3 py-6 backdrop-blur-sm md:items-center md:px-6">
+                <div className="lv-backdrop fixed inset-0 z-[8500] flex items-start justify-center bg-slate-950/45 px-3 py-6 backdrop-blur-sm md:items-center md:px-6">
                   <button
                     type="button"
                     onClick={handleLogout}

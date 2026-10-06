@@ -167,9 +167,9 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
 
   const ui = (
     <>
-      <div className="fixed inset-0 z-[8500] bg-black/20" aria-hidden />
+      <div className="lv-backdrop fixed inset-0 z-[8500] bg-black/20" aria-hidden />
       <div
-        className="fixed z-[8600] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+        className="lv-dialog fixed z-[8600] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         style={{
           left: pos.x,
           top: pos.y,

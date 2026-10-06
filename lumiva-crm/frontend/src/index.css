@@ -45,7 +45,7 @@ html.embed-public-iframe #root {
            text-sm text-[#111827] placeholder-text-tertiary outline-none
            shadow-btn
            focus:ring-2 focus:ring-slate-200 focus:border-lumiva-accent
-           transition-all duration-150;
+           transition-[border-color,box-shadow,background-color] duration-150 ease-lumiva;
   }
 
   .base-select {
@@ -64,9 +64,9 @@ html.embed-public-iframe #root {
            text-xs font-semibold uppercase tracking-wide
            shadow-btn-primary border border-lumiva-accent
            hover:bg-lumiva-accent-hover hover:-translate-y-px hover:shadow-card-md
-           active:translate-y-0 active:shadow-btn
+           active:translate-y-0 active:scale-[0.97] active:shadow-btn
            disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
-           transition-all duration-150 select-none whitespace-nowrap;
+           transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-lumiva select-none whitespace-nowrap;
   }
 
   .btn-primary-sm {
@@ -85,9 +85,9 @@ html.embed-public-iframe #root {
            text-xs font-medium
            border border-border-default shadow-btn
            hover:bg-surface-hover hover:border-border-strong
-           active:bg-surface-active
+           active:bg-surface-active active:scale-[0.97]
            disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150 select-none whitespace-nowrap;
+           transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-lumiva select-none whitespace-nowrap;
   }
 
   .btn-secondary-sm {
@@ -102,9 +102,9 @@ html.embed-public-iframe #root {
            text-xs font-medium
            border border-transparent
            hover:bg-surface-active hover:text-[#111827]
-           active:bg-surface-active
+           active:bg-surface-active active:scale-[0.97]
            disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150 select-none whitespace-nowrap;
+           transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-lumiva select-none whitespace-nowrap;
   }
 
   /* ── Buttons — DANGER ───────────────────────────────────── */
@@ -115,9 +115,9 @@ html.embed-public-iframe #root {
            text-xs font-medium
            border border-[#f0c8cf] shadow-btn
            hover:bg-[#fbecef] hover:border-[#e8b4bb]
-           active:bg-[#f7d8dd]
+           active:bg-[#f7d8dd] active:scale-[0.97]
            disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150 select-none whitespace-nowrap;
+           transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-lumiva select-none whitespace-nowrap;
   }
 
   /* ── Buttons — ICON ────────────────────────────────────── */
@@ -127,9 +127,9 @@ html.embed-public-iframe #root {
            bg-transparent text-text-secondary
            border border-transparent
            hover:bg-surface-active hover:text-[#111827]
-           active:bg-surface-active
+           active:bg-surface-active active:scale-[0.97]
            disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150;
+           transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-lumiva;
   }
 
   .btn-icon-danger {
@@ -146,7 +146,7 @@ html.embed-public-iframe #root {
   }
 
   .card-interactive {
-    @apply card transition-all duration-200
+    @apply card transition-[transform,box-shadow,border-color] duration-200 ease-lumiva
            hover:shadow-card-md hover:-translate-y-px cursor-pointer;
   }
 
@@ -236,7 +236,7 @@ html.embed-public-iframe #root {
   /* ── Sidebar nav item ────────────────────────────────────── */
   .nav-item {
     @apply flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium
-           text-text-secondary transition-all duration-150
+           text-text-secondary transition-colors duration-150
            hover:bg-surface-active hover:text-[#111827];
   }
 
@@ -408,7 +408,7 @@ select.bg-slate-950 {
   border-radius: 4px;
   background: #fff;
   cursor: pointer;
-  transition: all .12s;
+  transition: background-color .12s ease, border-color .12s ease;
 }
 .lv-checkbox-input:hover { border-color: #222; }
 .lv-checkbox-input:checked {

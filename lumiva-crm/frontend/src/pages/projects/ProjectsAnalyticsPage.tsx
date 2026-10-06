@@ -4785,7 +4785,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               <>
                 <div className="fixed inset-0 z-[8400]" onClick={() => setTabMenuId(null)} />
                 <div
-                  className="fixed z-[8450] w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-[0_18px_40px_rgba(0,0,0,0.12)]"
+                  className="lv-pop fixed z-[8450] w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-[0_18px_40px_rgba(0,0,0,0.12)]"
                   style={{ left: Math.min(tabMenuPos.left, window.innerWidth - 216), top: tabMenuPos.top }}
                 >
                   <button type="button" className={itemCls} onClick={() => openRenameTab(menuTab)}>
@@ -5144,12 +5144,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         </div>
 
         {(addOpen || editOpen) && (
-          <div className="fixed inset-0 z-[8500] overflow-y-auto overscroll-y-contain bg-black/40 p-6 backdrop-blur-sm">
+          <div className="lv-backdrop fixed inset-0 z-[8500] overflow-y-auto overscroll-y-contain bg-black/40 p-6 backdrop-blur-sm">
             <div className="flex min-h-full justify-center">
               <div
                 role="dialog"
                 aria-modal="true"
-                className="my-auto flex max-h-[calc(100vh-64px)] w-[min(940px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
+                className="lv-dialog my-auto flex max-h-[calc(100vh-64px)] w-[min(940px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
               >
                 <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 px-6 py-5">
                   <div>
@@ -6415,9 +6415,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             { id: 'default', label: t('crm.projects.analytics.tabs.sourceDefault'), hint: t('crm.projects.analytics.tabs.sourceDefaultHint') },
           ];
           return (
-            <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
               <form
-                className="w-full max-w-md rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
+                className="lv-dialog w-full max-w-md rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
                 onSubmit={(event) => {
                   event.preventDefault();
                   submitTabModal();
@@ -6506,8 +6506,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           );
         })()}
         {resetOpen && (
-          <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+          <div className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="lv-dialog w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
               <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#222]">
                 {t('crm.projects.analytics.reset.title')}
               </h3>

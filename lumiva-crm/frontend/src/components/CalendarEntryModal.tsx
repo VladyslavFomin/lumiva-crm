@@ -303,14 +303,14 @@ export const CalendarEntryModal: React.FC<Props> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[8500] flex items-center justify-center p-4"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.45)' }}
       onMouseDown={() => onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/10"
+        className="lv-dialog flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/10"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -320,7 +320,7 @@ export const SettingsApiPage: React.FC = () => {
 
       {modalMode ? (
         <div
-          className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/55 p-4"
+          className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/55 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="api-token-modal-title"
@@ -328,7 +328,7 @@ export const SettingsApiPage: React.FC = () => {
             if (e.target === e.currentTarget && !modalBusy) closeModal();
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-[var(--line-2)] bg-white p-5 shadow-xl">
+          <div className="lv-dialog w-full max-w-md rounded-2xl border border-[var(--line-2)] bg-white p-5 shadow-xl">
             <h2 id="api-token-modal-title" className="text-[15px] font-semibold text-[var(--ink)]">
               {modalMode === 'reveal'
                 ? t('crm.settings.api.modalRevealTitle')

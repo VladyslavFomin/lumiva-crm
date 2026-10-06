@@ -270,7 +270,7 @@ export const CustomFieldsManager: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-transparent flex items-stretch justify-end">
-      <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto">
+      <div className="lv-sheet-right w-full max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-slate-800">
           <div>
             <div className="text-xs text-slate-500">Кастомные поля</div>

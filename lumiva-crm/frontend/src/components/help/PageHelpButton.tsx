@@ -39,7 +39,7 @@ const HelpModal: React.FC<{ topic: string; open: boolean; onClose: () => void }>
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="page-help-modal-title"
@@ -48,7 +48,7 @@ const HelpModal: React.FC<{ topic: string; open: boolean; onClose: () => void }>
       }}
     >
       <div
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_64px_rgba(15,23,42,0.18)]"
+        className="lv-dialog w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_64px_rgba(15,23,42,0.18)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="relative sticky top-0 rounded-t-2xl border-b border-slate-100 bg-white px-8 pb-4 pt-6">

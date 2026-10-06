@@ -65,8 +65,8 @@ export const OnboardingWizardPage: React.FC<{ onComplete: () => void }> = ({ onC
   };
 
   return (
-    <div className="fixed inset-0 z-[9500] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 overflow-y-auto">
-      <div className="w-full max-w-xl my-auto">
+    <div className="lv-backdrop fixed inset-0 z-[9500] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+      <div className="lv-dialog w-full max-w-xl my-auto">
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-1.5">
             {STEP_ORDER.map((s, i) => (

@@ -546,8 +546,8 @@ function UpgradeModal({ open, onClose, plan }: { open: boolean; onClose: () => v
       ? t('crm.aiEmployees.upgradeModal.subtitleSingular', { count: lim })
       : t('crm.aiEmployees.upgradeModal.subtitlePlural', { count: lim });
   return (
-    <div className="modal-overlay">
-      <div className="modal-panel max-w-lg">
+    <div className="lv-backdrop modal-overlay">
+      <div className="lv-dialog modal-panel max-w-lg">
         <div className="modal-header">
           <div>
             <div className="modal-title">{t('crm.aiEmployees.upgradeModal.title')}</div>

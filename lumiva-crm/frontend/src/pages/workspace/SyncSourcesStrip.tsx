@@ -148,8 +148,8 @@ const AddSourceDialog: React.FC<{
   const [currency, setCurrency] = useState('');
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 text-[13px] text-[#222] shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="lv-backdrop fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="lv-dialog w-full max-w-md rounded-2xl bg-white p-5 text-[13px] text-[#222] shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 text-[15px] font-semibold">{t('crm.workspace.syncSources.dialog.title')}</div>
         <div className="mb-1 text-[11px] uppercase tracking-wide text-neutral-400">{t('crm.workspace.syncSources.dialog.providers')}</div>
         <div className="mb-3 grid grid-cols-2 gap-1">

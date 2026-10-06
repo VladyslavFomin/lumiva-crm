@@ -117,14 +117,14 @@ export const MetaAdsConnectDialog: React.FC<{
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[8600] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+      className="lv-backdrop fixed inset-0 z-[8600] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !busy) onClose();
       }}
     >
-      <div className="flex max-h-[calc(100vh-32px)] w-full max-w-[520px] flex-col overflow-hidden rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)]">
+      <div className="lv-dialog flex max-h-[calc(100vh-32px)] w-full max-w-[520px] flex-col overflow-hidden rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)]">
         <div className="flex items-center gap-3 border-b border-[#f0f0f0] px-5 py-4">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#0866FF] text-[15px] font-semibold text-white">M</span>
           <div className="min-w-0 flex-1">

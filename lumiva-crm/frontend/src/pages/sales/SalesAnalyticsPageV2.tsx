@@ -1196,8 +1196,8 @@ function AddBlockModal({
   });
 
   return (
-    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm" onClick={onClose}>
-      <div className="flex max-h-[calc(100vh-64px)] w-[min(940px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]" onClick={(event) => event.stopPropagation()}>
+    <div className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm" onClick={onClose}>
+      <div className="lv-dialog flex max-h-[calc(100vh-64px)] w-[min(940px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-neutral-200 px-6 py-5">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">{tv(t, 'addModal.catalogKicker')}</div>

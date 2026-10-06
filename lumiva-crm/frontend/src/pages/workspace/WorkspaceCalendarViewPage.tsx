@@ -280,8 +280,8 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
         </div>
         {showNewModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowNewModal(false)} />
-            <div className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="lv-backdrop absolute inset-0 bg-black/30" onClick={() => setShowNewModal(false)} />
+            <div className="lv-dialog relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
               <h2 className="text-base font-semibold text-slate-900 mb-3">{t('crm.workspace.common.newRecord')}</h2>
               <input
                 autoFocus
@@ -542,8 +542,8 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
 
         {activeRecord && (
           <div className="fixed inset-0 z-40">
-            <div className="absolute inset-0 bg-black/30" onClick={() => setActiveRecord(null)} />
-            <div className="absolute right-0 top-0 h-full w-full max-w-xl bg-white border-l border-slate-200 shadow-2xl p-4 overflow-y-auto">
+            <div className="lv-backdrop absolute inset-0 bg-black/30" onClick={() => setActiveRecord(null)} />
+            <div className="lv-sheet-right absolute right-0 top-0 h-full w-full max-w-xl bg-white border-l border-slate-200 shadow-2xl p-4 overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-900">
                   {resolveEventTitle(activeRecord)}

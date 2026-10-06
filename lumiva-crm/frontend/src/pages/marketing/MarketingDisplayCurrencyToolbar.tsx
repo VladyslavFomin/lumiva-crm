@@ -204,7 +204,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
 
       {open && (
         <div
-          className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/45 p-4"
+          className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/45 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mkt-cur-modal-title"
@@ -213,7 +213,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
           }}
         >
           <div
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[#222222]/12 bg-white shadow-[0_24px_80px_rgba(34,34,34,0.18)]"
+            className="lv-dialog w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[#222222]/12 bg-white shadow-[0_24px_80px_rgba(34,34,34,0.18)]"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="border-b border-[#222222]/10 px-5 py-4">

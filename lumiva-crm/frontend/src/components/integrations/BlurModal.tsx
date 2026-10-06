@@ -53,7 +53,7 @@ export const BlurModal: React.FC<BlurModalProps> = ({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[8500] flex items-center justify-center bg-slate-900/[0.07] ${pad} backdrop-blur-xl`}
+      className={`lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-slate-900/[0.07] ${pad} backdrop-blur-xl`}
       role="dialog"
       aria-modal
       aria-labelledby={labelledBy}
@@ -62,7 +62,7 @@ export const BlurModal: React.FC<BlurModalProps> = ({
       }}
     >
       <div
-        className={`flex ${maxH} w-full ${maxW} flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-2xl sm:rounded-3xl`}
+        className={`lv-dialog flex ${maxH} w-full ${maxW} flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-2xl sm:rounded-3xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {children}

@@ -63,8 +63,8 @@ export const SmsSendModal: React.FC<Props> = ({ phone, entityType, entityId, onC
   const remaining = 160 - body.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+    <div className="lv-backdrop fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="lv-dialog w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div>

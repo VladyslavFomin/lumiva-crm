@@ -55,10 +55,10 @@ export const HelpdeskQuickRequestModal: React.FC<HelpdeskQuickRequestModalProps>
 
   return (
     <div className="fixed inset-0 z-[3100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30" onClick={submitting ? undefined : onClose} />
+      <div className="lv-backdrop absolute inset-0 bg-black/30" onClick={submitting ? undefined : onClose} />
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-5 space-y-3"
+        className="lv-dialog relative w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-5 space-y-3"
       >
         <div className="flex items-center justify-between">
           <div>

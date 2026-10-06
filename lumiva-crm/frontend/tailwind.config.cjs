@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // hover-эффекты только на устройствах с настоящим hover — на тач-экранах не «залипают» после тапа
+  future: { hoverOnlyWhenSupported: true },
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -71,7 +73,10 @@ module.exports = {
         'xxs': ['10px', { lineHeight: '14px' }],
       },
       transitionTimingFunction: {
-        'lumiva': 'cubic-bezier(0.4, 0, 0.2, 1)',
+        'lumiva': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'in-out-strong': 'cubic-bezier(0.77, 0, 0.175, 1)',
+        'drawer': 'cubic-bezier(0.32, 0.72, 0, 1)',
       },
       keyframes: {
         'fade-in': {
@@ -92,9 +97,9 @@ module.exports = {
         },
       },
       animation: {
-        'fade-in':  'fade-in 0.2s ease-out',
-        'slide-up': 'slide-up 0.25s ease-out',
-        'scale-in': 'scale-in 0.2s ease-out',
+        'fade-in':  'fade-in 0.2s cubic-bezier(0.23, 1, 0.32, 1)',
+        'slide-up': 'slide-up 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
+        'scale-in': 'scale-in 0.2s cubic-bezier(0.23, 1, 0.32, 1)',
         'indeterminate-bar': 'indeterminate-bar 1.2s ease-in-out infinite',
       },
     },

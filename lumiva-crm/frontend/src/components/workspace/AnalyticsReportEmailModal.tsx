@@ -136,12 +136,12 @@ export const AnalyticsReportEmailModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+      className="lv-backdrop fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !busy) onClose();
       }}
     >
-      <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white text-[#222] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+      <div className="lv-dialog flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white text-[#222] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
         <div className="flex items-start justify-between gap-3 border-b border-neutral-100 px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold tracking-[-0.02em]">{t('crm.workspace.report.title')}</h3>
