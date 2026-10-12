@@ -41,6 +41,12 @@ export class EsignController {
     return this.esign.getAmountSuggestions(user.tenantId, contactId);
   }
 
+  /** Open leads of a contact that a commercial offer (КП) can be attached to. */
+  @Get('lead-options')
+  leadOptions(@CurrentUser() user: CurrentUserPayload, @Query('contactId') contactId: string) {
+    return this.esign.getLeadOptions(user.tenantId, contactId);
+  }
+
   /** Archive an already-signed PDF received from a counterparty (multipart: file + metadata). */
   @Post('upload')
   @RequirePermission('esign', 'write')
@@ -77,7 +83,7 @@ export class EsignController {
   @RequirePermission('esign', 'write')
   issue(
     @CurrentUser() user: CurrentUserPayload,
-    @Body() body: { templateId: string; contactId: string; extraFields?: Record<string, string>; items?: EsignItemPick[] },
+    @Body() body: { templateId: string; contactId: string; extraFields?: Record<string, string>; items?: EsignItemPick[]; leadId?: string | null },
   ) {
     return this.esign.issueDocument(user.tenantId, (user.userId ?? (user as any).id ?? (user as any).sub) || '', body);
   }

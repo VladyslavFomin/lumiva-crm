@@ -13,7 +13,22 @@ import {
   NotFoundException,
   Query,
   BadRequestException,
+  UseInterceptors,
+  UploadedFile,
+  Res,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { mkdirSync } from 'fs';
+import { unlink } from 'fs/promises';
+import { extname, join, relative } from 'path';
+import { randomUUID } from 'crypto';
+import type { Response } from 'express';
+import { Call } from '../telephony/call.entity';
+import { CallAnalysisService } from '../telephony/call-analysis.service';
+import { TelephonyService } from '../telephony/telephony.service';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service';
+import { getUploadsRoot } from '../common/uploads-root.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
@@ -66,6 +81,8 @@ interface LeadAccessCtx {
   contactMasking: string;
 }
 
+const CALL_AUDIO_EXT = new Set(['.mp3', '.m4a', '.wav', '.ogg', '.oga', '.opus', '.webm', '.mp4', '.mpeg', '.mpga', '.aac', '.flac', '.amr']);
+
 @UseGuards(JwtAuthGuard, RbacGuard)
 @RequirePermission('leads', 'read')
 @Controller('leads')
@@ -86,6 +103,12 @@ export class LeadsController {
     private readonly rbac: RbacService,
     private readonly dataVisibility: DataVisibilityService,
     private readonly managerRoi: LeadsManagerRoiService,
+
+    @InjectRepository(Call)
+    private readonly callRepo: Repository<Call>,
+    private readonly callAnalysis: CallAnalysisService,
+    private readonly telephony: TelephonyService,
+    private readonly storageQuota: StorageQuotaService,
   ) {}
 
   /**
@@ -748,5 +771,184 @@ export class LeadsController {
     }
 
     return { imported, skipped, errors };
+  }
+
+  // ====================== Звонки лида + AI-разбор ======================
+  // Права те же, что на сам лид: видит лид — видит звонки; может редактировать — может
+  // загружать запись и перезапускать разбор. Не требует телефонии Twilio: запись можно
+  // загрузить вручную (звонок с мобильного, запись из другой АТС).
+
+  private async leadForCalls(user: CurrentUserPayload, leadId: string, needEdit: boolean): Promise<Lead> {
+    if (!UUID_RE.test(leadId)) throw new NotFoundException('Lead not found');
+    const lead = await this.leadsService.findOneForTenant(user.tenantId, leadId).catch(() => null);
+    if (!lead) throw new NotFoundException('Lead not found');
+    const ctx = await this.getAccessContext(user);
+    const tier = this.tierFor(lead, ctx);
+    if (tier === 'none') throw new ForbiddenException('Недостаточно прав для просмотра лида');
+    if (needEdit && !ctx.fullAccess && !this.leadAccess.canEdit(tier)) {
+      throw new ForbiddenException('Недостаточно прав для изменения лида');
+    }
+    return lead;
+  }
+
+  private callDto(c: Call) {
+    return {
+      id: c.id,
+      source: c.source,
+      direction: c.direction,
+      status: c.status,
+      durationSeconds: c.durationSeconds,
+      fromNumber: c.fromNumber,
+      toNumber: c.toNumber,
+      originalFilename: c.originalFilename,
+      hasRecording: !!(c.recordingPath || c.recordingSid),
+      transcript: c.transcript,
+      transcriptStatus: c.transcriptStatus,
+      sentiment: c.sentiment,
+      sentimentTopic: c.sentimentTopic,
+      aiAnalysis: c.aiAnalysis,
+      analysisStatus: c.analysisStatus,
+      analysisError: c.analysisError,
+      analyzedAt: c.analyzedAt,
+      staffUserId: c.staffUserId || c.uploadedByStaffId,
+      startedAt: c.startedAt,
+      createdAt: c.createdAt,
+    };
+  }
+
+  @Get(':id/calls')
+  async listCalls(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    await this.leadForCalls(user, id, false);
+    const rows = await this.callRepo.find({
+      where: { tenantId: user.tenantId, linkedLeadId: id },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+    return rows.map((c) => this.callDto(c));
+  }
+
+  @Post(':id/calls')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const tenantId = (req as any).user?.tenantId as string | undefined;
+          if (!tenantId) {
+            cb(new BadRequestException('Missing tenant'), '');
+            return;
+          }
+          const dir = join(getUploadsRoot(), 'tenants', tenantId, 'calls');
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname || '').toLowerCase();
+          cb(null, `${randomUUID()}${CALL_AUDIO_EXT.has(ext) ? ext : '.mp3'}`);
+        },
+      }),
+      // Лимит Whisper — 25 МБ на файл.
+      limits: { fileSize: 25 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const ext = extname(file.originalname || '').toLowerCase();
+        const okMime = /^(audio\/|video\/(mp4|webm|ogg|quicktime))/.test(file.mimetype || '');
+        if (okMime || CALL_AUDIO_EXT.has(ext)) cb(null, true);
+        else cb(new BadRequestException('Нужен аудиофайл: mp3, m4a, wav, ogg, webm, mp4'), false);
+      },
+    }),
+  )
+  async uploadCall(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @UploadedFile() file: { path?: string; originalname?: string } | undefined, // без Express.Multer.File — isolatedModules
+    @Body() body: { direction?: string },
+  ) {
+    try {
+      await this.leadForCalls(user, id, true);
+    } catch (e) {
+      if (file?.path) await unlink(file.path).catch(() => undefined);
+      throw e;
+    }
+    if (!file?.path) throw new BadRequestException('Файл не получен');
+    await this.storageQuota.assertAfterWrite(user.tenantId, file.path);
+
+    const call = await this.callRepo.save(
+      this.callRepo.create({
+        tenantId: user.tenantId,
+        source: 'upload',
+        direction: body?.direction === 'inbound' ? 'inbound' : 'outbound',
+        status: 'completed',
+        linkedLeadId: id,
+        uploadedByStaffId: user.staffUserId || null,
+        staffUserId: user.staffUserId || null,
+        recordingPath: relative(getUploadsRoot(), file.path),
+        originalFilename: (file.originalname || '').slice(0, 255) || null,
+        analysisStatus: 'transcribing',
+        transcriptStatus: 'pending',
+        startedAt: new Date(),
+      }),
+    );
+    // Распознавание + разбор занимают до минуты — не держим запрос, фронт опрашивает статус.
+    setImmediate(() => void this.callAnalysis.processUploaded(call.id));
+    return this.callDto(call);
+  }
+
+  @Get(':id/calls/:callId/audio')
+  async callAudio(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Param('callId') callId: string,
+    @Res() res: Response,
+  ) {
+    await this.leadForCalls(user, id, false);
+    const call = await this.callRepo.findOne({ where: { id: callId, tenantId: user.tenantId, linkedLeadId: id } });
+    if (!call) throw new NotFoundException('Call not found');
+    if (call.recordingPath) {
+      const abs = join(getUploadsRoot(), call.recordingPath);
+      if (!abs.startsWith(getUploadsRoot())) throw new NotFoundException('Recording not found');
+      return res.sendFile(abs);
+    }
+    const audio = await this.telephony.fetchRecordingAudio(user.tenantId, call.id);
+    res.setHeader('Content-Type', audio.contentType);
+    return res.send(audio.buffer);
+  }
+
+  @Post(':id/calls/:callId/reanalyze')
+  async reanalyzeCall(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Param('callId') callId: string,
+  ) {
+    await this.leadForCalls(user, id, true);
+    const call = await this.callRepo.findOne({ where: { id: callId, tenantId: user.tenantId, linkedLeadId: id } });
+    if (!call) throw new NotFoundException('Call not found');
+    if (call.analysisStatus === 'transcribing' || call.analysisStatus === 'analyzing') return this.callDto(call);
+    if (call.transcript?.trim()) {
+      call.analysisStatus = 'analyzing';
+      await this.callRepo.save(call);
+      setImmediate(() => void this.callAnalysis.analyze(call, call.aiAnalysis?.language ?? null));
+    } else if (call.recordingPath) {
+      call.analysisStatus = 'transcribing';
+      await this.callRepo.save(call);
+      setImmediate(() => void this.callAnalysis.processUploaded(call.id));
+    } else {
+      throw new BadRequestException('У звонка нет записи для разбора');
+    }
+    return this.callDto(call);
+  }
+
+  @Delete(':id/calls/:callId')
+  async deleteCall(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Param('callId') callId: string,
+  ) {
+    await this.leadForCalls(user, id, true);
+    const call = await this.callRepo.findOne({ where: { id: callId, tenantId: user.tenantId, linkedLeadId: id } });
+    if (!call) throw new NotFoundException('Call not found');
+    // Звонки Twilio — журнал телефонии, их здесь не удаляем; только вручную загруженные записи.
+    if (call.source !== 'upload') throw new BadRequestException('Можно удалить только загруженную вручную запись');
+    if (call.recordingPath) await unlink(join(getUploadsRoot(), call.recordingPath)).catch(() => undefined);
+    await this.callRepo.delete({ id: call.id, tenantId: user.tenantId });
+    return { ok: true };
   }
 }

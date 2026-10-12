@@ -389,6 +389,49 @@ export class MarketingService {
   }
 
   /**
+   * Итоги по рекламному аккаунту × календарному месяцу (кабинеты Meta — отдельными ключами).
+   * Для ИИ-сотрудников/ИИ-офиса: без этого у них были только итоги «за всё время» или «30 дней»,
+   * и на задачу «расход за август по брендам» модель придумывала цифры (реальный случай 2026-10-08).
+   */
+  async getAccountMonthlyBreakdown(
+    tenantId: string,
+    from: string,
+    to: string,
+  ): Promise<Array<{ month: string; dataSource: string; account: string; currency: string; cost: number; clicks: number; impressions: number; conversions: number }>> {
+    const dsExpr = this.effectiveDataSourceSql();
+    const raw = await this.trafficRepo
+      .createQueryBuilder('t')
+      .select(`to_char(t.date, 'YYYY-MM')`, 'month')
+      .addSelect(dsExpr, 'dataSource')
+      .addSelect('t.currency', 'currency')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+      .addSelect('COALESCE(SUM(t.conversions), 0)', 'conversions')
+      .where('t.tenantId = :tenantId', { tenantId })
+      .andWhere('t.date >= :from AND t.date <= :to', { from, to })
+      .groupBy(`to_char(t.date, 'YYYY-MM')`)
+      .addGroupBy(dsExpr)
+      .addGroupBy('t.currency')
+      .having('COALESCE(SUM(t.cost), 0) > 0 OR COALESCE(SUM(t.clicks), 0) > 0')
+      .orderBy('1', 'ASC')
+      .addOrderBy('COALESCE(SUM(t.cost), 0)', 'DESC')
+      .getRawMany();
+    const labels = await this.buildMarketingDataSourceLabels(tenantId);
+    const r2 = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100;
+    return raw.map((r) => ({
+      month: String(r.month),
+      dataSource: String(r.dataSource || ''),
+      account: labels[String(r.dataSource || '')] || String(r.dataSource || ''),
+      currency: String(r.currency || 'EUR'),
+      cost: r2(r.cost),
+      clicks: Number(r.clicks) || 0,
+      impressions: Number(r.impressions) || 0,
+      conversions: r2(r.conversions),
+    }));
+  }
+
+  /**
    * Фильтр по dataSource с учётом "семей" тегов: у Google Ads (и потенциально других MCC/мульти-
    * аккаунтных провайдеров) на один тенант приходится НЕСКОЛЬКО строк вида google_ads_<CID> —
    * ни одна из них не совпадает буквально со строкой "google_ads". Если вызывающий код (в т.ч.
@@ -2627,9 +2670,10 @@ export class MarketingService {
     costMicros: number;
     conversions: number;
     conversionsValue: number;
+    allConversions: number;
   } {
     if (!r || typeof r !== 'object') {
-      return { impressions: 0, clicks: 0, costMicros: 0, conversions: 0, conversionsValue: 0 };
+      return { impressions: 0, clicks: 0, costMicros: 0, conversions: 0, conversionsValue: 0, allConversions: 0 };
     }
     const row = r as Record<string, unknown>;
     const segBlock = (row.segments || row.Segments) as Record<string, unknown> | undefined;
@@ -2645,6 +2689,7 @@ export class MarketingService {
       costMicros: Number(metrics?.costMicros ?? metrics?.cost_micros ?? 0),
       conversions: Number(metrics?.conversions ?? 0) || 0,
       conversionsValue: Number(metrics?.conversionsValue ?? metrics?.conversions_value ?? 0) || 0,
+      allConversions: Number(metrics?.allConversions ?? metrics?.all_conversions ?? 0) || 0,
     };
   }
 
@@ -2655,7 +2700,7 @@ export class MarketingService {
     // return 0 rows here and fall back to the customer-level summary).
     return `
       SELECT campaign.id, campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros,
-        metrics.conversions, metrics.conversions_value
+        metrics.conversions, metrics.conversions_value, metrics.all_conversions
       FROM campaign
       WHERE segments.date BETWEEN '${from}' AND '${to}'
         AND campaign.status IN (ENABLED, PAUSED, REMOVED)
@@ -2667,7 +2712,7 @@ export class MarketingService {
   private googleAdsGaqlCustomerDailyStats(from: string, to: string): string {
     return `
       SELECT segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros,
-        metrics.conversions, metrics.conversions_value
+        metrics.conversions, metrics.conversions_value, metrics.all_conversions
       FROM customer
       WHERE segments.date BETWEEN '${from}' AND '${to}'
       ORDER BY segments.date
@@ -2892,6 +2937,7 @@ export class MarketingService {
           impressions: picked.impressions,
           conversions: String(Math.round(picked.conversions * 100) / 100),
           conversionValue: String(Math.round(picked.conversionsValue * 100) / 100),
+          allConversions: String(Math.round(Math.max(picked.allConversions, picked.conversions) * 100) / 100),
         }),
       );
     }
@@ -3257,6 +3303,120 @@ export class MarketingService {
       );
     }
     throw err;
+  }
+
+  // ───────────────────────── управление кампаниями (ИИ-отделы, после одобрения владельца) ─────────────────────────
+
+  /**
+   * Пауза / включение / дневной бюджет кампании в Google Ads или Meta по её названию (как в отчётах CRM).
+   * Возвращает фактические значения «до» и «после». Общий (shared) бюджет Google не меняем — он задел бы
+   * другие кампании. Ошибки прав отдаём человеческим текстом.
+   */
+  async adsCampaignControl(
+    tenantId: string,
+    input: { platform: string; account?: string | null; campaign: string; action: 'pause' | 'enable' | 'set_daily_budget'; dailyBudget?: number | null },
+  ): Promise<{ ok: true; platform: string; account: string; campaignId: string; campaign: string; before: { status: string; dailyBudget: number | null }; after: { status: string; dailyBudget: number | null } }> {
+    const name = String(input.campaign || '').trim();
+    if (!name) throw new BadRequestException('Не указано название кампании');
+    if (input.action === 'set_daily_budget' && !(Number(input.dailyBudget) > 0)) throw new BadRequestException('Не указан новый дневной бюджет');
+    const platform = String(input.platform || '').toLowerCase().startsWith('meta') ? 'meta_ads' : 'google_ads';
+    const rows = await this.integrationRepo.find({ where: { tenantId, provider: platform, isActive: true } as any });
+    if (!rows.length) throw new BadRequestException(platform === 'meta_ads' ? 'Meta Ads не подключён' : 'Google Ads не подключён');
+    return platform === 'google_ads' ? this.googleCampaignControl(rows, name, input) : this.metaCampaignControl(rows, name, input);
+  }
+
+  private async googleCampaignControl(rows: MarketingIntegration[], name: string, input: { account?: string | null; action: string; dailyBudget?: number | null }) {
+    const wantCid = String(input.account || '').replace(/\D/g, '');
+    const esc = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    for (const row of rows) {
+      const s = this.flattenNestedIntegrationSettings(this.parseSettingsObject(row.settings));
+      const creds = this.pickGoogleAdsCredentialParts(s, row.primaryId);
+      if (creds.missingHints.length) continue;
+      const intClientId = String(s.clientId || s.client_id || '').trim();
+      const intClientSecret = String(s.clientSecret || s.client_secret || '').trim();
+      const accessToken = await this.googleOAuthAccessToken(creds.refreshToken, intClientId && intClientSecret ? { clientId: intClientId, clientSecret: intClientSecret } : undefined);
+      const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}`, 'developer-token': creds.developerToken, 'Content-Type': 'application/json' };
+      const managerNorm = this.normalizeGoogleAdsCustomerId(creds.customerIdRaw);
+      const mode = String(s.googleAdsAccountMode || s.google_ads_account_mode || 'customer').trim().toLowerCase();
+      const login = this.normalizeGoogleAdsCustomerId(String(s.loginCustomerId || s.login_customer_id || (mode === 'mcc_managed' ? managerNorm : '') || ''));
+      if (login) headers['login-customer-id'] = login;
+      let cids: string[] = [];
+      if (wantCid) cids = [wantCid];
+      else if (mode === 'mcc_managed') cids = (await this.googleAdsListManagedAdvertisingAccounts(managerNorm, headers, { maxAccounts: 120 })).map((c) => c.cid);
+      else cids = [managerNorm];
+      for (const cid of cids) {
+        const found = await this.googleAdsSearchAllPages(
+          cid,
+          headers,
+          `SELECT campaign.resource_name, campaign.id, campaign.name, campaign.status, campaign_budget.resource_name, campaign_budget.amount_micros, campaign_budget.explicitly_shared FROM campaign WHERE campaign.name = '${esc}' AND campaign.status != 'REMOVED'`,
+        ).catch(() => [] as any[]);
+        if (!found.length) continue;
+        const c = found[0];
+        const before = { status: String(c.campaign?.status ?? ''), dailyBudget: c.campaignBudget?.amountMicros ? Number(c.campaignBudget.amountMicros) / 1e6 : null };
+        const base = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cid}`;
+        const post = async (path: string, body: unknown) => {
+          const r = await axios.post(`${base}/${path}`, body, { headers, timeout: 60_000, validateStatus: (st) => st < 500 });
+          if (r.status >= 400) throw new BadRequestException(`Google Ads: изменение отклонено (${r.status}) — ${extractGoogleAdsRestErrorPayload(r.data)}`);
+        };
+        const after = { ...before };
+        if (input.action === 'pause' || input.action === 'enable') {
+          const status = input.action === 'pause' ? 'PAUSED' : 'ENABLED';
+          await post('campaigns:mutate', { operations: [{ update: { resourceName: c.campaign.resourceName, status }, updateMask: 'status' }] });
+          after.status = status;
+        } else {
+          if (c.campaignBudget?.explicitlyShared) throw new BadRequestException('У кампании общий бюджет с другими кампаниями — менять его автоматически нельзя, измените в Google Ads вручную');
+          const micros = Math.round(Number(input.dailyBudget) * 1e6);
+          await post('campaignBudgets:mutate', { operations: [{ update: { resourceName: c.campaignBudget.resourceName, amountMicros: String(micros) }, updateMask: 'amount_micros' }] });
+          after.dailyBudget = micros / 1e6;
+        }
+        return { ok: true as const, platform: 'google_ads', account: cid, campaignId: String(c.campaign.id), campaign: String(c.campaign.name), before, after };
+      }
+    }
+    throw new BadRequestException(`Кампания «${name}» не найдена в Google Ads`);
+  }
+
+  private async metaCampaignControl(rows: MarketingIntegration[], name: string, input: { action: string; dailyBudget?: number | null }) {
+    const graph = 'https://graph.facebook.com/v19.0';
+    for (const row of rows) {
+      let creds: { accessToken: string; actPath: string };
+      try {
+        creds = await this.getMetaAdsGraphCredentialsForWorkspace(row.tenantId, row.id);
+      } catch {
+        continue;
+      }
+      const list = await axios
+        .get(`${graph}/${creds.actPath}/campaigns`, {
+          params: { fields: 'id,name,status,daily_budget,lifetime_budget', filtering: JSON.stringify([{ field: 'name', operator: 'EQUAL', value: name }]), limit: 5, access_token: creds.accessToken },
+          timeout: 30_000,
+          validateStatus: (st) => st < 500,
+        })
+        .catch(() => null);
+      const c = list?.data?.data?.[0];
+      if (!c) continue;
+      const before = { status: String(c.status ?? ''), dailyBudget: c.daily_budget ? Number(c.daily_budget) / 100 : null };
+      const after = { ...before };
+      const params: Record<string, string> = { access_token: creds.accessToken };
+      if (input.action === 'pause' || input.action === 'enable') {
+        params.status = input.action === 'pause' ? 'PAUSED' : 'ACTIVE';
+        after.status = params.status;
+      } else {
+        if (!c.daily_budget) throw new BadRequestException('У этой кампании Meta бюджет задан на уровне групп объявлений (или общий) — измените его в Ads Manager');
+        params.daily_budget = String(Math.round(Number(input.dailyBudget) * 100));
+        after.dailyBudget = Number(params.daily_budget) / 100;
+      }
+      const r = await axios.post(`${graph}/${c.id}`, null, { params, timeout: 30_000, validateStatus: (st) => st < 500 });
+      if (r.status >= 400) {
+        const err = r.data?.error;
+        const perm = err?.code === 200 || err?.code === 10 || /permission/i.test(String(err?.message ?? ''));
+        throw new BadRequestException(
+          perm
+            ? 'Meta: токен даёт только чтение. Для изменений нужен доступ ads_management — выпустите токен с этим правом и обновите его в интеграции Meta Ads.'
+            : `Meta: изменение отклонено — ${err?.message ?? r.status}`,
+        );
+      }
+      return { ok: true as const, platform: 'meta_ads', account: creds.actPath, campaignId: String(c.id), campaign: String(c.name), before, after };
+    }
+    throw new BadRequestException(`Кампания «${name}» не найдена в Meta Ads`);
   }
 
   /**
@@ -4345,6 +4505,7 @@ export class MarketingService {
             currency: String(s.currency || 'USD').slice(0, 8) || 'USD',
             impressions: m.impressions,
             conversions: String(Math.round(m.conversions * 100) / 100),
+            allConversions: String(Math.round(m.conversions * 100) / 100),
             conversionValue: String(Math.round(m.conversionValue * 100) / 100),
           }),
         );

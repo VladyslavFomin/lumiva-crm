@@ -36,6 +36,11 @@ i18n.use(initReactI18next).init({
   },
 });
 
+/** <html lang> следует за языком интерфейса — для поисковиков и экранных дикторов. */
+i18n.on("languageChanged", (lng) => {
+  if (typeof document !== "undefined") document.documentElement.lang = (lng || "ru").slice(0, 2);
+});
+
 /** Догрузить язык и его запасные языки (однократно). */
 export async function ensureLanguageLoaded(lang: Lang): Promise<void> {
   await Promise.all(

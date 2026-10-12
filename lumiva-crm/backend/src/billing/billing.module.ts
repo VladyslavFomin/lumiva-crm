@@ -16,6 +16,7 @@ import { PaymentProviderResolverService } from './providers/payment-provider-res
 import { YookassaBillingProvider } from './providers/yookassa-billing.provider';
 import { IyzicoBillingProvider } from './providers/iyzico-billing.provider';
 import { BillingAlertsService } from './billing-alerts.service';
+import { CurrencyModule } from '../currency/currency.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { BillingAlertsService } from './billing-alerts.service';
     PlatformSettingsModule,
     MailModule,
     NotificationsModule,
+    CurrencyModule,
   ],
   controllers: [BillingController],
   providers: [

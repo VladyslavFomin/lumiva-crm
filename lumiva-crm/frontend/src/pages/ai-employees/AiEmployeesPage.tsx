@@ -13,13 +13,13 @@ import {
   AiAvatar,
   deriveAvatarAccent,
   deriveAvatarStyle,
-  AI_AVATAR_ACCENTS,
-  AI_AVATAR_STYLES,
   type AiAvatarAccent,
   type AiAvatarStyle,
 } from './AiAvatar';
 import './ai-employees.css';
 import './ai-emp2.css';
+import './ai-employees-v3.css';
+import { AiCharacterMono, AiPortrait, moodForStatus } from './AiCharacter';
 import {
   ClientDialogueEditor,
   ControlEditor,
@@ -232,16 +232,6 @@ function countAccessStates(autonomyMode: AiAgentAutonomyMode, permissions: Recor
   return c;
 }
 const AUTONOMY_PRESET_ORDER: AiAgentAutonomyMode[] = ['suggest', 'assisted', 'auto'];
-
-const AVATAR_SWATCH_BG: Record<AiAvatarAccent, string> = {
-  ink: '#222',
-  slate: '#eef1f5',
-  green: '#eaf4ee',
-  amber: '#fbf2dc',
-  blue: '#eef3fb',
-  rose: '#fbecef',
-  violet: '#f1eefb',
-};
 
 /* ---------------------------------------------------------------- icons */
 const ICON = {
@@ -598,7 +588,7 @@ function AgentCard({ agent, onOpen }: { agent: AiAgent; onOpen: () => void }) {
   return (
     <div className="ai-card" {...clickableProps(onOpen)}>
       <div className="ai-card-top">
-        <AiAvatar name={agent.name} accent={accent} avStyle={avStyle} size="lg" src={agent.avatarUrl} />
+        <AiAvatar name={agent.name} accent={accent} avStyle={avStyle} size="lg" src={agent.avatarUrl} role={agent.role} />
         <div className="ai-card-body">
           <div className="nm">
             {agent.name}
@@ -652,7 +642,7 @@ function RoleCard({
   const functions = trRoleFunctions(role.key, role.functions, t, i18n);
   return (
     <div className={cn('ai-role', selected && 'on', locked && 'locked')} {...clickableProps(() => (locked ? onUpgrade() : onSelect()))}>
-      <AiAvatar name={shortTitle} accent={deriveAvatarAccent(role.key)} avStyle={deriveAvatarStyle(role.key)} size="md" />
+      <AiAvatar name={shortTitle} accent={deriveAvatarAccent(role.key)} avStyle={deriveAvatarStyle(role.key)} size="md" role={role.key} />
       <div className="ai-role-body">
         <div className="rn">
           {title}
@@ -1129,6 +1119,400 @@ function AccessFingerprint({
   );
 }
 
+/* ---------------------------------------------------------------- roster v3
+ * Claude Design ai-employees-v3.html (aie3-roster.jsx): сцена с живыми KPI и лентой событий,
+ * карточки-портреты (персонаж роли), свободные роли и быстрый найм в боковой панели.
+ * Все цифры реальные: stats из GET /ai-agents (в т.ч. hourly/recent), экономия — /ai-insights,
+ * лента — /ai-logs. Демонстрационные «↑18% к вчера» из макета не переносили — такой метрики нет. */
+function useCountUp(to: number, dur = 1200) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    let t0 = 0;
+    const f = (tm: number) => {
+      if (!t0) t0 = tm;
+      const p = Math.min(1, (tm - t0) / dur);
+      setV(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(f);
+    };
+    raf = requestAnimationFrame(f);
+    return () => cancelAnimationFrame(raf);
+  }, [to, dur]);
+  return v;
+}
+
+function relTime(value: string | null | undefined, lang: string): string {
+  if (!value) return '';
+  const diff = (new Date(value).getTime() - Date.now()) / 1000;
+  const rtf = new Intl.RelativeTimeFormat(lang || 'ru', { numeric: 'auto', style: 'short' });
+  const abs = Math.abs(diff);
+  if (abs < 60) return rtf.format(Math.round(diff), 'second');
+  if (abs < 3600) return rtf.format(Math.round(diff / 60), 'minute');
+  if (abs < 86400) return rtf.format(Math.round(diff / 3600), 'hour');
+  return rtf.format(Math.round(diff / 86400), 'day');
+}
+
+function statusCls(status: string): 'on' | 'pause' | 'setup' {
+  if (status === 'active') return 'on';
+  if (status === 'paused' || status === 'disabled') return 'pause';
+  return 'setup';
+}
+
+function E3Doing({ agent }: { agent: AiAgent }) {
+  const { t } = useTranslation();
+  const active = agent.status === 'active';
+  const recent = agent.stats?.recent ?? [];
+  const list = !active
+    ? [agent.stats?.autoPausedReason || (agent.status === 'setup_required' ? t('crm.aiEmployees.v3.doingSetup') : t('crm.aiEmployees.v3.doingPaused'))]
+    : recent.length
+      ? recent
+      : [t('crm.aiEmployees.v3.doingIdle')];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (!active || list.length < 2) return;
+    const tm = setInterval(() => setI((x) => (x + 1) % list.length), 3200 + (agent.id.charCodeAt(1) % 10) * 90);
+    return () => clearInterval(tm);
+  }, [active, list.length, agent.id]);
+  const live = active && recent.length > 0;
+  return (
+    <div className={cn('e3-doing', live && 'live', !active && agent.stats?.autoPausedReason && 'err')} title={list[i % list.length]}>
+      {live ? (
+        <span className="e3-think">
+          <i />
+          <i />
+          <i />
+        </span>
+      ) : null}
+      <span key={i} className="e3-doing-t">
+        {list[i % list.length]}
+      </span>
+    </div>
+  );
+}
+
+function E3Card({
+  agent,
+  idx,
+  savedMinutes,
+  onOpen,
+  onToggle,
+}: {
+  agent: AiAgent;
+  idx: number;
+  savedMinutes: number | null;
+  onOpen: () => void;
+  onToggle: () => Promise<void>;
+}) {
+  const { t, i18n } = useTranslation();
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const st = statusCls(agent.status);
+  const c = countAccessStates(agent.autonomyMode, agent.permissions ?? {}, agent.approvalRules ?? {});
+  const tot = c.auto + c.appr + c.off || 1;
+  const hrs = agent.stats?.hourly && agent.stats.hourly.length === 12 ? agent.stats.hourly : new Array(12).fill(0);
+  const mx = Math.max(1, ...hrs);
+  const pending = agent.stats?.pendingApprovals ?? 0;
+  const failed = agent.stats?.failedToday ?? 0;
+  const tilt = (e: React.MouseEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--rx', `${((e.clientY - r.top) / r.height - 0.5) * -4}deg`);
+    el.style.setProperty('--ry', `${((e.clientX - r.left) / r.width - 0.5) * 5}deg`);
+    el.style.setProperty('--mx', `${e.clientX - r.left}px`);
+    el.style.setProperty('--my', `${e.clientY - r.top}px`);
+  };
+  const reset = () => {
+    ref.current?.style.setProperty('--rx', '0deg');
+    ref.current?.style.setProperty('--ry', '0deg');
+  };
+  const roleLine = [trRole(agent.role, 'shortTitle', agent.roleShortTitle || '', t, i18n), agent.department ? trDepartment(agent.department, t) : '']
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <div
+      ref={ref}
+      className={cn('e3-card e3-rv', `st-${st}`)}
+      style={{ animationDelay: `${idx * 0.06}s` }}
+      onMouseMove={tilt}
+      onMouseLeave={reset}
+      {...clickableProps(onOpen)}
+    >
+      <div className="e3-card-in">
+        {agent.avatarUrl ? (
+          <div className="e3-por" style={{ height: 230 }}>
+            <div className="e3-por-bg" style={{ background: `center / cover no-repeat url(${JSON.stringify(agent.avatarUrl)})` }} />
+            <span className={cn('e3-st e3-st-ov', st)}>
+              <i />
+              {t(`crm.aiEmployees.status.${agent.status}`, { defaultValue: agent.status })}
+            </span>
+          </div>
+        ) : (
+          <AiPortrait role={agent.role} mood={moodForStatus(agent.status)}>
+            <span className={cn('e3-st e3-st-ov', st)}>
+              <i />
+              {t(`crm.aiEmployees.status.${agent.status}`, { defaultValue: agent.status })}
+            </span>
+          </AiPortrait>
+        )}
+        <div className="e3-card-top">
+          <div className="e3-who">
+            <div className="e3-nm">{agent.name}</div>
+            <div className="e3-rl">{roleLine}</div>
+            {(agent.curates ?? []).map((d) => (
+              <div key={d.id} className="e3-cur">
+                ✦ {t('aiOffice.curator.curates', { name: d.name })}
+              </div>
+            ))}
+          </div>
+        </div>
+        <E3Doing agent={agent} />
+        <div>
+          <div className="e3-hrs" title={t('crm.aiEmployees.v3.hrsFrom') + ' → ' + t('crm.aiEmployees.v3.hrsNow')}>
+            {hrs.map((h, i) => (
+              <span key={i} className={h ? undefined : 'z'} style={{ height: h ? `${(h / mx) * 100}%` : 2, animationDelay: `${0.3 + idx * 0.06 + i * 0.03}s` }} />
+            ))}
+          </div>
+          <div className="e3-hrs-l" style={{ marginTop: 4 }}>
+            <span>{t('crm.aiEmployees.v3.hrsFrom')}</span>
+            <span>{t('crm.aiEmployees.v3.hrsNow')}</span>
+          </div>
+        </div>
+        <div className="e3-stats">
+          <div className={failed > 0 ? 'bad' : undefined} title={failed > 0 ? t('crm.aiEmployees.v3.todayFailed', { count: failed }) : undefined}>
+            <b>{agent.stats?.actionsToday ?? 0}</b>
+            <span>{t('crm.aiEmployees.v3.statToday')}</span>
+          </div>
+          <div>
+            <b>{savedMinutes == null ? '—' : t('crm.aiEmployees.v3.hoursShort', { count: Math.round(savedMinutes / 60) })}</b>
+            <span>{t('crm.aiEmployees.v3.statSaved')}</span>
+          </div>
+          <div className={pending ? 'warn' : undefined}>
+            <b>{pending || '—'}</b>
+            <span>{t('crm.aiEmployees.v3.statPending')}</span>
+          </div>
+        </div>
+        <div>
+          <div className="e3-acc-h">
+            <span>{t('crm.aiEmployees.v3.access', { level: t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`) })}</span>
+            <em>{t('crm.aiEmployees.v3.accessCounts', { auto: c.auto, appr: c.appr })}</em>
+          </div>
+          <div className="e3-fp">
+            <span className="a" style={{ width: `${(c.auto / tot) * 100}%` }} />
+            <span className="p" style={{ width: `${(c.appr / tot) * 100}%` }} />
+          </div>
+        </div>
+        <div className="e3-card-ft" onClick={(e) => e.stopPropagation()}>
+          <span className="e3-last">
+            {t('crm.aiEmployees.v3.lastActivity', {
+              time: agent.stats?.lastActivityAt ? relTime(agent.stats.lastActivityAt, i18n.language) : t('crm.aiEmployees.v3.never'),
+            })}
+          </span>
+          <button
+            type="button"
+            className="e3-ib"
+            disabled={busy}
+            title={agent.status === 'active' ? t('crm.aiEmployees.profile.pause') : t('crm.aiEmployees.profile.resume')}
+            onClick={() => {
+              setBusy(true);
+              void onToggle().finally(() => setBusy(false));
+            }}
+          >
+            <I d={agent.status === 'active' ? ICON.pause : ICON.play} size={13} />
+          </button>
+          <button type="button" className="e3-ib" title={t('crm.aiEmployees.v3.configure')} onClick={onOpen}>
+            <I d={ICON.cog} size={13} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function E3Seg<K extends string>({ opts, val, onChange }: { opts: Array<[K, string, number?]>; val: K; onChange: (k: K) => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [ind, setInd] = useState({ l: 0, w: 0 });
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const m = () => {
+      const on = el.querySelector<HTMLElement>('button.on');
+      if (on && on.offsetWidth) setInd({ l: on.offsetLeft, w: on.offsetWidth });
+    };
+    m();
+    const ro = new ResizeObserver(m);
+    ro.observe(el);
+    void document.fonts?.ready.then(m);
+    return () => ro.disconnect();
+  }, [val]);
+  return (
+    <div className={cn('e3-seg', ind.w > 0 && 'ready')} ref={ref}>
+      <span className="e3-seg-ind" style={{ transform: `translateX(${ind.l}px)`, width: ind.w }} />
+      {opts.map(([k, l, n]) => (
+        <button key={k} type="button" className={val === k ? 'on' : ''} onClick={() => onChange(k)}>
+          {l}
+          {n != null ? <em>{n}</em> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function E3Hire({
+  roles,
+  initialRole,
+  onClose,
+  onLimit,
+}: {
+  roles: AiEmployeeRole[];
+  initialRole?: AiEmployeeRoleKey | null;
+  onClose: () => void;
+  onLimit: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const [roleKey, setRoleKey] = useState<AiEmployeeRoleKey | null>(initialRole ?? roles.find((r) => !r.locked)?.key ?? null);
+  const [mode, setMode] = useState<AiAgentAutonomyMode>('assisted');
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const role = roles.find((r) => r.key === roleKey) || null;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const defName = role ? role.defaultName : '';
+  // Тот же путь, что «Быстрый старт» мастера: умолчания роли + выбранный уровень доступа.
+  const hire = async () => {
+    if (!role) return;
+    setSaving(true);
+    setError('');
+    const lang = i18n.language.startsWith('ru') ? 'Russian' : i18n.language.startsWith('tr') ? 'Turkish' : 'English';
+    let tz = 'Europe/Istanbul';
+    try {
+      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz;
+    } catch {
+      /* default */
+    }
+    try {
+      const res = await createAiEmployee({
+        role: role.key,
+        name: name.trim() || role.defaultName,
+        department: trRole(role.key, 'department', role.department, t, i18n),
+        jobTitle: trRole(role.key, 'jobTitle', role.jobTitle, t, i18n),
+        language: lang,
+        tone: 'Professional, warm, concise',
+        autonomyMode: mode,
+        scheduleMode: 'business_hours',
+        dailyReportTime: '18:00',
+        permissions: role.defaultPermissions.reduce<Record<string, boolean>>((acc, k) => ({ ...acc, [k]: true }), {}),
+        approvalRules: role.defaultApprovalRules.reduce<Record<string, boolean>>((acc, k) => ({ ...acc, [k]: true }), {}),
+        status: 'active',
+        settings: {
+          avatarAccent: deriveAvatarAccent(role.key),
+          avatarStyle: deriveAvatarStyle(role.key),
+          instructions: '',
+          triggers: (role.defaultTriggers || []).map((d) => ({ event: d.event, enabled: true, scope: d.scope, prompt: '' })),
+          tableAccess: { mode: 'selected', tables: [] },
+          clientDialogue: mode === 'auto' ? 'auto' : 'approval',
+          sla: { enabled: true, minutes: 30 },
+          dailyPlan: { enabled: true, time: '09:00' },
+          emailInboxAccess: { accountIds: [] },
+          timezone: tz,
+        },
+      });
+      navigate(`/ai-employees/${res.agent.id}`);
+    } catch (e) {
+      if ((e as any)?.payload?.code === 'AI_EMPLOYEE_PLAN_LIMIT') {
+        onClose();
+        onLimit();
+        return;
+      }
+      setError(extractError(e, t));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <>
+      <div className="e3-scrim" onClick={onClose} />
+      <div className="e3-drawer ai-emp" role="dialog" aria-modal="true" aria-label={t('crm.aiEmployees.v3.drawerTitle')}>
+        <div className="e3-dr-h">
+          <div>
+            <div className="e3-kick">{t('crm.aiEmployees.v3.drawerKick')}</div>
+            <h2>{t('crm.aiEmployees.v3.drawerTitle')}</h2>
+          </div>
+          <button type="button" className="e3-ib" onClick={onClose} aria-label={t('crm.aiEmployees.v3.cancel')}>
+            <I d={ICON.x} size={14} />
+          </button>
+        </div>
+        <div className="e3-dr-b">
+          <span className="e3-lbl">{t('crm.aiEmployees.v3.role')}</span>
+          {roles.length ? (
+            <div className="e3-pick">
+              {roles.map((r, i) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  style={{ animationDelay: `${i * 0.04}s` }}
+                  className={cn(roleKey === r.key && 'on')}
+                  disabled={r.locked}
+                  onClick={() => setRoleKey(r.key)}
+                >
+                  <AiCharacterMono role={r.key} size={34} />
+                  <div>
+                    <b>{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</b>
+                    <span>
+                      {trRole(r.key, 'department', r.department, t, i18n)} · {trRole(r.key, 'jobTitle', r.jobTitle, t, i18n)}
+                    </span>
+                  </div>
+                  {r.locked ? <em>{trPlanBadge(r.badge, t)}</em> : null}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="e3-empty" style={{ padding: 16 }}>
+              {t('crm.aiEmployees.v3.noFreeRoles')}
+            </div>
+          )}
+          <span className="e3-lbl" style={{ marginTop: 18 }}>
+            {t('crm.aiEmployees.v3.name')}
+          </span>
+          <input className="e3-inp" value={name} placeholder={defName} maxLength={80} onChange={(e) => setName(e.target.value)} />
+          <span className="e3-lbl" style={{ marginTop: 18 }}>
+            {t('crm.aiEmployees.v3.level')}
+          </span>
+          <div className="e3-presets">
+            {(['suggest', 'assisted', 'auto'] as AiAgentAutonomyMode[]).map((m) => (
+              <button key={m} type="button" className={cn(mode === m && 'on')} onClick={() => setMode(m)}>
+                <b>{t(`crm.aiEmployees.autonomy.${m}.title`)}</b>
+                <span>{t(`crm.aiEmployees.autonomy.${m}.hint`)}</span>
+              </button>
+            ))}
+          </div>
+          {error ? <div className="e3-err">{error}</div> : null}
+        </div>
+        <div className="e3-dr-f">
+          {role ? (
+            <button type="button" className="e3-link" onClick={() => navigate(`/ai-employees/new?role=${role.key}`)}>
+              {t('crm.aiEmployees.v3.advanced')}
+              <I d={ICON.chevR} size={12} />
+            </button>
+          ) : null}
+          <button type="button" className="e3-btn gh" onClick={onClose}>
+            {t('crm.aiEmployees.v3.cancel')}
+          </button>
+          <button type="button" className="e3-btn" disabled={!role || saving} onClick={() => void hire()}>
+            <I d={ICON.check} size={14} />
+            {t('crm.aiEmployees.v3.hireBtn', { name: name.trim() || defName })}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function DashboardView() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -1141,9 +1525,10 @@ function DashboardView() {
   const [ownKeyModalOpen, setOwnKeyModalOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'setup_required' | 'pending'>('all');
   const [missed, setMissed] = useState<AiMissedWork | null>(null);
+  const [hire, setHire] = useState<{ role: AiEmployeeRoleKey | null } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent?: boolean) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [employees, ins, logsRes, missedRes] = await Promise.all([
@@ -1155,9 +1540,9 @@ function DashboardView() {
       setData(employees);
       setInsights(ins);
       setMissed(missedRes);
-      // «Лента дня»: только содержательные события (что сделано / пропущено / сломалось), без служебного шума.
-      const keep = new Set(['action_created', 'action_executed', 'action_blocked', 'action_rejected', 'agent_auto_paused', 'daily_digest', 'escalated']);
-      setDayLogs((logsRes.items || []).filter((l) => keep.has(l.eventType)).slice(0, 12));
+      // Лента: только содержательные события (что сделано / пропущено / сломалось), без служебного шума.
+      const keep = new Set(['action_created', 'action_executed', 'action_rejected', 'agent_auto_paused', 'daily_digest', 'escalated', 'report_generated', 'trigger_run', 'proactive_cycle', 'whatsapp_reply', 'online_chat_reply']);
+      setDayLogs((logsRes.items || []).filter((l) => keep.has(l.eventType) && (l.outputSummary || '').trim()).slice(0, 14));
     } catch (e) {
       setError(extractError(e, t));
     } finally {
@@ -1167,297 +1552,255 @@ function DashboardView() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const planFull = data?.plan.limit != null && data.plan.used >= data.plan.limit;
-  const add = () => {
+  const plan = data?.plan;
+  const planFull = plan != null && !plan.unlimited && plan.limit != null && plan.used >= plan.limit;
+  const openHire = (role: AiEmployeeRoleKey | null = null) => {
     if (planFull) setUpgradeOpen(true);
-    else navigate('/ai-employees/choose');
+    else setHire({ role });
   };
-  const savedHours = insights ? Math.round(insights.totals.minutesSaved / 60) : null;
-  const list = data
-    ? data.items.filter((a) => {
-        if (filter === 'all') return true;
-        if (filter === 'pending') return (a.stats?.pendingApprovals ?? 0) > 0;
-        return a.status === filter;
-      })
-    : [];
+  const items = data?.items ?? [];
+  const working = items.filter((a) => a.status === 'active');
+  const hiredRoles = new Set(items.map((a) => a.role));
+  const freeRoles = (data?.roles ?? []).filter((r) => !hiredRoles.has(r.key));
+  const list = items.filter((a) => {
+    if (filter === 'all') return true;
+    if (filter === 'pending') return (a.stats?.pendingApprovals ?? 0) > 0;
+    if (filter === 'paused') return a.status === 'paused' || a.status === 'disabled';
+    return a.status === filter;
+  });
+  const savedByAgent = new Map((insights?.agents ?? []).map((x) => [x.agentId, x.minutesSaved]));
+  const executedToday = items.reduce((s, a) => s + (a.stats?.executedToday ?? 0), 0);
+  const failedToday = items.reduce((s, a) => s + (a.stats?.failedToday ?? 0), 0);
+
+  const today = useCountUp(data?.kpis.tasksCompletedToday ?? 0);
+  const mins = useCountUp(insights?.totals.minutesSaved ?? 0, 1500);
+  const pend = useCountUp(data?.kpis.pendingApprovals ?? 0, 900);
+  const freeSeats = plan ? (plan.unlimited || plan.limit == null ? null : Math.max(0, plan.limit - plan.used)) : null;
+
+  const toggle = async (agent: AiAgent) => {
+    try {
+      await (agent.status === 'active' ? pauseAiEmployee(agent.id) : resumeAiEmployee(agent.id));
+    } catch (e) {
+      setError(extractError(e, t));
+    }
+    await load(true);
+  };
+
+  const ticker = dayLogs.length ? (dayLogs.length < 6 ? [...dayLogs, ...dayLogs, ...dayLogs] : dayLogs) : [];
 
   return (
     <MainLayout>
       <PageHelpButton topic="aiEmployees" />
-      <div className="ai-emp e2">
-        <div className="e2-head">
-          <div>
-            <div className="kick">{t('crm.aiEmployees.badge.workforce')}</div>
-            <h1>{t('crm.aiEmployees.dashboard.title')}</h1>
-            <div className="sub">{t('crm.aiEmployees.v2.subtitle')}</div>
+      <div className="ai-emp e3">
+        <section className="e3-stage">
+          <div className="e3-glow" />
+          <div className="e3-hero">
+            <div>
+              <div className="e3-kick-pill">
+                <span className="e3-live">
+                  <i />
+                  {t('crm.aiEmployees.v3.working', { count: working.length })}
+                </span>
+                {plan ? (
+                  <span>
+                    {plan.unlimited || plan.limit == null
+                      ? t('crm.aiEmployees.v3.planPillUnlimited', { plan: labelize(plan.plan) })
+                      : t('crm.aiEmployees.v3.planPill', { plan: labelize(plan.plan), used: plan.used, limit: plan.limit })}
+                  </span>
+                ) : null}
+              </div>
+              <h1 className="e3-h1">{t('crm.aiEmployees.v3.title')}</h1>
+              <p className="e3-sub">{t('crm.aiEmployees.v2.subtitle')}</p>
+              <div className="e3-hero-act">
+                <button type="button" className="e3-btn lg" onClick={() => openHire()}>
+                  <I d={ICON.plus} size={15} sw={2} />
+                  {t('crm.aiEmployees.v2.hire')}
+                </button>
+                <div className="e3-stack">
+                  {working.slice(0, 8).map((a, i) => (
+                    <span key={a.id} style={{ zIndex: 9 - i, animationDelay: `${0.4 + i * 0.08}s` }} title={a.name}>
+                      <AiAvatar name={a.name} size="sm" role={a.role} src={a.avatarUrl} />
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="e3-hero-r">
+              <div className="e3-big">
+                <span className="e3-kick">{t('crm.aiEmployees.v3.todayLabel')}</span>
+                <b>{today}</b>
+                <em className={failedToday ? 'err' : undefined}>
+                  {failedToday
+                    ? t('crm.aiEmployees.v3.todayFailed', { count: failedToday })
+                    : t('crm.aiEmployees.v3.todayExecuted', { count: executedToday })}
+                </em>
+              </div>
+              <div className="e3-big" {...clickableProps(() => navigate('/ai-employees/insights'))} style={{ cursor: 'pointer' }}>
+                <span className="e3-kick">{t('crm.aiEmployees.v3.savedLabel')}</span>
+                <b>
+                  {insights ? (
+                    <>
+                      {Math.floor(mins / 60)}
+                      <small> {t('crm.aiEmployees.v3.hShort')} </small>
+                      {mins % 60}
+                      <small> {t('crm.aiEmployees.v3.minShort')}</small>
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </b>
+                <em>{t('crm.aiEmployees.v3.savedNote')}</em>
+              </div>
+              <div className={cn('e3-big', (data?.kpis.pendingApprovals ?? 0) > 0 && 'warn')}>
+                <span className="e3-kick">{t('crm.aiEmployees.v3.pendingLabel')}</span>
+                <b>{pend}</b>
+                <button type="button" className="e3-link" onClick={() => navigate('/ai-employees/approvals')}>
+                  {t('crm.aiEmployees.v3.pendingGo')} <I d={<path d="M5 12h14M13 6l6 6-6 6" />} size={13} />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="e2-head-r">
-            <PlanUsage plan={data?.plan} />
-            <button className="e2b" onClick={add}>
-              <I d={ICON.plus} size={14} />
-              {t('crm.aiEmployees.v2.hire')}
-            </button>
-          </div>
-        </div>
+          {ticker.length ? (
+            <div className="e3-ticker">
+              <div className="e3-ticker-in" style={{ '--dur': `${Math.max(30, ticker.length * 6)}s` } as React.CSSProperties}>
+                {[...ticker, ...ticker].map((l, i) => (
+                  <span key={`${l.id}-${i}`} title={l.outputSummary || ''}>
+                    <i className={l.status === 'error' ? 'err' : undefined} />
+                    <b>{l.agent?.name || t('crm.aiEmployees.fallbackEmployee')}</b>
+                    <u>{l.outputSummary}</u>
+                    <em>{relTime(l.createdAt, i18n.language)}</em>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ height: 40 }} />
+          )}
+        </section>
 
-        <div className="e2-banner">
+        <div className="e3-note">
           <div className="t">
             <b>{t('crm.aiEmployees.ownKeyBanner.title')}</b> {t('crm.aiEmployees.ownKeyBanner.body')}
           </div>
-          <button className="e2b gh" style={{ flexShrink: 0 }} onClick={() => setOwnKeyModalOpen(true)}>
+          <button type="button" className="e3-btn gh" onClick={() => setOwnKeyModalOpen(true)}>
             {t('crm.aiEmployees.ownKeyBanner.button')}
           </button>
         </div>
         <OpenAiConnectModal open={ownKeyModalOpen} onClose={() => setOwnKeyModalOpen(false)} onCreated={() => setOwnKeyModalOpen(false)} />
-
-        {error ? (
-          <div className="e2-panel" style={{ padding: 16, margin: '16px 0', color: '#9a1f31', fontSize: 13 }}>
-            {error}
+        {error ? <div className="e3-note err">{error}</div> : null}
+        {missed && missed.total > 0 ? (
+          <div className="e3-note warn">
+            <div className="t">
+              <b>{t('crm.aiEmployees.team.missedTitle', { count: missed.total, days: missed.days })}</b> {t('crm.aiEmployees.team.missedHint')}
+            </div>
           </div>
         ) : null}
-        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 16 }}>{t('crm.aiEmployees.dashboard.loading')}</div> : null}
+        {loading && !data ? <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 24 }}>{t('crm.aiEmployees.dashboard.loading')}</div> : null}
 
         {data ? (
-          data.items.length === 0 ? (
-            <div className="e2-panel" style={{ padding: '40px 24px', textAlign: 'center', margin: '20px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <LottieIcon name="welcome" size={168} />
-              </div>
-              <div className="h" style={{ fontSize: 19, marginTop: 4 }}>
-                {t('crm.aiEmployees.empty.title')}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--fg-3)', maxWidth: 420, margin: '8px auto 0', lineHeight: 1.5 }}>
-                {t('crm.aiEmployees.empty.body')}
-              </div>
-              <button className="e2b" style={{ marginTop: 18 }} onClick={add}>
-                <I d={ICON.plus} size={14} />
-                {t('crm.aiEmployees.empty.cta')}
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="e2-kpis">
-                <div className="e2-kpi">
-                  <div className="kick">{t('crm.aiEmployees.v2.kpi.active')}</div>
-                  <div className="num">{data.kpis.activeAiEmployees}</div>
-                  <div className="d">{t('crm.aiEmployees.v2.kpi.activeD', { count: data.items.length })}</div>
-                </div>
-                <div className="e2-kpi">
-                  <div className="kick">{t('crm.aiEmployees.v2.kpi.today')}</div>
-                  <div className="num">{data.kpis.tasksCompletedToday}</div>
-                  <div className="d">{t('crm.aiEmployees.v2.kpi.todayD')}</div>
-                </div>
-                <div
-                  className={cn('e2-kpi', 'clk', data.kpis.pendingApprovals > 0 && 'warn')}
-                  {...clickableProps(() => navigate('/ai-employees/approvals'))}
-                >
-                  <div className="kick">{t('crm.aiEmployees.v2.kpi.pending')}</div>
-                  <div className="num">{data.kpis.pendingApprovals}</div>
-                  <div className="d">{t('crm.aiEmployees.v2.kpi.pendingD')}</div>
-                </div>
-                <div className="e2-kpi clk" {...clickableProps(() => navigate('/ai-employees/reports'))}>
-                  <div className="kick">{t('crm.aiEmployees.v2.kpi.reports')}</div>
-                  <div className="num">{data.kpis.reportsGenerated}</div>
-                  <div className="d">{t('crm.aiEmployees.v2.kpi.reportsD')}</div>
-                </div>
-                <div className="e2-kpi clk" {...clickableProps(() => navigate('/ai-employees/insights'))}>
-                  <div className="kick">{t('crm.aiEmployees.v2.kpi.saved')}</div>
-                  <div className="num">{savedHours == null ? '—' : t('crm.aiEmployees.v2.hoursValue', { count: savedHours })}</div>
-                  <div className="d">{t('crm.aiEmployees.v2.kpi.savedD')}</div>
-                </div>
-              </div>
-
-              <div className="e2-chipbar">
-                {(
-                  [
-                    ['all', t('crm.aiEmployees.v2.filters.all', { count: data.items.length })],
+          <>
+            <div className="e3-bar e3-rv">
+              <h2>{t('crm.aiEmployees.v3.staff')}</h2>
+              {items.length ? (
+                <E3Seg
+                  val={filter}
+                  onChange={setFilter}
+                  opts={[
+                    ['all', t('crm.aiEmployees.v3.all'), items.length],
                     ['active', t('crm.aiEmployees.v2.filters.active')],
                     ['paused', t('crm.aiEmployees.v2.filters.paused')],
                     ['setup_required', t('crm.aiEmployees.v2.filters.setup_required')],
                     ['pending', t('crm.aiEmployees.v2.filters.pending')],
-                  ] as const
-                ).map(([k, l]) => (
-                  <button key={k} className={cn('e2-chip', filter === k && 'on')} onClick={() => setFilter(k)}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-
-              <div className="e2-tbl">
-                <div className="e2-tr hd">
-                  <div>{t('crm.aiEmployees.v2.colHead.employee')}</div>
-                  <div className="c-st">{t('crm.aiEmployees.v2.colHead.status')}</div>
-                  <div className="c-mode">{t('crm.aiEmployees.v2.colHead.level')}</div>
-                  <div className="c-acc">{t('crm.aiEmployees.v2.colHead.access')}</div>
-                  <div className="c-load">{t('crm.aiEmployees.v2.colHead.today')}</div>
-                  <div className="c-appr">{t('crm.aiEmployees.v2.colHead.queue')}</div>
-                  <div className="c-act" />
-                </div>
-                {list.map((agent) => {
-                  const av = agentAvatarProps(agent);
-                  const pending = agent.stats?.pendingApprovals ?? 0;
-                  return (
-                    <div key={agent.id} className="e2-tr ag" {...clickableProps(() => navigate(`/ai-employees/${agent.id}`))}>
-                      <div className="e2-who">
-                        <AiAvatar name={agent.name} accent={av.accent} avStyle={av.avStyle} size="md" src={agent.avatarUrl} />
-                        <div style={{ minWidth: 0 }}>
-                          <div className="nm">{agent.name}</div>
-                          <div className="rl">{trRole(agent.role, 'shortTitle', agent.roleShortTitle || '', t, i18n)}</div>
-                          {agent.status !== 'active' && agent.stats?.autoPausedReason ? (
-                            <div className="rl" style={{ color: 'var(--err, #b4232a)', whiteSpace: 'normal' }} title={agent.stats.autoPausedReason}>
-                              ⚠ {agent.stats.autoPausedReason}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="c-st">
-                        <StatusBadge status={agent.status} />
-                      </div>
-                      <div className="c-mode">
-                        <span className={cn('e2-mode', agent.autonomyMode === 'auto' && 'auto')}>{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
-                      </div>
-                      <div className="c-acc">
-                        <AccessFingerprint autonomyMode={agent.autonomyMode} permissions={agent.permissions ?? {}} approvalRules={agent.approvalRules ?? {}} />
-                      </div>
-                      <div className="c-load e2-load">
-                        <span className="num">{agent.stats?.executedToday ?? 0}</span>
-                        {(agent.stats?.failedToday ?? 0) > 0 ? (
-                          <span style={{ color: 'var(--err, #b4232a)', fontSize: 11, marginLeft: 6 }} title={t('crm.aiEmployees.v2.failedToday')}>
-                            ✕ {agent.stats?.failedToday}
-                          </span>
-                        ) : null}
-                        {(agent.stats?.blockedToday ?? 0) > 0 ? (
-                          <span style={{ color: 'var(--fg-3)', fontSize: 11, marginLeft: 6 }} title={t('crm.aiEmployees.v2.blockedToday')}>
-                            ⏸ {agent.stats?.blockedToday}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="c-appr">
-                        <span className={cn('e2-appr', pending > 0 && 'has')}>
-                          <span className="b">{pending || '—'}</span>
-                          {pending > 0 ? t('crm.aiEmployees.v2.queue') : ''}
-                        </span>
-                      </div>
-                      <div className="c-act e2-rowbtns" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="e2-ib"
-                          title={agent.status === 'active' ? t('crm.aiEmployees.profile.pause') : t('crm.aiEmployees.profile.resume')}
-                          onClick={() => (agent.status === 'active' ? pauseAiEmployee(agent.id) : resumeAiEmployee(agent.id)).then(load)}
-                        >
-                          <I d={agent.status === 'active' ? ICON.pause : ICON.play} size={13} />
-                        </button>
-                        <button className="e2-ib" title={t('crm.aiEmployees.v2.hire')} onClick={() => navigate(`/ai-employees/${agent.id}`)}>
-                          <I d={ICON.cog} size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {!list.length ? <div className="e2-empty">{t('crm.aiEmployees.approvalsPage.empty')}</div> : null}
-              </div>
-
-              {dayLogs.length > 0 ? (
-                <>
-                  <div className="e2-sec">
-                    <div className="h">{t('crm.aiEmployees.v2.dayFeed')}</div>
-                    <div className="line" />
-                    <button className="e2b gh" onClick={() => navigate('/ai-employees/logs')}>
-                      {t('crm.aiEmployees.v2.dayFeedAll')}
-                    </button>
-                  </div>
-                  <div className="ai-panel">
-                    <LogList logs={dayLogs} />
-                  </div>
-                </>
+                  ]}
+                />
               ) : null}
+            </div>
+            <div className="e3-grid" key={filter}>
+              {list.map((a, i) => (
+                <E3Card
+                  key={a.id}
+                  agent={a}
+                  idx={i}
+                  savedMinutes={insights ? savedByAgent.get(a.id) ?? 0 : null}
+                  onOpen={() => navigate(`/ai-employees/${a.id}`)}
+                  onToggle={() => toggle(a)}
+                />
+              ))}
+              {filter === 'all' ? (
+                <button type="button" className="e3-card e3-new e3-rv" style={{ animationDelay: `${list.length * 0.06}s` }} onClick={() => openHire()}>
+                  <span className="e3-new-ic">
+                    <I d={ICON.plus} size={20} />
+                  </span>
+                  <b>{items.length ? t('crm.aiEmployees.v3.hireMore') : t('crm.aiEmployees.empty.cta')}</b>
+                  <span>{freeSeats == null ? t('crm.aiEmployees.v3.freeSeatsUnlimited') : t('crm.aiEmployees.v3.freeSeats', { count: freeSeats })}</span>
+                </button>
+              ) : null}
+              {filter !== 'all' && !list.length ? <div className="e3-empty">{t('crm.aiEmployees.v3.emptyFilter')}</div> : null}
+            </div>
 
-              {data ? (
-                <>
-                  <div className="e2-sec">
-                    <div className="h">{t('crm.aiEmployees.team.title')}</div>
-                    <div className="line" />
-                    <span className="kick">
-                      {t('crm.aiEmployees.team.seats', { hired: data.items.length, total: data.roles.length })}
-                    </span>
-                  </div>
-                  {missed && missed.total > 0 ? (
-                    <div className="e2-missed">
-                      <b>{t('crm.aiEmployees.team.missedTitle', { count: missed.total, days: missed.days })}</b>
-                      <span>{t('crm.aiEmployees.team.missedHint')}</span>
-                    </div>
-                  ) : null}
-                  {TEAM_DEPARTMENTS.map((dep) => {
-                    const deptRoles = dep.roles.map((k) => data.roles.find((r) => r.key === k)).filter(Boolean) as AiEmployeeRole[];
-                    if (!deptRoles.length) return null;
+            {freeRoles.length > 0 ? (
+              <>
+                <div className="e3-bar e3-rv">
+                  <h2>{t('crm.aiEmployees.v2.freeRoles')}</h2>
+                  <span className="e3-count">{freeRoles.length}</span>
+                </div>
+                <div className="e3-roles">
+                  {freeRoles.map((r, i) => {
+                    const miss = missed?.items.find((m) => m.roleKey === r.key);
                     return (
-                      <div key={dep.key} className="e2-dept">
-                        <div className="e2-dept-h">{t(`crm.aiEmployees.team.departments.${dep.key}`)}</div>
-                        <div className="e2-roles">
-                          {deptRoles.map((r) => {
-                            const hired = data.items.filter((a) => a.role === r.key);
-                            const miss = missed?.items.find((m) => m.roleKey === r.key);
-                            if (hired.length) {
-                              return hired.map((a) => (
-                                <div key={a.id} className="e2-role hired" onClick={() => navigate(`/ai-employees/${a.id}`)} role="button">
-                                  <div className="rt">
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div className="h">{a.name}</div>
-                                      <div className="dp">{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</div>
-                                    </div>
-                                    <span className={cn('e2-seat-st', a.status)}>{t(`crm.aiEmployees.status.${a.status}`, { defaultValue: a.status })}</span>
-                                  </div>
-                                  <div className="ds">{trRole(r.key, 'description', r.description, t, i18n)}</div>
-                                </div>
-                              ));
-                            }
-                            return (
-                              <div key={r.key} className={cn('e2-role', 'empty', r.locked && 'lock')}>
-                                <div className="rt">
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div className="h">{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</div>
-                                    <div className="dp">{t('crm.aiEmployees.team.emptySeat')}</div>
-                                  </div>
-                                  {r.locked ? <span className="plan">{trPlanBadge(r.badge, t)}</span> : null}
-                                </div>
-                                {miss ? (
-                                  <div className="e2-miss">
-                                    <b>{t('crm.aiEmployees.team.missedFor', { count: miss.count, days: missed?.days ?? 7 })}</b>
-                                    <span>
-                                      {Object.entries(miss.byEvent)
-                                        .sort((x, y) => y[1] - x[1])
-                                        .slice(0, 3)
-                                        .map(([ev, n]) => `${t(`crm.aiEmployees.team.events.${ev.replace(/\./g, '_')}`, { defaultValue: ev })}: ${n}`)
-                                        .join(' · ')}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="ds">{trRole(r.key, 'description', r.description, t, i18n)}</div>
-                                )}
-                                <div>
-                                  {!r.locked ? (
-                                    <button className="e2b gh sm" onClick={() => navigate(`/ai-employees/new?role=${r.key}`)}>
-                                      <I d={ICON.plus} size={12} />
-                                      {t('crm.aiEmployees.v2.hire')}
-                                    </button>
-                                  ) : (
-                                    <button className="e2b gh sm" onClick={() => setUpgradeOpen(true)}>
-                                      {trPlanBadge(r.badge, t)}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
+                      <div key={r.key} className={cn('e3-role e3-rv', r.locked && 'lock')} style={{ animationDelay: `${i * 0.05}s` }}>
+                        <AiPortrait role={r.key} mood="idle" height={170} />
+                        <div className="e3-role-t">
+                          <div>
+                            <b>{trRole(r.key, 'shortTitle', r.shortTitle, t, i18n)}</b>
+                            <span>
+                              {trRole(r.key, 'department', r.department, t, i18n)} · {trRole(r.key, 'jobTitle', r.jobTitle, t, i18n)}
+                            </span>
+                          </div>
+                          {r.locked ? <em>{trPlanBadge(r.badge, t)}</em> : null}
                         </div>
+                        <p>{trRole(r.key, 'description', r.description, t, i18n)}</p>
+                        {miss ? (
+                          <div className="e3-role-miss">
+                            <b>{t('crm.aiEmployees.team.missedFor', { count: miss.count, days: missed?.days ?? 7 })}</b>
+                            {Object.entries(miss.byEvent)
+                              .sort((x, y) => y[1] - x[1])
+                              .slice(0, 3)
+                              .map(([ev, n]) => `${t(`crm.aiEmployees.team.events.${ev.replace(/\./g, '_')}`, { defaultValue: ev })}: ${n}`)
+                              .join(' · ')}
+                          </div>
+                        ) : null}
+                        <div className="e3-role-fn">
+                          {trRoleFunctions(r.key, r.functions, t, i18n)
+                            .slice(0, 3)
+                            .map((x) => (
+                              <span key={x}>{x}</span>
+                            ))}
+                        </div>
+                        {r.locked ? (
+                          <button type="button" className="e3-role-go" onClick={() => setUpgradeOpen(true)}>
+                            {trPlanBadge(r.badge, t)}
+                            <I d={<path d="M5 12h14M13 6l6 6-6 6" />} size={13} />
+                          </button>
+                        ) : (
+                          <button type="button" className="e3-role-go" onClick={() => openHire(r.key)}>
+                            {t('crm.aiEmployees.v2.hire')}
+                            <I d={<path d="M5 12h14M13 6l6 6-6 6" />} size={13} />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
-                </>
-              ) : null}
-            </>
-          )
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : null}
+        {hire && data ? (
+          <E3Hire roles={freeRoles} initialRole={hire.role} onClose={() => setHire(null)} onLimit={() => setUpgradeOpen(true)} />
         ) : null}
       </div>
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} plan={data?.plan} />
@@ -1745,37 +2088,13 @@ function CreateView() {
                 <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
                 <div className="ai-av-picker">
                   <div className="ai-av-preview">
-                    <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
+                    <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" role={selectedRole.key} />
                     <span className="apl">{t('crm.aiEmployees.create.avatarPreviewLabel')}</span>
                   </div>
                   <div className="ai-av-controls">
                     <div className="ai-field" style={{ margin: 0 }}>
                       <label className="ai-label">{t('crm.aiEmployees.create.fields.name')}</label>
                       <input className="ai-input" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <div style={{ marginTop: 14 }}>
-                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarColor')}</label>
-                      <div className="ai-av-swatches">
-                        {AI_AVATAR_ACCENTS.map((a) => (
-                          <button
-                            key={a}
-                            type="button"
-                            className={cn('ai-av-sw', avatarAccent === a && 'on')}
-                            style={{ background: AVATAR_SWATCH_BG[a] }}
-                            onClick={() => setAvatarAccent(a)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 14 }}>
-                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarStyle')}</label>
-                      <div className="ai-av-styles">
-                        {AI_AVATAR_STYLES.map((s) => (
-                          <button key={s} type="button" className={cn('ai-av-style', avatarStyle === s && 'on')} onClick={() => setAvatarStyle(s)}>
-                            <AiAvatar name={name || 'AI'} accent={avatarAccent} avStyle={s} size="sm" />
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1909,7 +2228,7 @@ function CreateView() {
           {step === 4 && selectedRole ? (
             <div className="ai-panel" style={{ overflow: 'hidden' }}>
               <div className="ai-preview-hd">
-                <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
+                <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" role={selectedRole.key} />
                 <div>
                   <div style={{ fontFamily: 'var(--ff-display)', fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
                     {name || selectedRole.defaultName}
@@ -2197,37 +2516,13 @@ function EditIdentityView() {
                 <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
                 <div className="ai-av-picker">
                   <div className="ai-av-preview">
-                    <AiAvatar name={name || agent.name} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
+                    <AiAvatar name={name || agent.name} accent={avatarAccent} avStyle={avatarStyle} size="xl" role={agent.role} />
                     <span className="apl">{t('crm.aiEmployees.create.avatarPreviewLabel')}</span>
                   </div>
                   <div className="ai-av-controls">
                     <div className="ai-field" style={{ margin: 0 }}>
                       <label className="ai-label">{t('crm.aiEmployees.create.fields.name')}</label>
                       <input className="ai-input" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <div style={{ marginTop: 14 }}>
-                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarColor')}</label>
-                      <div className="ai-av-swatches">
-                        {AI_AVATAR_ACCENTS.map((a) => (
-                          <button
-                            key={a}
-                            type="button"
-                            className={cn('ai-av-sw', avatarAccent === a && 'on')}
-                            style={{ background: AVATAR_SWATCH_BG[a] }}
-                            onClick={() => setAvatarAccent(a)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 14 }}>
-                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarStyle')}</label>
-                      <div className="ai-av-styles">
-                        {AI_AVATAR_STYLES.map((s) => (
-                          <button key={s} type="button" className={cn('ai-av-style', avatarStyle === s && 'on')} onClick={() => setAvatarStyle(s)}>
-                            <AiAvatar name={name || 'AI'} accent={avatarAccent} avStyle={s} size="sm" />
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -2430,7 +2725,7 @@ export function AiEmployeeProfilePage() {
   return (
     <MainLayout>
       <PageHelpButton topic="aiEmployeeProfile" />
-      <div className="ai-emp e2">
+      <div className="ai-emp e2 e3p">
         <button className="e2-back" onClick={() => navigate('/ai-employees')}>
           <I d={ICON.back} size={14} />
           {t('crm.aiEmployees.dashboard.title')}
@@ -2446,7 +2741,13 @@ export function AiEmployeeProfilePage() {
         {agent ? (
           <>
             <div className="e2-id">
-              <AiAvatar name={agent.name} accent={avatar.accent} avStyle={avatar.avStyle} size="xl" src={agent.avatarUrl} />
+              {agent.avatarUrl ? (
+                <AiAvatar name={agent.name} accent={avatar.accent} avStyle={avatar.avStyle} size="xl" src={agent.avatarUrl} />
+              ) : (
+                <div className="e3-av-xl">
+                  <AiPortrait role={agent.role} mood={moodForStatus(agent.status)} height={150} />
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h1>
                   {agent.name}

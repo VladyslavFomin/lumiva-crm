@@ -85,6 +85,8 @@ export class AiQuotaService {
       promptTokens?: number;
       completionTokens?: number;
       sessionId?: string | null;
+      departmentId?: string | null;
+      officeTaskId?: string | null;
     },
   ): Promise<void> {
     if (costCents <= 0) return;
@@ -129,6 +131,8 @@ export class AiQuotaService {
         completionTokens: meta.completionTokens ?? 0,
         costCents,
         sessionId: meta.sessionId ?? null,
+        departmentId: meta.departmentId ?? null,
+        officeTaskId: meta.officeTaskId ?? null,
       }),
     );
   }

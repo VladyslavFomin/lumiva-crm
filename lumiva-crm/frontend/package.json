@@ -45,6 +45,7 @@
     "react-simple-maps": "^3.0.0",
     "recharts": "^3.5.0",
     "remark-gfm": "^4.0.1",
+    "simple-icons": "^13.21.0",
     "three": "^0.181.2"
   },
   "devDependencies": {

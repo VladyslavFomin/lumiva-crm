@@ -149,6 +149,33 @@ export class ProjectsController {
     return Boolean(mineByIds || mineById || mineByName);
   }
 
+  /** Наблюдатель проекта (Project.accessMembers): 'reader' | 'editor' | null. */
+  private watcherRole(project: any, staff: StaffUser | null): 'reader' | 'editor' | null {
+    if (!staff || !Array.isArray(project?.accessMembers)) return null;
+    const row = project.accessMembers.find((m: any) => m?.staffUserId === staff.id);
+    return row ? (row.role === 'editor' ? 'editor' : 'reader') : null;
+  }
+
+  /** Видеть проект основной таблицы: ответственный, любой наблюдатель или право
+   * «Видеть все проекты» (projects_view_all — только просмотр, напр. для аналитики). */
+  private canReadProject(project: any, staff: StaffUser | null, viewAll = false): boolean {
+    return viewAll || this.isProjectMine(project, staff) || this.watcherRole(project, staff) !== null;
+  }
+
+  private async canViewAllProjects(user: CurrentUserPayload): Promise<boolean> {
+    return this.rbac.canForUser(user.tenantId, (user as any).staffUserId || '', user.role as any, 'projects_view_all');
+  }
+
+  /** Менять проект основной таблицы: ответственный или наблюдатель-редактор. */
+  private canWriteProject(project: any, staff: StaffUser | null): boolean {
+    return this.isProjectMine(project, staff) || this.watcherRole(project, staff) === 'editor';
+  }
+
+  /** Для фронта: 'reader' — карточка только для просмотра. */
+  private withMyAccess<T extends object>(project: T, access: 'full' | 'reader'): T & { myAccess: 'full' | 'reader' } {
+    return Object.assign(project, { myAccess: access });
+  }
+
   // ================== GET /projects ==================
   @Get()
   @RequireTableRole('owner', 'editor', 'reader')
@@ -199,7 +226,10 @@ export class ProjectsController {
       return { total: 0, items: [] };
     }
 
-    const items = raw.items.filter((p) => this.isProjectMine(p, staff));
+    const viewAll = await this.canViewAllProjects(user);
+    const items = raw.items
+      .filter((p) => this.canReadProject(p, staff, viewAll))
+      .map((p) => this.withMyAccess(p, this.canWriteProject(p, staff) ? 'full' : 'reader'));
     return { total: items.length, items };
   }
 
@@ -226,11 +256,11 @@ export class ProjectsController {
     }
 
     const staff = await this.getCurrentStaff(user);
-    if (!this.isProjectMine(project, staff)) {
+    if (!this.canReadProject(project, staff, await this.canViewAllProjects(user))) {
       throw new ForbiddenException('Недостаточно прав для просмотра проекта');
     }
 
-    return project;
+    return this.withMyAccess(project, this.canWriteProject(project, staff) ? 'full' : 'reader');
   }
 
   // ================== POST /projects ==================
@@ -317,8 +347,25 @@ export class ProjectsController {
         throw new ForbiddenException('Недостаточно прав для изменения суммы проекта');
       }
     }
-    const triesToReassignOwner =
-      dto.ownerUserId !== undefined || dto.ownerUserIds !== undefined || dto.ownerName !== undefined;
+    const project = await this.projectsService.findOneForTenant(tenantId, id);
+
+    // Фронт шлёт проект целиком при любом сохранении (в т.ч. ответственных) — право на смену
+    // ответственного проверяем только при реальном изменении состава, иначе любой не-владелец
+    // без projects_edit_owner получал 403 на любое сохранение своего проекта.
+    const idSet = (list: unknown) =>
+      JSON.stringify([...new Set((Array.isArray(list) ? list : []).filter(Boolean).map(String))].sort());
+    const currentIds = project.ownerUserIds?.length ? project.ownerUserIds : project.ownerUserId ? [project.ownerUserId] : [];
+    const nextIds =
+      dto.ownerUserIds !== undefined
+        ? dto.ownerUserIds || []
+        : dto.ownerUserId !== undefined
+          ? dto.ownerUserId
+            ? [dto.ownerUserId]
+            : []
+          : currentIds;
+    const nameChanged =
+      dto.ownerName !== undefined && (dto.ownerName || null) !== (project.ownerName || null) && !nextIds.length;
+    const triesToReassignOwner = idSet(nextIds) !== idSet(currentIds) || nameChanged;
     if (triesToReassignOwner) {
       // Без явной настройки в «Правах доступа» доступно только владельцу компании — как и было
       // раньше (жёсткий hardcode "только role==='owner'"), просто теперь это настраиваемо, а не
@@ -334,7 +381,29 @@ export class ProjectsController {
       }
     }
 
-    const project = await this.projectsService.findOneForTenant(tenantId, id);
+    // Список наблюдателей меняют владелец компании, ответственный за проект или тот, кому
+    // можно менять ответственных (projects_edit_owner). Наблюдатель-редактор — нет.
+    // Фронт шлёт проект целиком при любом сохранении — проверяем только реальное изменение.
+    const accessKey = (list: any) =>
+      JSON.stringify(
+        (Array.isArray(list) ? list : [])
+          .map((m: any) => `${m?.staffUserId}:${m?.role === 'editor' ? 'editor' : 'reader'}`)
+          .sort(),
+      );
+    const accessChanged =
+      dto.accessMembers !== undefined && accessKey(dto.accessMembers) !== accessKey(project.accessMembers);
+    if (accessChanged && role !== 'owner') {
+      const staffForAccess = await this.getCurrentStaff(user);
+      const canEditOwnerPerm = await this.rbac.canForUser(
+        tenantId,
+        (user as any).staffUserId || '',
+        role as any,
+        'projects_edit_owner',
+      );
+      if (!this.isProjectMine(project, staffForAccess) && !canEditOwnerPerm) {
+        throw new ForbiddenException('Наблюдателей может менять только ответственный за проект или владелец');
+      }
+    }
 
     if (!(await this.isDefaultTable(tenantId, project.tableId))) {
       // приватная таблица: доступ уже проверен ProjectTableAccessGuard
@@ -355,7 +424,7 @@ export class ProjectsController {
 
     // manager / sales – только свои проекты
     const staff = await this.getCurrentStaff(user);
-    if (!this.isProjectMine(project, staff)) {
+    if (!this.canWriteProject(project, staff)) {
       throw new ForbiddenException('Можно изменять только свои проекты');
     }
 
@@ -385,7 +454,7 @@ export class ProjectsController {
 
     if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
-      if (!this.isProjectMine(project, staff)) {
+      if (!this.canWriteProject(project, staff)) {
         throw new ForbiddenException(
           'Можно менять статус только своих проектов',
         );
@@ -422,7 +491,7 @@ export class ProjectsController {
 
     if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
-      if (!this.isProjectMine(project, staff)) {
+      if (!this.canWriteProject(project, staff)) {
         throw new ForbiddenException(
           'Можно архивировать только свои проекты',
         );
@@ -454,7 +523,7 @@ export class ProjectsController {
 
     if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
-      if (!this.isProjectMine(project, staff)) {
+      if (!this.canWriteProject(project, staff)) {
         throw new ForbiddenException(
           'Можно разархивировать только свои проекты',
         );
@@ -534,7 +603,7 @@ export class ProjectsController {
     const isDefault = await this.isDefaultTable(tenantId, project.tableId);
     if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
-      if (!this.isProjectMine(project, staff)) {
+      if (!this.canReadProject(project, staff, await this.canViewAllProjects(user))) {
         throw new ForbiddenException('Недостаточно прав для просмотра истории');
       }
     }

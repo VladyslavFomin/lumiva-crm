@@ -1,4 +1,6 @@
 import { ModuleRef } from '@nestjs/core';
+import { adsReportFacts } from '../marketing/ads-report';
+import { checkWorkspaceWriteProvenance, extractNumbers, findUnverifiedNumbers, findBindingMismatches, fixMarkdownTableTotals, stripRetypedReportTables } from './ai-number-provenance';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -177,6 +179,7 @@ export class AiAssistantService {
 - Автообновление таблиц рабочей области и сведение нескольких источников в одну таблицу: у таблицы может быть несколько «источников синхронизации», каждый обновляется сам (данные рекламных кабинетов — каждую ночь после их синхронизации). Строки, записанные источником, помечены: пересборка одного источника не трогает строки других источников и ручные строки (ручные правки внутри строк САМОГО источника при обновлении не сохраняются — скажи об этом пользователю). Инструменты: crm_workspace_create_marketing_table — новая таблица со строками из рекламных кабинетов (providers: google_ads, meta_ads, yandex_direct, vk_ads, ga4, yandex_metrika — можно несколько сразу, они сведутся в одну таблицу; grain daily/campaign/channel; для кабинетов в разных валютах передавай displayCurrency); crm_workspace_add_sync_source — добавить ещё один источник в существующую таблицу; crm_workspace_list_sync_sources / crm_workspace_remove_sync_source / crm_workspace_refresh_now. Помесячные расходы «страна × месяц» — crm_workspace_import_marketing_monthly_breakdown (по умолчанию тоже автообновляется; такая таблица занимает весь лист и не сочетается с другими источниками). Для уже существующей таблицы, созданной старым инструментом, — crm_workspace_set_auto_refresh (сначала crm_workspace_describe_table; параметры выгрузки уточни у пользователя, не угадывай). Woo, Meta Ads (Graph) и GA4 с маппингом колонок подключаются к автообновлению на странице импорта таблицы (/workspace/<id>/import, переключатель «Обновлять автоматически») — через чат этого сделать нельзя, так и скажи. Период без конечной даты (to не передавай) значит «до сегодняшнего дня». Не говори, что автообновление включено, пока инструмент не вернул ok:true (он делает пробную загрузку).
 - Разбивка расходов по месяцам (особенно в разрезе нескольких аккаунтов/каналов/стран сразу, например "сколько по каждой стране по месяцам") — используй crm_marketing_monthly_breakdown (или crm_workspace_import_marketing_monthly_breakdown для рабочей области) с groupBy:"market" для разбивки по странам ОДНИМ вызовом — а НЕ ручное суммирование crm_marketing_daily_series по каждому аккаунту в уме и НЕ отдельный вызов на каждую страну через параметр market (упрёшься в лимит вызовов за один ответ раньше, чем обойдёшь все страны, и часть таблицы останется нулевой — реальная причина неверных сумм и "нулей" в прошлых ответах).
 - Сегментация рекламы по стране/рынку (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown, crm_workspace_import_marketing_channels): у Google Ads, Yandex Direct/Metrika и VK Ads НЕТ поля страны в БД — гео есть у GA4 (страна визита) и у Meta Ads (реальная страна показа из кабинета; инструменты учитывают её сами); у остальных рынок можно определить лишь эвристически по тегу в начале названия кампании ("LV - Search - Traffic - ...") или по названию страны в тексте кампании. Поэтому: если пользователь просит данные ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ВСЕГДА передавай параметр market (код ISO2 или название), а если не уверен — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков с расходом по каждому и unclassified (кампании без определённого рынка). НИКОГДА не переименовывай заголовок таблицы/ответа в название страны, не передав фактический фильтр market — старая ошибка бота была именно в этом (заголовок "по Великобритании", а внутри данные всех стран). Если market не распознан (ok:false, error:"unknown_market") или после фильтра 0 строк — не показывай нефильтрованные данные, а прямо скажи, что не можешь надёжно сегментировать по этой стране, и покажи availableMarkets.
+- ЦИФРЫ РЕКЛАМНЫХ РАСХОДОВ (сколько потрачено, по клиентам/брендам/отелям, по кабинетам, по месяцам, по площадкам) — ВСЕГДА через crm_marketing_report: сервер сам считает суммы и итоги и строит таблицу, а ты вставляешь в ответ его метку insert ([[REPORT:…]]) на место таблицы. Таблицу с цифрами сам НЕ составляй и НЕ перепечатывай, числа не складывай; в тексте — выводы, а конкретную цифру в тексте бери ровно из rows/totals ответа. Бренд/отель (Selectum, Asteria, The Norm…) — это клиент с несколькими кабинетами, а не рынок: передай clients=[…]. Для записи таких цифр в рабочую область — crm_workspace_import_marketing_monthly_breakdown (groupBy client), а не add_record. «По всем рынкам/странам» = вызов БЕЗ market. Никогда не опрашивай инструмент по рынкам по очереди, чтобы получить итог: срез по одному рынку — лишь часть расхода (реальная ошибка: в отчёт «по всем рынкам» попал только TR — 216 396 вместо 727 887 TRY).
 - ROI / окупаемость рекламы клиента (crm_marketing_roi): клиент = компания CRM, к которой привязаны его рекламные кабинеты; выручка берётся из выбранных источников (manual/ads/ga4/crm). Если в ответе есть unassignedSpend > 0 или crmUnattributed — прямо скажи, что часть расхода/продаж не отнесена к клиентам и не входит в ROI. Не считай ROI сам из других инструментов.
 - Валюта расходов/выручки в маркетинге (crm_marketing_overview, crm_marketing_daily_series, crm_marketing_monthly_breakdown): у каждой кампании/канала своя валюта (задаётся при подключении интеграции — например Yandex Direct тенанта может быть в TRY, у другого в RUB), она приходит в ответе инструмента в поле currency (или originalCurrency у отдельных строк; "MIXED" — если в выборке смешаны разные валюты). НИКОГДА не пиши суммы в $/USD/EUR "по умолчанию" и не переводи их в другую валюту в уме — всегда бери валюту из currency/originalCurrency в ответе инструмента и указывай её рядом с суммой ровно как в данных (например "66 641,41 TRY", не "$66,641.41"). Если currency:"MIXED" — либо покажи валюту отдельно для каждой строки/канала, либо явно предупреди пользователя, что суммы в разных валютах и складывать их напрямую нельзя. Если пользователь просит перевести суммы В ДРУГУЮ валюту ("переведи в евро", "сколько это в долларах") — НИКОГДА не считай курс сам (ни по памяти, ни "примерно", ни через отдельные вычисления/LaTeX в ответе) и не оценивай его на глаз — это реальный случай прошлой ошибки (курс TRY→EUR был просто придуман и итог получился неверный). Единственный способ — заново вызвать тот же инструмент с параметром displayCurrency (есть у всех трёх маркетинговых инструментов); он возвращает реальный курс ECB/Frankfurter и уже пересчитанные суммы. Если инструмент вернул fxConversionFailed — так и скажи пользователю, что конвертация сейчас недоступна, покажи суммы в исходной валюте, и НЕ предлагай "примерный" курс взамен.
 - Если таблица уже создана без колонок — добавь поля через crm_workspace_add_field, затем crm_workspace_describe_table и crm_workspace_add_record с правильными key.
@@ -264,6 +267,40 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
     return pick
       .map((m) => `- ${m.title || 'память'}: ${m.content.slice(0, 1200)}`)
       .join('\n');
+  }
+
+  /** Числа из результатов маркетинговых инструментов и из сообщений пользователя (для запрета ручного переноса). */
+  private numberEvidenceSplit(messages: ChatMessage[]): { marketing: number[]; user: number[] } {
+    const toolName = new Map<string, string>();
+    for (const m of messages) for (const c of m.tool_calls ?? []) toolName.set(c.id, c.function?.name || '');
+    const marketing: number[] = [];
+    const user: number[] = [];
+    for (const m of messages) {
+      if (typeof m.content !== 'string') continue;
+      if (m.role === 'user') user.push(...extractNumbers(m.content));
+      else if (m.role === 'tool' && /^crm_marketing_/.test(toolName.get(m.tool_call_id || '') || '')) marketing.push(...extractNumbers(m.content));
+    }
+    return { marketing, user };
+  }
+
+  /**
+   * Подставляет таблицы crm_marketing_report по меткам [[REPORT:…]]. Если модель метку не
+   * поставила — последняя таблица добавляется в конец ответа (цифры должны дойти до пользователя
+   * в виде, посчитанном сервером). Чужие/искажённые метки убираются.
+   */
+  private insertReportTables(text: string, tables: Map<string, string>): string {
+    if (!tables.size) return text;
+    let out = text;
+    let used = 0;
+    for (const [token, md] of tables) {
+      if (out.includes(token)) {
+        out = out.split(token).join(`\n\n${md}\n\n`);
+        used++;
+      }
+    }
+    out = out.replace(/\[\[REPORT:[^\]]*\]\]/g, '');
+    if (!used) out = `${out.trim()}\n\n${[...tables.values()].pop()}`;
+    return out.replace(/\n{3,}/g, '\n\n').trim();
   }
 
   /** Текст для модели: видимый content + скрытый в UI контекст из meta (напр. правка картинки). */
@@ -457,6 +494,12 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
     let totalPrompt = 0;
     let totalCompletion = 0;
     let toolRounds = 0;
+    let numberCheckDone = false;
+    /** Таблицы crm_marketing_report: метка [[REPORT:…]] → готовый markdown; факты — для проверки привязки чисел. */
+    const reportTables = new Map<string, string>();
+    const reportFacts: ReturnType<typeof adsReportFacts> = [];
+    const createdTables = new Set<string>();
+    const rejectedTables = new Set<string>();
 
     const cfg = await this.platformSettings.getSettings();
     const inPrice = parseFloat(
@@ -486,8 +529,49 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
       totalCompletion += usage.completion_tokens || 0;
 
       const calls = assistantMsg.tool_calls;
+      if (!calls?.length && assistantMsg.content) {
+        // «Итого» в таблицах ответа пересчитывает код — модель регулярно ошибается в сложении.
+        const fixed = fixMarkdownTableTotals(assistantMsg.content);
+        if (fixed.fixes.length) {
+          this.log.warn(`chat ${session.id}: totals recomputed ${fixed.fixes.map((f) => `${f.from}→${f.to}`).join(', ')}`);
+          assistantMsg.content = fixed.text;
+        }
+      }
       if (!calls?.length) {
-        finalAssistantText = assistantMsg.content || '';
+        // Сверка чисел ответа с тем, что реально вернули инструменты и написал пользователь
+        // (реальный случай 2026-10-08: «отчёт по Meta» с полностью выдуманными суммами).
+        // Один раунд самопроверки — модель может перепроверить вызовом инструмента или убрать число.
+        if (!numberCheckDone && round < MAX_TOOL_ROUNDS - 1 && assistantMsg.content) {
+          numberCheckDone = true;
+          const bad = findUnverifiedNumbers(
+            assistantMsg.content,
+            messages.flatMap((m) =>
+              (m.role === 'tool' || m.role === 'user') && typeof m.content === 'string' ? extractNumbers(m.content) : [],
+            ),
+          );
+          const misplaced = findBindingMismatches(assistantMsg.content, reportFacts);
+          if (bad.length || misplaced.length) {
+            this.log.warn(`chat ${session.id}: unverified numbers in answer: ${bad.join(', ')}; misplaced: ${misplaced.join(', ')}`);
+            messages = [
+              ...messages,
+              { role: 'assistant', content: assistantMsg.content },
+              {
+                role: 'user',
+                content:
+                  `[Автоматическая проверка фактов, не сообщение пользователя] ` +
+                  (bad.length ? `Этих чисел из твоего ответа нет в данных инструментов этого разговора, и они не получаются из них простой суммой/разницей/делением: ${bad.join(', ')}. ` : '') +
+                  (misplaced.length ? `Эти числа стоят не в той строке/столбце (не совпадают с данными именно этого клиента/кабинета и месяца): ${misplaced.join(', ')}. Не перепечатывай таблицы отчёта — вставь метку insert из crm_marketing_report. ` : '') +
+                  'Никогда не придумывай цифры. Если это расчёт — перепроверь его по данным; если данных не хватает — вызови нужный инструмент (за нужный период и аккаунт) или прямо скажи, что данных нет. ' +
+                  'Дай пользователю полный исправленный ответ (не упоминая эту проверку, если всё было верно).',
+              },
+            ];
+            continue;
+          }
+        }
+        // перепечатанные моделью таблицы с цифрами отчёта убираем — остаётся таблица сервера
+        const stripped = reportFacts.length ? stripRetypedReportTables(assistantMsg.content || '', reportFacts) : { text: assistantMsg.content || '', removed: 0 };
+        if (stripped.removed) this.log.warn(`chat ${session.id}: removed ${stripped.removed} retyped report table(s)`);
+        finalAssistantText = this.insertReportTables(stripped.text, reportTables);
         if (
           lastGeneratedImage?.url &&
           !finalAssistantText.includes(lastGeneratedImage.url)
@@ -529,7 +613,16 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
       for (const c of calls) {
         const name = c.function?.name || '';
         const argStr = c.function?.arguments || '{}';
-        const result = await this.tools.execute(name, argStr, {
+        // Числа для рабочей области должны прийти из данных (инструментов или пользователя), не из головы модели.
+        const provenanceError = checkWorkspaceWriteProvenance(
+          name,
+          argStr,
+          messages.flatMap((m) =>
+            (m.role === 'tool' || m.role === 'user') && typeof m.content === 'string' ? extractNumbers(m.content) : [],
+          ),
+          this.numberEvidenceSplit(messages),
+        );
+        let result = provenanceError ?? await this.tools.execute(name, argStr, {
           tenantId: input.tenantId,
           userId: input.userId,
           userEmail: input.userEmail,
@@ -538,6 +631,38 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
           telegramUsername: input.telegramUsername,
           telegramChatId: input.telegramChatId,
         });
+        // Таблица, созданная под ручной ввод рекламных цифр, которые отклонены, — удаляется в конце
+        // запуска, если так и осталась пустой (модель повторяет то же импортом в новую таблицу).
+        if (name === 'crm_workspace_create_table') {
+          try {
+            const p = JSON.parse(result) as { ok?: boolean; objectId?: string };
+            if (p.ok && p.objectId) createdTables.add(p.objectId);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (provenanceError && provenanceError.includes('use_marketing_import')) {
+          try {
+            const objectId = String((JSON.parse(argStr) as { objectId?: unknown }).objectId ?? '');
+            if (createdTables.has(objectId)) rejectedTables.add(objectId);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (name === 'crm_marketing_report' && !provenanceError) {
+          // Таблицу отчёта модель не видит и не перепечатывает — она вставляется кодом по метке insert.
+          try {
+            const p = JSON.parse(result) as Record<string, unknown>;
+            if (p.ok && typeof p.insert === 'string' && typeof p._markdown === 'string') {
+              reportTables.set(p.insert, p._markdown);
+              reportFacts.push(...adsReportFacts(p as unknown as Parameters<typeof adsReportFacts>[0]));
+              delete p._markdown;
+              result = JSON.stringify(p);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
         if (name === 'crm_propose_ai_employee_action') {
           try {
             const p = JSON.parse(result) as { ok?: boolean; proposal?: Record<string, unknown> };
@@ -578,6 +703,10 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
           content: result,
         });
       }
+    }
+
+    for (const objectId of rejectedTables) {
+      if (await this.tools.discardEmptyAiTable(input.tenantId, objectId)) this.log.log(`chat ${session.id}: removed empty table ${objectId} (ad numbers were rejected)`);
     }
 
     if (!finalAssistantText && toolRounds >= MAX_TOOL_ROUNDS) {

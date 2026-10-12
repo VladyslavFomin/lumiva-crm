@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { AccessDeniedPage } from '../AccessDeniedPage';
+import { usePermission } from '../../hooks/usePermission';
 import { getStoredUser } from '../../auth/session';
 import type { StaffRole, StaffUser } from '../../api/staff';
 import { fetchStaff, updateStaffRole } from '../../api/staff';
@@ -94,7 +95,7 @@ const GROUPS: GroupDef[] = [
       { key: 'products', children: ['products_manage_fields', 'products_manage_stock', 'products_publish'] },
       { key: 'bookings', children: ['bookings_manage_settings'] },
       { key: 'hotels', children: ['hotels_manage_pricing', 'hotels_manage_reservations'] },
-      { key: 'projects', children: ['projects_manage', 'projects_manage_trash', 'projects_edit_amount', 'projects_edit_owner'] },
+      { key: 'projects', children: ['projects_view_all', 'projects_manage', 'projects_manage_trash', 'projects_edit_amount', 'projects_edit_owner'] },
       { key: 'analytics' },
       { key: 'finance' },
     ],
@@ -112,7 +113,7 @@ const GROUPS: GroupDef[] = [
       { key: 'telephony' },
     ],
   },
-  { id: 'tools', mods: [{ key: 'tools_automation' }, { key: 'custom_objects' }, { key: 'ai_employees' }] },
+  { id: 'tools', mods: [{ key: 'tools_automation' }, { key: 'custom_objects' }, { key: 'ai_employees' }, { key: 'ai_office' }] },
   { id: 'admin', mods: [{ key: 'staff' }, { key: 'settings' }] },
 ];
 
@@ -445,7 +446,14 @@ const UserPermissionModuleList: React.FC<{
 
 export const StaffPermissionsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const isOwner = (getStoredUser()?.role || '') === 'owner';
+  const me = getStoredUser();
+  const isOwner = (me?.role || '') === 'owner';
+  // Роли/исключения: владелец или право «Сотрудники». Не-владелец не меняет свою роль и свои
+  // права и не выдаёт того, чего нет у него самого (проверяет бэкенд, staff-manage-access.ts).
+  // Видимость данных и IP офиса — только владелец.
+  const canManage = usePermission('staff');
+  const myRole = (me?.role || '') as StaffRole;
+  const myEmail = String(me?.email || '').toLowerCase();
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
 
   const [tab, setTab] = useState<'roles' | 'compare' | 'rules' | 'people'>('roles');
@@ -523,7 +531,7 @@ export const StaffPermissionsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (!canManage) return;
     let alive = true;
     setLoading(true);
     setError(null);
@@ -547,16 +555,19 @@ export const StaffPermissionsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [isOwner]);
+  }, [canManage]);
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (!canManage) return;
     let alive = true;
     setLoadingUsers(true);
     Promise.all([fetchStaff(), fetchUserPermissions()])
       .then(([staffList, userPerms]) => {
         if (!alive) return;
-        const nonOwners = staffList.filter((u) => u.role !== 'owner');
+        // Свои исключения не-владелец не видит и не меняет.
+        const nonOwners = staffList.filter(
+          (u) => u.role !== 'owner' && (isOwner || (u.email || '').toLowerCase() !== myEmail),
+        );
         setStaff(nonOwners);
         const nextU: UserMatrixState = {};
         Object.entries(userPerms || {}).forEach(([userId, perms]) => {
@@ -576,11 +587,11 @@ export const StaffPermissionsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [isOwner]);
+  }, [canManage]);
 
   // История изменений выбранной роли
   useEffect(() => {
-    if (!isOwner || tab !== 'roles' || selectedRole === 'owner') {
+    if (!canManage || tab !== 'roles' || selectedRole === 'owner') {
       setRoleHistory([]);
       return;
     }
@@ -599,11 +610,11 @@ export const StaffPermissionsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [isOwner, tab, selectedRole]);
+  }, [canManage, tab, selectedRole]);
 
   // История изменений индивидуальных прав выбранного сотрудника
   useEffect(() => {
-    if (!isOwner || tab !== 'people' || !selectedUser) {
+    if (!canManage || tab !== 'people' || !selectedUser) {
       setUserHistory([]);
       return;
     }
@@ -618,7 +629,7 @@ export const StaffPermissionsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [isOwner, tab, selectedUser]);
+  }, [canManage, tab, selectedUser]);
 
   // Правила видимости данных + рабочие IP — грузим один раз при первом открытии вкладки
   useEffect(() => {
@@ -678,6 +689,10 @@ export const StaffPermissionsPage: React.FC = () => {
   const roleChangedCount = (role: StaffRole) => symmetricDiffCount(matrix[role] ?? new Set(), baseline[role] ?? new Set());
 
   const toggleCell = (role: StaffRole, perm: PermissionKey) => {
+    if (!isOwner && role === myRole) {
+      setError(t('crm.staff.permissions.errors.ownRole'));
+      return;
+    }
     setMatrix((prev) => {
       const copy = { ...prev };
       const set = new Set(copy[role] ?? []);
@@ -832,7 +847,7 @@ export const StaffPermissionsPage: React.FC = () => {
     }
   };
 
-  if (!isOwner) {
+  if (!canManage) {
     return <AccessDeniedPage />;
   }
 
@@ -887,9 +902,11 @@ export const StaffPermissionsPage: React.FC = () => {
           <div className={cx('pm-tab', tab === 'compare' && 'active')} onClick={() => setTab('compare')}>
             {t('crm.staff.permissions.tabs.compare')}
           </div>
-          <div className={cx('pm-tab', tab === 'rules' && 'active')} onClick={() => setTab('rules')}>
-            {t('crm.staff.permissions.rulesTab.title')}
-          </div>
+          {isOwner && (
+            <div className={cx('pm-tab', tab === 'rules' && 'active')} onClick={() => setTab('rules')}>
+              {t('crm.staff.permissions.rulesTab.title')}
+            </div>
+          )}
           <div className={cx('pm-tab', tab === 'people' && 'active')} onClick={() => setTab('people')}>
             {t('crm.staff.permissions.tabs.people')}
             <span className="n">{staff.length}</span>

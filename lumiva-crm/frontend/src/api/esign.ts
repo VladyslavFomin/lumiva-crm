@@ -36,6 +36,8 @@ export interface EsignItemPick {
   kind: EsignItemKind;
   refId: string;
   masterId?: string | null;
+  quantity?: number;
+  discountPercent?: number;
 }
 
 export interface EsignDocumentItem {
@@ -48,6 +50,8 @@ export interface EsignDocumentItem {
   durationMinutes?: number | null;
   masterId?: string | null;
   masterName?: string | null;
+  quantity?: number;
+  discountPercent?: number;
 }
 
 export interface EsignDocumentDetail {
@@ -104,7 +108,7 @@ export interface EsignKeyDef {
 }
 
 export interface EsignKeyGroup {
-  group: 'client' | 'contract' | 'org' | 'product' | 'service';
+  group: 'client' | 'contract' | 'org' | 'product' | 'service' | 'quote';
   keys: EsignKeyDef[];
 }
 
@@ -141,11 +145,26 @@ export function fetchEsignAmountSuggestions(contactId: string): Promise<EsignAmo
   return api.get(`/esign/documents/amount-suggestions?contactId=${encodeURIComponent(contactId)}`);
 }
 
+export interface EsignLeadOption {
+  id: string;
+  name: string;
+  status: string;
+  amount: string;
+  currency: string;
+}
+
+/** Open leads of a contact — a commercial offer (КП) can be attached to one of them. */
+export function fetchEsignLeadOptions(contactId: string): Promise<EsignLeadOption[]> {
+  return api.get(`/esign/documents/lead-options?contactId=${encodeURIComponent(contactId)}`);
+}
+
 export function issueEsignDocument(payload: {
   templateId: string;
   contactId: string;
   extraFields?: Record<string, string>;
   items?: EsignItemPick[];
+  /** КП only: on signing, this lead becomes "won" with the offer's amount. */
+  leadId?: string | null;
 }): Promise<EsignDocumentDetail> {
   return api.post('/esign/documents', payload);
 }

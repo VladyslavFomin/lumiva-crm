@@ -57,6 +57,10 @@ export interface Project {
   contactId?: string | null;
   ownerUserId?: string | null;
   ownerUserIds?: string[] | null;
+  /** Наблюдатели: видят (reader) или редактируют (editor) проект, не будучи ответственными. */
+  accessMembers?: ProjectAccessMember[];
+  /** С бэка: 'reader' — карточка только для просмотра. */
+  myAccess?: 'full' | 'reader';
   briefFileName?: string | null;
   briefFileUrl?: string | null;
   files?: ProjectFileLink[] | null;
@@ -138,4 +142,10 @@ export function createEmptyProject(): Project {
     tasks: [],
     comments: [],
   };
+}
+
+export type ProjectAccessRole = 'reader' | 'editor';
+export interface ProjectAccessMember {
+  staffUserId: string;
+  role: ProjectAccessRole;
 }

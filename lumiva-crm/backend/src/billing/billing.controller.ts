@@ -38,6 +38,23 @@ export class BillingController {
     });
   }
 
+  /** Доп. слоты ИИ-отделов (оплата картой через закреплённого за тенантом провайдера). */
+  @UseGuards(JwtAuthGuard)
+  @Post('checkout-ai-office')
+  async createAiOfficeSlots(
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() req: Request,
+    @Body() body: { extraSlots: number; successUrl: string; cancelUrl: string },
+  ) {
+    return this.billing.createAiOfficeSlotsCheckout({
+      tenantId: user?.tenantId,
+      extraSlots: Number(body?.extraSlots),
+      successUrl: body?.successUrl,
+      cancelUrl: body?.cancelUrl,
+      ip: getClientIp(req) ?? undefined,
+    });
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('checkout-session')
   async createCheckout(
@@ -142,6 +159,9 @@ export class BillingController {
     }
     try {
       const r = await this.billing.handleIyzicoCallback(token);
+      if (r.purchaseType === 'ai_office_slots') {
+        return res.redirect(`${frontend}/ai-office/plan?provider=iyzico&status=${r.status}`);
+      }
       return res.redirect(`${frontend}/app/billing?provider=iyzico&status=${r.status}`);
     } catch {
       return res.redirect(`${frontend}/app/billing?provider=iyzico&status=failed`);

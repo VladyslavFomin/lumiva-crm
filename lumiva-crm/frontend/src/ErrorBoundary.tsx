@@ -5,7 +5,22 @@ type ErrorBoundaryState = {
   hasError: boolean;
   message?: string;
   stack?: string;
+  /** Ошибка лечится перезагрузкой (устаревший файл после деплоя / DOM изменён расширением) —
+   * экран ошибки не показываем, страница сейчас перезагрузится. */
+  recovering?: boolean;
 };
+
+const STALE_CHUNK_RE = /dynamically imported module|Importing a module script failed|Failed to fetch|error loading dynamically imported module|Unable to preload CSS/i;
+const DOM_PLACEMENT_RE = /insertBefore|removeChild|replaceChild/;
+
+function recentlyTried(key: string) {
+  try {
+    const last = Number(sessionStorage.getItem(key) || '0');
+    return !!last && Date.now() - last < 60_000;
+  } catch {
+    return true;
+  }
+}
 
 export class ErrorBoundary extends React.Component<
   React.PropsWithChildren,
@@ -17,10 +32,16 @@ export class ErrorBoundary extends React.Component<
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    const message = `${error.name || ''} ${error.message || ''}`;
+    const recovering =
+      (typeof window !== 'undefined' && (window as any).__lumivaReloading === true) ||
+      (STALE_CHUNK_RE.test(message) && !recentlyTried('lumiva_chunk_reload_once_v1')) ||
+      (DOM_PLACEMENT_RE.test(message) && !recentlyTried('lumiva_dom_recover_once_v1'));
     return {
       hasError: true,
       message: error.message,
       stack: error.stack,
+      recovering,
     };
   }
 
@@ -68,6 +89,10 @@ export class ErrorBoundary extends React.Component<
   }
 
   render() {
+    if (this.state.hasError && this.state.recovering) {
+      // перезагрузка уже запущена в componentDidCatch — тихий пустой экран вместо «синего»
+      return <div style={{ minHeight: '100vh', background: '#f6f7f9' }} />;
+    }
     if (this.state.hasError) {
       return (
         <div

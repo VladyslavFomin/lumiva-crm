@@ -24,7 +24,8 @@ import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { ProjectsViewsBar } from './ProjectsViewsBar';
 import type { ProjectsViewSettings } from './projectsViewSettings';
 import type { ProjectTable } from '../../api/projectTables';
-import { useProjectStatuses } from './useProjectStatuses';
+import { useProjectStatuses, pillStyleFromHex } from './useProjectStatuses';
+import { useProjectTagDefinitions } from './useProjectTagDefinitions';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -117,6 +118,14 @@ export const ProjectsBoardPage: React.FC = () => {
     [t],
   );
   const { statuses: statusDefs, colorFor: statusColorFor, reload: reloadStatuses } = useProjectStatuses();
+  // Цвет метки из справочника; метки вне справочника — нейтральный чип.
+  const { tags: tagDefs } = useProjectTagDefinitions();
+  const tagChipStyle = (tag: string): React.CSSProperties | undefined => {
+    const def = tagDefs.find((d) => d.value === tag);
+    if (!def) return undefined;
+    const p = pillStyleFromHex(def.color);
+    return { background: p.background, color: p.color, borderColor: p.borderColor };
+  };
   const statuses = useMemo(
     (): { id: ProjectStatus; title: string }[] =>
       statusDefs.map((s) => ({ id: s.value, title: statusLabels[s.value] ?? s.value })),
@@ -602,6 +611,7 @@ export const ProjectsBoardPage: React.FC = () => {
                                 <span
                                   key={tag}
                                   className="kb-chip"
+                                  style={tagChipStyle(tag)}
                                 >
                                   #{tag}
                                 </span>

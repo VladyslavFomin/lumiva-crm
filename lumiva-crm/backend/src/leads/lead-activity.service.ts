@@ -21,6 +21,7 @@ const TYPE_SUMMARY: Record<LeadActivityType, string> = {
   status_changed: 'Статус изменён',
   assignee_changed: 'Исполнитель изменён',
   comment: 'Добавлен комментарий',
+  call_analyzed: 'Разбор звонка',
 };
 
 @Injectable()

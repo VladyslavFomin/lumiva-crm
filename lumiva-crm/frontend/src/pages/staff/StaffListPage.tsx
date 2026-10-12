@@ -19,6 +19,7 @@ import { fetchDepartments, type Department } from '../../api/departments';
 
 import { adminProvisionUser } from '../../api/users';
 import { getStoredUser } from '../../auth/session';
+import { usePermission } from '../../hooks/usePermission';
 import { LottieIcon } from '../../components/LottieIcon';
 import '../projects/ProjectsListPage.css';
 import './staff-list-design.css';
@@ -41,7 +42,15 @@ export const StaffListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isOwner = (getStoredUser()?.role || '').toLowerCase() === 'owner';
+  const me = getStoredUser();
+  const isOwner = (me?.role || '').toLowerCase() === 'owner';
+  // Владелец или право «Сотрудники». Не-владелец не трогает владельца и не меняет себе роль/доступ
+  // (то же проверяет бэкенд, см. backend/src/staff/staff-manage-access.ts).
+  const canManage = usePermission('staff');
+  const canEditRow = (u: { role: string }) => isOwner || (canManage && u.role !== 'owner');
+  const isSelf = (u: { email?: string | null }) =>
+    !!me?.email && (u.email || '').toLowerCase() === String(me.email).toLowerCase();
+  const canEditAccess = (u: { role: string; email?: string | null }) => canEditRow(u) && (isOwner || !isSelf(u));
 
   // создание нового пользователя
   const [creating, setCreating] = useState(false);
@@ -68,6 +77,8 @@ export const StaffListPage: React.FC = () => {
     }),
     [t],
   );
+  // Назначить владельца может только владелец.
+  const assignableRoles = Object.entries(roleLabels).filter(([k]) => isOwner || k !== 'owner');
 
   useEffect(() => {
     let alive = true;
@@ -278,20 +289,20 @@ export const StaffListPage: React.FC = () => {
               value={newFullName}
               onChange={(e) => setNewFullName(e.target.value)}
               placeholder={t('crm.staff.create.fullName')}
-              disabled={!isOwner}
+              disabled={!canManage}
               className="base-input"
             />
             <input
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder={t('crm.staff.create.email')}
-              disabled={!isOwner}
+              disabled={!canManage}
               className="base-input"
             />
             <select
               value={newDepartmentId}
               onChange={(e) => setNewDepartmentId(e.target.value)}
-              disabled={!isOwner}
+              disabled={!canManage}
               className="base-input"
             >
               <option value="">{t('crm.staff.create.departmentPlaceholder')}</option>
@@ -305,10 +316,10 @@ export const StaffListPage: React.FC = () => {
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value as StaffRole)}
-              disabled={!isOwner}
+              disabled={!canManage}
               className="base-input"
             >
-              {Object.entries(roleLabels).map(([k, v]) => (
+              {assignableRoles.map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
                 </option>
@@ -318,14 +329,14 @@ export const StaffListPage: React.FC = () => {
             <button
               type="button"
               onClick={handleCreate}
-              disabled={creating || !isOwner}
+              disabled={creating || !canManage}
               className="btn-primary"
             >
               {creating ? t('crm.staff.create.creating') : t('crm.staff.create.submit')}
             </button>
           </div>
 
-          {!isOwner && (
+          {!canManage && (
             <div className="text-[11px] text-slate-400">
               {t('crm.staff.create.ownerOnly')}
             </div>
@@ -374,7 +385,7 @@ export const StaffListPage: React.FC = () => {
 
                     {/* Отдел (inline, из справочника /departments, только владелец) */}
                     <td className="text-slate-300">
-                      {isOwner && editDeptId === u.id ? (
+                      {canEditRow(u) && editDeptId === u.id ? (
                         <select
                           defaultValue={u.departmentId || ''}
                           onClick={(e) => e.stopPropagation()}
@@ -389,7 +400,7 @@ export const StaffListPage: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                      ) : isOwner ? (
+                      ) : canEditRow(u) ? (
                         <button
                           className="text-slate-600 hover:text-slate-900"
                           onClick={(e) => {
@@ -408,9 +419,9 @@ export const StaffListPage: React.FC = () => {
                       )}
                     </td>
 
-                    {/* Роль (inline, только владелец компании — см. staff-users.controller.ts) */}
+                    {/* Роль (inline, владелец или право «Сотрудники» — см. staff-users.controller.ts) */}
                     <td className="text-slate-700">
-                      {isOwner && editRoleId === u.id ? (
+                      {canEditAccess(u) && editRoleId === u.id ? (
                         <select
                           defaultValue={u.role}
                           onClick={(e) => e.stopPropagation()}
@@ -423,13 +434,13 @@ export const StaffListPage: React.FC = () => {
                           autoFocus
                           className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-800 text-xs outline-none"
                         >
-                          {Object.entries(roleLabels).map(([k, v]) => (
+                          {assignableRoles.map(([k, v]) => (
                             <option key={k} value={k}>
                               {v}
                             </option>
                           ))}
                         </select>
-                      ) : isOwner ? (
+                      ) : canEditAccess(u) ? (
                         <button
                           className="text-slate-600 hover:text-slate-900"
                           onClick={(e) => {
@@ -455,14 +466,17 @@ export const StaffListPage: React.FC = () => {
 
                     {/* Действия */}
                     <td className="text-right space-x-3">
-                      <button
-                        className="text-[11px] text-emerald-600 hover:text-emerald-700"
-                        onClick={(e) => handleResetPassword(u, e)}
-                      >
-                        {t('crm.staff.actions.resetPassword')}
-                      </button>
+                      {/* Сброс пароля = вход под чужим аккаунтом — только владелец (бэкенд: @Roles('owner')) */}
+                      {isOwner && (
+                        <button
+                          className="text-[11px] text-emerald-600 hover:text-emerald-700"
+                          onClick={(e) => handleResetPassword(u, e)}
+                        >
+                          {t('crm.staff.actions.resetPassword')}
+                        </button>
+                      )}
 
-                      {!isOwner ? null : u.isActive ? (
+                      {!canEditAccess(u) ? null : u.isActive ? (
                         <button
                           className="text-[11px] text-rose-600 hover:text-rose-700"
                           onClick={(e) => handleDeactivate(u.id, e)}

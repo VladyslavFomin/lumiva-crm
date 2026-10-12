@@ -10,7 +10,16 @@ import {
 import { randomUUID } from 'crypto';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, MoreThan, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import {
+  OFFICE_ACTIONS,
+  OFFICE_ACTION_PERMISSION,
+  OFFICE_AGENT_ROLE,
+  OFFICE_AGENT_ROLE_KEY,
+  type OfficeHooks,
+  type OfficeRunContext,
+} from '../ai-office/ai-office-bridge';
+import { SENSITIVE_SEND_RE, officeModel } from '../ai-office/ai-office-catalog';
 import { Tenant } from '../tenants/tenant.entity';
 import { normalizeTenantPlan } from '../tenants/plan-entitlements';
 import { Lead } from '../leads/lead.entity';
@@ -53,7 +62,11 @@ import {
 } from './ai-employee-triggers';
 import { currentAiActor, runAsAiActor } from './ai-employee-context';
 import { clipText, compactRecord } from './ai-employee-focus';
-import { AiOpenAiService } from '../ai/ai-openai.service';
+import { AiOpenAiService, ChatMessage } from '../ai/ai-openai.service';
+import { adsReportFacts, derivedMetrics } from '../marketing/ads-report';
+import { MarketingRoiService } from '../marketing/marketing-roi.service';
+import { type NumberFact, findBindingMismatches, stripRetypedReportTables, checkWorkspaceWriteProvenance, extractNumbers, findUnverifiedNumbers, fixMarkdownTableTotals, fixTotalsInJsonText } from '../ai/ai-number-provenance';
+import { monthsMentioned, monthsRange } from '../ai/ai-period-parse';
 import { AiQuotaService } from '../ai/ai-quota.service';
 import { AiToolsService } from '../ai/ai-tools.service';
 import { MarketingService } from '../marketing/marketing.service';
@@ -93,6 +106,40 @@ import {
   type AiEmployeeRoleKey,
 } from './ai-employee-role-catalog';
 
+/** Все строковые значения JSON-ответа модели (таблицы отчёта лежат внутри reportPreview и т.п.). */
+function jsonStringValues(raw: string): string[] {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end <= start) return [];
+  try {
+    const out: string[] = [];
+    const walk = (v: unknown) => {
+      if (typeof v === 'string') out.push(v);
+      else if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+    };
+    walk(JSON.parse(raw.slice(start, end + 1)));
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Подставляет таблицы отчёта по меткам во всех строках значения (reportPreview, тексты заметок…). */
+function insertAdsReports<T>(v: T, reports: Array<{ token: string; markdown: string }>): T {
+  const sub = (x: unknown): unknown => {
+    if (typeof x === 'string') {
+      let out = x;
+      for (const r of reports) if (out.includes(r.token)) out = out.split(r.token).join(`\n\n${r.markdown}\n\n`);
+      return out.replace(/\[\[ADS_REPORT:[^\]]*\]\]/g, '').replace(/\n{3,}/g, '\n\n');
+    }
+    if (Array.isArray(x)) return x.map(sub);
+    if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).map(([k, y]) => [k, sub(y)]));
+    return x;
+  };
+  return sub(v) as T;
+}
+
 type TriggerRunCtx = {
   event: string;
   ref?: { entityType: string; entityId: string } | null;
@@ -100,6 +147,8 @@ type TriggerRunCtx = {
   prompt?: string;
   assigned?: boolean;
   taskText?: string;
+  /** Текст, из которого берётся запрошенный период (у ИИ-офиса taskText содержит ещё и данные отдела с датами). */
+  periodText?: string;
   taskActionId?: string;
   userId?: string | null;
 };
@@ -122,6 +171,8 @@ type RunFocus = {
   /** Запись рабочей области, к которой относится текущий фокус — тот же принцип, что и
    * expectedLeadId, но для workspace_update_record. */
   expectedRecordId?: string | null;
+  /** Таблицы рекламных расходов за названный в задаче период: метка → готовый markdown (вставляет код). */
+  adsReports?: Array<{ token: string; markdown: string; facts: NumberFact[] }>;
 };
 
 type PermissionMap = Record<string, boolean>;
@@ -184,6 +235,8 @@ const ACTION_PERMISSION: Record<string, string> = {
   workspace_add_field: 'manage_workspace_data',
   workspace_enable_views: 'manage_workspace_data',
   workspace_update_record: 'manage_workspace_data',
+  // таблица рекламных расходов, которую заполняет и обновляет сервер (цифры — не из модели)
+  workspace_import_marketing: 'create_workspace_table',
 };
 
 /** Действия, исполняемые через функцию `AiToolsService` (задачи, заметки, проекты, рабочая область). */
@@ -199,6 +252,7 @@ const WORKSPACE_TOOL_NAME: Record<string, string> = {
   workspace_add_field: 'crm_workspace_add_field',
   workspace_enable_views: 'crm_workspace_enable_views',
   workspace_update_record: 'crm_workspace_update_record',
+  workspace_import_marketing: 'crm_workspace_import_marketing_monthly_breakdown',
 };
 
 /** Действия записи в существующую таблицу рабочей области — требуют write-гранта именно на эту таблицу. */
@@ -234,6 +288,22 @@ const ROLE_SHORT_TITLE_LOCALIZED: Partial<Record<AiEmployeeRoleKey, { ru: string
   crm_analyst: { ru: 'CRM-аналитик', tr: 'CRM Analisti' },
   reservation_assistant: { ru: 'Ассистент по бронированию', tr: 'Rezervasyon Asistanı' },
 };
+
+/** Служебные события, которые не считаются «работой» в ростере (пустые проактивные циклы, правки настроек). */
+const ROSTER_NOISE_EVENTS = [
+  'proactive_cycle_idle',
+  'proactive_cycle_fallback',
+  'trigger_run_fallback',
+  'agent_created',
+  'agent_updated',
+  'agent_removed',
+  'agent_resumed',
+  'agent_paused',
+  'agent_auto_paused',
+  'config_updated',
+  'permissions_updated',
+  'approval_rules_updated',
+];
 
 @Injectable()
 export class AiEmployeesService {
@@ -314,6 +384,7 @@ export class AiEmployeesService {
     private readonly quota: AiQuotaService,
     private readonly aiTools: AiToolsService,
     private readonly marketing: MarketingService,
+    private readonly roi: MarketingRoiService,
     @Inject(forwardRef(() => EmailService))
     private readonly emailService: EmailService,
     @Inject(forwardRef(() => TelegramCrmService))
@@ -326,6 +397,69 @@ export class AiEmployeesService {
     private readonly integrationsService: IntegrationsService,
     private readonly tenantLogs: TenantLogsService,
   ) {}
+
+  // ───────────── ИИ-офис (см. ai-office/ai-office-bridge.ts) ─────────────
+
+  private officeHooks: OfficeHooks | null = null;
+
+  /** AiOfficeService регистрирует себя при старте — без импорта AiOfficeModule отсюда (цикл DI). */
+  registerOfficeHooks(hooks: OfficeHooks): void {
+    this.officeHooks = hooks;
+  }
+
+  /** Контекст отдела для агента отдела; null — обычный ИИ-сотрудник. Агент отдела без контекста (хуки не
+   * зарегистрированы / отдел удалён) не получает ни одного права — fail-closed. */
+  private async officeCtx(tenantId: string, agent: Pick<AiAgent, 'id' | 'departmentId'>): Promise<OfficeRunContext | null> {
+    if (!agent.departmentId || !this.officeHooks) return null;
+    const ctx = await this.officeHooks.contextFor(tenantId, agent.id, agent.departmentId);
+    if (ctx) ctx.taskId = this.officeTaskRuns.get(agent.id) ?? null;
+    return ctx;
+  }
+
+  /** agentId → задача отдела, которую агент выполняет сейчас (движок офиса запускает агента по одной задаче). */
+  private readonly officeTaskRuns = new Map<string, string>();
+
+  /**
+   * Выполнить задачу ИИ-отдела агентом отдела — тем же запуском, что и разовое задание ИИ-сотрудника
+   * (buildFocus + executeEmployeeRunCore): все защиты (чужой лид, дубли, один адрес на письмо,
+   * согласования) действуют и здесь. Возвращает созданные действия, итог, токены и стоимость.
+   */
+  async runOfficeTask(
+    tenantId: string,
+    agentId: string,
+    input: {
+      taskId: string;
+      title: string;
+      taskText: string;
+      /** Формулировка задачи без данных отдела — из неё берётся запрошенный период. */
+      periodText?: string;
+      entityType?: string | null;
+      entityId?: string | null;
+      eventName?: string | null;
+      eventData?: any;
+      userId?: string | null;
+    },
+  ) {
+    const agent = await this.getAgentEntity(tenantId, agentId);
+    if (!agent.departmentId) throw new BadRequestException('Agent is not in an AI department');
+    const ref = input.entityType && input.entityId ? { entityType: input.entityType, entityId: input.entityId } : null;
+    this.officeTaskRuns.set(agent.id, input.taskId);
+    try {
+      const focus = await this.buildFocus(tenantId, agent, {
+        event: input.eventName || 'ai_office.task',
+        ref,
+        data: input.eventData ?? (ref ? { entityType: ref.entityType, entityId: ref.entityId } : {}),
+        taskText: input.taskText,
+        periodText: input.periodText,
+        assigned: true,
+        userId: input.userId ?? null,
+      });
+      focus.title = input.title.slice(0, 160);
+      return await this.executeEmployeeRunCore(tenantId, agent, input.userId ?? null, 'trigger', focus);
+    } finally {
+      this.officeTaskRuns.delete(agent.id);
+    }
+  }
 
   private async tenantOrFail(tenantId: string) {
     const tenant = await this.tenants.findOne({ where: { id: tenantId } });
@@ -386,6 +520,11 @@ export class AiEmployeesService {
     tenantId: string,
     agent: AiAgent,
   ): Promise<PermissionMap> {
+    if (agent.departmentId) {
+      // агент отдела: доступ к данным = матрица прав отдела, персональные строки не используются
+      const ctx = await this.officeCtx(tenantId, agent);
+      return Object.fromEntries([...(ctx?.allowed ?? [])].map((k) => [k, true]));
+    }
     const role = this.roleForAgent(agent);
     const zone = (map: PermissionMap): PermissionMap =>
       Object.fromEntries(Object.entries(map).filter(([k]) => roleAllowsPermission(role, k)));
@@ -412,6 +551,8 @@ export class AiEmployeesService {
       where: {
         tenantId,
         status: Not('disabled') as any,
+        // агенты ИИ-отделов оплачиваются слотом отдела, а не лимитом ИИ-сотрудников
+        departmentId: IsNull(),
       },
     });
   }
@@ -510,6 +651,7 @@ export class AiEmployeesService {
   }
 
   private roleForAgent(agent: AiAgent): AiEmployeeRoleConfig {
+    if ((agent.role as string) === OFFICE_AGENT_ROLE_KEY) return OFFICE_AGENT_ROLE;
     const role = getAiEmployeeRole(agent.role);
     if (!role) throw new BadRequestException('Unknown AI employee role');
     return role;
@@ -560,6 +702,43 @@ export class AiEmployeesService {
     const start = new Date();
     start.setUTCHours(0, 0, 0, 0);
     const result = new Map<string, any>();
+    // Ростер v3: почасовая активность за последние 12 ч (столбики в карточке) и последние
+    // содержательные события («чем сейчас занят») — две батч-выборки на всех агентов сразу.
+    const [hourRows, recentRows] = await Promise.all([
+      this.logs.query(
+        `SELECT agent_id, floor(extract(epoch from (now() - created_at)) / 3600)::int AS h, count(*)::int AS n
+           FROM ai_agent_logs
+          WHERE tenant_id = $1 AND agent_id = ANY($2::uuid[]) AND created_at > now() - interval '12 hours'
+            AND NOT (event_type = ANY($3::text[]))
+          GROUP BY 1, 2`,
+        [tenantId, agentIds, ROSTER_NOISE_EVENTS],
+      ),
+      this.logs.query(
+        `SELECT agent_id, output_summary, created_at FROM (
+           SELECT agent_id, output_summary, created_at,
+                  row_number() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+             FROM ai_agent_logs
+            WHERE tenant_id = $1 AND agent_id = ANY($2::uuid[])
+              AND output_summary IS NOT NULL AND output_summary <> ''
+              AND NOT (event_type = ANY($3::text[])) AND event_type <> 'action_blocked'
+              AND created_at > now() - interval '3 days'
+         ) x WHERE rn <= 3`,
+        [tenantId, agentIds, ROSTER_NOISE_EVENTS],
+      ),
+    ]);
+    const hourly = new Map<string, number[]>();
+    for (const row of hourRows as Array<{ agent_id: string; h: number; n: number }>) {
+      if (row.h < 0 || row.h > 11) continue;
+      const arr = hourly.get(row.agent_id) ?? new Array(12).fill(0);
+      arr[11 - row.h] += row.n;
+      hourly.set(row.agent_id, arr);
+    }
+    const recent = new Map<string, string[]>();
+    for (const row of recentRows as Array<{ agent_id: string; output_summary: string }>) {
+      const arr = recent.get(row.agent_id) ?? [];
+      arr.push(String(row.output_summary).slice(0, 160));
+      recent.set(row.agent_id, arr);
+    }
     await Promise.all(
       agentIds.map(async (agentId) => {
         const [
@@ -604,6 +783,8 @@ export class AiEmployeesService {
           errors,
           lastActivityAt: lastLog?.createdAt ?? null,
           lastActivity: lastLog?.outputSummary || lastLog?.eventType || null,
+          hourly: hourly.get(agentId) ?? new Array(12).fill(0),
+          recent: recent.get(agentId) ?? [],
         });
       }),
     );
@@ -630,7 +811,7 @@ export class AiEmployeesService {
     // приостановленного сотрудника означает гарантированно словить "agent_not_found_or_inactive"
     // на первом же запуске (реальный баг, пойманный пользователем — 2026-09-23).
     const agents = await this.agents.find({
-      where: { tenantId, status: 'active' as any },
+      where: { tenantId, status: 'active' as any, departmentId: IsNull() },
       order: { createdAt: 'DESC' },
     });
     const filtered: AiAgent[] = [];
@@ -661,7 +842,7 @@ export class AiEmployeesService {
     await this.cleanupPendingNonExecutableApprovals(tenantId);
     const [agents, plan, roles] = await Promise.all([
       this.agents.find({
-        where: { tenantId, status: Not('disabled') as any },
+        where: { tenantId, status: Not('disabled') as any, departmentId: IsNull() },
         order: { createdAt: 'DESC' },
       }),
       this.planSnapshot(tenantId),
@@ -691,6 +872,10 @@ export class AiEmployeesService {
         }),
       ]);
 
+    // какие ИИ-отделы курирует сотрудник (куратор = руководитель отдела)
+    const curated: Array<{ id: string; name: string; curator: string }> = await this.agents
+      .query(`SELECT id, name, curator_agent_id curator FROM ai_departments WHERE tenant_id = $1 AND curator_agent_id IS NOT NULL`, [tenantId])
+      .catch(() => []);
     return {
       items: agents.map((agent) => {
         // Агент мог быть создан до этой ручки и ни разу не открывался в профиле — ensureRoleDefault-
@@ -702,6 +887,7 @@ export class AiEmployeesService {
         const approvalRules = apprByAgent.get(agent.id) ?? Object.fromEntries(role.defaultApprovalRules.map((k) => [k, true]));
         return {
           ...this.agentBaseDto(agent),
+          curates: curated.filter((d) => d.curator === agent.id).map((d) => ({ id: d.id, name: d.name })),
           stats: stats.get(agent.id) ?? {},
           permissions,
           approvalRules,
@@ -830,7 +1016,7 @@ export class AiEmployeesService {
 
     let text = '';
     try {
-      const completion = await this.employeeCompletion(tenantId, null, system, prompt, agent);
+      const completion = await this.employeeCompletion(tenantId, null, system, prompt, agent, undefined, { verifyNumbers: false });
       text = completion.text.trim().replace(/^["'`]+|["'`]+$/g, '').slice(0, 2000);
     } catch (e) {
       await this.logEvent({
@@ -980,6 +1166,13 @@ export class AiEmployeesService {
     try {
       const completion = await this.employeeCompletion(tenantId, null, system, prompt, agent);
       text = completion.text.trim().slice(0, 4000);
+      if (completion.unverifiedNumbers.length) {
+        text += `\n\n⚠ ${this.tx(agent, {
+          ru: `Автопроверка: числа ${completion.unverifiedNumbers.join(', ')} не найдены в статистике таблицы.`,
+          en: `Auto-check: numbers ${completion.unverifiedNumbers.join(', ')} were not found in the table statistics.`,
+          tr: `Otomatik kontrol: ${completion.unverifiedNumbers.join(', ')} rakamları tablo istatistiklerinde bulunamadı.`,
+        })}`;
+      }
     } catch (e) {
       await this.logEvent({
         tenantId,
@@ -1362,11 +1555,19 @@ export class AiEmployeesService {
     agentId: string,
     actionType: string,
   ) {
+    const owner = await this.agents.findOne({ where: { id: agentId, tenantId }, select: ['id', 'role', 'departmentId'] });
+    if (!owner) return false;
+    if (owner.departmentId) {
+      // агент ИИ-отдела: граница — матрица прав отдела (офисные действия есть только у них)
+      const key = ACTION_PERMISSION[actionType] ?? OFFICE_ACTION_PERMISSION[actionType];
+      if (!key) return false;
+      const ctx = await this.officeCtx(tenantId, owner);
+      return !!ctx && ctx.allowed.has(key);
+    }
     const permissionKey = ACTION_PERMISSION[actionType];
     if (!permissionKey) return false;
     // жёсткая граница отдела: даже включённое когда-то право вне зоны роли не срабатывает
-    const owner = await this.agents.findOne({ where: { id: agentId, tenantId }, select: ['id', 'role'] });
-    if (!owner || !roleAllowsPermission(this.roleForAgent(owner), permissionKey)) return false;
+    if (!roleAllowsPermission(this.roleForAgent(owner), permissionKey)) return false;
     const permissions = await this.loadPermissions(agentId, tenantId);
     return permissions[permissionKey] === true;
   }
@@ -1616,6 +1817,21 @@ export class AiEmployeesService {
       });
       return null;
     }
+    if (agent.departmentId && this.officeHooks) {
+      const ctx = await this.officeCtx(tenantId, agent);
+      const reason = ctx ? await this.officeHooks.preflight(tenantId, ctx, actionType, (draft.payload || {}) as Record<string, any>) : 'AI department is not available';
+      if (reason) {
+        await this.logEvent({
+          tenantId,
+          agentId: agent.id,
+          eventType: 'action_blocked',
+          inputSummary: actionType,
+          outputSummary: `Action blocked: ${reason}`,
+          status: 'warning',
+        });
+        return null;
+      }
+    }
     const blockReason = await this.preflightBlockReason(tenantId, agent, actionType, draft, opts);
     // Дубли пропускаем молча: каждый цикл модель может заново предложить уже сделанное, и запись
     // «пропущено как дубль» каждые 30 минут сама становилась мусором в журнале (~185 в сутки).
@@ -1654,8 +1870,31 @@ export class AiEmployeesService {
     // send_bulk_email — то же самое, но не завязано на autonomyMode вообще: рассылка на сегмент
     // лидов/контактов задевает много записей сразу, а не одну, за которую агент отвечает — это
     // не «диалог с клиентом», к которому относится clientDialogue=auto, а отдельный по риску шаг.
-    const requiresApproval =
-      agent.autonomyMode === 'assisted' || actionType === 'send_bulk_email'
+    const officeRun = agent.departmentId ? await this.officeCtx(tenantId, agent) : null;
+    // владелец включил самостоятельность для этого вида действий, и система (preflight офиса, не модель)
+    // проверила условия: автозаказ, ответ по базе знаний, письмо гостю по шаблону, пост из одобренного плана
+    const systemAuto = !!officeRun && (draft.payload as any)?.systemAutoApproved === true;
+    const requiresApproval = systemAuto
+      ? false
+      : officeRun
+      ? // агент отдела: «С согласованием» в матрице, правило «ничего клиенту без согласования», рассылки — всегда
+        actionType === 'send_bulk_email' ||
+        actionType === 'create_quote' ||
+        actionType === 'ads_campaign_control' ||
+        actionType === 'send_payment_link' ||
+        actionType === 'stock_purchase_order' ||
+        actionType === 'publish_telegram_post' ||
+        actionType === 'content_plan' ||
+        actionType === 'sale_confirm_payment' ||
+        (actionType === 'booking_update' && String((draft.payload as any)?.action ?? '') === 'cancel') ||
+        officeRun.approval.has(ACTION_PERMISSION[actionType] ?? OFFICE_ACTION_PERMISSION[actionType] ?? actionType) ||
+        (officeRun.department.rules.includes('no_client_send_without_approval') &&
+          ['send_email', 'send_telegram', 'send_whatsapp', 'helpdesk_reply', 'send_booking_message'].includes(actionType)) ||
+        // самостоятельный отдел: деньги/условия всё равно через человека
+        (officeRun.department.rules.includes('approve_sensitive') &&
+          (/^send_/.test(actionType) || actionType === 'helpdesk_reply') &&
+          SENSITIVE_SEND_RE.test(`${draft.title ?? ''} ${JSON.stringify(draft.payload ?? {})}`))
+      : agent.autonomyMode === 'assisted' || actionType === 'send_bulk_email'
         ? true
         : (await this.autoClientSendAllowed(tenantId, agent, actionType, draft))
           ? false
@@ -1850,8 +2089,8 @@ export class AiEmployeesService {
   }
 
   /** Тот же вызов модели, что у отчётов сотрудника (BYOK/квота/модель агента). */
-  completeForAgent(tenantId: string, agent: AiAgent, system: string, prompt: string) {
-    return this.employeeCompletion(tenantId, null, system, prompt, agent);
+  completeForAgent(tenantId: string, agent: AiAgent, system: string, prompt: string, office?: { departmentId: string; taskId?: string | null }, opts?: { json?: boolean }) {
+    return this.employeeCompletion(tenantId, null, system, prompt, agent, office, opts);
   }
 
   // ───────────── публичные обёртки для OnlineChatAiService (ИИ-онлайн-консультант) ─────────────
@@ -1944,9 +2183,20 @@ export class AiEmployeesService {
     const marketingPromise = canReadMarketing
       ? this.marketing
           .getTrafficChannelsStats(tenantId, undefined, undefined, undefined, 500, undefined, { splitMetaAccounts: true })
-          .then((stats) => {
+          .then(async (stats) => {
             const dsl = stats.dataSourceLabels ?? {};
+            // Итоги ниже — за ВСЁ время; без явной подписи и помесячных цифр модель выдавала их
+            // (или выдуманные) за «расход за месяц». Последние 3 календарных месяца — точно по аккаунтам.
+            const mFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString().slice(0, 10);
+            const monthlyByAccount = await this.marketing
+              .getAccountMonthlyBreakdown(tenantId, mFrom, now.toISOString().slice(0, 10))
+              .then((rows) => rows.map((r) => [r.month, r.account, r.currency, r.cost, r.clicks, r.impressions, r.conversions]))
+              .catch(() => []);
             return {
+              periodNote:
+                'totalX/providerBreakdown/topChannels below are ALL-TIME totals (not a month). For a specific month use monthlyByAccount; for other months say the data is not in the snapshot — never estimate.',
+              monthlyByAccountColumns: ['month', 'account', 'currency', 'cost', 'clicks', 'impressions', 'conversions'],
+              monthlyByAccount,
               totalSessions: stats.totalSessions,
               totalClicks: stats.totalClicks,
               totalImpressions: stats.totalImpressions,
@@ -2468,7 +2718,7 @@ export class AiEmployeesService {
     // "payload.accountId is required" (id в снапшоте просто не было).
     const channelsPromise = safe('channels', canRead('send_email') || canRead('send_telegram') || canRead('assign_lead') || canRead('create_task'), async () => {
       const [emailAccounts, bots, staffRaw, emailTemplates] = await Promise.all([
-        canRead('send_email') ? this.emailService.findAllAccounts(tenantId) : Promise.resolve([]),
+        canRead('send_email') ? this.emailService.findAllAccounts(tenantId, undefined, 'owner') : Promise.resolve([]),
         canRead('send_telegram')
           ? this.telegramBots.find({ where: { tenantId } })
           : Promise.resolve([]),
@@ -2616,9 +2866,13 @@ export class AiEmployeesService {
       reviewsPromise,
       onlineChatPromise,
     ]);
+    // Порядок ключей важен: в промпт идёт JSON.stringify(snapshot).slice(0, лимит). Раньше реклама
+    // стояла после огромного списка таблиц рабочей области и у агентов ИИ-офиса (снимок ~58K) не
+    // попадала в промпт вовсе — компактные данные сначала, большие списки в конце.
     return {
       generatedAt: now.toISOString(),
       permissions,
+      marketing,
       leads: {
         today: leadsToday,
         week: leadsWeek,
@@ -2660,10 +2914,6 @@ export class AiEmployeesService {
       ...(seoBlock ? { seo: seoBlock } : {}),
       ...(reviewsBlock ? { reviews: reviewsBlock } : {}),
       ...(onlineChatBlock ? { onlineChat: onlineChatBlock } : {}),
-      workspace: {
-        tables: workspaceTables,
-      },
-      marketing,
       assignedTasks: assignedTasks.map((task) => ({
         id: task.id,
         title: task.title,
@@ -2671,6 +2921,9 @@ export class AiEmployeesService {
         payload: task.payload,
         createdAt: task.createdAt,
       })),
+      workspace: {
+        tables: workspaceTables,
+      },
     };
   }
 
@@ -2818,6 +3071,7 @@ export class AiEmployeesService {
     });
     for (const agent of agents) {
       try {
+        if (agent.departmentId) continue; // у отделов свой цикл (AiOfficeEngine)
         if (!this.agentScheduleAllowsRun(agent, now)) continue;
         await this.maybeGenerateDailyReport(agent, now);
         // аналитик только отчитывается — проактивных рабочих циклов (действий) у него нет
@@ -3639,6 +3893,7 @@ export class AiEmployeesService {
     workspace_add_record: 1,
     workspace_bulk_add_records: 5,
     create_workspace_table: 6,
+    workspace_import_marketing: 8,
   };
 
   async insights(tenantId: string, daysRaw?: number) {
@@ -3993,7 +4248,8 @@ export class AiEmployeesService {
       await this.noteMissedWorkForEvent(tenantId, event, data).catch((e) =>
         this.log.warn(`missed work (${event}): ${(e as Error).message}`),
       );
-      const agents = await this.agents.find({ where: { tenantId, status: 'active' } });
+      // агентов ИИ-отделов будит их отдел (AiOfficeEngine), а не событие напрямую
+      const agents = await this.agents.find({ where: { tenantId, status: 'active', departmentId: IsNull() } });
       if (!agents.length) return;
       const ref = this.extractEventRef(data);
       const assigned = new Set<string>();
@@ -4003,7 +4259,15 @@ export class AiEmployeesService {
         });
         rows.forEach((r) => assigned.add(r.agentId));
       }
+      // куратор ИИ-отдела: события, которые обрабатывает его отдел, берёт отдел (иначе клиенту два ответа)
+      const covered: Array<{ agent: string }> = await this.agents.query(
+        `SELECT DISTINCT d.curator_agent_id agent FROM automations a JOIN ai_departments d ON d.id::text = a.meta->'aiOffice'->>'departmentId'
+          WHERE a."tenantId" = $1 AND a."isActive" = true AND a."triggerEvent" = $2 AND d.status = 'active' AND d.curator_agent_id IS NOT NULL`,
+        [tenantId, event],
+      ).catch(() => []);
+      const coveredBy = new Set(covered.map((r) => String(r.agent)));
       for (const agent of agents) {
+        if (coveredBy.has(agent.id)) continue;
         // событие чужого отдела не будит сотрудника — ни по триггеру, ни как ответственного
         if (!roleAllowsTrigger(this.roleForAgent(agent), event)) continue;
         const cfg = readAiAgentConfig(agent.settings);
@@ -4308,7 +4572,7 @@ export class AiEmployeesService {
       `<crm_record>${JSON.stringify(record).slice(0, 8000)}</crm_record>`,
     ];
     if (ctx.prompt) parts.push(`OWNER'S INSTRUCTION FOR THIS TRIGGER:\n${ctx.prompt.slice(0, 2000)}`);
-    if (ctx.taskText) parts.push(`ONE-OFF TASK FROM THE OWNER (do this first):\n${ctx.taskText.slice(0, 4000)}`);
+    if (ctx.taskText) parts.push(`ONE-OFF TASK FROM THE OWNER (do this first):\n${ctx.taskText.slice(0, agent.departmentId ? 40000 : 4000)}`); // у задач ИИ-отделов внутри — данные отдела
     if (expectedLeadId) {
       parts.push(
         `IMPORTANT: this run is scoped to lead ${expectedLeadId} (see "lead"/"telegram"/"email" in the record above). ` +
@@ -4336,6 +4600,8 @@ export class AiEmployeesService {
           'Only write values that match the field\'s type/options in "workspaceFields" (e.g. a select/status field only accepts one of its listed option values) — never invent a new option.',
       );
     }
+    const periodAds = await this.requestedPeriodAds(tenantId, agent, ctx.periodText ?? `${ctx.taskText ?? ''} ${ctx.prompt ?? ''}`);
+    if (periodAds) parts.push(periodAds.block);
 
     return {
       event: ctx.event,
@@ -4349,6 +4615,65 @@ export class AiEmployeesService {
       kbQuery: `${JSON.stringify(record)} ${ctx.taskText ?? ''} ${ctx.prompt ?? ''}`.slice(0, 10000),
       expectedLeadId,
       expectedRecordId,
+      ...(periodAds?.reports.length ? { adsReports: periodAds.reports } : {}),
+    };
+  }
+
+  /**
+   * Задача/вопрос называет месяцы («расходы за август и сентябрь») — сервер строит отчёт по
+   * рекламным расходам за эти месяцы (клиент → кабинеты из «ROI по клиентам», все суммы считает
+   * код). Модель получает данные для выводов и МЕТКУ: таблица вставляется в отчёт кодом, сама
+   * модель цифры не перепечатывает (раньше: придуманные суммы, потерянный кабинет, неверный «Итого»).
+   */
+  private async requestedPeriodAds(
+    tenantId: string,
+    agent: AiAgent,
+    text: string,
+  ): Promise<{ block: string; reports: Array<{ token: string; markdown: string; facts: NumberFact[] }> } | null> {
+    const months = monthsMentioned(text);
+    const range = monthsRange(months);
+    if (!range) return null;
+    const permissions = await this.ensureRoleDefaultPermissions(tenantId, agent);
+    if (permissions.read_marketing !== true) return null;
+    const lang = this.agentLangCode(agent);
+    const t = text.toLocaleLowerCase('tr');
+    const wantMeta = /meta|facebook|instagram|фейсбук|инстаграм/.test(t);
+    const wantGoogle = /google|гугл/.test(t);
+    const wantYandex = /яндекс|yandex|директ/.test(t);
+    const wantVk = /\bvk\b|вк |вконтакте/.test(t);
+    const platforms = [wantMeta && 'meta_ads', wantGoogle && 'google_ads', wantYandex && 'yandex_direct', wantVk && 'vk_ads'].filter(Boolean) as string[];
+    const reports: Array<{ token: string; markdown: string; facts: NumberFact[] }> = [];
+    const data: unknown[] = [];
+    try {
+      for (const platform of platforms.length ? platforms : ['all']) {
+        const r = await this.roi.getAdsReport(tenantId, { from: range.from, to: range.to, platform, groupBy: 'client', lang });
+        if (!r.ok) continue;
+        const token = `[[ADS_REPORT:${platform}]]`;
+        // в отчёте — только запрошенные месяцы (период мог зацепить лишние, если месяцы не подряд)
+        reports.push({ token, markdown: r.markdown, facts: adsReportFacts(r) });
+        data.push({
+          insert: token,
+          platform,
+          months: r.months,
+          rows: r.rows.map((row) => ({ client: row.group, currency: row.currency, accounts: row.accounts, months: row.months, total: { ...row.total, ...derivedMetrics(row.total) } })),
+          totals: r.totals,
+          notIncluded: r.notIncluded,
+        });
+      }
+    } catch (e) {
+      this.log.warn(`requested-period ads report failed: ${(e as Error).message}`);
+      return null;
+    }
+    if (!reports.length) {
+      return { block: `AD DATA FOR THE REQUESTED PERIOD (${months.join(', ')}): no ad spend synced for these months — say so, never estimate.`, reports };
+    }
+    return {
+      block:
+        `AD SPEND REPORT FOR THE REQUESTED PERIOD (${months.join(', ')}), computed by the system (client = all ad accounts linked to that client in "ROI by client"). ` +
+        'The finished TABLE is inserted by the system: put the "insert" marker (e.g. [[ADS_REPORT:meta_ads]]) on its own line in reportPreview where the table belongs. ' +
+        'NEVER retype the table and never add or divide numbers yourself (cpa = cost per conversion, cpc, ctr % are already computed in total); write findings/conclusions. If you mention a number in text, copy it exactly from this data. ' +
+        `For a table in the workspace use the workspace_import_marketing action (server fills it), never workspace_add_record with these numbers.\n${JSON.stringify(data)}`,
+      reports,
     };
   }
 
@@ -4718,6 +5043,7 @@ ${agentCfg.instructions.trim() ? `Owner's standing instructions:\n${agentCfg.ins
     role: AiEmployeeRoleConfig,
     permissions?: PermissionMap,
     team?: string,
+    officeRun?: OfficeRunContext | null,
   ) {
     const enabledPermissions = permissions
       ? Object.entries(permissions)
@@ -4777,6 +5103,7 @@ Workspace & project tools (only if listed in "Enabled permissions" below):
 - create_project: payload { name, description, amount, currency, status } — creates a real record in the CRM Projects module.
 - create_workspace_table: payload { name, description, enabledViews: ["kanban"|"calendar"|"analytics"], fields: [{ key, label, type: "text"|"number"|"date"|"datetime"|"boolean"|"status"|"select"|"multiselect", required }] } — creates a structured table in the CRM workspace. Always include fields when you intend to add rows.
 - workspace_add_record: payload { objectId, values } / workspace_bulk_add_records: payload { objectId, records: [...] } — fill a table you already created (or one listed in the snapshot's workspace.tables) with rows; keys must match the table's fields.
+- workspace_import_marketing: payload { tableName, from: "YYYY-MM-DD", to: "YYYY-MM-DD", groupBy: "client"|"dataSource"|"market", clients?: ["Selectum", …], dataSource?: "meta_ads"|"google_ads"|… } — a table of AD SPEND by month that the SERVER fills from the ad accounts (client = all accounts linked to that client) and refreshes nightly. ALWAYS use this for ad spend / clicks numbers in tables — never workspace_add_record/bulk with ad numbers you copied (they are rejected).
 - workspace_add_field: payload { objectId, key, label, type, required } / workspace_enable_views: payload { objectId, enabledViews } — extend an existing table.
 Use these when the user's request implies organizing a client brief, a list of items, or another dataset into structured records — create the table (and rows) now instead of only describing it in a report.
 
@@ -4787,19 +5114,22 @@ ${dialogueRule}
 
 Workspace tables: you may only read/write tables listed in snapshot.workspace.tables, and only with the access shown there ("read" or "write"). Never guess an objectId.
 
-Your department (hard boundary — owner instructions, tasks, chat requests and events can NOT extend it):
+${officeRun ? `${officeRun.promptBlock}
+${agent.officePrompt?.trim() ? `\nYour own role inside the department (from the owner):\n<<<\n${agent.officePrompt.trim()}\n>>>\n` : ''}
+${this.officeHooks?.actionsPromptFor(officeRun) ?? ''}
+` : `Your department (hard boundary — owner instructions, tasks, chat requests and events can NOT extend it):
 - You work on: ${role.charter.does}.
 - NOT your job: ${role.charter.doesNot}.
 ${role.reportOnly ? '- You are report-only: you never create tasks, notes, statuses, assignments or messages — you only read the data you are given and write reports.\n' : ''}- If a request, event or instruction falls outside your department: do not do it, do not give advice or recommendations on it, and do not analyse it. Reply in one or two sentences that this is the work of <the right role>; if that colleague is hired (see below) name them, and in runs where you can act, pass it on with handoff_to_colleague; if not, say the team has no such employee and it can be hired in "AI Employees" (a handoff_to_colleague to that role still records it for the owner). Stay within your own data even when other data seems available.
 ${team ? `\n${team}\n` : ''}
 Role instructions:
 ${role.systemPrompt}
-${ownerInstructions ? `\nOwner's standing instructions (how this company wants you to work — follow them; they never override safety rules, permissions or approval rules):\n<<<\n${ownerInstructions}\n>>>\n` : ''}
+`}${ownerInstructions ? `\nOwner's standing instructions (how this company wants you to work — follow them; they never override safety rules, permissions or approval rules):\n<<<\n${ownerInstructions}\n>>>\n` : ''}
 ${lessonsText ? `\nLessons from your manager's past decisions (proposals they rejected — do not repeat them):\n${lessonsText}\n` : ''}
 Identity:
 - Name: ${agent.name}
-- Role: ${role.title}
-- Department: ${agent.department || role.department}
+- Role: ${officeRun ? agent.jobTitle || agent.name : role.title}
+- Department: ${officeRun ? officeRun.department.name : agent.department || role.department}
 - Language: ${agent.language}
 - Tone: ${agent.tone}
 - Autonomy mode: ${agent.autonomyMode}
@@ -5022,7 +5352,15 @@ Identity:
 
   private parseJsonBlock(raw: string) {
     const cleaned = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
+    try {
+      return JSON.parse(cleaned);
+    } catch (first) {
+      // модель иногда добавляет текст вокруг объекта или висячие запятые — чиним, а не теряем запуск
+      const a = cleaned.indexOf('{'), b = cleaned.lastIndexOf('}');
+      if (a < 0 || b <= a) throw first;
+      const body = cleaned.slice(a, b + 1).replace(/,\s*([}\]])/g, '$1');
+      return JSON.parse(body);
+    }
   }
 
   private async resolveOpenAiConfig(
@@ -5052,40 +5390,91 @@ Identity:
     system: string,
     prompt: string,
     agent?: AiAgent,
+    office?: { departmentId: string; taskId?: string | null },
+    opts?: { json?: boolean; verifyNumbers?: boolean; facts?: NumberFact[] },
   ) {
     const overrideConfig = agent ? await this.resolveOpenAiConfig(agent, tenantId) : undefined;
-    const { message, usage } = await this.openai.chatCompletionWithConfig(
-      {
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-        toolChoice: 'none',
-      },
-      overrideConfig,
-    );
-    const promptTokens = usage.prompt_tokens || 0;
-    const completionTokens = usage.completion_tokens || 0;
-    // Свой ключ OpenAI (BYOK) — тенант платит OpenAI напрямую, платформенную квоту не списываем.
-    if (!overrideConfig) {
-      const costCents = this.openai.estimateCostCents(
-        promptTokens,
-        completionTokens,
-        0.15,
-        0.6,
+    // ИИ-отделы на ключе платформы работают на более сильной модели (свой ключ — своя модель клиента)
+    const om = office && !overrideConfig ? officeModel() : null;
+    let tokensUsed = 0;
+    let costCents = 0;
+    const call = async (messages: ChatMessage[]) => {
+      const { message, usage } = await this.openai.chatCompletionWithConfig(
+        { messages, toolChoice: 'none', jsonMode: opts?.json, modelOverride: om?.model },
+        overrideConfig,
       );
-      await this.quota.chargeCents(tenantId, costCents, {
-        userId: userId ?? undefined,
-        kind: 'chat',
-        model: null,
-        promptTokens,
-        completionTokens,
-        sessionId: null,
-      });
+      const promptTokens = usage.prompt_tokens || 0;
+      const completionTokens = usage.completion_tokens || 0;
+      tokensUsed += promptTokens + completionTokens;
+      // Свой ключ OpenAI (BYOK) — тенант платит OpenAI напрямую, платформенную квоту не списываем.
+      if (!overrideConfig) {
+        const cents = this.openai.estimateCostCents(promptTokens, completionTokens, om?.inPrice ?? 0.15, om?.outPrice ?? 0.6);
+        costCents += cents;
+        await this.quota.chargeCents(tenantId, cents, {
+          userId: userId ?? undefined,
+          kind: 'chat',
+          model: om?.model ?? null,
+          promptTokens,
+          completionTokens,
+          sessionId: null,
+          departmentId: office?.departmentId ?? null,
+          officeTaskId: office?.taskId ?? null,
+        });
+      }
+      // «Итого» в таблицах ответа пересчитывает код — модель регулярно ошибается в сложении.
+      const raw = message.content || '';
+      const fixed = opts?.json ? fixTotalsInJsonText(raw) : fixMarkdownTableTotals(raw);
+      if (fixed.fixes.length) this.log.warn(`AI employee totals recomputed: ${fixed.fixes.map((f) => `${f.from}→${f.to}`).join(', ')}`);
+      return fixed.text;
+    };
+    const base: ChatMessage[] = [
+      { role: 'system', content: system },
+      { role: 'user', content: prompt },
+    ];
+    let text = await call(base);
+
+    // Сверка чисел ответа с данными, которые модель реально получила (снимок/данные отдела/задача).
+    // Реальный случай 2026-10-08: расходы по брендам за месяц, которых в данных не было, были
+    // придуманы. Числа, которых нет в данных и которые не выводятся из них простым действием, —
+    // один раунд самопроверки; что осталось после него, возвращаем вызывающему (unverifiedNumbers).
+    let unverifiedNumbers: string[] = [];
+    const evidence = opts?.verifyNumbers === false ? [] : extractNumbers(`${system}\n${prompt}`);
+    // таблицы внутри JSON-ответа — в строковых полях; привязку чисел проверяем по ним
+    const tableText = (t: string) => (opts?.json ? jsonStringValues(t).join('\n') : t);
+    const misplacedOf = (t: string) => (opts?.facts?.length ? findBindingMismatches(tableText(t), opts.facts) : []);
+    if (opts?.verifyNumbers !== false && text) {
+      const bad = findUnverifiedNumbers(text, evidence);
+      const misplaced = misplacedOf(text);
+      if (bad.length || misplaced.length) {
+        const retry = await call([
+          ...base,
+          { role: 'assistant', content: text },
+          {
+            role: 'user',
+            content:
+              'AUTOMATED FACT CHECK: ' +
+              (bad.length ? `these numbers in your answer are NOT in the data you were given and cannot be derived from it by a simple sum/difference/ratio: ${bad.join(', ')}. ` : '') +
+              (misplaced.length ? `these numbers are in the WRONG row/column (they do not match the data of exactly that client/account and month): ${misplaced.join(', ')} — do not retype report tables, use the insert marker instead. ` : '') +
+              'Never invent figures. If a number was computed, recompute it strictly from the data; if the data for the requested period/entity is not in what you were given, say so explicitly instead of giving a number (and do not write such numbers into tables or reports). ' +
+              `Return the complete corrected answer in exactly the same format as before${opts?.json ? ' (strict JSON, same schema)' : ''}, nothing else.`,
+          },
+        ]).catch((e) => {
+          this.log.warn(`number fact-check retry failed: ${(e as Error).message}`);
+          return '';
+        });
+        if (retry.trim()) text = retry;
+        unverifiedNumbers = [...findUnverifiedNumbers(text, evidence), ...misplacedOf(text)];
+      }
     }
     return {
-      text: message.content || '',
-      tokensUsed: promptTokens + completionTokens,
+      text,
+      tokensUsed,
+      /** Списано с платформенной квоты (0 при своём ключе). */
+      costCents,
+      byok: !!overrideConfig,
+      /** Числа, которые и после самопроверки не нашлись в данных — вызывающий решает, что с ними делать. */
+      unverifiedNumbers,
+      numberEvidence: evidence,
     };
   }
 
@@ -5135,7 +5524,7 @@ ${draft || '(the owner left this empty — write sensible default instructions f
 
 Write the full standing instructions now, as the finished text (nothing else).`;
 
-    const completion = await this.employeeCompletion(tenantId, userId, system, prompt, agent);
+    const completion = await this.employeeCompletion(tenantId, userId, system, prompt, agent, undefined, { verifyNumbers: false });
     return { text: completion.text.trim().slice(0, AI_INSTRUCTIONS_MAX) };
   }
 
@@ -5152,12 +5541,26 @@ Write the full standing instructions now, as the finished text (nothing else).`;
     reportPreview: string;
     createdActions: AiAgentAction[];
     usedFallback: boolean;
+    tokensUsed: number;
+    costCents: number;
+    /** текст ошибки ИИ-провайдера, если модель не ответила */
+    aiError?: string | null;
+    /** только для задач ИИ-отделов: «это задача другого отдела» / «не хватает доступа к данным своей зоны» */
+    officeOut?: { outOfScope: { area: string; reason: string } | null; needsAccess: string[] };
   }> {
     const role = this.roleForAgent(agent);
+    const officeRun = agent.departmentId ? await this.officeCtx(tenantId, agent) : null;
+    if (agent.departmentId && !officeRun) {
+      // агент отдела без контекста отдела не работает ни при каких условиях (fail-closed)
+      return { ok: false, summary: 'AI department is not available', risks: [], reportPreview: '', createdActions: [], usedFallback: true, tokensUsed: 0, costCents: 0, aiError: 'office_unavailable' };
+    }
+    let officeOut: { outOfScope: { area: string; reason: string } | null; needsAccess: string[] } | undefined;
     const snapshot = await this.operationalSnapshot(tenantId, agent);
 
     let output = this.fallbackRunSummary(agent, snapshot);
     let tokensUsed = 0;
+    let costCents = 0;
+    let aiError: string | null = null;
     let usedFallback = false;
 
     const maxManualActions = 8;
@@ -5209,14 +5612,20 @@ ${focus.text}\n\n`
       const completion = await this.employeeCompletion(
         tenantId,
         userId,
-        this.buildSystemPrompt(agent, role, snapshot.permissions, await this.teamForPrompt(tenantId, agent.id)),
+        this.buildSystemPrompt(
+          agent,
+          role,
+          snapshot.permissions,
+          officeRun ? undefined : await this.teamForPrompt(tenantId, agent.id),
+          officeRun,
+        ),
         `${knowledgeBlock}${proactiveHint}Analyze this tenant CRM snapshot and return strict JSON:
 {
   "summary": "<one concise business summary>",
   "risks": ["<risk or opportunity>", "..."],
   "actions": [
     {
-      "actionType": "<one of: ${AI_RUN_ACTION_TYPES_PROMPT}>",
+      "actionType": "<one of: ${AI_RUN_ACTION_TYPES_PROMPT}${officeRun ? `, ${OFFICE_ACTIONS.join(', ')}` : ''}>",
       "title": "<approval/action title>",
       "reason": "<brief business reason>",
       "targetType": "<lead|project|sales|deal|company|contact|report|null>",
@@ -5224,14 +5633,19 @@ ${focus.text}\n\n`
       "payload": {}
     }
   ],
-  "reportPreview": "<short markdown preview>"
+  "reportPreview": "<short markdown preview>"${officeRun ? `,
+  "outOfScope": null | { "area": "<sales|marketing|content|ops|finance|stock|dev>", "reason": "<one sentence>" },
+  "needsAccess": ["<data source key from DATA ACCESS that is missing and without which the task cannot be done>"]` : ''}
 }
 
 CRM snapshot:
 ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0.6) : SNAPSHOT_PROMPT_LIMIT)}`,
         agent,
+        officeRun ? { departmentId: officeRun.department.id, taskId: officeRun.taskId ?? null } : undefined,
+        { json: true, facts: focus?.adsReports?.flatMap((r) => r.facts) },
       );
       tokensUsed = completion.tokensUsed;
+      costCents = completion.costCents;
       const parsed = this.parseJsonBlock(completion.text);
       output = {
         summary: String(parsed.summary || output.summary),
@@ -5239,8 +5653,55 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
         actions: Array.isArray(parsed.actions) ? parsed.actions : output.actions,
         reportPreview: String(parsed.reportPreview || output.reportPreview),
       };
+      // Строки в таблицы — только с числами из данных: выдуманная строка не создаётся вовсе
+      // (даже на согласование — человек мог бы одобрить, не сверяя цифры). Рекламные цифры из
+      // данных вручную тоже не переносятся — только действием workspace_import_marketing.
+      const split = {
+        marketing: [
+          ...extractNumbers(JSON.stringify((snapshot as { marketing?: unknown }).marketing ?? null)),
+          ...(focus?.adsReports ?? []).flatMap((r) => r.facts.map((f) => f.value)),
+        ],
+        user: extractNumbers(focus?.kbQuery ?? ''),
+      };
+      const dropped: string[] = [];
+      output.actions = (output.actions as ActionDraft[]).filter((d) => {
+        const tool = WORKSPACE_TOOL_NAME[String(d?.actionType)];
+        if (!tool || !d.payload || checkWorkspaceWriteProvenance(tool, JSON.stringify(d.payload), completion.numberEvidence, split) === null) return true;
+        dropped.push(String(d.title || d.actionType));
+        return false;
+      }) as typeof output.actions;
+      if (dropped.length || completion.unverifiedNumbers.length) {
+        this.log.warn(`AI employee ${agent.id}: unverified numbers ${completion.unverifiedNumbers.join(', ')}; dropped ${dropped.join('; ')}`);
+        output.reportPreview = `${output.reportPreview}\n\n> ⚠ ${this.tx(agent, {
+          ru: `Автопроверка: ${dropped.length ? `не записано в таблицы (цифр нет в данных): ${dropped.join('; ')}. ` : ''}${completion.unverifiedNumbers.length ? `не найдены в данных CRM числа: ${completion.unverifiedNumbers.join(', ')} — не используйте их без сверки.` : ''}`,
+          en: `Auto-check: ${dropped.length ? `not written to tables (numbers not in data): ${dropped.join('; ')}. ` : ''}${completion.unverifiedNumbers.length ? `numbers not found in CRM data: ${completion.unverifiedNumbers.join(', ')} — do not rely on them without checking.` : ''}`,
+          tr: `Otomatik kontrol: ${dropped.length ? `tablolara yazılmadı (rakamlar verilerde yok): ${dropped.join('; ')}. ` : ''}${completion.unverifiedNumbers.length ? `CRM verilerinde bulunmayan rakamlar: ${completion.unverifiedNumbers.join(', ')} — kontrol etmeden kullanmayın.` : ''}`,
+        })}`.trim();
+      }
+      // Таблицы отчёта по рекламе вставляет код (по меткам); не поставила модель метку — таблица
+      // всё равно добавляется в отчёт: задача про период без цифр сервера была бы неполной.
+      if (focus?.adsReports?.length) {
+        // перепечатанные моделью таблицы с цифрами отчёта убираем — остаётся таблица сервера
+        const facts = focus.adsReports.flatMap((r) => r.facts);
+        output.reportPreview = stripRetypedReportTables(output.reportPreview, facts).text;
+        output.summary = stripRetypedReportTables(output.summary, facts).text;
+        const usedInPreview = focus.adsReports.some((r) => output.reportPreview.includes(r.token));
+        output.reportPreview = insertAdsReports(output.reportPreview, focus.adsReports);
+        if (!usedInPreview) output.reportPreview = `${output.reportPreview.trim()}\n\n${focus.adsReports.map((r) => r.markdown).join('\n\n')}`.trim();
+        output.summary = insertAdsReports(output.summary, focus.adsReports);
+        output.actions = insertAdsReports(output.actions, focus.adsReports);
+      }
+      if (officeRun) {
+        const oos = parsed.outOfScope && typeof parsed.outOfScope === 'object' && parsed.outOfScope.area ? parsed.outOfScope : null;
+        officeOut = {
+          outOfScope: oos ? { area: String(oos.area).toLowerCase().slice(0, 20), reason: String(oos.reason ?? '').slice(0, 400) } : null,
+          needsAccess: Array.isArray(parsed.needsAccess) ? parsed.needsAccess.map((x: unknown) => String(x).toLowerCase().slice(0, 30)).filter(Boolean).slice(0, 5) : [],
+        };
+      }
     } catch (e) {
       usedFallback = true;
+      const resp = (e as any)?.response;
+      aiError = String(resp?.message ?? (e as Error).message ?? 'AI error').slice(0, 300);
       this.log.warn(`AI employee run fallback: ${(e as Error).message}`);
     }
 
@@ -5258,7 +5719,10 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
       };
     }
     let draftActions = (output.actions || []) as ActionDraft[];
-    if (agent.autonomyMode === 'suggest') {
+    if (officeOut && (officeOut.outOfScope || officeOut.needsAccess.length)) {
+      // задача не своей зоны или нет данных — ничего не делаем «наугад», решает движок офиса
+      draftActions = [];
+    } else if (agent.autonomyMode === 'suggest') {
       // «Режим предложений» — только чтение и рекомендации, ни при каком запуске (даже ручном) не
       // выполняет реальных действий; всё, что модель предложила, идёт только в summary/отчёт.
       draftActions = [];
@@ -5550,6 +6014,7 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
     // "висит в очереди" бесконечно.
     if (
       focus?.hasTask &&
+      !officeRun && // у задач ИИ-отдела итог (анализ) сохраняет сам офис — это не провал
       !usedFallback &&
       createdActions.length === 0 &&
       agent.autonomyMode !== 'suggest'
@@ -5676,6 +6141,10 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
       reportPreview: output.reportPreview,
       createdActions,
       usedFallback,
+      tokensUsed,
+      costCents,
+      aiError,
+      officeOut,
     };
   }
 
@@ -5786,6 +6255,13 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
         agent,
       );
       if (completion.text.trim()) contentMd = completion.text.trim();
+      if (completion.unverifiedNumbers.length) {
+        contentMd += `\n\n> ⚠ ${this.tx(agent, {
+          ru: `Автопроверка: числа ${completion.unverifiedNumbers.join(', ')} не найдены в данных CRM — не используйте их без сверки.`,
+          en: `Auto-check: numbers ${completion.unverifiedNumbers.join(', ')} were not found in CRM data — do not rely on them without checking.`,
+          tr: `Otomatik kontrol: ${completion.unverifiedNumbers.join(', ')} rakamları CRM verilerinde bulunamadı — kontrol etmeden kullanmayın.`,
+        })}`;
+      }
       tokensUsed = completion.tokensUsed;
     } catch (e) {
       status = 'failed';
@@ -5936,6 +6412,7 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
       outputSummary: action.title,
       status: 'success',
     });
+    await this.notifyOfficeDecision(tenantId, action, 'rejected');
     return { ok: true, action };
   }
 
@@ -6119,7 +6596,53 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
 
   /** Action types where we perform real execution vs just marking done. */
   isRealExecutable(actionType: string): boolean {
-    return (AI_REAL_EXECUTABLE_ACTIONS as readonly string[]).includes(actionType);
+    return (AI_REAL_EXECUTABLE_ACTIONS as readonly string[]).includes(actionType) || OFFICE_ACTIONS.includes(actionType);
+  }
+
+  /**
+   * «Отправить» на готовом черновике (draft_email / draft_whatsapp): нажатие человека и есть одобрение.
+   * Создаём настоящее действие отправки тем же путём, что у ИИ (обёртка письма, история лида, журнал).
+   */
+  async sendDraft(tenantId: string, draftId: string, userId: string | null, edits: Record<string, unknown> = {}) {
+    const draft = await this.getActionEntity(tenantId, draftId);
+    if (!['draft_email', 'draft_whatsapp'].includes(draft.actionType)) throw new BadRequestException('Only drafts can be sent');
+    const p = { ...(draft.payload || {}), ...edits } as Record<string, any>;
+    if (p.sentActionId) throw new BadRequestException('This draft has already been sent');
+    const email = draft.actionType === 'draft_email';
+    const text = String(p.textBody ?? p.bodyText ?? p.text ?? '').trim();
+    if (!text) throw new BadRequestException('The draft is empty');
+    let accountId = p.accountId ? String(p.accountId) : '';
+    if (email && !accountId) {
+      const accounts = (await this.emailService.findAllAccounts(tenantId, undefined, 'owner')) as any[];
+      accountId = accounts.find((a) => a.status !== 'error')?.id ?? accounts[0]?.id ?? '';
+      if (!accountId) throw new BadRequestException('No email account connected — connect one in Mail settings');
+    }
+    const to = Array.isArray(p.to) ? p.to : p.to ? [String(p.to)] : [];
+    if (email && !to.length) throw new BadRequestException('The draft has no recipient');
+    const send = await this.actions.save(
+      this.actions.create({
+        tenantId,
+        agentId: draft.agentId,
+        actionType: email ? 'send_email' : 'send_whatsapp',
+        targetType: draft.targetType,
+        targetId: draft.targetId,
+        title: draft.title,
+        reason: draft.reason,
+        payload: email
+          ? { accountId, to, subject: p.subject ? String(p.subject) : draft.title, textBody: text, leadId: p.leadId ?? (draft.targetType === 'lead' ? draft.targetId : undefined), fromDraftId: draft.id }
+          : { text, leadId: p.leadId ?? (draft.targetType === 'lead' ? draft.targetId : undefined), contactId: p.contactId, fromDraftId: draft.id },
+        status: 'approved',
+        requiresApproval: false,
+        approvedBy: userId,
+        approvedAt: new Date(),
+      } as Partial<AiAgentAction>),
+    );
+    await this.executeAction(tenantId, send.id, userId);
+    const done = await this.getActionEntity(tenantId, send.id);
+    if (done.status === 'failed') throw new BadRequestException(String((done.payload as any)?.execError ?? 'Send failed'));
+    draft.payload = { ...(draft.payload || {}), ...edits, sentActionId: done.id, sentAt: new Date().toISOString() };
+    await this.actions.save(draft);
+    return done;
   }
 
   async executeAction(tenantId: string, id: string, userId: string | null) {
@@ -6154,6 +6677,7 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
           outputSummary: execError,
           status: 'error',
         });
+        await this.notifyOfficeDecision(tenantId, action, 'failed');
         throw new BadRequestException(`Action execution failed: ${execError}`);
       }
     }
@@ -6172,7 +6696,20 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
       outputSummary: action.title,
       status: 'success',
     });
+    await this.notifyOfficeDecision(tenantId, action, 'executed');
     return { ok: true, action, realExecuted };
+  }
+
+  /** Решение человека по действию агента ИИ-отдела двигает задачу отдела дальше (ждёт → в работе/готово). */
+  private async notifyOfficeDecision(tenantId: string, action: AiAgentAction, decision: 'executed' | 'rejected' | 'failed') {
+    if (!this.officeHooks) return;
+    try {
+      const a = await this.agents.findOne({ where: { id: action.agentId, tenantId }, select: ['id', 'departmentId'] });
+      if (!a?.departmentId) return;
+      await this.officeHooks.onActionDecided(tenantId, action, decision);
+    } catch (e) {
+      this.log.warn(`office decision hook failed action=${action.id}: ${(e as Error).message}`);
+    }
   }
 
   /** Исполняет действие ИИ; всё, что оно меняет в CRM, помечено как «сделано ИИ» — без реакции триггеров на него. */
@@ -6190,6 +6727,12 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
     userId: string | null,
   ): Promise<void> {
     const p = (action.payload || {}) as Record<string, any>;
+
+    if (OFFICE_ACTIONS.includes(action.actionType)) {
+      if (!this.officeHooks) throw new Error('AI office is not available');
+      await this.officeHooks.dispatch(tenantId, action);
+      return;
+    }
 
     // Задачи живут ВНУТРИ проекта или лида (страница компании их только агрегирует) — отдельных
     // «задач компании» ИИ больше не создаёт: раньше модель сама выбирала companyId из снапшота и
@@ -6274,7 +6817,7 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
         throw new BadRequestException(String(parsed.error));
       }
       action.payload = { ...p, result: parsed };
-      if (action.actionType === 'create_workspace_table' && typeof parsed.objectId === 'string') {
+      if ((action.actionType === 'create_workspace_table' || action.actionType === 'workspace_import_marketing') && typeof parsed.objectId === 'string') {
         // Таблицу, которую агент создал сам, он должен уметь заполнять — выдаём ему запись в неё.
         const owner = await this.agents.findOne({ where: { id: action.agentId, tenantId } });
         if (owner) {
@@ -6292,10 +6835,31 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
 
     switch (action.actionType) {
       case 'send_email': {
-        const accountId = p.accountId as string | undefined;
+        let accountId = p.accountId as string | undefined;
+        if (!accountId) {
+          // модель не указала ящик — берём подключённый ящик компании
+          const accounts = (await this.emailService.findAllAccounts(tenantId, undefined, 'owner')) as any[];
+          accountId = accounts.find((x) => x.status !== 'error')?.id ?? accounts[0]?.id;
+          if (!accountId) throw new BadRequestException('Почта не подключена — подключите ящик в настройках почты');
+        }
         const to: string[] = Array.isArray(p.to) ? p.to : p.to ? [String(p.to)] : [];
         if (!accountId) throw new BadRequestException('send_email: payload.accountId is required');
         if (!to.length) throw new BadRequestException('send_email: payload.to is required');
+        // свой текст без шаблона и без готового HTML — в обёртке компании (шаблон «Обёртка писем»
+        // или встроенный дизайн), как у рассылок; иначе клиент получал голый текст
+        if (!p.templateId && !p.htmlBody) {
+          await this.emailService.sendStyledTransactionalMail(tenantId, {
+            accountId,
+            to,
+            subject: p.subject ? String(p.subject) : action.title,
+            bodyText: String(p.textBody ?? p.bodyText ?? p.text ?? ''),
+            headline: p.headline ? String(p.headline) : undefined,
+            leadId: p.leadId ? String(p.leadId) : undefined,
+            contactId: p.contactId ? String(p.contactId) : undefined,
+            companyId: p.companyId ? String(p.companyId) : undefined,
+          });
+          break;
+        }
         await this.emailService.sendEmail(tenantId, {
           accountId,
           to,

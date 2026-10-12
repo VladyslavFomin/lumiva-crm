@@ -21,6 +21,7 @@ const TRIGGER_EVENT_TO_FORM: Record<string, string> = {
   'email.sent': 'EMAIL_SENT',
   'email.received': 'EMAIL_RECEIVED',
   'telegram.message_received': 'TELEGRAM_MESSAGE_RECEIVED',
+  'whatsapp.message_received': 'WHATSAPP_MESSAGE_RECEIVED',
   'note.created': 'NOTE_CREATED',
   scheduled: 'SCHEDULED',
   'custom_object.record_created': 'CUSTOM_OBJECT_RECORD_CREATED',
@@ -39,8 +40,16 @@ const TRIGGER_EVENT_TO_FORM: Record<string, string> = {
   'product.price_changed': 'PRODUCT_PRICE_CHANGED',
   'product.status_changed': 'PRODUCT_STATUS_CHANGED',
   'product.stock_low': 'PRODUCT_STOCK_LOW',
+  'helpdesk.ticket_created': 'HELPDESK_TICKET_CREATED',
+  'helpdesk.message_received': 'HELPDESK_MESSAGE_RECEIVED',
   'lead.stale': 'LEAD_STALE',
   'sale.stale': 'SALE_STALE',
+  'ai_office.task_done': 'AI_OFFICE_TASK_DONE',
+  'ai_office.task_failed': 'AI_OFFICE_TASK_FAILED',
+  'ai_office.task_rejected': 'AI_OFFICE_TASK_REJECTED',
+  'ai_office.approval_needed': 'AI_OFFICE_APPROVAL_NEEDED',
+  'ai_office.help_needed': 'AI_OFFICE_HELP_NEEDED',
+  'ai_office.budget_exhausted': 'AI_OFFICE_BUDGET_EXHAUSTED',
 };
 
 export const getTriggerLabel = (event: string, t: TFunction): string => {

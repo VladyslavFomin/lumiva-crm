@@ -91,6 +91,10 @@ export enum TriggerEvent {
   PRODUCT_STATUS_CHANGED = 'product.status_changed',
   PRODUCT_STOCK_LOW = 'product.stock_low',
 
+  // Поддержка (Helpdesk): новая заявка (портал / внутренний запрос) и ответ клиента в заявке
+  HELPDESK_TICKET_CREATED = 'helpdesk.ticket_created',
+  HELPDESK_MESSAGE_RECEIVED = 'helpdesk.message_received',
+
   /**
    * Зависшие лиды/сделки — единственные "staleness" события, которые проверяются по расписанию
    * (см. AutomationsSchedulerService), а не срабатывают по записи. Порог в днях настраивается на
@@ -99,6 +103,14 @@ export enum TriggerEvent {
    */
   LEAD_STALE = 'lead.stale',
   SALE_STALE = 'sale.stale',
+
+  // ИИ-отделы (ИИ-офис): события, которые отделы отдают в автоматизации
+  AI_OFFICE_TASK_DONE = 'ai_office.task_done',
+  AI_OFFICE_TASK_FAILED = 'ai_office.task_failed',
+  AI_OFFICE_TASK_REJECTED = 'ai_office.task_rejected',
+  AI_OFFICE_APPROVAL_NEEDED = 'ai_office.approval_needed',
+  AI_OFFICE_HELP_NEEDED = 'ai_office.help_needed',
+  AI_OFFICE_BUDGET_EXHAUSTED = 'ai_office.budget_exhausted',
 }
 
 export enum ActionType {
@@ -160,6 +172,9 @@ export enum ActionType {
 
   /** Копирование строки из пользовательской таблицы (триггер custom_object.*) в другую таблицу */
   CREATE_CUSTOM_OBJECT_RECORD = 'create_custom_object_record',
+
+  /** ИИ-офис: поставить задачу ИИ-отделу (исполнит отдел автономно, см. ai-office) */
+  AI_OFFICE_TASK = 'ai_office_task',
 
   /** Jira — создание задачи по REST API (third_party_link · jira) */
   CREATE_JIRA_ISSUE = 'create_jira_issue',

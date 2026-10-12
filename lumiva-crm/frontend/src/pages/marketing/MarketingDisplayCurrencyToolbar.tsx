@@ -183,7 +183,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
 
   return (
     <>
-      <div className={`${marketingFilterBar} flex-wrap items-center`}>
+      <div className={`${marketingFilterBar} flex-wrap items-center max-sm:rounded-2xl max-sm:py-1.5`}>
         <span className={marketingFilterLabel}>
           {t('crm.marketingCurrency.toolbar.label', { defaultValue: 'Валюта отчёта' })}
         </span>

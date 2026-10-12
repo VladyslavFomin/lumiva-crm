@@ -6,6 +6,17 @@ import { MarketingAccountClient } from './marketing-account-client.entity';
 import { MarketingTraffic } from './marketing-traffic.entity';
 import { MarketingIntegration } from './marketing-integration.entity';
 import { MarketingService } from './marketing.service';
+import {
+  addMetrics,
+  emptyMetrics,
+  PLATFORM_LABEL,
+  renderAdsReportMarkdown,
+  type AdsMetrics,
+  type AdsReport,
+  type AdsReportGroupBy,
+  type AdsReportLang,
+  type AdsReportRow,
+} from './ads-report';
 
 /** Рекламные площадки, чей cost считается расходом на рекламу клиента. */
 const SPEND_SQL = `(t."dataSource" LIKE 'google\\_ads%' OR t."dataSource" = 'meta_ads' OR t."dataSource" LIKE 'yandex\\_direct%' OR t."dataSource" LIKE 'vk\\_ads%')`;
@@ -44,6 +55,8 @@ function nameTokens(s: string): string[] {
     .split(/\s+/)
     .filter((w) => w.length >= 4 && !['hotels', 'hotel', 'resort', 'resorts', 'otel', '2024', '2025', '2026', 'meta', 'google'].includes(w));
 }
+
+const UNASSIGNED: Record<AdsReportLang, string> = { ru: 'Без привязки к клиенту', en: 'Not assigned to a client', tr: 'Müşteriye atanmamış' };
 
 @Injectable()
 export class MarketingRoiService {
@@ -284,6 +297,162 @@ export class MarketingRoiService {
    * против выручки клиента, всё в одной валюте по курсу ECB (Frankfurter). Непривязанные кабинеты —
    * отдельной строкой, чтобы расход не пропадал молча.
    */
+  /**
+   * Отчёт по рекламным расходам (см. ads-report.ts): клиент → кабинеты берётся из привязок
+   * «ROI по клиентам» (marketing_account_clients); для клиента без привязок — кабинеты, в названии
+   * которых есть его название. Все суммы и итоги считает код.
+   */
+  async getAdsReport(
+    tenantId: string,
+    opts: {
+      from: string;
+      to: string;
+      platform?: string | null;
+      groupBy?: AdsReportGroupBy;
+      clients?: string[];
+      displayCurrency?: string | null;
+      lang?: AdsReportLang;
+    },
+  ): Promise<AdsReport | { ok: false; error: string; hint?: string }> {
+    const DAY = /^\d{4}-\d{2}-\d{2}$/;
+    if (!DAY.test(opts.from) || !DAY.test(opts.to) || opts.from > opts.to) return { ok: false, error: 'invalid_period', hint: 'from/to — YYYY-MM-DD, from <= to' };
+    const lang: AdsReportLang = opts.lang ?? 'ru';
+    const groupBy: AdsReportGroupBy = opts.groupBy ?? 'client';
+    const platform = opts.platform && opts.platform !== 'all' ? String(opts.platform).replace(/_\d+$/, '') : null;
+    if (platform && !['google_ads', 'meta_ads', 'yandex_direct', 'vk_ads'].includes(platform)) {
+      return { ok: false, error: 'unknown_platform', hint: 'platform: google_ads | meta_ads | yandex_direct | vk_ads | all' };
+    }
+
+    const dsExpr = this.marketing.effectiveDataSourceSql();
+    const raw = (await this.trafficRepo
+      .createQueryBuilder('t')
+      .select(dsExpr, 'key')
+      .addSelect(`to_char(t.date, 'YYYY-MM')`, 'month')
+      .addSelect('t.currency', 'currency')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+      .addSelect('COALESCE(SUM(t.conversions), 0)', 'conversions')
+      .where('t.tenantId = :tenantId', { tenantId })
+      .andWhere('t.date >= :from AND t.date <= :to', { from: opts.from, to: opts.to })
+      .andWhere(SPEND_SQL)
+      .groupBy(dsExpr)
+      .addGroupBy(`to_char(t.date, 'YYYY-MM')`)
+      .addGroupBy('t.currency')
+      .getRawMany()) as Array<Record<string, string>>;
+
+    const [labels, mappings, companies] = await Promise.all([
+      this.marketing.getMarketingDataSourceLabels(tenantId),
+      this.accountRepo.find({ where: { tenantId } }),
+      this.listCompanies(tenantId),
+    ]);
+    let fx: { multiplyToDisplay: Record<string, number>; display: string; asOf: string; source: string } | null = null;
+    const disp = opts.displayCurrency ? normCurrency(opts.displayCurrency) : null;
+    if (disp) {
+      const loaded = await this.marketing.getMarketingFxRates(disp);
+      fx = { multiplyToDisplay: loaded.multiplyToDisplay, display: loaded.display, asOf: loaded.asOf, source: loaded.source };
+    }
+
+    // строки кабинет × месяц (в валюте отображения, если задана)
+    type Acc = { key: string; label: string; currency: string; months: Record<string, AdsMetrics> };
+    const accs = new Map<string, Acc>();
+    const monthsSet = new Set<string>();
+    for (const r of raw) {
+      const key = String(r.key || '');
+      if (!key || (platform && providerOf(key) !== platform)) continue;
+      const srcCur = normCurrency(r.currency);
+      const mult = fx ? fx.multiplyToDisplay[srcCur] : 1;
+      if (fx && (mult == null || !Number.isFinite(mult))) continue;
+      const cur = fx ? fx.display : srcCur;
+      const m: AdsMetrics = { cost: Math.round((Number(r.cost) || 0) * mult * 100) / 100, clicks: Number(r.clicks) || 0, impressions: Number(r.impressions) || 0, conversions: Math.round((Number(r.conversions) || 0) * 100) / 100 };
+      if (!m.cost && !m.clicks && !m.impressions) continue;
+      monthsSet.add(r.month);
+      const id = `${key}|${cur}`;
+      const a = accs.get(id) ?? { key, label: labels[key] || key, currency: cur, months: {} };
+      a.months[r.month] = addMetrics(a.months[r.month] ?? emptyMetrics(), m);
+      accs.set(id, a);
+    }
+    const months = [...monthsSet].sort();
+
+    const companyName = new Map(companies.map((c) => [c.id, c.name]));
+    const clientOf = new Map(mappings.map((m) => [m.accountKey, companyName.get(m.companyId) ?? null]));
+    const wanted = (opts.clients ?? []).map((c) => String(c).trim()).filter(Boolean).slice(0, 30);
+    const matchesName = (name: string, query: string) => {
+      const a = nameTokens(name);
+      const q = nameTokens(query);
+      const n = name.toLocaleLowerCase('tr');
+      const qq = query.toLocaleLowerCase('tr').trim();
+      return (q.length ? q.every((w) => a.includes(w)) : false) || n === qq || (qq.length >= 4 && n.includes(qq));
+    };
+
+    // группа каждого кабинета
+    const groupOf = (a: Acc): { group: string; mapping: AdsReportRow['mapping'] } | null => {
+      if (groupBy === 'account') return { group: a.label, mapping: 'account' };
+      if (groupBy === 'platform') return { group: PLATFORM_LABEL[providerOf(a.key)] ?? providerOf(a.key), mapping: 'platform' };
+      const client = clientOf.get(a.key) ?? null;
+      if (!wanted.length) return client ? { group: client, mapping: 'client' } : { group: '', mapping: 'unassigned' };
+      const byClient = client ? wanted.find((w) => matchesName(client, w)) : undefined;
+      if (byClient) return { group: client!, mapping: 'client' };
+      // запрошенный клиент без привязок — по названию кабинета (только если кабинет ни к кому не привязан)
+      if (!client) {
+        const byName = wanted.find((w) => !companies.some((c) => matchesName(c.name, w) && mappings.some((m) => m.companyId === c.id)) && matchesName(a.label, w));
+        if (byName) return { group: byName, mapping: 'name' };
+      }
+      return null;
+    };
+
+    const rowsMap = new Map<string, AdsReportRow>();
+    const notIncluded: AdsReport['notIncluded'] = [];
+    for (const a of accs.values()) {
+      const total = Object.values(a.months).reduce(addMetrics, emptyMetrics());
+      const g = groupOf(a);
+      if (!g) {
+        if (total.cost > 0) notIncluded.push({ account: a.label, currency: a.currency, cost: total.cost });
+        continue;
+      }
+      const groupName = g.mapping === 'unassigned' ? UNASSIGNED[lang] : g.group;
+      const id = `${groupName}|${a.currency}`;
+      const row = rowsMap.get(id) ?? { group: groupName, mapping: g.mapping, accounts: [], currency: a.currency, months: {}, total: emptyMetrics(), perAccount: [] };
+      row.accounts.push(a.label);
+      row.perAccount.push({ account: a.label, months: a.months, total });
+      for (const [mo, m] of Object.entries(a.months)) row.months[mo] = addMetrics(row.months[mo] ?? emptyMetrics(), m);
+      row.total = addMetrics(row.total, total);
+      rowsMap.set(id, row);
+    }
+    const rows = [...rowsMap.values()].sort((x, y) => {
+      if (x.mapping === 'unassigned' !== (y.mapping === 'unassigned')) return x.mapping === 'unassigned' ? 1 : -1;
+      if (wanted.length && groupBy === 'client') {
+        const ix = (r: AdsReportRow) => wanted.findIndex((w) => matchesName(r.group, w));
+        if (ix(x) !== ix(y)) return ix(x) - ix(y);
+      }
+      return x.currency.localeCompare(y.currency) || y.total.cost - x.total.cost;
+    });
+    const unmatchedClients = groupBy === 'client' ? wanted.filter((w) => !rows.some((r) => matchesName(r.group, w) || r.group === w)) : [];
+
+    const totalsMap = new Map<string, { currency: string; months: Record<string, AdsMetrics>; total: AdsMetrics }>();
+    for (const r of rows) {
+      const t = totalsMap.get(r.currency) ?? { currency: r.currency, months: {}, total: emptyMetrics() };
+      for (const [mo, m] of Object.entries(r.months)) t.months[mo] = addMetrics(t.months[mo] ?? emptyMetrics(), m);
+      t.total = addMetrics(t.total, r.total);
+      totalsMap.set(r.currency, t);
+    }
+    notIncluded.sort((a, b) => b.cost - a.cost);
+    const base = {
+      ok: true as const,
+      from: opts.from,
+      to: opts.to,
+      months,
+      platform,
+      groupBy,
+      rows,
+      totals: [...totalsMap.values()],
+      notIncluded,
+      unmatchedClients,
+      fx: fx ? { display: fx.display, asOf: fx.asOf, source: fx.source } : null,
+    };
+    return { ...base, markdown: renderAdsReportMarkdown(base, lang) };
+  }
+
   async getRoi(
     tenantId: string,
     opts: { fromMonth?: string; toMonth?: string; displayCurrency?: string; sources?: RoiRevenueSource[] },

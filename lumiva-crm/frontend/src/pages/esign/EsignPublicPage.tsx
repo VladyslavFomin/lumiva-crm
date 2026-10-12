@@ -1,4 +1,5 @@
 // src/pages/esign/EsignPublicPage.tsx
+import { EsignTextWithTables } from './EsignTextWithTables';
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -78,7 +79,7 @@ export const EsignPublicPage: React.FC = () => {
         <h1 className="text-2xl font-semibold text-lumiva-accent">{doc?.title}</h1>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <div className="text-sm text-slate-700 whitespace-pre-wrap">{doc?.bodyText}</div>
+          <div className="text-sm text-slate-700 whitespace-pre-wrap">{doc?.bodyText ? <EsignTextWithTables text={doc.bodyText} /> : null}</div>
         </div>
 
         {signed ? (

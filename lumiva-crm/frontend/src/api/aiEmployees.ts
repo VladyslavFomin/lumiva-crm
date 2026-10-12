@@ -52,6 +52,7 @@ export interface AiAgent {
   role: AiEmployeeRoleKey;
   roleTitle?: string;
   roleShortTitle?: string;
+  curates?: Array<{ id: string; name: string }>;
   roleDescription?: string;
   roleAccent?: string;
   roleFunctions?: string[];
@@ -91,6 +92,10 @@ export interface AiAgentStats {
   errors?: number;
   lastActivityAt?: string | null;
   lastActivity?: string | null;
+  /** Ростер v3: число событий по часам за последние 12 ч (старые → новые). */
+  hourly?: number[];
+  /** Ростер v3: последние содержательные действия (до 3), для строки «чем занят». */
+  recent?: string[];
 }
 
 export interface AiPlanSnapshot {

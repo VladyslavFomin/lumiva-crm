@@ -341,10 +341,11 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private assertOwnerForInvites(actorRole: string | undefined) {
-    if ((actorRole || '').toLowerCase() !== 'owner') {
+  // Право решает контроллер (владелец или право «Сотрудники», см. staff-manage-access.ts).
+  private assertOwnerForInvites(actorCanManageStaff: boolean) {
+    if (!actorCanManageStaff) {
       throw new ForbiddenException(
-        'Отправлять приглашения может только владелец компании',
+        'Отправлять приглашения может только владелец или сотрудник с правом «Сотрудники»',
       );
     }
   }
@@ -368,7 +369,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
    */
   async inviteStaffMember(
     tenantId: string,
-    actorRole: string | undefined,
+    actorCanManageStaff: boolean,
     dto: {
       email: string;
       fullName: string;
@@ -376,7 +377,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       departmentId?: string | null;
     },
   ): Promise<StaffUser> {
-    this.assertOwnerForInvites(actorRole);
+    this.assertOwnerForInvites(actorCanManageStaff);
 
     const email = dto.email.trim().toLowerCase();
     if (!email || !email.includes('@')) {
@@ -467,10 +468,10 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
   async resendStaffInvite(
     tenantId: string,
-    actorRole: string | undefined,
+    actorCanManageStaff: boolean,
     staffId: string,
   ): Promise<StaffUser> {
-    this.assertOwnerForInvites(actorRole);
+    this.assertOwnerForInvites(actorCanManageStaff);
 
     const staff = await this.getOneForTenant(tenantId, staffId);
     if (staff.role === 'owner') {

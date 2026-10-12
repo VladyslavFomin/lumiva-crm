@@ -34,6 +34,7 @@ import { buildAutomationTriggerGroups, buildAutomationActionGroups } from './aut
 import { getActionLabel } from './automationLabels';
 import { getNotificationTokens } from './notificationTokens';
 import { VariablePicker } from './VariablePicker';
+import { aiOfficeApi, type OfficeDepartment } from '../../api/aiOffice';
 import './automations-builder.css';
 
 export const AutomationFormPage: React.FC = () => {
@@ -61,6 +62,11 @@ export const AutomationFormPage: React.FC = () => {
   const [crmIntegrations, setCrmIntegrations] = useState<IntegrationConnectionDto[]>([]);
   const [marketingIntegrations, setMarketingIntegrations] = useState<MarketingIntegrationRow[]>([]);
   const [dragActionIndex, setDragActionIndex] = useState<number | null>(null);
+  // ИИ-отделы для действия «Задача ИИ-отделу» (нет доступа к офису/тарифа — просто пустой список)
+  const [officeDepts, setOfficeDepts] = useState<OfficeDepartment[]>([]);
+  useEffect(() => {
+    aiOfficeApi.departments().then(setOfficeDepts).catch(() => setOfficeDepts([]));
+  }, []);
   const [expandedActionIndex, setExpandedActionIndex] = useState<number | null>(0);
   const [selectedStep, setSelectedStep] = useState<'trigger' | number>('trigger');
   const [libSearch, setLibSearch] = useState('');
@@ -641,6 +647,10 @@ export const AutomationFormPage: React.FC = () => {
         errors.push(`${label}: ${t('crm.automations.form.validation.reportTypeMissing')}`);
       if (action.type === 'create_jira_issue' && !action.config.integrationConnectionId)
         errors.push(`${label}: Выберите подключение Jira`);
+      if (action.type === 'ai_office_task' && !action.config.departmentId)
+        errors.push(`${label}: ${t('crm.automations.form.validation.aiOfficeDeptMissing')}`);
+      if (action.type === 'ai_office_task' && !String(action.config.title || '').trim())
+        errors.push(`${label}: ${t('crm.automations.form.validation.aiOfficeTitleMissing')}`);
     });
     return { errors, warnings };
   };
@@ -1724,6 +1734,43 @@ export const AutomationFormPage: React.FC = () => {
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
                         <textarea className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.smsMessagePlaceholder')} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── ai_office_task ── */}
+                  {selAction.type === 'ai_office_task' && (
+                    <>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.aiOfficeDeptLabel')}</label>
+                        <select className="cfg-select" value={selAction.config.departmentId || ''} onChange={e => ua('departmentId', e.target.value)}>
+                          <option value="">{t('crm.automations.form.builderUi.pickPlaceholder')}</option>
+                          {officeDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                        {officeDepts.length === 0 && (
+                          <p className="cfg-field-help">
+                            {t('crm.automations.form.builderUi.aiOfficeNoDepts')} <Link to="/ai-office/departments/new">{t('crm.automations.form.builderUi.aiOfficeCreateDept')}</Link>
+                          </p>
+                        )}
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.titleLabel')}</label>
+                        <input ref={notificationTitleInputRef} className="cfg-input" value={selAction.config.title || ''} onChange={e => ua('title', e.target.value)} placeholder={t('crm.automations.form.builderUi.aiOfficeTitlePlaceholder').replace(/\[\[([^\]]+)\]\]/g, '{{$1}}')} />
+                        <VariablePicker tokens={notificationTokens} inputRef={notificationTitleInputRef} value={selAction.config.title || ''} onInsert={v => ua('title', v)} />
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.aiOfficeDetailsLabel')}</label>
+                        <textarea ref={notificationBodyTextareaRef} className="cfg-input ta" value={selAction.config.details || ''} onChange={e => ua('details', e.target.value)} placeholder={t('crm.automations.form.builderUi.aiOfficeDetailsPlaceholder')} />
+                        <VariablePicker tokens={notificationTokens} inputRef={notificationBodyTextareaRef} value={selAction.config.details || ''} onInsert={v => ua('details', v)} />
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.aiOfficePriorityLabel')}</label>
+                        <select className="cfg-select" value={String(selAction.config.priority || 2)} onChange={e => ua('priority', Number(e.target.value))}>
+                          <option value="1">{t('crm.automations.form.builderUi.aiOfficePriority1')}</option>
+                          <option value="2">{t('crm.automations.form.builderUi.aiOfficePriority2')}</option>
+                          <option value="3">{t('crm.automations.form.builderUi.aiOfficePriority3')}</option>
+                        </select>
+                        <p className="cfg-field-help">{t('crm.automations.form.builderUi.aiOfficeHelp')}</p>
                       </div>
                     </>
                   )}

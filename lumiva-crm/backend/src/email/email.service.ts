@@ -424,6 +424,15 @@ export class EmailService {
       if (!templateData.contact && dto.contactId) templateData.contact = { id: dto.contactId };
       if (!templateData.company && dto.companyId) templateData.company = { id: dto.companyId };
       if (!templateData.sale && dto.saleId) templateData.sale = { id: dto.saleId };
+      // только id — шаблону нужны поля ({{lead.name}} и т.п.), иначе клиент получит «Здравствуйте, !»
+      if (templateData.lead?.id && !templateData.lead.name) {
+        const r: any[] = await this.tenantRepo.query(`SELECT id, name, email, phone, source, status FROM leads WHERE id::text = $1 AND "tenantId" = $2`, [String(templateData.lead.id), tenantId]).catch(() => []);
+        if (r[0]) templateData.lead = { ...r[0], ...templateData.lead, name: r[0].name };
+      }
+      if (templateData.contact?.id && !templateData.contact.name) {
+        const r: any[] = await this.tenantRepo.query(`SELECT id, "fullName", "firstName", "lastName", email, phone FROM contacts WHERE id::text = $1 AND "tenantId" = $2`, [String(templateData.contact.id), tenantId]).catch(() => []);
+        if (r[0]) templateData.contact = { ...r[0], ...templateData.contact, name: r[0].fullName || [r[0].firstName, r[0].lastName].filter(Boolean).join(' ') };
+      }
 
       try {
         const templateResult = await this.applyTemplate(tenantId, dto.templateId, templateData);
@@ -433,6 +442,11 @@ export class EmailService {
       } catch (error) {
         console.error('Failed to apply template:', error);
       }
+      // тема/текст, переданные вместе с шаблоном, тоже могут содержать {{lead.name}} — подставляем
+      if (finalSubject && finalSubject.includes('{{')) finalSubject = this.interpolateTemplate(finalSubject, templateData);
+      if (finalTextBody && finalTextBody.includes('{{')) finalTextBody = this.interpolateTemplate(finalTextBody, templateData);
+      // шаблон не применился, а своего текста нет — не отправляем клиенту пустое письмо
+      if (!finalTextBody && !finalHtmlBody) throw new BadRequestException('Email template could not be applied — nothing to send');
     }
 
     const sigBodies = this.mergeSignatureIntoBodies(

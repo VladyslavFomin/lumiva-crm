@@ -7,6 +7,25 @@ export type TranscriptStatus = 'pending' | 'done' | 'failed';
 export type CallSentiment = 'positive' | 'neutral' | 'negative';
 export type CallTopic = 'pricing' | 'scheduling' | 'service_quality' | 'technical_issue' | 'wait_time' | 'other';
 export type SentimentStatus = 'pending' | 'done' | 'failed';
+export type CallSource = 'twilio' | 'upload';
+export type CallAnalysisStatus = 'transcribing' | 'analyzing' | 'done' | 'failed';
+
+/** Полный AI-разбор звонка. Все тексты — на языке интерфейса тенанта. */
+export interface CallAiAnalysis {
+  summary: string;
+  /** Конкретные договорённости и следующие шаги; dueInDays — если в разговоре прозвучал срок. */
+  nextSteps: { text: string; dueInDays: number | null }[];
+  /** Возражения и сомнения клиента, дословно по смыслу. */
+  objections: string[];
+  /** Насколько клиент готов купить по итогам разговора. */
+  clientIntent: 'hot' | 'warm' | 'cold';
+  /** Оценка работы менеджера 0–100 (выявление потребности, ответы на возражения, договорённость о шаге). */
+  managerScore: number;
+  strengths: string[];
+  improvements: string[];
+  /** Язык разговора (ISO 639-1), как его определил Whisper. */
+  language: string | null;
+}
 
 @Entity('calls')
 @Index(['tenantId', 'createdAt'])
@@ -75,6 +94,32 @@ export class Call {
 
   @Column({ type: 'timestamptz', nullable: true })
   endedAt: Date | null;
+
+  /** twilio — звонок через интеграцию; upload — запись загружена вручную в карточку лида. */
+  @Column({ type: 'varchar', length: 16, default: 'twilio' })
+  source: CallSource;
+
+  /** Путь к загруженной записи относительно uploads-root (только для source='upload'). */
+  @Column({ type: 'text', nullable: true })
+  recordingPath: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  originalFilename: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  aiAnalysis: CallAiAnalysis | null;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  analysisStatus: CallAnalysisStatus | null;
+
+  @Column({ type: 'text', nullable: true })
+  analysisError: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  analyzedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  uploadedByStaffId: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

@@ -41,8 +41,16 @@ export type TriggerEvent =
   | 'product.price_changed'
   | 'product.status_changed'
   | 'product.stock_low'
+  | 'helpdesk.ticket_created'
+  | 'helpdesk.message_received'
   | 'lead.stale'
-  | 'sale.stale';
+  | 'sale.stale'
+  | 'ai_office.task_done'
+  | 'ai_office.task_failed'
+  | 'ai_office.task_rejected'
+  | 'ai_office.approval_needed'
+  | 'ai_office.help_needed'
+  | 'ai_office.budget_exhausted';
 
 export type ActionType =
   | 'create_task'
@@ -74,7 +82,8 @@ export type ActionType =
   | 'send_report'
   | 'send_data_export'
   | 'create_custom_object_record'
-  | 'create_jira_issue';
+  | 'create_jira_issue'
+  | 'ai_office_task';
 
 export interface Condition {
   field: string;

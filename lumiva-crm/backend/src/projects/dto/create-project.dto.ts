@@ -7,9 +7,20 @@ import {
   IsObject,
   IsBoolean,
   Length,
+  IsIn,
+  ArrayMaxSize,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { ProjectStatus } from '../project.entity';
+import type { ProjectStatus, ProjectAccessRole } from '../project.entity';
+
+export class ProjectAccessMemberDto {
+  @IsUUID()
+  staffUserId: string;
+
+  @IsIn(['reader', 'editor'])
+  role: ProjectAccessRole;
+}
 
 export class CreateProjectDto {
   @IsString()
@@ -53,6 +64,14 @@ export class CreateProjectDto {
   @IsArray()
   @IsUUID('4', { each: true })
   ownerUserIds?: string[];
+
+  /** Наблюдатели (см. Project.accessMembers). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ProjectAccessMemberDto)
+  accessMembers?: ProjectAccessMemberDto[];
 
   @IsOptional()
   @IsUUID()

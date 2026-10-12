@@ -13,7 +13,9 @@ function isForeignAudiencePath(pathname: string): boolean {
   return (
     /^\/(embed|portal|pay)(\/|$)/.test(pathname) ||
     /^\/esign\/[^/]+/.test(pathname) ||
-    /^\/workspace\/[^/]+\/[^/]+\/analytics/.test(pathname)
+    /^\/workspace\/[^/]+\/[^/]+\/analytics/.test(pathname) ||
+    // Aura: публичная ТВ-ссылка и полноэкранный режим без меню
+    /^\/aura\/(tv|app)\//.test(pathname)
   );
 }
 

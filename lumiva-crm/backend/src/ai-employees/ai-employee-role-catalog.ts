@@ -186,6 +186,7 @@ export const AI_REAL_EXECUTABLE_ACTIONS = [
   'workspace_add_field',
   'workspace_enable_views',
   'workspace_update_record',
+  'workspace_import_marketing',
 ] as const;
 
 /** Действия, для которых можно включить обязательное согласование человеком.

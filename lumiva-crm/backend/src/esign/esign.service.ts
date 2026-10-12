@@ -1,16 +1,17 @@
 // src/esign/esign.service.ts
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ModuleRef } from '@nestjs/core';
 import { In, Repository } from 'typeorm';
 import * as fs from 'fs/promises';
 import { dirname } from 'path';
 import { EsignDocument } from './esign-document.entity';
 import { EsignTemplate } from './esign-template.entity';
 import { EsignSequenceCounter } from './esign-sequence-counter.entity';
-import { ESIGN_DEFAULT_TEMPLATES } from './esign-default-templates';
-import { ESIGN_AUTO_KEYS, ESIGN_ITEM_KEYS, ESIGN_KEY_GROUPS, ESIGN_SEQUENCE_KEYS, extractKeys, renderKeys } from './esign-keys';
+import { ESIGN_DEFAULT_TEMPLATES, quoteTemplateFor } from './esign-default-templates';
+import { ESIGN_AUTO_KEYS, ESIGN_ITEM_KEYS, ESIGN_KEY_GROUPS, ESIGN_QUOTE_KEY_SET, ESIGN_SEQUENCE_KEYS, extractKeys, renderKeys } from './esign-keys';
 import { buildLegalRequisitesText } from '../common/legal-requisites';
-import { computeItemValues, type EsignDocumentItem, type EsignItemPick } from './esign-items';
+import { computeItemValues, ESIGN_QUOTE_PARAM_KEYS, parsePercent, type EsignDocumentItem, type EsignItemPick } from './esign-items';
 import { Contact } from '../contacts/contact.entity';
 import { Tenant } from '../tenants/tenant.entity';
 import { Lead } from '../leads/lead.entity';
@@ -22,9 +23,9 @@ import { Product } from '../products/product.entity';
 import { BookingService } from '../bookings/booking-service.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { MailService } from '../mail/mail.service';
-import { renderEsignPdf } from './esign-pdf.util';
+import { renderEsignPdf, type PdfHeader } from './esign-pdf.util';
 import { signEsignToken, verifyEsignToken } from './esign-token.util';
-import { joinUploadsAbsolute } from '../common/uploads-root.util';
+import { extractRelativePathFromPublicUrl, joinUploadsAbsolute } from '../common/uploads-root.util';
 import { StorageQuotaService } from '../storage-quota/storage-quota.service';
 
 export type EsignLinkType = 'lead' | 'company' | 'project';
@@ -66,7 +67,74 @@ export class EsignService {
     @InjectRepository(StaffUser) private readonly staffUserRepo: Repository<StaffUser>,
     private readonly mail: MailService,
     private readonly storageQuota: StorageQuotaService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /** Letterhead (logo + name + requisites) — used for commercial offers only; contracts carry
+   * the parties' requisites in their own text, so a header there would duplicate them. */
+  private async pdfHeaderFor(doc: Pick<EsignDocument, 'tenantId' | 'extraFields'>): Promise<PdfHeader | null> {
+    if (doc.extraFields?.IS_QUOTE !== '1') return null;
+    const tenant = await this.tenantRepo.findOne({ where: { id: doc.tenantId } });
+    if (!tenant) return null;
+    const rel = tenant.logoUrl ? extractRelativePathFromPublicUrl(tenant.logoUrl) : null;
+    return {
+      orgName: tenant.name,
+      requisites: buildLegalRequisitesText(tenant.legalRequisites) || tenant.documentRequisites || null,
+      logoPath: rel ? joinUploadsAbsolute(rel) : null,
+    };
+  }
+
+  /** Open (not won/lost, not in trash) leads of a contact — what a КП can be attached to. */
+  async getLeadOptions(tenantId: string, contactId: string) {
+    if (!contactId) return [];
+    const leads = await this.leadRepo.find({ where: { contactId, tenantId } as any, order: { createdAt: 'DESC' } as any, take: 20 });
+    return leads
+      .filter((l: any) => l.status !== 'won' && l.status !== 'lost' && !(l.meta as any)?.deleted && !(l.meta as any)?.archived)
+      .map((l: any) => ({ id: l.id, name: l.name || 'Лид', status: l.status, amount: String(l.amount ?? '0'), currency: l.currency || '' }));
+  }
+
+  /** A signed КП attached to a lead closes the deal: lead → "won" with the offer's amount.
+   * Goes through LeadsService so status history and automations fire as for a manual change.
+   * Never throws — signing must succeed even if the lead update doesn't. */
+  private async applySignedQuoteToLead(doc: EsignDocument) {
+    if (doc.extraFields?.IS_QUOTE !== '1' || doc.entityType !== 'lead' || !doc.entityId) return;
+    try {
+      const { LeadsService } = await import('../leads/leads.service.js');
+      const { LeadActivityService } = await import('../leads/lead-activity.service.js');
+      const leads = this.moduleRef.get(LeadsService, { strict: false });
+      const activity = this.moduleRef.get(LeadActivityService, { strict: false });
+      const lead = await this.leadRepo.findOne({ where: { id: doc.entityId, tenantId: doc.tenantId } });
+      if (!lead) return;
+      const no = doc.extraFields?.CONTRACT_NO ? ` № ${doc.extraFields.CONTRACT_NO}` : '';
+      const sum = doc.amount ? ` — ${Number(doc.amount).toLocaleString('ru-RU', { minimumFractionDigits: 2 })} ${doc.currency || ''}` : '';
+      if (lead.status !== 'won') {
+        await leads.updateForTenant(doc.tenantId, lead.id, {
+          status: 'won',
+          ...(doc.amount ? { amount: doc.amount, currency: doc.currency || lead.currency } : {}),
+        } as any);
+      }
+      await activity.add({
+        tenantId: doc.tenantId,
+        leadId: lead.id,
+        type: 'comment',
+        comment: `КП${no} подписано клиентом (${doc.signerName || ''})${sum}`,
+      });
+    } catch (e) {
+      console.error('[esign] failed to update lead after signed КП', e);
+    }
+  }
+
+  private async noteDeclinedQuoteOnLead(doc: EsignDocument) {
+    if (doc.extraFields?.IS_QUOTE !== '1' || doc.entityType !== 'lead' || !doc.entityId) return;
+    try {
+      const { LeadActivityService } = await import('../leads/lead-activity.service.js');
+      const activity = this.moduleRef.get(LeadActivityService, { strict: false });
+      const no = doc.extraFields?.CONTRACT_NO ? ` № ${doc.extraFields.CONTRACT_NO}` : '';
+      await activity.add({ tenantId: doc.tenantId, leadId: doc.entityId, type: 'comment', comment: `КП${no} отклонено клиентом` });
+    } catch (e) {
+      console.error('[esign] failed to note declined КП on lead', e);
+    }
+  }
 
   private get secret(): string {
     const s = process.env.JWT_SECRET;
@@ -224,10 +292,19 @@ export class EsignService {
     if (!picks?.length) return [];
     const items: EsignDocumentItem[] = [];
     for (const pick of picks) {
+      const quantity = pick.quantity == null ? 1 : Number(pick.quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000) {
+        throw new BadRequestException('Некорректное количество в позиции');
+      }
+      const discountPercent = pick.discountPercent == null ? 0 : Number(pick.discountPercent);
+      if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+        throw new BadRequestException('Скидка по позиции должна быть от 0 до 100%');
+      }
+      const qtyFields = { quantity: Math.round(quantity * 1000) / 1000, discountPercent: Math.round(discountPercent * 100) / 100 };
       if (pick.kind === 'product') {
         const p = await this.productRepo.findOne({ where: { id: pick.refId, tenantId } });
         if (!p) throw new BadRequestException('Товар не найден — возможно, он был удалён');
-        items.push({ kind: 'product', refId: p.id, name: p.name, sku: p.sku, price: p.price, currency: p.currency });
+        items.push({ kind: 'product', refId: p.id, name: p.name, sku: p.sku, price: p.price, currency: p.currency, ...qtyFields });
       } else if (pick.kind === 'service') {
         const s = await this.bookingServiceRepo.findOne({ where: { id: pick.refId, tenantId } });
         if (!s) throw new BadRequestException('Услуга не найдена — возможно, она была удалена');
@@ -247,6 +324,7 @@ export class EsignService {
           durationMinutes: s.durationMinutes,
           masterId,
           masterName,
+          ...qtyFields,
         });
       } else {
         throw new BadRequestException('Неизвестный тип позиции');
@@ -314,7 +392,7 @@ export class EsignService {
   async issueDocument(
     tenantId: string,
     userId: string,
-    input: { templateId: string; contactId: string; extraFields?: Record<string, string>; items?: EsignItemPick[] },
+    input: { templateId: string; contactId: string; extraFields?: Record<string, string>; items?: EsignItemPick[]; leadId?: string | null },
   ) {
     const tpl = await this.templateRepo.findOne({ where: { id: input.templateId, tenantId } });
     if (!tpl) throw new NotFoundException('Шаблон не найден');
@@ -330,14 +408,41 @@ export class EsignService {
     if (needed.includes('CONTRACT_NO')) {
       auto.CONTRACT_NO = await this.consumeNextContractNumber(tenantId);
     }
-    const itemValues = computeItemValues(resolvedItems);
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const quoteParams = {
+      discountPercent: parsePercent(input.extraFields?.DISCOUNT_PERCENT),
+      taxPercent: parsePercent(input.extraFields?.TAX_PERCENT),
+      validUntil: input.extraFields?.VALID_UNTIL?.trim() || null,
+      lang: tenant?.uiLanguage || null,
+    };
+    const { values: itemValues, quoteError } = computeItemValues(resolvedItems, quoteParams);
+    const isQuote = needed.some((k) => ESIGN_QUOTE_KEY_SET.has(k));
+    if (isQuote && quoteError === 'mixed_currency') {
+      throw new BadRequestException('Все позиции коммерческого предложения должны быть в одной валюте');
+    }
     const manualKeys = needed.filter((k) => !ESIGN_AUTO_KEYS.has(k) && !ESIGN_ITEM_KEYS.has(k) && !ESIGN_SEQUENCE_KEYS.has(k));
     const extra: Record<string, string> = {};
     for (const k of manualKeys) {
       const v = input.extraFields?.[k];
       if (v && v.trim()) extra[k] = v.trim();
     }
+    // Quote parameters aren't template placeholders, but they're needed to re-issue
+    // ("Дублировать") the same offer, so they're kept alongside the manual fields.
+    let leadId: string | null = null;
+    if (isQuote) {
+      for (const k of ESIGN_QUOTE_PARAM_KEYS) {
+        const v = input.extraFields?.[k];
+        if (v && v.trim()) extra[k] = v.trim();
+      }
+      extra.IS_QUOTE = '1';
+      if (input.leadId) {
+        const lead = await this.leadRepo.findOne({ where: { id: input.leadId, tenantId } });
+        if (!lead) throw new BadRequestException('Лид не найден');
+        leadId = lead.id;
+      }
+    }
     const values = { ...auto, ...itemValues, ...extra };
+    if (isQuote && itemValues.VALID_UNTIL) values.VALID_UNTIL = itemValues.VALID_UNTIL;
     // Auto-assigned, not a manual field, but still worth keeping in extraFields so the
     // documents list ("docNo") and duplicate/audit trail can show it without re-deriving it.
     if (values.CONTRACT_NO) extra.CONTRACT_NO = values.CONTRACT_NO;
@@ -359,13 +464,15 @@ export class EsignService {
         signerEmail: contact.email || null,
         extraFields: extra,
         items: resolvedItems.length ? resolvedItems : null,
-        amount: parseAmount(extra.AMOUNT),
-        currency: extra.CURRENCY || null,
+        ...(leadId ? { entityType: 'lead', entityId: leadId } : {}),
+        // a КП's amount is its computed total unless the template also has a manual {AMOUNT}
+        amount: parseAmount(extra.AMOUNT) ?? (isQuote ? itemValues.QUOTE_TOTAL_NUMBER || null : null),
+        currency: extra.CURRENCY || (isQuote ? itemValues.QUOTE_CURRENCY || null : null),
         fileName,
       }),
     );
 
-    const pdf = await renderEsignPdf(doc.title, doc.bodyText);
+    const pdf = await renderEsignPdf(doc.title, doc.bodyText, undefined, await this.pdfHeaderFor(doc));
     doc.draftPdfUrl = await this.writePdf(tenantId, doc.id, 'draft', pdf.buffer);
     doc.pageCount = pdf.pageCount;
     doc.fileSizeBytes = pdf.buffer.length;
@@ -508,7 +615,7 @@ export class EsignService {
       doc.bodyText = input.bodyText.trim();
     }
 
-    const pdf = await renderEsignPdf(doc.title, doc.bodyText);
+    const pdf = await renderEsignPdf(doc.title, doc.bodyText, undefined, await this.pdfHeaderFor(doc));
     doc.draftPdfUrl = await this.writePdf(tenantId, doc.id, 'draft', pdf.buffer);
     doc.pageCount = pdf.pageCount;
     doc.fileSizeBytes = pdf.buffer.length;
@@ -551,7 +658,14 @@ export class EsignService {
           templateId: source.templateId,
           contactId: source.contactId,
           extraFields: source.extraFields || {},
-          items: (source.items || []).map((i) => ({ kind: i.kind, refId: i.refId, masterId: i.masterId })),
+          leadId: source.entityType === 'lead' ? source.entityId : null,
+          items: (source.items || []).map((i) => ({
+            kind: i.kind,
+            refId: i.refId,
+            masterId: i.masterId,
+            quantity: i.quantity ?? 1,
+            discountPercent: i.discountPercent ?? 0,
+          })),
         });
       }
     }
@@ -573,7 +687,7 @@ export class EsignService {
         fileName: source.fileName,
       }),
     );
-    const pdf = await renderEsignPdf(doc.title, doc.bodyText);
+    const pdf = await renderEsignPdf(doc.title, doc.bodyText, undefined, await this.pdfHeaderFor(doc));
     doc.draftPdfUrl = await this.writePdf(tenantId, doc.id, 'draft', pdf.buffer);
     doc.pageCount = pdf.pageCount;
     doc.fileSizeBytes = pdf.buffer.length;
@@ -638,7 +752,9 @@ export class EsignService {
   async seedDefaultTemplates(tenantId: string) {
     const existing = await this.templateRepo.count({ where: { tenantId } });
     if (existing > 0) return;
-    await this.templateRepo.save(ESIGN_DEFAULT_TEMPLATES.map((tpl) => this.templateRepo.create({ tenantId, ...tpl })));
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const all = [...ESIGN_DEFAULT_TEMPLATES, quoteTemplateFor(tenant?.uiLanguage)];
+    await this.templateRepo.save(all.map((tpl) => this.templateRepo.create({ tenantId, ...tpl })));
   }
 
   async listTemplates(tenantId: string) {
@@ -725,17 +841,24 @@ export class EsignService {
     doc.signatureUserAgent = input.userAgent.slice(0, 500);
     doc.signedAt = new Date();
 
-    const pdf = await renderEsignPdf(doc.title, doc.bodyText, {
-      signerName: doc.signerName,
-      signedAt: doc.signedAt,
-      ip: doc.signatureIp,
-      userAgent: doc.signatureUserAgent,
-    });
+    const pdf = await renderEsignPdf(
+      doc.title,
+      doc.bodyText,
+      {
+        signerName: doc.signerName,
+        signedAt: doc.signedAt,
+        ip: doc.signatureIp,
+        userAgent: doc.signatureUserAgent,
+      },
+      await this.pdfHeaderFor(doc),
+    );
     doc.signedPdfUrl = await this.writePdf(doc.tenantId, doc.id, 'signed', pdf.buffer, false);
     doc.pageCount = pdf.pageCount;
     doc.fileSizeBytes = pdf.buffer.length;
 
-    return this.docRepo.save(doc);
+    const saved = await this.docRepo.save(doc);
+    await this.applySignedQuoteToLead(saved);
+    return saved;
   }
 
   async declineDocument(token: string) {
@@ -743,6 +866,8 @@ export class EsignService {
     if (doc.status === 'signed') throw new BadRequestException('Документ уже подписан');
     doc.status = 'declined';
     doc.declinedAt = new Date();
-    return this.docRepo.save(doc);
+    const saved = await this.docRepo.save(doc);
+    await this.noteDeclinedQuoteOnLead(saved);
+    return saved;
   }
 }

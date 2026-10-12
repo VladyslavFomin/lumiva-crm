@@ -3,7 +3,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from './rbac.service';
 import { PERMISSION_META_KEY } from './require-permission.decorator';
-import type { PermissionKey } from './permission.types';
+import { FAIL_OPEN_PERMISSIONS, type PermissionKey } from './permission.types';
 
 @Injectable()
 export class RbacGuard implements CanActivate {
@@ -35,7 +35,7 @@ export class RbacGuard implements CanActivate {
     // ниже. Но явное индивидуальное разрешение/запрет (панель «Индивидуальные права») должен
     // побеждать это поведение в обе стороны: если owner намеренно запретил конкретному человеку
     // доступ к, скажем, 'telephony', это должно реально блокировать, а не потеряться в fail-open.
-    const newModules = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
+    const newModules: PermissionKey[] = FAIL_OPEN_PERMISSIONS;
 
     const checkOne = async (perm: PermissionKey): Promise<boolean> => {
       if (user.role === 'owner') return true;
@@ -50,7 +50,7 @@ export class RbacGuard implements CanActivate {
       // RbacService.isDepartmentHead. Стоит ПОСЛЕ проверки индивидуального override выше, чтобы
       // явный запрет конкретному человеку (панель «Индивидуальные права») всё равно побеждал,
       // даже если он формально руководитель какого-то отдела.
-      if (perm === 'ai_employees' && staffUserId && (await this.rbac.isDepartmentHead(user.tenantId, staffUserId))) {
+      if ((perm === 'ai_employees' || perm === 'ai_office') && staffUserId && (await this.rbac.isDepartmentHead(user.tenantId, staffUserId))) {
         return true;
       }
 

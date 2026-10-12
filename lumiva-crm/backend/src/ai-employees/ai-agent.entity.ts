@@ -67,6 +67,21 @@ export class AiAgent {
   @Column({ type: 'jsonb', nullable: true })
   settings: Record<string, unknown> | null;
 
+  /** ИИ-офис: отдел, в котором работает агент (null — обычный ИИ-сотрудник). Колонки — ai-office-schema.service.ts */
+  @Column({ name: 'department_id', type: 'uuid', nullable: true })
+  departmentId: string | null;
+
+  /** Руководитель отдела: распределяет задачи и ставит их из цели отдела. */
+  @Column({ name: 'is_lead', type: 'boolean', default: false })
+  isLead: boolean;
+
+  /** Личный промт агента внутри отдела (добавляется к промту отдела). */
+  @Column({ name: 'office_prompt', type: 'text', default: '' })
+  officePrompt: string;
+
+  @Column({ name: 'office_sort', type: 'int', default: 0 })
+  officeSort: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

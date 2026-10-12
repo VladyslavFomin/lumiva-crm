@@ -2573,6 +2573,62 @@ export class AutomationsService {
         });
       }
 
+      case 'ai_office_task': {
+        // Задача ИИ-отделу: отдел исполнит её сам (очередь, права, согласования — ai-office).
+        const departmentId = String(config.departmentId || '').trim();
+        if (!departmentId) throw new Error('ai_office_task: выберите ИИ-отдел');
+        const title = this.interpolateString(String(config.title || ''), triggerData).trim();
+        if (!title) throw new Error('ai_office_task: укажите название задачи');
+        const details = this.interpolateString(String(config.details || ''), triggerData);
+        // цепочки «отдел сдал задачу → автоматизация → задача другому отделу» ограничены по глубине
+        const depth = Number(triggerData?.handoffDepth ?? -1) + 1;
+        if (depth > 3) throw new Error('ai_office_task: слишком длинная цепочка задач между отделами');
+        const { AiOfficeService } = await import('../ai-office/ai-office.service.js');
+        const office = this.moduleRef.get(AiOfficeService, { strict: false });
+        const base = {
+          departmentId,
+          priority: Number(config.priority) || 2,
+          source: 'automation',
+          sourceRef: `automation:${triggerData.automationId ?? ''}`,
+          handoffDepth: Math.max(0, depth),
+        };
+        // «зависшие» лиды/сделки приходят одной сводкой — отделу нужна задача на каждую запись
+        const digest = Array.isArray(triggerData?.leads) ? { type: 'lead', items: triggerData.leads } : Array.isArray(triggerData?.sales) ? { type: 'sale', items: triggerData.sales } : null;
+        if (digest) {
+          const ids: string[] = [];
+          for (const item of digest.items.slice(0, 25)) {
+            const data = { ...triggerData, [digest.type]: item };
+            const t = await office.createTask(tenantId, {
+              ...base,
+              title: this.interpolateString(String(config.title || ''), data).trim() || title,
+              details: this.interpolateString(String(config.details || ''), data),
+              entityType: digest.type,
+              entityId: String(item.id),
+            });
+            ids.push(t.id);
+          }
+          return { aiOfficeTaskIds: ids };
+        }
+        // входящее сообщение (почта/Telegram/WhatsApp) — задача про лида этого клиента + сам текст
+        const msgLead = triggerData?.leadId ?? triggerData?.contact?.leadId ?? null;
+        const isMessage = ['telegram_message', 'whatsapp_message', 'email'].includes(String(entityType));
+        const incoming = isMessage
+          ? String(triggerData?.message?.text ?? triggerData?.text ?? triggerData?.subject ?? '').slice(0, 2000)
+          : '';
+        const supported = ['lead', 'contact', 'company', 'project', 'task', 'sale', 'custom_object_record', 'helpdesk_ticket', 'product', 'reservation', 'hotel_reservation'];
+        const recType = isMessage ? (msgLead ? 'lead' : null) : entityType && supported.includes(String(entityType)) ? String(entityType) : null;
+        const recId = isMessage ? msgLead : recType && entityId ? entityId : null;
+        if (isMessage && !recId) return { skipped: 'message is not linked to a lead' };
+        const task = await office.createTask(tenantId, {
+          ...base,
+          title,
+          details: incoming ? `${details}\n\n${incoming ? `Incoming message:\n${incoming}` : ''}` : details,
+          entityType: recType,
+          entityId: recId ? String(recId) : null,
+        });
+        return { aiOfficeTaskId: task.id };
+      }
+
       case 'send_notification': {
         const title = config.title ? this.interpolateString(String(config.title), triggerData) : null;
         const body = this.interpolateString(String(config.body || config.message || ''), triggerData);

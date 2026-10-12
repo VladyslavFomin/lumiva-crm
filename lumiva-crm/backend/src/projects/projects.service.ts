@@ -60,7 +60,16 @@ export class ProjectsService {
     private readonly staffUsersService: StaffUsersService,
   ) {}
 
-  private extractOwnerStaffIds(project: Pick<Project, 'ownerUserId' | 'ownerUserIds'>): string[] {
+/** Один сотрудник — одна строка (последняя роль побеждает); пустой список → null. */
+  private normalizeAccessMembers(list: Array<{ staffUserId: string; role: string }> | null | undefined) {
+    const byId = new Map<string, 'reader' | 'editor'>();
+    for (const m of list || []) {
+      if (m?.staffUserId) byId.set(m.staffUserId, m.role === 'editor' ? 'editor' : 'reader');
+    }
+    return byId.size ? [...byId].map(([staffUserId, role]) => ({ staffUserId, role })) : null;
+  }
+
+    private extractOwnerStaffIds(project: Pick<Project, 'ownerUserId' | 'ownerUserIds'>): string[] {
     const ids = new Set<string>();
     if (project.ownerUserId) ids.add(project.ownerUserId);
     (project.ownerUserIds || []).forEach((id) => id && ids.add(id));
@@ -77,6 +86,29 @@ export class ProjectsService {
   ): Promise<void> {
     const nextIds = this.extractOwnerStaffIds(project);
     const newIds = nextIds.filter((id) => !previousStaffIds.includes(id));
+    await this.notifyStaffAboutProject(tenantId, newIds, project, actorEmail, 'Вам назначен проект', 'project.assigned');
+  }
+
+  /** Новым наблюдателям — уведомление «вам открыт доступ к проекту». */
+  private async notifyNewWatchers(
+    tenantId: string,
+    previous: Project['accessMembers'],
+    project: Project,
+    actorEmail?: string | null,
+  ): Promise<void> {
+    const prevIds = (previous || []).map((m) => m.staffUserId);
+    const newIds = (project.accessMembers || []).map((m) => m.staffUserId).filter((id) => !prevIds.includes(id));
+    await this.notifyStaffAboutProject(tenantId, newIds, project, actorEmail, 'Вам открыт доступ к проекту', 'project.watcher_added');
+  }
+
+  private async notifyStaffAboutProject(
+    tenantId: string,
+    newIds: string[],
+    project: Project,
+    actorEmail: string | null | undefined,
+    title: string,
+    type: string,
+  ): Promise<void> {
     if (!newIds.length) return;
 
     let actorStaffId: string | null = null;
@@ -98,9 +130,9 @@ export class ProjectsService {
     await this.notifications.create(
       tenantId,
       userIds,
-      'Вам назначен проект',
+      title,
       project.name || 'Новый проект',
-      { type: 'project.assigned', projectId: project.id, link: `/projects/${project.id}` },
+      { type, projectId: project.id, link: `/projects/${project.id}` },
     );
   }
 
@@ -278,6 +310,7 @@ export class ProjectsService {
       ownerName: dto.ownerName ?? null,
       ownerUserId: ownerUserIds?.[0] ?? dto.ownerUserId ?? null,
       ownerUserIds,
+      accessMembers: this.normalizeAccessMembers(dto.accessMembers),
       leadId: dto.leadId ?? null,
       companyId,
       contactId,
@@ -315,6 +348,7 @@ export class ProjectsService {
       console.error('Failed to trigger automation:', error);
     }
     await this.notifyNewProjectOwners(tenantId, [], saved, actor?.email).catch(() => undefined);
+    await this.notifyNewWatchers(tenantId, null, saved, actor?.email).catch(() => undefined);
     return saved;
   }
 
@@ -369,6 +403,11 @@ export class ProjectsService {
           }
         }
       }
+    }
+
+    // ---- Наблюдатели ----
+    if (Object.prototype.hasOwnProperty.call(dto, 'accessMembers')) {
+      project.accessMembers = this.normalizeAccessMembers(dto.accessMembers);
     }
 
     // ---- Ответственный / владелец проекта ----
@@ -477,6 +516,7 @@ export class ProjectsService {
       'ownerName',
       'ownerUserId',
       'ownerUserIds',
+      'accessMembers',
       'leadId',
       'companyId',
       'contactId',
@@ -548,6 +588,7 @@ export class ProjectsService {
       }
     }
     await this.notifyNewProjectOwners(tenantId, this.extractOwnerStaffIds(before as Project), saved, actor?.email).catch(() => undefined);
+    await this.notifyNewWatchers(tenantId, (before as Project).accessMembers, saved, actor?.email).catch(() => undefined);
     return saved;
   }
 

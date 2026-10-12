@@ -62,18 +62,31 @@ export class WorkspaceAreasService {
     const count = await this.areaRepo.count({ where: { tenantId } });
     if (count > 0) return;
 
-    const main = this.areaRepo.create({
-      tenantId,
-      name: 'Основная рабочая область',
-      slug: 'main',
-      iconKey: 'home',
-      iconColor: '#3b82f6',
-      description: null,
-      coverImageUrl: null,
-      meta: null,
-      sortOrder: 0,
-    });
-    const saved = await this.areaRepo.save(main);
+    // Первый вход нового тенанта: страница шлёт несколько запросов сразу, и все видят «областей
+    // нет». Вставка атомарная (ON CONFLICT по уникальному tenantId+slug): создаёт и донастраивает
+    // область только выигравший запрос, остальные просто читают уже созданную — раньше второй
+    // падал 500 на duplicate key.
+    const inserted = await this.areaRepo
+      .createQueryBuilder()
+      .insert()
+      .into(WorkspaceArea)
+      .values({
+        tenantId,
+        name: 'Основная рабочая область',
+        slug: 'main',
+        iconKey: 'home',
+        iconColor: '#3b82f6',
+        description: null,
+        coverImageUrl: null,
+        meta: null,
+        sortOrder: 0,
+      })
+      .orIgnore()
+      .returning(['id'])
+      .execute();
+    const savedId = (inserted.raw as Array<{ id: string }>)[0]?.id;
+    if (!savedId) return;
+    const saved = { id: savedId };
 
     await this.objectRepo
       .createQueryBuilder()

@@ -45,6 +45,7 @@ export class IyzicoBillingProvider {
     lineName: string;
     ip: string;
     locale: 'tr' | 'en';
+    purchase?: { type: 'ai_office_slots'; extraSlots: number };
   }): Promise<{ url: string }> {
     const email = (input.tenant.ownerEmail || '').trim();
     if (!email) {
@@ -77,7 +78,7 @@ export class IyzicoBillingProvider {
       },
       basketItems: [
         {
-          id: `plan-${input.plan}`,
+          id: input.purchase ? 'ai-office-slots' : `plan-${input.plan}`,
           name: input.lineName,
           category1: 'Subscription',
           price: input.amountTry.toFixed(2),
@@ -91,12 +92,14 @@ export class IyzicoBillingProvider {
       tenantId: input.tenant.id,
       plan: input.plan,
       period: input.period,
+      purchaseType: input.purchase?.type ?? null,
+      extraSlots: input.purchase?.extraSlots ?? null,
     });
     if (!result.paymentPageUrl) throw new BadRequestException('iyzico did not return a payment page URL');
     return { url: result.paymentPageUrl };
   }
 
-  async handleCallback(token: string): Promise<{ status: 'paid' | 'failed' }> {
+  async handleCallback(token: string): Promise<{ status: 'paid' | 'failed'; purchaseType?: string | null }> {
     const row = await this.checkoutsRepo.findOne({ where: { token } });
     if (!row) return { status: 'failed' };
 
@@ -108,7 +111,11 @@ export class IyzicoBillingProvider {
     const paid = result.status === 'success' && result.paymentStatus === 'SUCCESS';
     if (!paid) {
       await this.billingAlerts.notifyPaymentFailed(row.tenantId);
-      return { status: 'failed' };
+      return { status: 'failed', purchaseType: row.purchaseType };
+    }
+    if (row.purchaseType === 'ai_office_slots') {
+      await this.planActivation.activateAiOfficeSlots({ tenantId: row.tenantId, extraSlots: row.extraSlots ?? 0, provider: 'iyzico', externalRef: token });
+      return { status: 'paid', purchaseType: row.purchaseType };
     }
 
     await this.planActivation.activatePaidCheckout({

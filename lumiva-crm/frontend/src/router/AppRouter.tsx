@@ -218,6 +218,21 @@ const WebFormsSettingsPage = lazy(() => import('../pages/web-forms/WebFormsSetti
 const PublicEmbedFormPage = lazy(() => import('../pages/public-embed/PublicEmbedFormPage').then((m) => ({ default: m.PublicEmbedFormPage })));
 const AiEmployeeProfilePage = lazy(() => import('../pages/ai-employees/AiEmployeesPage').then((m) => ({ default: m.AiEmployeeProfilePage })));
 const AiEmployeesPage = lazy(() => import('../pages/ai-employees/AiEmployeesPage').then((m) => ({ default: m.AiEmployeesPage })));
+const AuraHomePage = lazy(() => import('../pages/aura/AuraHomePages').then((m) => ({ default: m.AuraHomePage })));
+const AuraTemplatesPage = lazy(() => import('../pages/aura/AuraHomePages').then((m) => ({ default: m.AuraTemplatesPage })));
+const AuraAppsPage = lazy(() => import('../pages/aura/AuraHomePages').then((m) => ({ default: m.AuraAppsPage })));
+const AuraBriefPage = lazy(() => import('../pages/aura/AuraWizard').then((m) => ({ default: m.AuraBriefPage })));
+const AuraStylePage = lazy(() => import('../pages/aura/AuraWizard').then((m) => ({ default: m.AuraStylePage })));
+const AuraBuildPage = lazy(() => import('../pages/aura/AuraBuild').then((m) => ({ default: m.AuraBuildPage })));
+const AuraViewPage = lazy(() => import('../pages/aura/AuraView').then((m) => ({ default: m.AuraViewPage })));
+const AuraAppPage = lazy(() => import('../pages/aura/AuraView').then((m) => ({ default: m.AuraAppPage })));
+const PublicAuraPage = lazy(() => import('../pages/aura/AuraView').then((m) => ({ default: m.PublicAuraPage })));
+const AiOfficePage = lazy(() => import('../pages/ai-office/AiOfficePage').then((m) => ({ default: m.AiOfficePage })));
+const AiDepartmentPage = lazy(() => import('../pages/ai-office/AiDepartmentPage').then((m) => ({ default: m.AiDepartmentPage })));
+const AiDepartmentEditPage = lazy(() => import('../pages/ai-office/AiDepartmentEditPage').then((m) => ({ default: m.AiDepartmentEditPage })));
+const AiOfficeConnectPage = lazy(() => import('../pages/ai-office/AiOfficeConnectPage').then((m) => ({ default: m.AiOfficeConnectPage })));
+const AiOfficePlanPage = lazy(() => import('../pages/ai-office/AiOfficePlanPage').then((m) => ({ default: m.AiOfficePlanPage })));
+const AiBrainPage = lazy(() => import('../pages/ai-office/AiBrainPage').then((m) => ({ default: m.AiBrainPage })));
 
 // Routes where the onboarding overlay must not appear on top of the page (billing/error pages
 // the user may be sent to regardless of onboarding state).
@@ -1397,6 +1412,29 @@ export const AppRouter: React.FC = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* -------- AURA (приложения-дашборды) -------- */}
+        <Route path="/aura" element={<ProtectedRoute><AuraHomePage /></ProtectedRoute>} />
+        <Route path="/aura/new" element={<ProtectedRoute><AuraHomePage /></ProtectedRoute>} />
+        <Route path="/aura/templates" element={<ProtectedRoute><AuraTemplatesPage /></ProtectedRoute>} />
+        <Route path="/aura/apps" element={<ProtectedRoute><AuraAppsPage /></ProtectedRoute>} />
+        <Route path="/aura/brief" element={<ProtectedRoute><AuraBriefPage /></ProtectedRoute>} />
+        <Route path="/aura/style" element={<ProtectedRoute><AuraStylePage /></ProtectedRoute>} />
+        <Route path="/aura/build" element={<ProtectedRoute><AuraBuildPage /></ProtectedRoute>} />
+        <Route path="/aura/build/:id" element={<ProtectedRoute><AuraBuildPage /></ProtectedRoute>} />
+        <Route path="/aura/view/:id" element={<ProtectedRoute><AuraViewPage /></ProtectedRoute>} />
+        <Route path="/aura/app/:id" element={<ProtectedRoute><AuraAppPage /></ProtectedRoute>} />
+        {/* Публичная ссылка на приложение Aura — без авторизации и без меню CRM */}
+        <Route path="/aura/tv/:shareKey" element={<PublicAuraPage />} />
+
+        {/* -------- AI OFFICE (ИИ-отделы) -------- */}
+        <Route path="/ai-office" element={<ProtectedRoute><AiOfficePage /></ProtectedRoute>} />
+        <Route path="/ai-office/departments/new" element={<ProtectedRoute><AiDepartmentEditPage /></ProtectedRoute>} />
+        <Route path="/ai-office/departments/:id" element={<ProtectedRoute><AiDepartmentPage /></ProtectedRoute>} />
+        <Route path="/ai-office/departments/:id/edit" element={<ProtectedRoute><AiDepartmentEditPage /></ProtectedRoute>} />
+        <Route path="/ai-office/connect" element={<ProtectedRoute><AiOfficeConnectPage /></ProtectedRoute>} />
+        <Route path="/ai-office/plan" element={<ProtectedRoute><AiOfficePlanPage /></ProtectedRoute>} />
+        <Route path="/ai-office/brain" element={<ProtectedRoute><AiBrainPage /></ProtectedRoute>} />
 
         {/* -------- AI EMPLOYEES -------- */}
         <Route

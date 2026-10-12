@@ -28,6 +28,35 @@ export class TenantPlanActivationService {
     return next;
   }
 
+  /**
+   * Оплачены доп. слоты ИИ-отделов (ручное продление, как и сам тариф): count слотов на месяц.
+   * Та же покупка того же количества при активных слотах продлевает срок, другое количество —
+   * начинает новый месяц с новым количеством. Идемпотентно по ai_office_last_payment (отдельно
+   * от lastBillingSessionId тарифа — чтобы не сломать идемпотентность оплаты тарифа).
+   */
+  async activateAiOfficeSlots(input: {
+    tenantId: string;
+    extraSlots: number;
+    provider: BillingProviderCode;
+    externalRef: string;
+  }): Promise<{ applied: boolean }> {
+    const key = `${input.provider}:${input.externalRef}`;
+    const n = Math.max(0, Math.min(8, Math.round(input.extraSlots)));
+    const rows = await this.tenantsRepo.query(
+      `UPDATE tenants
+          SET ai_office_slots_until = CASE
+                WHEN ai_office_slots_until > now() AND ai_office_extra_slots = $2 THEN ai_office_slots_until + interval '1 month'
+                ELSE now() + interval '1 month' END,
+              ai_office_extra_slots = $2,
+              ai_office_last_payment = $3
+        WHERE id = $1 AND COALESCE(ai_office_last_payment, '') <> $3
+        RETURNING id`,
+      [input.tenantId, n, key],
+    );
+    const applied = Array.isArray(rows?.[0]) ? rows[0].length > 0 : (rows?.length ?? 0) > 0;
+    return { applied };
+  }
+
   async activatePaidCheckout(input: {
     tenantId: string;
     plan: PlanCode;

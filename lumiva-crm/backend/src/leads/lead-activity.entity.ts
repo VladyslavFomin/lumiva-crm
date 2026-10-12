@@ -14,7 +14,8 @@ export type LeadActivityType =
   | 'created'
   | 'status_changed'
   | 'assignee_changed'
-  | 'comment';
+  | 'comment'
+  | 'call_analyzed';
 
 @Entity('lead_activity')
 export class LeadActivity {

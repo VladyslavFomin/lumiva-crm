@@ -7,6 +7,7 @@ import type {
   ProjectComment,
   ProjectFileLink,
   ProjectMeeting,
+  ProjectAccessMember,
 } from '../pages/projects/projectTypes';
 
 export type { Project, ProjectStatus, ProjectTask, ProjectComment, ProjectFileLink, ProjectMeeting } from '../pages/projects/projectTypes';
@@ -47,6 +48,9 @@ interface ApiProject {
   ownerName: string | null;
   ownerUserId: string | null;
   ownerUserIds?: string[] | null;
+  accessMembers?: ProjectAccessMember[] | null;
+  /** 'reader' — наблюдатель только с просмотром (бэкенд не даст сохранить). */
+  myAccess?: 'full' | 'reader';
   briefFileName: string | null;
   briefFileUrl: string | null;
   files?: ProjectFileLink[] | null;
@@ -116,6 +120,8 @@ function mapProject(p: ApiProject): Project {
     ownerUserId: (ownerUserIds[0] ?? p.ownerUserId ?? single) || null,
     ownerUserIds,
     owner: ownerName,
+    accessMembers: Array.isArray(p.accessMembers) ? p.accessMembers : [],
+    myAccess: p.myAccess === 'reader' ? 'reader' : 'full',
 
     // лид / компания
     leadId: p.leadId,
@@ -174,14 +180,16 @@ function projectToDto(
     category: p.category ?? null,
     tags: p.tags && p.tags.length ? p.tags.join(',') : undefined,
 
-    // ответственный
+    // ответственный — отправляем всегда, пустой список тоже: раньше пустой превращался в
+    // undefined («не менять»), и снять последнего ответственного было невозможно. Сервер
+    // проверяет право на смену только при реальном изменении состава.
     ownerUserId:
       p.ownerUserIds && p.ownerUserIds.length
         ? p.ownerUserIds[0]
-        : p.ownerUserId ?? undefined,
-    ownerUserIds:
-      p.ownerUserIds && p.ownerUserIds.length ? p.ownerUserIds : undefined,
-    ownerName: p.owner ?? undefined,
+        : p.ownerUserId ?? null,
+    ownerUserIds: p.ownerUserIds ?? (p.ownerUserId ? [p.ownerUserId] : []),
+    ownerName: p.owner ?? null,
+    accessMembers: p.accessMembers ?? undefined,
 
     // лид / компания (null явно, чтобы сбрасывать ссылку)
     leadId: p.leadId === null ? null : p.leadId || undefined,

@@ -56,10 +56,11 @@ import { translateSaleStatus } from '../sales/saleStatusI18n';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { saleOrderDisplayNumber } from '../../utils/saleOrderDisplay';
 import { extractSaleProductUrl } from '../../utils/saleLinks';
+import { LeadCallsPane } from './LeadCallsPane';
 import { LeadComms, CH_ACCENT, CH_ICON, Ico, type ChannelKey, type CommsActivity, type CommsContacts, type LeadCommsHandle } from './LeadComms';
 import './leadDetail.css';
 
-type CenterTab = 'chat' | 'comments' | 'history';
+type CenterTab = 'chat' | 'calls' | 'comments' | 'history';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -259,6 +260,7 @@ export const LeadFormPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<CenterTab>('chat');
+  const [callsCount, setCallsCount] = useState<number | null>(null);
   const [lead, setLead] = useState<Lead>(createEmptyLead());
   const [loading, setLoading] = useState<boolean>(!isNew);
   const [saving, setSaving] = useState<boolean>(false);
@@ -421,6 +423,8 @@ export const LeadFormPage: React.FC = () => {
         return t('crm.leads.form.activity.assigneeChanged');
       case 'comment':
         return t('crm.leads.form.activity.comment');
+      case 'call_analyzed':
+        return t('crm.leads.form.activity.callAnalyzed');
       default:
         return a.type;
     }
@@ -1959,6 +1963,12 @@ export const LeadFormPage: React.FC = () => {
                     {t('crm.leadCard.tabs.chat')}
                     {unread > 0 && <b className="u">{unread}</b>}
                   </button>
+                  {!isNew && (
+                    <button type="button" role="tab" aria-selected={tab === 'calls'} className={cx(tab === 'calls' && 'on')} onClick={() => setTab('calls')}>
+                      {t('crm.leadCard.tabs.calls')}
+                      {callsCount !== null && <span className="c">{callsCount}</span>}
+                    </button>
+                  )}
                   <button type="button" role="tab" aria-selected={tab === 'comments'} className={cx(tab === 'comments' && 'on')} onClick={() => setTab('comments')}>
                     {t('crm.leadCard.tabs.comments')}
                     <span className="c">{commentCount}</span>
@@ -1988,6 +1998,10 @@ export const LeadFormPage: React.FC = () => {
                           onContacts={setChContacts}
                         />
                       </div>
+
+                      {tab === 'calls' && (
+                        <LeadCallsPane leadId={lead.id} canEdit={canEdit} locale={locale} onCount={setCallsCount} />
+                      )}
 
                       {tab === 'comments' && (
                         <div className="ld-pane">

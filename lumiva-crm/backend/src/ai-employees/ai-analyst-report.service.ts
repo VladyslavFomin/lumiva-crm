@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { extractNumbers } from '../ai/ai-number-provenance';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import { AiAgent } from './ai-agent.entity';
@@ -343,6 +344,13 @@ export class AiAnalystReportService {
         `Yesterday (${day}) vs the day before (${prevDay}) — JSON metrics:\nYESTERDAY: ${JSON.stringify(cur)}\nDAY BEFORE: ${JSON.stringify(prev)}\n\nWrite 3–5 short bullet points: the most important numbers and notable changes (copy numbers exactly; money is per currency). No recommendations about individual leads/deals. Plain text bullets starting with "• ".`,
       );
       summary = String(res.text || '').trim().slice(0, 2000);
+      // Пункты с числами, которых нет в метриках (и после самопроверки модели), в отчёт не попадают.
+      if (res.unverifiedNumbers.length) {
+        summary = summary
+          .split('\n')
+          .filter((line) => !res.unverifiedNumbers.some((n) => line.replace(/[\s  ]/g, '').includes(n.replace(/[\s  ]/g, ''))))
+          .join('\n');
+      }
       tokensUsed = res.tokensUsed || 0;
     } catch (e: any) {
       this.log.warn(`Analyst summary failed agent=${agent.id}: ${e?.message || e}`);

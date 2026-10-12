@@ -1,0 +1,37 @@
+/* Персонажи ИИ-сотрудников (дизайн v3, aie3.css) — глобально, т.к. мини-аватары живут и вне
+   страницы сотрудников (плавающая лента активности и т.п.). */
+.e3-por{--px:0px;--py:0px;position:relative}
+.e3-por-bg{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:var(--pbg)}
+.e3-por-orb{position:absolute;width:70%;aspect-ratio:1;left:15%;top:14%;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(255,255,255,.75),rgba(255,255,255,0) 68%);transform:translate(calc(var(--px) * -.6),calc(var(--py) * -.6));transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.e3-por-bg::after{content:'';position:absolute;inset:auto 0 0 0;height:40%;background:linear-gradient(transparent,color-mix(in oklch,var(--pd) 14%,transparent))}
+.e3-por-fig{position:absolute;left:0;right:0;bottom:0;top:-34%;transform-origin:50% 100%;transform:translate(var(--px),var(--py));transition:transform .5s cubic-bezier(.2,.7,.2,1),filter .4s;pointer-events:none}
+.e3-por-fig>svg.ch{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.m-pause .e3-por-fig{filter:grayscale(.75) opacity(.85)}
+.m-pause .e3-por-fig *{animation-play-state:paused !important}
+.m-setup .e3-por-fig{filter:grayscale(.4)}
+
+svg.ch{display:block}
+svg.ch .ch-body,svg.ch .ch-head,svg.ch .ch-hair,svg.ch .ch-item{transform-box:view-box}
+svg.ch.live .ch-body{transform-origin:100px 240px;animation:chBreath 4.8s ease-in-out var(--dl) infinite}
+@keyframes chBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.012,1.018)}}
+svg.ch.live .ch-head{transform-origin:100px 150px;animation:chTilt 7s ease-in-out var(--dl) infinite}
+@keyframes chTilt{0%,100%{transform:rotate(0)}25%{transform:rotate(-2.5deg) translateY(-1px)}55%{transform:rotate(1.8deg)}80%{transform:rotate(-.6deg) translateY(-.5px)}}
+svg.ch .ch-hair{transform-origin:100px 60px}
+svg.ch.live .ch-hair{animation:chSway 5s ease-in-out var(--dl) infinite}
+@keyframes chSway{0%,100%{transform:rotate(0)}50%{transform:rotate(1.2deg)}}
+svg.ch .ch-eyes{transform-box:fill-box;transform-origin:center;animation:chBlink 4.6s var(--dl) infinite}
+@keyframes chBlink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}
+svg.ch.live .ch-item{transform-origin:130px 230px;animation:chItem 4.8s ease-in-out var(--dl) infinite}
+@keyframes chItem{0%,100%{transform:rotate(0)}50%{transform:rotate(-1.6deg) translateY(-1px)}}
+svg.ch.live .ch-led{animation:chLed 1.4s ease-in-out infinite}
+@keyframes chLed{50%{opacity:.25}}
+svg.ch.live .ch-shine{animation:chShine 3.8s ease-in-out var(--dl) infinite}
+@keyframes chShine{0%,70%,100%{opacity:.25}82%{opacity:1}}
+svg.ch .ch-z{animation:chZ 2.6s ease-in-out infinite}
+@keyframes chZ{0%{opacity:0;transform:translate(0,6px)}40%{opacity:1}100%{opacity:0;transform:translate(8px,-8px)}}
+
+.e3-mono{position:relative;display:inline-block;border-radius:50%;overflow:hidden;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.05)}
+.e3-mono>svg.ch{position:absolute;width:250%;height:250%;left:-75%;top:-50%}
+.ai-av-ch{display:inline-flex;flex-shrink:0;border-radius:50%}
+
+@media (prefers-reduced-motion:reduce){svg.ch *,.e3-por *{animation:none !important;transition:none !important}}

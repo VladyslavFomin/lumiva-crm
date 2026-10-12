@@ -11,6 +11,7 @@ export type PermissionKey =
   | 'projects_manage_trash'
   | 'projects_edit_amount'
   | 'projects_edit_owner'
+  | 'projects_view_all'
   | 'projects_manage'
   | 'sales'
   | 'sales_manage_import'
@@ -43,7 +44,13 @@ export type PermissionKey =
   | 'hotels'
   | 'hotels_manage_pricing'
   | 'hotels_manage_reservations'
-  | 'ai_employees';
+  | 'ai_employees'
+  /** ИИ-офис (ИИ-отделы): как и ИИ-сотрудники — владелец, руководители отделов и явный индивидуальный грант. */
+  | 'ai_office';
+
+/** Модули, добавленные позже матрицы ролей: без явной строки в матрице открыты всем (fail-open),
+ * явный индивидуальный запрет всё равно побеждает. Используется RbacGuard и RbacService.canUserAccess. */
+export const FAIL_OPEN_PERMISSIONS: PermissionKey[] = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 
@@ -83,6 +90,8 @@ export const GRANULAR_FALLBACK_TO_BASE: Partial<Record<PermissionKey, Permission
   // without the tenant explicitly restricting the new key.
   leads_edit_amount: 'leads',
   projects_edit_amount: 'projects',
+  // projects_view_all (видеть все проекты основной таблицы, не только свои) тоже без fallback:
+  // раньше не-владелец видел только свои — по умолчанию так и остаётся.
   // projects_edit_owner deliberately has NO fallback entry — same precedent as
   // projects_manage_trash: reassigning a project's owner was previously owner-role-only
   // (hardcoded in ProjectsController), a real prior restriction narrower than base 'projects',

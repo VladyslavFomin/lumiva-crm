@@ -1,4 +1,7 @@
 import { cn } from '../../lib/cn';
+import { AiCharacterMono } from './AiCharacter';
+
+const CHAR_SIZE = { sm: 30, md: 44, lg: 52, xl: 76 } as const;
 
 export const AI_AVATAR_ACCENTS = ['ink', 'slate', 'green', 'amber', 'blue', 'rose', 'violet'] as const;
 export const AI_AVATAR_STYLES = ['mono', 'rings', 'grid', 'facet', 'dots'] as const;
@@ -49,6 +52,7 @@ export function AiAvatar({
   avStyle = 'mono',
   size = 'md',
   src = null,
+  role,
   className,
 }: {
   name?: string;
@@ -56,8 +60,17 @@ export function AiAvatar({
   avStyle?: AiAvatarStyle;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   src?: string | null;
+  /** Роль ИИ-сотрудника: без загруженного фото рисуется персонаж роли (дизайн v3). */
+  role?: string | null;
   className?: string;
 }) {
+  if (!src && role) {
+    return (
+      <span className={cn('ai-av-ch', className)}>
+        <AiCharacterMono role={role} size={CHAR_SIZE[size]} />
+      </span>
+    );
+  }
   const initials = initialsOf(name);
   const stroke = STROKE_BY_ACCENT[accent] || 'rgba(0,0,0,0.1)';
   return (

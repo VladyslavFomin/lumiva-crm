@@ -1,5 +1,6 @@
 // src/helpdesk/helpdesk.service.ts
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { HelpdeskChannel, HelpdeskTicket, HelpdeskTicketPriority, HelpdeskTicketStatus } from './helpdesk-ticket.entity';
@@ -45,7 +46,28 @@ export class HelpdeskService {
     private readonly telegramCrmService: TelegramCrmService,
     private readonly whatsappCrmService: WhatsappCrmService,
     private readonly smsService: SmsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  private readonly log = new Logger('HelpdeskService');
+
+  /** Событие для автоматизаций (ИИ-отдел поддержки и т.п.). AutomationsService берём лениво — без цикла модулей. */
+  private async fireAutomation(tenantId: string, event: 'helpdesk.ticket_created' | 'helpdesk.message_received', ticket: HelpdeskTicket, text: string, authorName: string) {
+    try {
+      const { AutomationsService } = await import('../automations/automations.service.js');
+      const automations = this.moduleRef.get(AutomationsService, { strict: false });
+      await automations.triggerAutomation(tenantId, event as any, {
+        entityType: 'helpdesk_ticket',
+        entityId: ticket.id,
+        ticket: { id: ticket.id, subject: ticket.subject, channel: ticket.channel, priority: ticket.priority, category: ticket.category, status: ticket.status },
+        contactId: ticket.contactId,
+        requester: { name: authorName },
+        message: { text: text.slice(0, 4000) },
+      });
+    } catch (e) {
+      this.log.warn(`automation ${event} ticket=${ticket.id}: ${(e as Error).message}`);
+    }
+  }
 
   // ========= CRM-entity link resolution (lead/company/project) =========
 
@@ -131,6 +153,7 @@ export class HelpdeskService {
       }),
     );
     await this.notifyStaff(tenantId, null, `Внутреннее обращение: ${ticket.subject}`, `${ticket.requesterName}: ${input.message.trim().slice(0, 200)}`, ticket.id);
+    await this.fireAutomation(tenantId, 'helpdesk.ticket_created', ticket, input.message.trim(), ticket.requesterName ?? '');
     return ticket;
   }
 
@@ -316,7 +339,7 @@ export class HelpdeskService {
     return ticket;
   }
 
-  async addStaffMessage(tenantId: string, ticketId: string, authorName: string, text: string) {
+  async addStaffMessage(tenantId: string, ticketId: string, authorName: string, text: string, opts?: { byHuman?: boolean }) {
     const ticket = await this.ticketRepo.findOne({ where: { id: ticketId, tenantId } });
     if (!ticket) throw new NotFoundException('Тикет не найден');
     if (!text?.trim()) throw new BadRequestException('Сообщение не может быть пустым');
@@ -329,6 +352,13 @@ export class HelpdeskService {
     );
     if (ticket.status === 'resolved' || ticket.status === 'closed') {
       await this.ticketRepo.update({ id: ticket.id }, { status: 'pending' });
+    }
+    // ответ сотрудника — материал для базы знаний ИИ-отдела поддержки (обобщит и допишет сам)
+    if (opts?.byHuman) {
+      void (async () => {
+        const { AiOfficeService } = await import('../ai-office/ai-office.service.js');
+        await this.moduleRef.get(AiOfficeService, { strict: false }).learnFromHumanReply(tenantId, ticketId, trimmed);
+      })().catch((e) => this.log.warn(`kb learn: ${(e as Error).message}`));
     }
     if (ticket.channel === 'internal' && ticket.requesterUserId) {
       await this.notifications.create(
@@ -470,6 +500,7 @@ export class HelpdeskService {
       this.messageRepo.create({ tenantId, ticketId: ticket.id, direction: 'incoming', authorName: contactName, text: message.trim() }),
     );
     await this.notifyStaff(tenantId, null, `Новое обращение: ${ticket.subject}`, `${contactName}: ${message.trim().slice(0, 200)}`, ticket.id);
+    await this.fireAutomation(tenantId, 'helpdesk.ticket_created', ticket, message.trim(), contactName);
     return ticket;
   }
 
@@ -493,6 +524,7 @@ export class HelpdeskService {
       `${contactName}: ${text.trim().slice(0, 200)}`,
       ticket.id,
     );
+    await this.fireAutomation(tenantId, 'helpdesk.message_received', ticket, text.trim(), contactName);
     return message;
   }
 

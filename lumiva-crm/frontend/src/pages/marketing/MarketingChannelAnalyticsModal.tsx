@@ -1189,7 +1189,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
 
         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 sm:px-5 sm:py-5 space-y-6 sm:space-y-8">
           {/* 9-KPI hairline strip */}
-          <div style={{ border: '1px solid #e7e7e7', borderRadius: 12, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div style={{ border: '1px solid #e7e7e7', borderRadius: 12, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
             {(
               [
                 { label: t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' }), v: formatNumber(aggTotals.impressions), color: undefined },
@@ -1205,15 +1205,19 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
             ).map((cell, idx, arr) => (
               <div
                 key={idx}
+                className="min-w-0 px-2.5 py-3 sm:px-[18px] sm:py-3.5"
                 style={{
-                  padding: '14px 18px',
-                  borderRight: idx < arr.length - 1 ? '1px solid #f0f0f0' : 'none',
+                  borderRight: (idx + 1) % 3 !== 0 ? '1px solid #f0f0f0' : 'none',
+                  borderBottom: idx < arr.length - 3 ? '1px solid #f0f0f0' : 'none',
                 }}
               >
                 <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#888', fontWeight: 500 }}>
                   {cell.label}
                 </div>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 600, color: cell.color ?? (cell.v === '—' ? '#b5b5b5' : '#222'), marginTop: 8, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                <div
+                  className="text-[13px] sm:text-[18px]"
+                  style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: cell.color ?? (cell.v === '—' ? '#b5b5b5' : '#222'), marginTop: 8, letterSpacing: '-0.02em', lineHeight: 1.15, overflowWrap: 'anywhere' }}
+                >
                   {cell.v}
                 </div>
               </div>

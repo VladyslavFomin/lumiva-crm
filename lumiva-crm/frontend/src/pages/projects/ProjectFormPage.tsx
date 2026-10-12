@@ -23,6 +23,7 @@ import {
   type ProjectTaskChecklistItem,
   type ProjectFileLink,
   type ProjectFileProvider,
+  type ProjectAccessMember,
 } from './projectTypes';
 
 import {
@@ -113,6 +114,12 @@ function historyComparable(field: string, value: unknown): string {
   if (field === 'amount') {
     const n = toNumberValue(value);
     return n !== null ? String(n) : String(value).trim();
+  }
+  if (field === 'accessMembers') {
+    return (Array.isArray(value) ? value : [])
+      .map((m: any) => `${m?.staffUserId}:${m?.role}`)
+      .sort()
+      .join('|');
   }
   if (field === 'tags' || field === 'ownerUserIds') {
     const arr = Array.isArray(value)
@@ -453,6 +460,7 @@ export const ProjectFormPage: React.FC = () => {
         briefFileUrl: t('crm.projects.detail.files.urlPlaceholder'),
         tags: t('crm.projects.detail.fields.tags'),
         ownerUserIds: t('crm.projects.detail.history.managerField'),
+        accessMembers: t('crm.projects.detail.watchers.title'),
         tasks: t('crm.projects.detail.history.fields.tasks'),
         'customFields.projectNotes': t('crm.projects.detail.notes.title'),
       };
@@ -569,6 +577,22 @@ export const ProjectFormPage: React.FC = () => {
     ? true
     : (project.ownerUserIds?.includes(currentStaff?.id || '') ?? false) ||
       projectOwnerNames.some((name) => currentLabels.includes(name));
+  // Наблюдатели: список меняют владелец компании, ответственный или право projects_edit_owner
+  // (то же проверяет бэкенд). Наблюдатель только с просмотром видит карточку без сохранения.
+  const canEditWatchers = isNew || isProjectOwner || canEditOwnerPermission;
+  const isReadOnly = !isNew && project.myAccess === 'reader';
+  const watchers = project.accessMembers || [];
+  const watcherCandidates = staff
+    .filter(
+      (u) =>
+        u.isActive &&
+        u.role !== 'owner' &&
+        !(project.ownerUserIds || []).includes(u.id) &&
+        !watchers.some((w) => w.staffUserId === u.id),
+    )
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  const setWatchers = (next: ProjectAccessMember[]) =>
+    setProject((prev) => ({ ...prev, accessMembers: next }));
   const managerStaff = useMemo(
     () =>
       staff
@@ -716,6 +740,17 @@ export const ProjectFormPage: React.FC = () => {
   const formatHistoryFieldValue = (field: string, value: unknown) => {
     if (field.startsWith('customFields.')) {
       return formatCustomFieldHistoryValue(field.slice('customFields.'.length), value);
+    }
+    if (field === 'accessMembers') {
+      const list = Array.isArray(value) ? value : [];
+      if (!list.length) return t('crm.projects.common.emptyValue');
+      return list
+        .map((m: any) => {
+          const name = staff.find((u) => u.id === m?.staffUserId)?.fullName?.trim() || '—';
+          const role = m?.role === 'editor' ? t('crm.projects.detail.watchers.roleEditor') : t('crm.projects.detail.watchers.roleReader');
+          return `${name} (${role})`;
+        })
+        .join(', ');
     }
     if (field === 'ownerUserIds') {
       const ids = Array.isArray(value)
@@ -1968,11 +2003,17 @@ export const ProjectFormPage: React.FC = () => {
                 {t('crm.projects.detail.actions.toBoard', 'В канбан')}
               </button>
             )}
-            <button type="button" className="btn btn-sm btn-primary" onClick={handleSave} disabled={saving}>
-              {saving
-                ? t('crm.projects.detail.actions.saving')
-                : t('crm.projects.detail.actions.save')}
-            </button>
+            {isReadOnly ? (
+              <span className="btn btn-sm" style={{ cursor: 'default' }} title={t('crm.projects.detail.watchers.readOnlyHint')}>
+                {t('crm.projects.detail.watchers.readOnly')}
+              </span>
+            ) : (
+              <button type="button" className="btn btn-sm btn-primary" onClick={handleSave} disabled={saving}>
+                {saving
+                  ? t('crm.projects.detail.actions.saving')
+                  : t('crm.projects.detail.actions.save')}
+              </button>
+            )}
             <DotsMenu
               items={[
                 {
@@ -3323,6 +3364,78 @@ export const ProjectFormPage: React.FC = () => {
               </div>
 
               <div className="pd-rail-card">
+                <h4>{t('crm.projects.detail.watchers.title')}</h4>
+                <div className="pd-rail-body">
+                  <div style={{ fontSize: 11.5, color: FG3, marginBottom: 8 }}>{t('crm.projects.detail.watchers.hint')}</div>
+                  {watchers.length === 0 && (
+                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic', marginBottom: 8 }}>
+                      {t('crm.projects.detail.watchers.empty')}
+                    </div>
+                  )}
+                  {watchers.map((w) => {
+                    const u = staff.find((x) => x.id === w.staffUserId);
+                    return (
+                      <div key={w.staffUserId} className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+                        <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: INK }}>
+                          {u?.fullName || w.staffUserId.slice(0, 8)}
+                        </span>
+                        <select
+                          className="base-select text-xs py-1"
+                          value={w.role}
+                          disabled={!canEditWatchers}
+                          onChange={(e) =>
+                            setWatchers(
+                              watchers.map((x) =>
+                                x.staffUserId === w.staffUserId
+                                  ? { ...x, role: e.target.value === 'editor' ? 'editor' : 'reader' }
+                                  : x,
+                              ),
+                            )
+                          }
+                          style={{ width: 'auto' }}
+                        >
+                          <option value="reader">{t('crm.projects.detail.watchers.roleReader')}</option>
+                          <option value="editor">{t('crm.projects.detail.watchers.roleEditor')}</option>
+                        </select>
+                        {canEditWatchers && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            title={t('crm.projects.detail.watchers.remove')}
+                            aria-label={t('crm.projects.detail.watchers.remove')}
+                            onClick={() => setWatchers(watchers.filter((x) => x.staffUserId !== w.staffUserId))}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {canEditWatchers && watcherCandidates.length > 0 && (
+                    <select
+                      className="base-select text-xs py-1.5"
+                      value=""
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        if (id) setWatchers([...watchers, { staffUserId: id, role: 'reader' }]);
+                      }}
+                    >
+                      <option value="">{t('crm.projects.detail.watchers.add')}</option>
+                      {watcherCandidates.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.fullName}
+                          {u.email ? ` · ${u.email}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {canEditWatchers && watchers.length > 0 && !isNew && (
+                    <div style={{ fontSize: 11, color: FG4, marginTop: 6 }}>{t('crm.projects.detail.watchers.saveHint')}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pd-rail-card">
                 <h4>{t('crm.projects.detail.meetings.title')}</h4>
                 <div className="pd-rail-body">
                   {isNew ? (
@@ -3532,7 +3645,15 @@ export const ProjectFormPage: React.FC = () => {
                 <div className="pd-rail-body">
                   <div className="pd-chips">
                     {project.tags.map((tag) => (
-                      <span key={tag} className="pd-chip">
+                      <span
+                        key={tag}
+                        className="pd-chip"
+                        style={
+                          tagDefs.some((d) => d.value === tag)
+                            ? { background: tagColorFor(tag), color: '#fff', borderColor: tagColorFor(tag) }
+                            : undefined
+                        }
+                      >
                         #{tag}
                       </span>
                     ))}
@@ -3582,6 +3703,7 @@ export const ProjectFormPage: React.FC = () => {
             style={{ background: 'rgba(0,0,0,0.5)' }}
           >
             <div
+              className="lv-dialog"
               style={{
                 background: '#fff',
                 borderRadius: 20,
@@ -3703,7 +3825,6 @@ export const ProjectFormPage: React.FC = () => {
                       resize: 'vertical',
                       minHeight: 200,
                       boxSizing: 'border-box',
-              className="lv-dialog"
                       fontFamily: 'inherit',
                     }}
                   />

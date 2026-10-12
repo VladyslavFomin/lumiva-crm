@@ -290,3 +290,9 @@
   .px-scope .md-overlay-panel{max-width:100%;max-height:92vh;border-radius:16px 16px 0 0}
   .px-scope .md-in,.px-scope .md-sel{font-size:16px}
 }
+
+/* КП: количество / скидка в строке позиции */
+.px-scope .md-item-num{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fg-3);flex-shrink:0}
+.px-scope .md-item-num input{width:56px;border:1px solid var(--line-2);border-radius:7px;padding:4px 6px;font-size:12px;font-family:var(--ff-mono);color:var(--ink);background:#fff}
+.px-scope .md-item-num input:focus{outline:0;border-color:var(--ink)}
+.px-scope .md-warn{margin-top:10px;padding:8px 10px;border-radius:8px;background:#fbecef;color:#9a1f31;font-size:12px}

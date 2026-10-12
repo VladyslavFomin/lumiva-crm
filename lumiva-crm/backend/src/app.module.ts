@@ -63,8 +63,10 @@ import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
 import { AiModule } from './ai/ai.module';
 import { AiEmployeesModule } from './ai-employees/ai-employees.module';
+import { AiOfficeModule } from './ai-office/ai-office.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
+import { AuraModule } from './aura/aura.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { ExportModule } from './export/export.module';
@@ -299,6 +301,7 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     UsersModule,
     DashboardModule,
     BiDashboardModule,
+    AuraModule,
     OnboardingModule,
     CalendarModule,
     ExportModule,
@@ -357,6 +360,7 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     BillingModule,
     AiModule,
     AiEmployeesModule,
+    AiOfficeModule,
     OnlineChatModule,
     CcpModule,
     MailModule,

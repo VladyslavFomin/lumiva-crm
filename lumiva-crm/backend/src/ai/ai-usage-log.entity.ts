@@ -37,6 +37,13 @@ export class AiUsageLog {
   @Column({ type: 'text', nullable: true })
   sessionId: string | null;
 
+  /** ИИ-офис: расход отдела / задачи (колонки — ai-office-schema.service.ts) */
+  @Column({ name: 'department_id', type: 'uuid', nullable: true })
+  departmentId: string | null;
+
+  @Column({ name: 'office_task_id', type: 'uuid', nullable: true })
+  officeTaskId: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 }

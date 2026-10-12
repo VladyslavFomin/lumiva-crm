@@ -7,6 +7,7 @@ import { StaffRolePermission } from './staff-role-permission.entity';
 import { StaffUserPermission } from './staff-user-permission.entity';
 import { Department } from '../departments/department.entity';
 import {
+  FAIL_OPEN_PERMISSIONS,
   GRANULAR_FALLBACK_TO_BASE,
   type PermissionKey,
   type RoleMatrix,
@@ -100,6 +101,30 @@ export class RbacService {
    * («Настройки прав доступа» → RbacGuard.getUserOverride) может открыть его точечно — этот
    * метод сам не даёт override победить, вызывающая сторона (RbacGuard) решает порядок.
    */
+  /**
+   * Та же проверка, что RbacGuard.checkOne, но для вызова из сервиса (Aura проверяет право на
+   * каждый раздел данных отдельно, а не на весь эндпоинт). Порядок: owner → индивидуальный
+   * override → «новые модули» открыты по умолчанию → матрица ролей.
+   */
+  async canUserAccess(
+    tenantId: string,
+    role: string,
+    staffUserId: string | null | undefined,
+    permission: PermissionKey,
+  ): Promise<boolean> {
+    if (role === 'owner') return true;
+    if (staffUserId) {
+      const override = await this.getUserOverride(tenantId, staffUserId, permission);
+      if (override !== null) return override;
+    }
+    if (FAIL_OPEN_PERMISSIONS.includes(permission)) return true;
+    try {
+      return await this.can(tenantId, role as StaffRole, permission);
+    } catch {
+      return false;
+    }
+  }
+
   async isDepartmentHead(tenantId: string, staffUserId: string): Promise<boolean> {
     const count = await this.departments.count({
       where: { tenantId, managerId: staffUserId, isActive: true },

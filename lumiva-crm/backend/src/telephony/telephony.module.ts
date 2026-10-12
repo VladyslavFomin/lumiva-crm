@@ -13,14 +13,17 @@ import { Tenant } from '../tenants/tenant.entity';
 import { SmsMessage } from '../sms/sms-message.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { RbacModule } from '../rbac/rbac.module';
+import { Lead } from '../leads/lead.entity';
+import { IntegrationConnection } from '../integrations/integration-connection.entity';
+import { CallAnalysisService } from './call-analysis.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TelephonyConfig, Call, Tenant, SmsMessage, StaffUser]),
+    TypeOrmModule.forFeature([TelephonyConfig, Call, Tenant, SmsMessage, StaffUser, Lead, IntegrationConnection]),
     RbacModule,
   ],
   controllers: [TelephonyController, TelephonyStatusController, TelephonyWebhookController],
-  providers: [TelephonyService, TelephonyAddonGuard, TelephonySchedulerService],
-  exports: [TelephonyService],
+  providers: [TelephonyService, TelephonyAddonGuard, TelephonySchedulerService, CallAnalysisService],
+  exports: [TelephonyService, CallAnalysisService],
 })
 export class TelephonyModule {}

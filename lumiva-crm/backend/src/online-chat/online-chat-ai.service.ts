@@ -17,7 +17,7 @@ import { Not, Repository } from 'typeorm';
 
 import { ChatSession } from './chat-session.entity';
 import { ChatMessage } from './chat-message.entity';
-import { OnlineChatService } from './online-chat.service';
+import { OnlineChatService, hasVisitorContact } from './online-chat.service';
 import { Tenant } from '../tenants/tenant.entity';
 import { AiAgent } from '../ai-employees/ai-agent.entity';
 import { AiEmployeesService } from '../ai-employees/ai-employees.service';
@@ -320,6 +320,9 @@ export class OnlineChatAiService implements OnModuleInit {
   private async processInner(tenantId: string, sessionId: string) {
     const session = await this.sessions.findOne({ where: { id: sessionId, tenantId } });
     if (!session || session.aiPaused || session.status !== 'open') return;
+    // ИИ отвечает только после того, как посетитель оставил имя и контакт (форма виджета);
+    // savePublicLead() перезапускает обработку сразу после ввода данных.
+    if (!hasVisitorContact(session)) return;
 
     const history = await this.messages.find({ where: { sessionId }, order: { createdAt: 'DESC' }, take: 40 });
     history.reverse();
@@ -378,7 +381,7 @@ export class OnlineChatAiService implements OnModuleInit {
     });
     const answer = await this.ask(tenantId, agent, cfg, convo, {
       siteHost: session.siteHost,
-      knownContact: !!session.leadId,
+      knownContact: true, // без контактов сюда не доходим (hasVisitorContact)
       visitorName: session.visitorName,
       booking,
     });

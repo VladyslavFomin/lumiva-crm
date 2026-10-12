@@ -19,6 +19,8 @@ window.addEventListener('vite:preloadError', (event) => {
   const last = Number(sessionStorage.getItem(key) || '0');
   if (!last || Date.now() - last > 60_000) {
     sessionStorage.setItem(key, String(Date.now()));
+    // ErrorBoundary увидит флаг и не покажет экран ошибки на время перезагрузки
+    (window as any).__lumivaReloading = true;
     window.location.reload();
   }
 });

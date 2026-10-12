@@ -288,13 +288,16 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
             >
               {/* Card head */}
-              <div className={theme.headerBg} style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${LINE}` }}>
+              <div
+                className={`${theme.headerBg} flex items-center gap-2.5 px-3.5 py-3 sm:gap-3 sm:px-[18px] sm:py-4`}
+                style={{ borderBottom: `1px solid ${LINE}` }}
+              >
                 {/* Logo badge */}
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: theme.brandColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0, fontFamily: 'Inter Tight, sans-serif' }}>
+                <div className="w-8 h-8 sm:w-[38px] sm:h-[38px]" style={{ borderRadius: 10, background: theme.brandColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0, fontFamily: 'Inter Tight, sans-serif' }}>
                   {theme.logo}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', color: INK }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', color: INK, overflowWrap: 'anywhere' }}>
                     {marketingDataSourceLabel(t, ds, dataSourceLabels)}
                   </div>
                   <div
@@ -335,7 +338,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                       integrationId: account || undefined,
                     })
                   }
-                  style={{ padding: '6px 13px', border: `1px solid ${LINE}`, background: '#fff', color: INK, borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .12s', flexShrink: 0 }}
+                  style={{ padding: '6px 11px', border: `1px solid ${LINE}`, background: '#fff', color: INK, borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .12s', flexShrink: 0 }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = INK; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = LINE; }}
                 >
@@ -353,12 +356,12 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
               )}
 
               {/* 9-KPI hairline grid (3×3) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
                 {kpiItems.map((kpi, idx) => (
                   <div
                     key={idx}
+                    className="min-w-0 px-2.5 py-2.5 sm:px-4 sm:py-3"
                     style={{
-                      padding: '12px 16px',
                       borderRight: (idx + 1) % 3 !== 0 ? `1px solid ${LINE3}` : 'none',
                       borderBottom: `1px solid ${LINE3}`,
                     }}
@@ -366,7 +369,10 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                     <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
                       {kpi.l}
                     </div>
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 600, color: kpi.color ?? (kpi.v === '—' ? '#b5b5b5' : INK), marginTop: 6, letterSpacing: '-0.02em' }}>
+                    <div
+                      className="text-[12.5px] sm:text-[14px] leading-tight"
+                      style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: kpi.color ?? (kpi.v === '—' ? '#b5b5b5' : INK), marginTop: 6, letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}
+                    >
                       {kpi.v}
                     </div>
                   </div>
@@ -374,22 +380,28 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
               </div>
 
               {/* Spend + Revenue wide row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                <div style={{ padding: '13px 16px', borderRight: `1px solid ${LINE3}`, borderBottom: `1px solid ${LINE3}` }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <div className="min-w-0 px-2.5 py-3 sm:px-4" style={{ borderRight: `1px solid ${LINE3}`, borderBottom: `1px solid ${LINE3}` }}>
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
                     {t('crm.marketingCampaigns.table.headers.cost')}
                   </div>
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: INK, marginTop: 6, letterSpacing: '-0.02em' }}>
+                  <div
+                    className="text-[14px] sm:text-[16px] leading-tight"
+                    style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: INK, marginTop: 6, letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}
+                  >
                     {fmtMoney(agg.cost, provCur)}
                   </div>
                 </div>
-                <div style={{ padding: '13px 16px', borderBottom: `1px solid ${LINE3}` }}>
+                <div className="min-w-0 px-2.5 py-3 sm:px-4" style={{ borderBottom: `1px solid ${LINE3}` }}>
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
                     {ads
                       ? t('crm.marketingChannelBlocks.conversionValue', { defaultValue: 'Ценность конверсий' })
                       : t('crm.marketingCampaigns.table.headers.revenue')}
                   </div>
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#1f8a5e', marginTop: 6, letterSpacing: '-0.02em' }}>
+                  <div
+                    className="text-[14px] sm:text-[16px] leading-tight"
+                    style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: '#1f8a5e', marginTop: 6, letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}
+                  >
                     {fmtMoney(revenueRaw, provCur)}
                     {ads && agg.conversions > 0 && agg.conversionValue > 0 && agg.conversionValue / agg.conversions < 10 ? (
                       <div
@@ -408,7 +420,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
 
               {/* Campaigns mini-table */}
               <div style={{ borderTop: `1px solid ${LINE}`, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                <div style={{ padding: '12px 16px 8px', fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
+                <div className="px-3 pt-3 pb-2 sm:px-4" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
                   {t('crm.marketingChannelBlocks.topCampaigns', { defaultValue: 'Campaigns' })} · {top.length}
                 </div>
                 <div
@@ -420,7 +432,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                       <thead className={`${marketingThead} sticky top-0 z-[1]`}>
                         <tr>
                           <th
-                            className={`${marketingTh} whitespace-normal align-bottom min-w-[140px] max-w-[220px] leading-tight`}
+                            className={`${marketingTh} whitespace-normal align-bottom min-w-[120px] sm:min-w-[140px] max-w-[220px] leading-tight`}
                           >
                             {t('crm.marketingCampaigns.table.headers.campaign')}
                           </th>
@@ -463,7 +475,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                             className={marketingTr}
                           >
                             <td
-                              className={`${marketingTd} max-w-[200px] truncate font-medium text-[#111827]`}
+                              className={`${marketingTd} max-w-[150px] sm:max-w-[200px] truncate font-medium text-[#111827]`}
                               title={formatMarketingChannelDimension(
                                 t,
                                 sanitizeMarketingDimension(row.campaign),

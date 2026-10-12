@@ -45,6 +45,12 @@ export type ProjectStatus =
   | 'Выиграно'
   | 'Проиграно';
 
+export type ProjectAccessRole = 'reader' | 'editor';
+export interface ProjectAccessMember {
+  staffUserId: string;
+  role: ProjectAccessRole;
+}
+
 @Entity('crm_projects')
 export class Project {
   @PrimaryGeneratedColumn('uuid')
@@ -128,6 +134,12 @@ export class Project {
 
   @Column({ type: 'uuid', array: true, nullable: true })
   ownerUserIds: string[] | null; // Multiple owners
+
+  // ==== НАБЛЮДАТЕЛИ ====
+  // Видят (reader) или редактируют (editor) проект, не будучи ответственными. Действует в
+  // основной таблице; в приватных доступ задаётся членством в таблице.
+  @Column({ type: 'jsonb', nullable: true })
+  accessMembers: ProjectAccessMember[] | null;
 
   // ==== СВЯЗАННЫЕ ПРОЕКТЫ (простая реализация) ====
   @Column({ type: 'simple-array', nullable: true })

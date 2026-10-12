@@ -9,30 +9,33 @@ import {
   Param,
   Req,
   UseGuards,
-  ForbiddenException,
 } from '@nestjs/common';
 import { StaffUsersService } from './staff-users.service';
 import { StaffRole } from './staff-user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RbacService } from '../rbac/rbac.service';
+import { assertCanManageStaff, assertStaffTargetAllowed, canManageStaff } from './staff-manage-access';
 
-// Изменяющие эндпоинты этого контроллера раньше не проверяли роль вообще (только
-// JwtAuthGuard) — любой залогиненный сотрудник любой роли мог создать сотрудника, сменить
-// чью угодно роль (включая назначение СЕБЯ владельцем через PATCH :id/role — активная
-// privilege-escalation дыра, не гипотетическая), деактивировать/удалить коллегу и т.д. Тот же
-// принцип и тот же паттерн, что уже применён в rbac.controller.ts/departments.controller.ts:
-// GET остаётся открытым для всех авторизованных (MainLayout и десятки пикеров "ответственный"
-// по всему приложению читают список сотрудников для любой роли, само чтение не настолько
-// чувствительно), а мутирующие эндпоинты — только владелец компании.
-function assertOwner(req: any): void {
-  if ((req.user?.role || '').toLowerCase() !== 'owner') {
-    throw new ForbiddenException('Изменять сотрудников может только владелец компании');
-  }
-}
-
+// Изменяющие эндпоинты раньше не проверяли роль вообще (privilege-escalation через
+// PATCH :id/role), потом стали owner-only. Теперь: владелец или сотрудник с правом «Сотрудники»,
+// с ограничениями из staff-manage-access.ts (не трогать владельца, не менять себе роль и т.д.).
+// GET остаётся открытым для всех авторизованных — список сотрудников читают MainLayout и
+// пикеры «ответственный» по всему приложению.
 @UseGuards(JwtAuthGuard)
 @Controller('staff-users')
 export class StaffUsersController {
-  constructor(private readonly service: StaffUsersService) {}
+  constructor(
+    private readonly service: StaffUsersService,
+    private readonly rbac: RbacService,
+  ) {}
+
+  /** Общая проверка + проверка цели. Возвращает текущую запись сотрудника. */
+  private async guardTarget(req: any, id: string, opts: { newRole?: string | null; selfForbidden?: boolean } = {}) {
+    await assertCanManageStaff(this.rbac, req.user);
+    const target = await this.service.getOneForTenant(req.user.tenantId, id);
+    assertStaffTargetAllowed(req.user, target, opts);
+    return target;
+  }
 
   @Get()
   async list(@Req() req: any) {
@@ -43,7 +46,8 @@ export class StaffUsersController {
   @Post('invite')
   async invite(@Req() req: any, @Body() body: any) {
     const tenantId = req.user.tenantId;
-    return this.service.inviteStaffMember(tenantId, req.user.role, {
+    if (body.role === 'owner') assertStaffTargetAllowed(req.user, { id: '', role: '' }, { newRole: 'owner' });
+    return this.service.inviteStaffMember(tenantId, await canManageStaff(this.rbac, req.user), {
       email: String(body.email || ''),
       fullName: String(body.fullName || ''),
       role: body.role as StaffRole,
@@ -57,12 +61,13 @@ export class StaffUsersController {
   @Post(':id/resend-invite')
   async resendInvite(@Req() req: any, @Param('id') id: string) {
     const tenantId = req.user.tenantId;
-    return this.service.resendStaffInvite(tenantId, req.user.role, id);
+    return this.service.resendStaffInvite(tenantId, await canManageStaff(this.rbac, req.user), id);
   }
 
   @Post()
   async create(@Req() req: any, @Body() body: any) {
-    assertOwner(req);
+    await assertCanManageStaff(this.rbac, req.user);
+    assertStaffTargetAllowed(req.user, { id: '', role: '' }, { newRole: body.role });
     const tenantId = req.user.tenantId;
     return this.service.createForTenant(tenantId, {
       email: body.email,
@@ -84,21 +89,25 @@ export class StaffUsersController {
 
   @Patch(':id')
   async update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
-    assertOwner(req);
+    await this.guardTarget(req, id, {
+      newRole: body?.role,
+      // смена своей роли — нет; своё имя/аватар — можно
+      selfForbidden: body?.role !== undefined || body?.isActive !== undefined,
+    });
     const tenantId = req.user.tenantId;
     return this.service.updateForTenant(tenantId, id, body);
   }
 
   @Patch(':id/deactivate')
   async deactivate(@Req() req: any, @Param('id') id: string) {
-    assertOwner(req);
+    await this.guardTarget(req, id, { selfForbidden: true });
     const tenantId = req.user.tenantId;
     return this.service.deactivateForTenant(tenantId, id);
   }
 
   @Patch(':id/activate')
   async activate(@Req() req: any, @Param('id') id: string) {
-    assertOwner(req);
+    await this.guardTarget(req, id, { selfForbidden: true });
     const tenantId = req.user.tenantId;
     return this.service.activateForTenant(tenantId, id);
   }
@@ -109,7 +118,7 @@ export class StaffUsersController {
     @Param('id') id: string,
     @Body() body: { role: StaffRole },
   ) {
-    assertOwner(req);
+    await this.guardTarget(req, id, { newRole: body?.role, selfForbidden: true });
     const tenantId = req.user.tenantId;
     return this.service.updateRoleForTenant(tenantId, id, body.role);
   }
@@ -120,7 +129,7 @@ export class StaffUsersController {
     @Param('id') id: string,
     @Body() body: { department: string | null },
   ) {
-    assertOwner(req);
+    await this.guardTarget(req, id);
     const tenantId = req.user.tenantId;
     return this.service.updateDepartmentForTenant(
       tenantId,
@@ -131,7 +140,7 @@ export class StaffUsersController {
 
   @Delete(':id')
   async delete(@Req() req: any, @Param('id') id: string) {
-    assertOwner(req);
+    await this.guardTarget(req, id, { selfForbidden: true });
     const tenantId = req.user.tenantId;
     await this.service.deleteForTenant(tenantId, id);
     return { success: true };

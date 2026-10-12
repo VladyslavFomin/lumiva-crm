@@ -1,4 +1,5 @@
 import { MarketingRoiService } from '../marketing/marketing-roi.service';
+import { derivedMetrics, type AdsMetrics } from '../marketing/ads-report';
 import { Inject, Injectable, Logger, forwardRef, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { randomUUID } from 'crypto';
@@ -173,9 +174,34 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
+      name: 'crm_marketing_report',
+      description:
+        'ГЛАВНЫЙ инструмент для любых цифр по рекламным РАСХОДАМ (Google Ads, Meta, Яндекс Директ, VK) за период: по клиентам/брендам/отелям, по кабинетам или по площадкам, с разбивкой по месяцам. ' +
+        'Сервер сам считает все суммы и итоги и строит готовую таблицу. В ответе — insert: метка вида [[REPORT:…]]: ОБЯЗАТЕЛЬНО вставь эту метку в свой ответ на место таблицы — система подставит туда таблицу. ' +
+        'НИКОГДА не перепечатывай таблицу и не складывай числа сам; в тексте — только выводы. Если в тексте нужна конкретная цифра — бери её ровно из rows/totals этого ответа. ' +
+        'Клиент → его кабинеты берётся из привязок «ROI по клиентам» (у клиента может быть много кабинетов); rows[].accounts — какие кабинеты вошли.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'YYYY-MM-DD начало периода (например первый день месяца)' },
+          to: { type: 'string', description: 'YYYY-MM-DD конец периода (последний день месяца)' },
+          platform: { type: 'string', enum: ['all', 'google_ads', 'meta_ads', 'yandex_direct', 'vk_ads'], description: 'Площадка; all — все рекламные площадки' },
+          groupBy: { type: 'string', enum: ['client', 'account', 'platform'], description: 'client (по умолчанию) — строка на клиента/бренд; account — на кабинет; platform — на площадку' },
+          clients: { type: 'array', items: { type: 'string' }, description: 'Опционально: только эти клиенты/бренды (например ["Selectum","Asteria","The Norm"]). Без него — все клиенты + строка «без привязки».' },
+          displayCurrency: { type: 'string', description: 'Опционально: пересчитать в валюту (EUR, USD, TRY…) по реальному курсу' },
+          lang: { type: 'string', enum: ['ru', 'en', 'tr'], description: 'Язык подписей таблицы — язык пользователя' },
+        },
+        required: ['from', 'to'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'crm_marketing_overview',
       description:
         'Агрегированная аналитика маркетинга (трафик/каналы): сессии, лиды, расход, выручка. ' +
+        'Для ответа пользователю с цифрами РАСХОДОВ по клиентам/кабинетам/месяцам (и цены конверсии/клика) используй crm_marketing_report — он вставляет таблицу, посчитанную сервером; этот инструмент — для трафика, кампаний и рынков. ' +
         'Передавай from/to (YYYY-MM-DD) для нужного интервала. ' +
         'Опционально dataSource — ключ конкретного источника (например google_ads_5094620264) для разбивки по одному каналу/аккаунту; список источников с именами возвращается в dataSources+dataSourceLabels. ' +
         'Опционально market — ISO2 код рынка/страны (GB, TR, RU, DE…) или название на RU/EN/TR — для сегментации именно по этой стране; см. описание параметра. ' +
@@ -192,10 +218,16 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
             description:
               'Опционально: ключ источника данных. Либо конкретный аккаунт (google_ads_<cid>, кабинет Meta meta_ads_<id кабинета>, ga4_<id> и т.д.) — данные только по нему; либо родовое имя провайдера (google_ads, yandex_direct, meta_ads, vk_ads) БЕЗ суффикса — тогда суммируются ВСЕ аккаунты этого провайдера у тенанта (у Google Ads/MCC их может быть несколько, каждый под своим CID). Для вопроса «сколько потрачено в Google Ads» (без уточнения конкретного аккаунта) — передавай именно "google_ads", не выдумывай один CID из списка. Если не задан вовсе — агрегат по всем источникам сразу.',
           },
+          brands: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Опционально: бренды/отели/компании, по которым нужны итоги (например ["Selectum","Asteria","The Norm"]). ПЕРЕДАВАЙ ВСЕГДА, когда пользователь спрашивает «по брендам/отелям»: у бренда бывает несколько кабинетов (например "The Norm Hotels" и "HA - The Norm Hotels"), сервер сам найдёт все кабинеты с этим словом в названии и вернёт brandTotals с готовыми суммами и списком кабинетов. Бери суммы из brandTotals, сам не складывай.',
+          },
           market: {
             type: 'string',
             description:
-              'Опционально: страна/рынок для фильтрации (например "GB", "Великобритания", "UK"). ВАЖНО: у Meta Ads страна — реальная страна показа из рекламного кабинета (точные данные); у остальных рекламных источников (кроме GA4) отдельного поля страны нет — рынок определяется по тегу в начале названия кампании или по названию страны в тексте. Если инструмент вернул ok:false/unknownMarket или matchedRows:0, НЕ показывай пользователю общие данные под видом отчёта по этой стране — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков, и сверься с пользователем.',
+              'Опционально: страна/рынок для фильтрации (например "GB", "Великобритания", "UK"). Если пользователь просит «по всем рынкам/странам/кампаниям» или итог по бренду/аккаунту — НЕ передавай market вообще (и не вызывай по рынку по очереди: срез по одному рынку — лишь часть расхода аккаунта, а часть кампаний ни к какому рынку не относится). Бренд/отель/компания (например "Asteria", "Selectum") — это НЕ рынок, а рекламный аккаунт: бери строку из providerBreakdown (поле label) или передавай dataSource. ВАЖНО: у Meta Ads страна — реальная страна показа из рекламного кабинета (точные данные); у остальных рекламных источников (кроме GA4) отдельного поля страны нет — рынок определяется по тегу в начале названия кампании или по названию страны в тексте. Если инструмент вернул ok:false/unknownMarket или matchedRows:0, НЕ показывай пользователю общие данные под видом отчёта по этой стране — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков, и сверься с пользователем.',
           },
           displayCurrency: {
             type: 'string',
@@ -670,9 +702,14 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           to: { type: 'string', description: 'YYYY-MM-DD конец периода' },
           groupBy: {
             type: 'string',
-            enum: ['dataSource', 'market'],
+            enum: ['dataSource', 'market', 'client'],
             description:
-              '"dataSource" (по умолчанию) — строка на аккаунт/канал; "market" — строка на страну/рынок, одним вызовом на ВСЕ страны сразу.',
+              '"dataSource" (по умолчанию) — строка на аккаунт/канал; "market" — строка на страну/рынок, одним вызовом на ВСЕ страны сразу; "client" — строка на клиента/бренд (все его кабинеты из «ROI по клиентам» вместе).',
+          },
+          clients: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Только при groupBy:"client": оставить лишь этих клиентов/бренды (например ["Selectum","Asteria","The Norm"]).',
           },
           dataSource: {
             type: 'string',
@@ -1223,6 +1260,7 @@ export class AiToolsService {
     projectId: string,
     allowedRoles: ProjectTableRole[],
   ): Promise<{ ok: true } | { ok: false; error: string; hint: string }> {
+    if ((ctx.userRole || '').toLowerCase() === 'owner') return { ok: true }; // владелец — без ограничений
     const project = await this.projectsRepo.findOne({
       where: { id: projectId, tenantId: ctx.tenantId } as any,
       select: ['id', 'tableId'] as any,
@@ -1250,6 +1288,82 @@ export class AiToolsService {
       };
     }
     return { ok: true };
+  }
+
+  /**
+   * Доступ звонящего к конкретному проекту — те же правила, что ProjectsController +
+   * ProjectTableAccessGuard в REST:
+   *  - владелец компании (и автономные ИИ-сотрудники, они ходят с role 'owner') — всё;
+   *  - приватная (не 'main') таблица: по членству в таблице (owner/editor → write, reader → read);
+   *  - основная таблица: ответственный, наблюдатель (accessMembers: editor → write, reader →
+   *    read) или право projects_view_all (read).
+   * Раньше ИИ-чат пропускал любого с правом 'projects' к любому проекту основной таблицы, а
+   * чтение (список/карточка) не проверяло даже приватные таблицы.
+   */
+  private async projectAccessForCtx(
+    ctx: ToolCtx,
+    project: Pick<Project, 'tableId' | 'ownerUserId' | 'ownerUserIds' | 'ownerName' | 'accessMembers'>,
+    cache: { tables: Map<string, string | null>; staff?: StaffUser | null; staffLoaded?: boolean; viewAll?: boolean } = { tables: new Map() },
+  ): Promise<'write' | 'read' | null> {
+    // Владелец компании (и автономные ИИ-сотрудники — они ходят с role 'owner') видит и меняет всё.
+    if ((ctx.userRole || '').toLowerCase() === 'owner') return 'write';
+    if (project.tableId) {
+      if (!cache.tables.has(project.tableId)) {
+        let slug: string | null = null;
+        try {
+          slug = (await this.projectTables.getOne(ctx.tenantId, project.tableId))?.slug ?? null;
+        } catch {
+          slug = null;
+        }
+        cache.tables.set(project.tableId, slug);
+      }
+      const slug = cache.tables.get(project.tableId);
+      if (slug && slug !== 'main') {
+        const staffUserId = await this.projectTableMembers.resolveStaffUserId(ctx.tenantId, {
+          loginUserId: ctx.userId,
+          email: ctx.userEmail,
+        });
+        const role = staffUserId
+          ? await this.projectTableMembers.resolveEffectiveRole(ctx.tenantId, project.tableId, staffUserId)
+          : null;
+        if (!role) return null;
+        return role === 'reader' ? 'read' : 'write';
+      }
+    }
+    if ((ctx.userRole || '').toLowerCase() === 'owner') return 'write';
+    if (!cache.staffLoaded) {
+      cache.staff = await this.getStaffForToolCtx(ctx);
+      if (!cache.staff && ctx.staffUserId) {
+        cache.staff = await this.staffRepo.findOne({ where: { tenantId: ctx.tenantId, id: ctx.staffUserId } });
+      }
+      cache.staffLoaded = true;
+    }
+    const staff = cache.staff;
+    if (cache.viewAll === undefined) {
+      cache.viewAll = (await this.checkPermission(ctx, 'projects_view_all')).ok;
+    }
+    if (!staff) return cache.viewAll ? 'read' : null;
+    const fullName = staff.fullName?.trim();
+    const mine =
+      (project.ownerUserIds || []).includes(staff.id) ||
+      project.ownerUserId === staff.id ||
+      (!!fullName && !!project.ownerName && project.ownerName.trim() === fullName);
+    if (mine) return 'write';
+    const watcher = (project.accessMembers || []).find((m) => m?.staffUserId === staff.id);
+    if (watcher?.role === 'editor') return 'write';
+    if (watcher || cache.viewAll) return 'read';
+    return null;
+  }
+
+  private projectAccessDenied(need: 'read' | 'write') {
+    return {
+      ok: false as const,
+      error: 'no_project_access',
+      hint:
+        need === 'read'
+          ? 'У пользователя нет доступа к этому проекту (он не ответственный и не наблюдатель, или проект в чужой закрытой таблице) — сообщи об этом, не ищи обходных путей.'
+          : 'У пользователя нет права изменять этот проект (только просмотр или нет доступа) — сообщи об этом, не ищи обходных путей.',
+    };
   }
 
   private crmFrontendBase(): string {
@@ -1477,6 +1591,10 @@ export class AiToolsService {
           const g = await gate('sales'); if (g) return g;
           return JSON.stringify(await this.toolSalesSummary(ctx.tenantId, args));
         }
+        case 'crm_marketing_report': {
+          const g = await gate('marketing'); if (g) return g;
+          return JSON.stringify(await this.toolMarketingReport(ctx.tenantId, args));
+        }
         case 'crm_marketing_overview': {
           const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketing(ctx.tenantId, args));
@@ -1511,7 +1629,7 @@ export class AiToolsService {
         }
         case 'crm_list_projects': {
           const g = await gate('projects'); if (g) return g;
-          return JSON.stringify(await this.toolProjects(ctx.tenantId, args));
+          return JSON.stringify(await this.toolProjects(ctx.tenantId, args, ctx));
         }
         case 'crm_create_lead':
           return JSON.stringify(
@@ -1633,7 +1751,7 @@ export class AiToolsService {
           return JSON.stringify(await this.toolUpdateLead(ctx, args));
         case 'crm_get_project': {
           const g = await gate('projects'); if (g) return g;
-          return JSON.stringify(await this.toolGetProject(ctx.tenantId, args));
+          return JSON.stringify(await this.toolGetProject(ctx.tenantId, args, ctx));
         }
         case 'crm_update_project':
           return JSON.stringify(
@@ -3168,6 +3286,103 @@ export class AiToolsService {
     }
   }
 
+  /** Удалить таблицу, созданную ИИ в этом разговоре, если в ней так и не появилось ни одной строки. */
+  async discardEmptyAiTable(tenantId: string, objectId: string): Promise<boolean> {
+    try {
+      const { total } = await this.customObjects.listRecords(tenantId, objectId, { limit: 1 });
+      if (total > 0) return false;
+      await this.customObjects.deleteObject(tenantId, objectId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** crm_marketing_report: таблица считается и рендерится сервером; в чат она попадает по метке insert. */
+  private async toolMarketingReport(tenantId: string, args: Record<string, unknown>) {
+    const lang = ['ru', 'en', 'tr'].includes(String(args.lang)) ? (String(args.lang) as 'ru' | 'en' | 'tr') : 'ru';
+    const clients = Array.isArray(args.clients) ? args.clients.map(String) : typeof args.clients === 'string' ? String(args.clients).split(',') : [];
+    const groupBy = ['client', 'account', 'platform'].includes(String(args.groupBy)) ? (String(args.groupBy) as 'client' | 'account' | 'platform') : 'client';
+    let report: Awaited<ReturnType<MarketingRoiService['getAdsReport']>>;
+    try {
+      report = await this.roi.getAdsReport(tenantId, {
+        from: String(args.from || ''),
+        to: String(args.to || ''),
+        platform: args.platform ? String(args.platform) : null,
+        groupBy,
+        clients,
+        displayCurrency: args.displayCurrency ? String(args.displayCurrency) : null,
+        lang,
+      });
+    } catch (e) {
+      return { ok: false, error: 'report_failed', message: (e as Error).message };
+    }
+    if (!report.ok) return report;
+    const { markdown, ...data } = report;
+    const withDerived = <T extends { total: AdsMetrics }>(x: T) => ({ ...x, total: { ...x.total, ...derivedMetrics(x.total) } });
+    return {
+      ...data,
+      rows: data.rows.map(({ perAccount: _pa, ...row }) => withDerived(row)),
+      totals: data.totals.map(withDerived),
+      derivedNote: 'cpa = цена конверсии, cpc = цена клика (в валюте строки), ctr — в %. Посчитано сервером — бери отсюда, сам не дели.',
+      insert: `[[REPORT:${randomUUID().slice(0, 8)}]]`,
+      // забирается чатом (AiAssistantService) и не показывается модели
+      _markdown: markdown,
+      note: 'Вставь insert в ответ на место таблицы. Таблицу не перепечатывай и ничего не складывай сам — суммы уже в rows/totals. В тексте — выводы.',
+    };
+  }
+
+  /**
+   * Итоги по брендам: все кабинеты, в названии которых есть слова бренда. Реальный случай
+   * 2026-10-08: на «по всем кабинетам» модель взяла только "The Norm Hotels" и потеряла
+   * "HA - The Norm Hotels" (139 564 TRY), а итоги по брендам несколько раз складывала с ошибкой.
+   */
+  private brandTotals(
+    brandsArg: unknown,
+    breakdown: Array<{ dataSource: string; cost: number; clicks: number; impressions: number; currency: string }>,
+    labels: Record<string, string>,
+    conv: ((amount: number, cur: string) => number) | null,
+    displayCurrency?: string,
+  ): Record<string, unknown> {
+    const brands = (Array.isArray(brandsArg) ? brandsArg : typeof brandsArg === 'string' ? brandsArg.split(',') : [])
+      .map((b) => String(b).trim())
+      .filter((b) => b.length >= 2)
+      .slice(0, 20);
+    if (!brands.length) return {};
+    const STOP = new Set(['hotels', 'hotel', 'the', 'resorts', 'resort', 'group', 'and', 'ads']);
+    const words = (b: string) => b.toLocaleLowerCase('ru').split(/[\s\-_/]+/).filter((w) => w.length >= 3 && !STOP.has(w));
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const used = new Set<string>();
+    const brandTotals: Array<Record<string, unknown>> = [];
+    for (const brand of brands) {
+      const ws = words(brand).length ? words(brand) : [brand.toLocaleLowerCase('ru')];
+      const byCur = new Map<string, { cost: number; clicks: number; impressions: number; accounts: string[] }>();
+      for (const p of breakdown) {
+        const label = String(labels[p.dataSource] || p.dataSource).toLocaleLowerCase('ru');
+        if (!ws.every((w) => label.includes(w))) continue;
+        used.add(p.dataSource);
+        const cur = conv ? displayCurrency || p.currency : p.currency;
+        const t = byCur.get(cur) ?? { cost: 0, clicks: 0, impressions: 0, accounts: [] };
+        t.cost = r2(t.cost + (conv ? conv(p.cost, p.currency) : p.cost));
+        t.clicks += p.clicks;
+        t.impressions += p.impressions;
+        t.accounts.push(labels[p.dataSource] || p.dataSource);
+        byCur.set(cur, t);
+      }
+      if (!byCur.size) brandTotals.push({ brand, matched: false, note: 'нет кабинетов с таким названием' });
+      for (const [currency, t] of byCur) brandTotals.push({ brand, currency, ...t });
+    }
+    const unmatched = breakdown
+      .filter((p) => !used.has(p.dataSource) && (p.cost > 0 || p.clicks > 0))
+      .map((p) => labels[p.dataSource] || p.dataSource);
+    return {
+      brandTotals,
+      accountsNotInAnyBrand: unmatched,
+      brandTotalsNote:
+        'Суммы по брендам посчитаны сервером по ВСЕМ кабинетам бренда — копируй их и перечисли accounts; accountsNotInAnyBrand не входят ни в один бренд.',
+    };
+  }
+
   private async toolMarketing(
     tenantId: string,
     args: Record<string, unknown>,
@@ -3188,11 +3403,29 @@ export class AiToolsService {
         to,
         dataSourceFilter,
       );
+      // Модель часто передаёт в market название бренда («Asteria», «Selectum») — это рекламный
+      // аккаунт, а не страна. Раньше в ответ шёл лишь список стран, бот спрашивал пользователя
+      // «к какому рынку относится бренд», и на «ко всем» дёргал инструмент по каждой стране,
+      // выдавая срез одного рынка (TR) за итог аккаунта (реальный случай: 216 396 вместо 727 887 TRY).
+      const needle = unknownMarket.toLocaleLowerCase('ru');
+      const labels = await this.marketing.getMarketingDataSourceLabels(tenantId);
+      const matchingAccounts = (needle.length >= 3 ? Object.entries(labels || {}) : [])
+        .filter(([key, label]) => String(label || key).toLocaleLowerCase('ru').includes(needle))
+        .map(([key, label]) => ({ dataSource: key, label }));
+      if (matchingAccounts.length) {
+        return {
+          ok: false,
+          error: 'market_is_account_name',
+          requestedMarket: unknownMarket,
+          matchingAccounts,
+          hint: `«${unknownMarket}» — это название рекламного аккаунта/бренда, а не рынок. Вызови инструмент заново БЕЗ market: либо с dataSource = ключ из matchingAccounts, либо без dataSource и возьми строки providerBreakdown с этими label. Не спрашивай пользователя про страны и не суммируй/не подставляй срезы по отдельным рынкам.`,
+        };
+      }
       return {
         ok: false,
         error: 'unknown_market',
         requestedMarket: unknownMarket,
-        hint: 'Этот рынок не распознан справочником. Не показывай пользователю нефильтрованные данные под этим названием — уточни у пользователя код страны или используй один из availableMarkets.',
+        hint: 'Этот рынок не распознан справочником. Не показывай пользователю нефильтрованные данные под этим названием — уточни у пользователя код страны или используй один из availableMarkets. Если пользователь хочет «все рынки» — вызови без market.',
         availableMarkets: markets.map((m) => ({ code: m.code, label: m.label, cost: m.cost })),
       };
     }
@@ -3206,6 +3439,15 @@ export class AiToolsService {
       marketCode,
       { splitMetaAccounts: true },
     );
+
+    // При фильтре по рынку — итоги тех же аккаунтов без фильтра, чтобы срез одного рынка
+    // нельзя было принять за весь расход аккаунта (см. market_is_account_name выше).
+    const unfilteredStats = marketCode
+      ? await this.marketing.getTrafficChannelsStats(tenantId, from, to, dataSourceFilter, 1, undefined, {
+          splitMetaAccounts: true,
+        })
+      : null;
+    const unfilteredByDs = new Map((unfilteredStats?.providerBreakdown || []).map((p) => [p.dataSource, p]));
 
     let fx: {
       multiplyToDisplay: Record<string, number>;
@@ -3265,6 +3507,15 @@ export class AiToolsService {
       revenue: fx ? conv(p.revenue, p.currency) : p.revenue,
       cost: fx ? conv(p.cost, p.currency) : p.cost,
       currency: fx ? fx.display : p.currency,
+      ...(unfilteredStats
+        ? (() => {
+            const all = unfilteredByDs.get(p.dataSource);
+            return {
+              accountAllMarketsCost: all ? (fx ? conv(all.cost, all.currency) : all.cost) : null,
+              accountAllMarketsClicks: all ? all.clicks : null,
+            };
+          })()
+        : {}),
     }));
 
     // Список доступных источников с человекочитаемыми именами
@@ -3332,11 +3583,12 @@ export class AiToolsService {
       topChannels,
       dataSources,
       ...(dataSourceFilter ? { filteredByDataSource: dataSourceFilter } : {}),
+      ...this.brandTotals(args.brands, fullBreakdown, stats.dataSourceLabels || {}, fx ? (a: number, c: string) => conv(a, c) : null, fx?.display),
       ...(marketCode
         ? {
             filteredByMarket: marketCode,
             marketFilterNote:
-              'Фильтр по рынку эвристический (GA4 country / тег в названии кампании / название страны в тексте), т.к. у большинства рекламных источников нет отдельного поля страны. Если totalCost выглядит подозрительно маленьким или большим, сверься с crm_marketing_markets.',
+              `Это ТОЛЬКО часть расхода, отнесённая к рынку ${marketCode}, а не итог аккаунтов: полный расход каждого аккаунта по всем рынкам — в providerBreakdown[].accountAllMarketsCost. Если пользователь просил «все рынки» или итог по бренду/аккаунту — бери accountAllMarketsCost (или вызови без market), не этот срез и не сумму срезов по рынкам. Фильтр по рынку эвристический (GA4 country / тег в названии кампании / название страны в тексте), т.к. у большинства рекламных источников нет отдельного поля страны.`,
           }
         : {}),
     };
@@ -3671,9 +3923,41 @@ export class AiToolsService {
   private async toolProjects(
     tenantId: string,
     args: Record<string, unknown>,
+    ctx?: ToolCtx,
   ) {
     const limit = Math.min(40, Math.max(1, Number(args.limit) || 15));
     const page = Math.max(1, Number(args.page) || 1);
+    const isOwner = !ctx || (ctx.userRole || '').toLowerCase() === 'owner';
+    if (!isOwner && ctx) {
+      // Не-владелец: фильтруем по доступу, затем пагинируем в памяти (как GET /projects).
+      const { items: all } = await this.projectsService.findAllForTenant({
+        tenantId,
+        status: args.status ? (String(args.status) as ProjectStatus) : undefined,
+        leadId: args.leadId ? String(args.leadId) : undefined,
+        companyId: args.companyId ? String(args.companyId) : undefined,
+        contactId: args.contactId ? String(args.contactId) : undefined,
+        q: args.q ? String(args.q) : undefined,
+        limit: 1000,
+        offset: 0,
+      });
+      const cache = { tables: new Map<string, string | null>() };
+      const visible: typeof all = [];
+      for (const p of all) {
+        if (await this.projectAccessForCtx(ctx, p, cache)) visible.push(p);
+      }
+      return {
+        total: visible.length,
+        page,
+        projects: visible.slice((page - 1) * limit, page * limit).map((p) => ({
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          amount: p.amount,
+          currency: p.currency,
+        })),
+      };
+    }
+    // Владелец компании: все проекты, кроме закрытых таблиц, куда его не приглашали.
     // Раньше это был прямой repo.find({where:{tenantId}}) без единого фильтра — тенант с
     // сотнями проектов физически не мог получить через ИИ ничего, кроме последних 40.
     const { items, total } = await this.projectsService.findAllForTenant({
@@ -3686,10 +3970,15 @@ export class AiToolsService {
       limit,
       offset: (page - 1) * limit,
     });
+    const ownerCache = { tables: new Map<string, string | null>() };
+    const ownerVisible: typeof items = [];
+    for (const p of items) {
+      if (!ctx || (await this.projectAccessForCtx(ctx, p, ownerCache))) ownerVisible.push(p);
+    }
     return {
-      total,
+      total: total - (items.length - ownerVisible.length),
       page,
-      projects: items.map((p) => ({
+      projects: ownerVisible.map((p) => ({
         id: p.id,
         name: p.name,
         status: p.status,
@@ -3762,6 +4051,9 @@ export class AiToolsService {
     {
       const perm = await this.checkPermission(ctx, 'projects');
       if (!perm.ok) return perm;
+      // как POST /projects
+      const permManage = await this.checkPermission(ctx, 'projects_manage');
+      if (!permManage.ok) return permManage;
     }
     const amt =
       args.amount != null && args.amount !== ''
@@ -4527,6 +4819,7 @@ export class AiToolsService {
         ...(marketCode ? { market: marketCode } : {}),
         groupBy,
         ...(displayOpt ? { displayCurrency: displayOpt } : {}),
+        ...(groupBy === 'client' && 'clients' in built && built.clients?.length ? { clients: built.clients } : {}),
       },
       autoRefresh,
       schedule: { type: 'nightly' },
@@ -4538,7 +4831,9 @@ export class AiToolsService {
       name: tableName,
       description:
         description ||
-        (groupBy === 'market'
+        (groupBy === 'client'
+          ? 'Расходы по месяцам по клиентам (все кабинеты клиента из «ROI по клиентам», выгрузка из CRM)'
+          : groupBy === 'market'
           ? 'Расходы по месяцам в разрезе рынка/страны (выгрузка из CRM, marketing_traffic)'
           : `Расходы по месяцам в разрезе источника/аккаунта (выгрузка из CRM, marketing_traffic${marketCode ? `, рынок ${marketCode}` : ''})`),
       // 'analytics' НЕ включаем — см. комментарий в toolWorkspaceImportMarketingChannels: генерик-
@@ -5033,10 +5328,11 @@ export class AiToolsService {
     return { ok: true, lead: this.serializeLead(updated) };
   }
 
-  private async toolGetProject(tenantId: string, args: Record<string, unknown>) {
+  private async toolGetProject(tenantId: string, args: Record<string, unknown>, ctx?: ToolCtx) {
     const id = String(args.projectId || '').trim();
     if (!id) return { ok: false, error: 'projectId_required' };
     const p = await this.projectsService.findOneForTenant(tenantId, id);
+    if (ctx && !(await this.projectAccessForCtx(ctx, p))) return this.projectAccessDenied('read');
     return { ok: true, project: this.serializeProject(p) };
   }
 
@@ -5051,8 +5347,10 @@ export class AiToolsService {
     }
     const id = String(args.projectId || '').trim();
     if (!id) return { ok: false, error: 'projectId_required' };
-    const tableAccess = await this.checkProjectTableAccess(ctx, id, ['owner', 'editor']);
-    if (!tableAccess.ok) return tableAccess;
+    const permManage = await this.checkPermission(ctx, 'projects_manage');
+    if (!permManage.ok) return permManage;
+    const target = await this.projectsService.findOneForTenant(tenantId, id);
+    if ((await this.projectAccessForCtx(ctx, target)) !== 'write') return this.projectAccessDenied('write');
     const patch = this.pickArgs(args, ['projectId']);
     if (patch.amount !== undefined && typeof patch.amount === 'number') {
       patch.amount = String(patch.amount);
@@ -5201,8 +5499,10 @@ export class AiToolsService {
     const id = String(args.projectId || '').trim();
     const status = String(args.status || '').trim() as ProjectStatus;
     if (!id) return { ok: false, error: 'projectId_required' };
-    const tableAccess = await this.checkProjectTableAccess(ctx, id, ['owner', 'editor']);
-    if (!tableAccess.ok) return tableAccess;
+    const permManage = await this.checkPermission(ctx, 'projects_manage');
+    if (!permManage.ok) return permManage;
+    const target = await this.projectsService.findOneForTenant(tenantId, id);
+    if ((await this.projectAccessForCtx(ctx, target)) !== 'write') return this.projectAccessDenied('write');
     // Статусы тенант-специфичны и настраиваются в /projects/settings — раньше здесь был
     // хардкод из 7 старых значений, из-за чего переименованные/добавленные тенантом статусы
     // отклонялись как "неверные".
@@ -6753,13 +7053,15 @@ ${JSON.stringify(snapshot).slice(0, 24000)}`,
             : { contactId: r.id, variables: vars };
 
         if (templateId) {
-          await this.emailService.sendStyledTransactionalMail(ctx.tenantId, {
+          // сам шаблон (его тема/текст/HTML и своя настройка обёртки) с данными получателя —
+          // раньше templateId терялся и уходила пустая обёртка
+          await this.emailService.sendEmail(ctx.tenantId, {
             accountId,
             to: [r.email],
-            subject,
-            headline,
-            ...entityOpts,
-          });
+            subject: subject || undefined,
+            templateId,
+            ...(r.entityType === 'lead' ? { leadId: r.id } : { contactId: r.id }),
+          } as any, r.entityType === 'lead' ? { lead: { id: r.id, name: r.name, email: r.email } } : { contact: { id: r.id, name: r.name, email: r.email } });
         } else {
           const personalizedText = bodyText
             ? bodyText.replace(/\{\{name\}\}/g, r.name).replace(/\{\{email\}\}/g, r.email)

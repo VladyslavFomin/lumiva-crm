@@ -19,8 +19,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * tenant owner sees all, manager/sales see only their own via ownerUserIds, enforced in
  * ProjectsController.isProjectMine — this guard passes it straight through. It only gates
  * NON-default, user-created tables, which are private unless the caller has an explicit
- * ProjectTableMember row. Unlike WorkspaceAreaAccessGuard, tenant-global 'owner' does NOT
- * bypass this check: private tables must be explicitly shared.
+ * ProjectTableMember row. The tenant owner bypasses it (user's decision 2026-10-01).
  */
 @Injectable()
 export class ProjectTableAccessGuard implements CanActivate {
@@ -68,6 +67,7 @@ export class ProjectTableAccessGuard implements CanActivate {
     if (!table) return true; // not found — let the service 404
 
     if (table.slug === 'main') return true; // default table: existing ownership logic applies
+    if ((user.role || '').toLowerCase() === 'owner') return true; // владелец компании видит и меняет всё
 
     const staffUserId = await this.members.resolveStaffUserId(user.tenantId, {
       loginUserId: user.userId ?? user.id ?? user.sub,

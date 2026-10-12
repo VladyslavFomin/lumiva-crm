@@ -75,6 +75,10 @@ export class MarketingTraffic {
   @Column({ type: 'numeric', precision: 16, scale: 2, default: 0 })
   conversionValue: string;
 
+  /** Все конверсии площадки, включая вторичные (Google Ads all_conversions); для Meta = conversions. */
+  @Column({ name: 'allConversions', type: 'numeric', precision: 14, scale: 2, default: 0 })
+  allConversions: string;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

@@ -8,7 +8,7 @@ export const SEO_META: Record<string, PageMeta> = {
   '/': {
     title: 'Lumiva CRM — современная CRM-система для бизнеса',
     description: 'Управляйте сделками, клиентами и командой в одном месте. Автоматизация, аналитика, интеграции.',
-    ogImage: '/og-home.png',
+    ogImage: '/og-image.png',
   },
   '/pricing': {
     title: 'Тарифы — Lumiva CRM',

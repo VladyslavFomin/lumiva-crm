@@ -138,7 +138,8 @@ export class LeadsMeetingsReminderService {
     const cached = cache.get(tenantId);
     if (cached) return cached;
     try {
-      const accounts = await this.emailService.findAllAccounts(tenantId);
+      // системный вызов (нет пользователя) — без роли метод отдаёт пустой список, и напоминания не уходили
+      const accounts = await this.emailService.findAllAccounts(tenantId, undefined, 'owner');
       const account = accounts.find((a) => a.status === 'active') || accounts[0];
       if (!account) return null;
       const id = String((account as { id?: string }).id || '');

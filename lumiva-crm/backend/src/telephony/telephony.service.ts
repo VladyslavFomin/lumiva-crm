@@ -7,6 +7,10 @@ import axios from 'axios';
 import { Tenant } from '../tenants/tenant.entity';
 import { TelephonyConfig } from './telephony-config.entity';
 import { Call, CallStatus } from './call.entity';
+import { CallAnalysisService } from './call-analysis.service';
+import { readFile } from 'fs/promises';
+import { extname, join } from 'path';
+import { getUploadsRoot } from '../common/uploads-root.util';
 import { validateTwilioSignature } from '../common/twilio-signature.util';
 import { isTelephonyIncludedInPlan } from '../tenants/plan-entitlements';
 import { SmsMessage } from '../sms/sms-message.entity';
@@ -33,6 +37,7 @@ export class TelephonyService {
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
     private readonly moduleRef: ModuleRef,
+    private readonly callAnalysis: CallAnalysisService,
   ) {}
 
   // Lazy accessor — same reason telegram-crm.service.ts does this: avoids a circular module
@@ -236,6 +241,7 @@ export class TelephonyService {
     await this.callRepo.save(call);
 
     if (!recordingUrlBase) return;
+    let spokenLanguage: string | null = null;
     try {
       const config = await this.configRepo.findOne({ where: { tenantId } });
       if (!config?.accountSid || !config?.authToken) return;
@@ -245,9 +251,11 @@ export class TelephonyService {
         timeout: 30000,
       });
       const buffer = Buffer.from(audioRes.data);
-      const transcript = await this.oai().transcribeAudio(buffer, 'call.mp3');
-      call.transcript = transcript || null;
+      const override = await this.callAnalysis.resolveOverride(tenantId);
+      const res = await this.oai().transcribeAudioVerbose(buffer, 'call.mp3', override);
+      call.transcript = res.text || null;
       call.transcriptStatus = 'done';
+      spokenLanguage = res.language;
     } catch (e: any) {
       this.log.warn(`Telephony transcription failed for call ${call.id}: ${e.message}`);
       call.transcriptStatus = 'failed';
@@ -255,55 +263,27 @@ export class TelephonyService {
     await this.callRepo.save(call);
 
     if (call.transcriptStatus === 'done' && call.transcript?.trim()) {
-      await this.analyzeSentiment(call);
+      // Полный AI-разбор (резюме, шаги, возражения, оценка менеджера) — заодно пишет
+      // sentiment/topic, которые раньше считал отдельный analyzeSentiment.
+      await this.callAnalysis.analyze(call, spokenLanguage);
     }
-  }
-
-  private static readonly SENTIMENT_VALUES = new Set(['positive', 'neutral', 'negative']);
-  private static readonly TOPIC_VALUES = new Set(['pricing', 'scheduling', 'service_quality', 'technical_issue', 'wait_time', 'other']);
-
-  /** Real AI classification of the call transcript — same OpenAI path as transcription, so it
-   * inherits that service's current insufficient_quota outage until the platform key is topped up. */
-  private async analyzeSentiment(call: Call): Promise<void> {
-    call.sentimentStatus = 'pending';
-    await this.callRepo.save(call);
-
-    try {
-      const result = await this.oai().chatCompletion({
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Ты — аналитик качества обслуживания в CRM. Тебе дают транскрипт телефонного разговора ' +
-              'между сотрудником компании и клиентом. Оцени тональность разговора СО СТОРОНЫ КЛИЕНТА ' +
-              '(доволен ли клиент) и определи одну наиболее релевантную тему разговора. ' +
-              'Ответь СТРОГО в формате JSON без каких-либо пояснений: {"sentiment":"positive|neutral|negative","topic":"pricing|scheduling|service_quality|technical_issue|wait_time|other"}',
-          },
-          { role: 'user', content: call.transcript!.slice(0, 6000) },
-        ],
-      });
-      const raw = (result.message.content || '').trim();
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('No JSON in AI response');
-      const parsed = JSON.parse(jsonMatch[0]);
-      const sentiment = String(parsed.sentiment || '').toLowerCase();
-      const topic = String(parsed.topic || '').toLowerCase();
-      if (!TelephonyService.SENTIMENT_VALUES.has(sentiment)) throw new Error(`Unexpected sentiment "${sentiment}"`);
-
-      call.sentiment = sentiment as Call['sentiment'];
-      call.sentimentTopic = TelephonyService.TOPIC_VALUES.has(topic) ? (topic as Call['sentimentTopic']) : 'other';
-      call.sentimentStatus = 'done';
-    } catch (e: any) {
-      this.log.warn(`Telephony sentiment analysis failed for call ${call.id}: ${e.message}`);
-      call.sentimentStatus = 'failed';
-    }
-    await this.callRepo.save(call);
   }
 
   /** Streams the recording audio from Twilio through our own API, so staff never need Twilio
    * credentials in the browser and recordings aren't re-hosted in our own storage. */
   async fetchRecordingAudio(tenantId: string, callId: string): Promise<{ buffer: Buffer; contentType: string }> {
     const call = await this.callRepo.findOne({ where: { id: callId, tenantId } });
+    // Запись, загруженная вручную в карточку лида, лежит в uploads тенанта, а не в Twilio.
+    if (call?.recordingPath) {
+      const root = getUploadsRoot();
+      const abs = join(root, call.recordingPath);
+      if (!abs.startsWith(root)) throw new NotFoundException('Recording not found');
+      const buffer = await readFile(abs).catch(() => null);
+      if (!buffer) throw new NotFoundException('Recording not found');
+      const ext = extname(abs).toLowerCase();
+      const types: Record<string, string> = { '.m4a': 'audio/mp4', '.mp4': 'audio/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.opus': 'audio/ogg', '.webm': 'audio/webm', '.aac': 'audio/aac', '.flac': 'audio/flac', '.amr': 'audio/amr' };
+      return { buffer, contentType: types[ext] || 'audio/mpeg' };
+    }
     if (!call?.recordingSid) throw new NotFoundException('Recording not found');
     const config = await this.configRepo.findOne({ where: { tenantId } });
     if (!config?.accountSid || !config?.authToken) throw new BadRequestException('Telephony is not configured');

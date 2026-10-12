@@ -212,6 +212,25 @@ export class JiraApiService {
     }
   }
 
+  /** Поиск задач по JQL (новый эндпоинт /search/jql) — для ИИ-отделов: открытые, просроченные. */
+  async searchIssues(cfg: JiraConfig, jql: string, max = 20): Promise<Array<{ key: string; summary: string; status: string; assignee: string | null; priority: string | null; due: string | null; updated: string }>> {
+    const { headers, base } = this.resolveAuth(cfg);
+    const res = await axios.get<{ issues?: Array<{ key: string; fields: Record<string, any> }> }>(`${base}/search/jql`, {
+      params: { jql, maxResults: max, fields: 'summary,status,assignee,priority,duedate,updated' },
+      headers: { ...headers, Accept: 'application/json' },
+      timeout: 15000,
+    });
+    return (res.data.issues ?? []).map((i) => ({
+      key: i.key,
+      summary: String(i.fields?.summary ?? ''),
+      status: String(i.fields?.status?.name ?? ''),
+      assignee: i.fields?.assignee?.displayName ?? null,
+      priority: i.fields?.priority?.name ?? null,
+      due: i.fields?.duedate ?? null,
+      updated: String(i.fields?.updated ?? '').slice(0, 10),
+    }));
+  }
+
   async createIssue(cfg: JiraConfig, params: JiraIssueParams): Promise<{ id: string; key: string; url: string }> {
     const { headers, base } = this.resolveAuth(cfg);
     const body: Record<string, unknown> = {

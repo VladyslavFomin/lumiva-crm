@@ -11,6 +11,7 @@ import { StaffUsersController } from './staff-users.controller';
 import { MailModule } from '../mail/mail.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { UserSessionsModule } from '../auth/user-sessions.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UserSessionsModule } from '../auth/user-sessions.module';
     MailModule, // 👈 даём StaffUsersService доступ к MailService
     forwardRef(() => TenantsModule), // для TenantLogsService, избегаем циклов
     UserSessionsModule,
+    RbacModule, // право «Сотрудники» — см. staff-manage-access.ts
   ],
   controllers: [StaffUsersController],
   providers: [StaffUsersService],

@@ -59,6 +59,7 @@ import {
 const DEFAULT_SIDEBAR_LOGO = '/lumiva-default-logo.svg';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../i18n';
+import { auraApi, AURA_MENU_CHANGED_EVENT } from '../api/aura';
 import { BillingPage } from '../pages/BillingPage';
 import {
   DASHBOARD_ADD_WIDGET_EVENT,
@@ -1046,6 +1047,23 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     };
   }, [user?.id, user?.sub]); // Зависим только от ID пользователя
 
+  // Опубликованные приложения Aura с галочкой «Показать в меню CRM»
+  const [auraMenu, setAuraMenu] = useState<Array<{ id: string; name: string; kiosk: boolean }>>([]);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      auraApi
+        .menu()
+        .then((list) => alive && setAuraMenu(list))
+        .catch(() => undefined);
+    void load();
+    window.addEventListener(AURA_MENU_CHANGED_EVENT, load);
+    return () => {
+      alive = false;
+      window.removeEventListener(AURA_MENU_CHANGED_EVENT, load);
+    };
+  }, []);
+
   const NAV = useMemo(
     (): NavItem[] => [
       {
@@ -1061,6 +1079,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         path: '/bi',
         icon: 'analytics',
         section: 'main',
+      },
+
+      {
+        label: 'Aura',
+        path: '/aura',
+        icon: 'aura',
+        section: 'main',
+        matchPaths: ['/aura'],
+        children: [
+          { label: t('crm.nav.auraCreate'), path: '/aura/new' },
+          { label: t('crm.nav.auraTemplates'), path: '/aura/templates' },
+          { label: t('crm.nav.auraApps'), path: '/aura/apps' },
+          ...auraMenu.map((a) => ({ label: a.name, path: a.kiosk ? `/aura/app/${a.id}` : `/aura/view/${a.id}` })),
+        ],
       },
 
       {
@@ -1264,6 +1296,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       },
 
       {
+        label: t('crm.nav.aiOffice'),
+        path: '/app/ai-office',
+        icon: 'sparkles',
+        section: 'tools',
+        matchPaths: ['/app/ai-office', '/ai-office'],
+        children: [
+          { label: t('crm.nav.aiOfficeOffice'), path: '/app/ai-office', matchPaths: ['/app/ai-office', '/ai-office', '/ai-office/departments'] },
+          { label: t('crm.nav.aiOfficeBrain'), path: '/app/ai-office/brain' },
+          { label: t('crm.nav.aiOfficeConnect'), path: '/app/ai-office/connect' },
+          { label: t('crm.nav.aiOfficePlan'), path: '/app/ai-office/plan' },
+        ],
+      },
+
+      {
         label: t('crm.nav.aiEmployees'),
         path: '/app/ai-employees',
         icon: 'sparkles',
@@ -1393,7 +1439,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         ],
       },
     ],
-    [t],
+    [t, auraMenu],
   );
 
   const commandPaletteNavItems = useMemo(
@@ -1493,6 +1539,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/helpdesk')) return 'helpdesk';
     if (p.startsWith('/esign')) return 'esign';
     if (p.startsWith('/ai-employees')) return 'ai_employees';
+    if (p.startsWith('/ai-office')) return 'ai_office';
+    if (p.startsWith('/aura')) return 'analytics';
     if (p.startsWith('/client-accounts')) return 'client_accounts';
     if (p.startsWith('/analytics')) return 'analytics';
     if (p.startsWith('/bi')) return 'analytics';
@@ -1549,7 +1597,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // 'ai_employees': руководители отделов проходят автоматически, даже без записи в матрице
     // ролей — тот же порядок, что и в RbacGuard на бэкенде (индивидуальный override уже
     // проверен выше и побеждает это правило).
-    if (perm === 'ai_employees' && isDeptHead) return true;
+    if ((perm === 'ai_employees' || perm === 'ai_office') && isDeptHead) return true;
 
     const rolePerms = matrixRole ? roleMatrix[matrixRole] ?? [] : [];
     return rolePerms.includes(perm);

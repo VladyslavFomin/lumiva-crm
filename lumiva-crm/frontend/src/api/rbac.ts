@@ -12,6 +12,7 @@ export type PermissionKey =
   | 'projects_manage_trash'
   | 'projects_edit_amount'
   | 'projects_edit_owner'
+  | 'projects_view_all'
   | 'projects_manage'
   | 'sales'
   | 'sales_manage_import'
@@ -44,7 +45,8 @@ export type PermissionKey =
   | 'hotels'
   | 'hotels_manage_pricing'
   | 'hotels_manage_reservations'
-  | 'ai_employees';
+  | 'ai_employees'
+  | 'ai_office';
 
 export type RolePermissionMatrix = Record<StaffRole, PermissionKey[]>;
 

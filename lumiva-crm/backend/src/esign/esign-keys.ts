@@ -9,7 +9,7 @@ export interface EsignKeyDef {
 }
 
 export interface EsignKeyGroup {
-  group: 'client' | 'contract' | 'org' | 'product' | 'service';
+  group: 'client' | 'contract' | 'org' | 'product' | 'service' | 'quote';
   keys: EsignKeyDef[];
 }
 
@@ -64,12 +64,25 @@ export const ESIGN_SERVICE_KEYS: EsignKeyDef[] = [
   { key: 'BOOKING_SERVICES_TOTAL', label: 'Итого по услугам' },
 ];
 
+/** Commercial offer (КП): table of picked products/services with quantity and discounts plus
+ * totals — computed in esign-items.ts from the picks and the wizard's quote parameters
+ * (overall discount %, tax %, validity date), never typed in as free text. */
+export const ESIGN_QUOTE_KEYS: EsignKeyDef[] = [
+  { key: 'QUOTE_ITEMS', label: 'Таблица позиций' },
+  { key: 'QUOTE_SUBTOTAL', label: 'Сумма без скидки и налога' },
+  { key: 'QUOTE_DISCOUNT', label: 'Общая скидка' },
+  { key: 'QUOTE_TAX', label: 'Налог (НДС / KDV)' },
+  { key: 'QUOTE_TOTAL', label: 'Итого к оплате' },
+  { key: 'VALID_UNTIL', label: 'Действительно до' },
+];
+
 export const ESIGN_KEY_GROUPS: EsignKeyGroup[] = [
   { group: 'client', keys: ESIGN_CLIENT_KEYS },
   { group: 'contract', keys: ESIGN_CONTRACT_KEYS },
   { group: 'org', keys: ESIGN_ORG_KEYS },
   { group: 'product', keys: ESIGN_PRODUCT_KEYS },
   { group: 'service', keys: ESIGN_SERVICE_KEYS },
+  { group: 'quote', keys: ESIGN_QUOTE_KEYS },
 ];
 
 /** Keys resolved automatically from the client's card + org profile — never asked for manually. */
@@ -77,7 +90,10 @@ export const ESIGN_AUTO_KEYS = new Set<string>([...ESIGN_CLIENT_KEYS, ...ESIGN_O
 
 /** Keys resolved from picked products/booking-services — asked for via a search-and-pick
  * widget in the issue wizard, never a free-text input like the rest of the contract keys. */
-export const ESIGN_ITEM_KEYS = new Set<string>([...ESIGN_PRODUCT_KEYS, ...ESIGN_SERVICE_KEYS].map((k) => k.key));
+export const ESIGN_ITEM_KEYS = new Set<string>([...ESIGN_PRODUCT_KEYS, ...ESIGN_SERVICE_KEYS, ...ESIGN_QUOTE_KEYS].map((k) => k.key));
+
+/** Keys of the commercial-offer group — a template using any of them is a КП. */
+export const ESIGN_QUOTE_KEY_SET = new Set<string>(ESIGN_QUOTE_KEYS.map((k) => k.key));
 
 /** {CONTRACT_NO} is auto-assigned from the tenant's running sequence at issue time — never a
  * manual field, so it can't collide or go out of order. Kept in ESIGN_CONTRACT_KEYS so template
@@ -85,7 +101,7 @@ export const ESIGN_ITEM_KEYS = new Set<string>([...ESIGN_PRODUCT_KEYS, ...ESIGN_
 export const ESIGN_SEQUENCE_KEYS = new Set<string>(['CONTRACT_NO']);
 
 export const ESIGN_KEY_LABEL: Record<string, string> = Object.fromEntries(
-  [...ESIGN_CLIENT_KEYS, ...ESIGN_CONTRACT_KEYS, ...ESIGN_ORG_KEYS, ...ESIGN_PRODUCT_KEYS, ...ESIGN_SERVICE_KEYS].map((k) => [k.key, k.label]),
+  [...ESIGN_CLIENT_KEYS, ...ESIGN_CONTRACT_KEYS, ...ESIGN_ORG_KEYS, ...ESIGN_PRODUCT_KEYS, ...ESIGN_SERVICE_KEYS, ...ESIGN_QUOTE_KEYS].map((k) => [k.key, k.label]),
 );
 
 const KEY_TOKEN_RE = /\{([A-Z][A-Z0-9_]*)\}/g;

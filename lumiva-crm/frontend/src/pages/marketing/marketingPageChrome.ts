@@ -40,9 +40,9 @@ export const marketingKpiStripeViolet = `${kpiBase} before:bg-violet-500`;
 export const marketingKpiStripeEmerald = `${kpiBase} before:bg-emerald-500`;
 export const marketingKpiStripeDuo = `${kpiBase} before:bg-gradient-to-r before:from-violet-500 before:to-rose-500`;
 
-/** Ячейка в hairline-полосе KPI (6 штук в одной рамке). */
+/** Ячейка в hairline-полосе KPI: рамки рисует gap-px контейнера (bg = цвет линии), поэтому сетка свободно перестраивается 2/3/6 колонок. */
 export const marketingKpiCell =
-  'px-[18px] py-4 border-r border-b border-[#e7e7e7]';
+  'bg-white min-w-0 px-3 py-3 sm:px-[18px] sm:py-4';
 
 export const marketingKpiLabel =
   'font-mono text-[9.5px] font-[500] uppercase tracking-[0.1em] text-[#888]';

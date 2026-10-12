@@ -1,4 +1,6 @@
 // backend/src/leads/leads.module.ts
+import { TelephonyModule } from '../telephony/telephony.module';
+import { Call } from '../telephony/call.entity';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -43,7 +45,9 @@ import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
   imports: [
+    TelephonyModule,
     TypeOrmModule.forFeature([
+      Call,
       Lead,
       Site,
       LeadActivity,

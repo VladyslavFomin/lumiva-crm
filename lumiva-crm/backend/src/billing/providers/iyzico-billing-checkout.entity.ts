@@ -21,6 +21,13 @@ export class IyzicoBillingCheckout {
   @Column({ type: 'varchar', length: 16 })
   period: string;
 
+  /** null — оплата тарифа; 'ai_office_slots' — доп. слоты ИИ-отделов (колонки — ai-office-schema.service.ts) */
+  @Column({ name: 'purchase_type', type: 'varchar', length: 32, nullable: true })
+  purchaseType: string | null;
+
+  @Column({ name: 'extra_slots', type: 'int', nullable: true })
+  extraSlots: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

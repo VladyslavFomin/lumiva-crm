@@ -37,6 +37,8 @@ export class YookassaBillingProvider {
     amountRub: number;
     lineName: string;
     returnUrl: string;
+    /** Покупка не тарифа (доп. слоты ИИ-отделов) — разбирается в verifyAndActivate. */
+    purchase?: { type: 'ai_office_slots'; extraSlots: number };
   }): Promise<{ url: string; ref: string }> {
     const creds = await this.getCreds();
     const result = await this.yookassa.createPayment(creds, {
@@ -44,7 +46,9 @@ export class YookassaBillingProvider {
       currency: 'RUB',
       description: input.lineName,
       returnUrl: input.returnUrl,
-      metadata: { tenantId: input.tenant.id, plan: input.plan, period: input.period },
+      metadata: input.purchase
+        ? { tenantId: input.tenant.id, purchaseType: input.purchase.type, extraSlots: String(input.purchase.extraSlots) }
+        : { tenantId: input.tenant.id, plan: input.plan, period: input.period },
     });
     const url = result.confirmation?.confirmation_url;
     if (!url) throw new BadRequestException('YooKassa did not return a confirmation URL');
@@ -70,6 +74,10 @@ export class YookassaBillingProvider {
       return { ok: false, tenantId };
     }
 
+    if (meta.purchaseType === 'ai_office_slots') {
+      await this.planActivation.activateAiOfficeSlots({ tenantId, extraSlots: Number(meta.extraSlots) || 0, provider: 'yookassa', externalRef: paymentId });
+      return { ok: true, tenantId };
+    }
     await this.planActivation.activatePaidCheckout({
       tenantId,
       plan,

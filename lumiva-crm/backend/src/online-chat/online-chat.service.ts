@@ -88,6 +88,14 @@ interface PublicPollParams {
   after: number; // timestamp ms
 }
 
+/**
+ * Посетитель оставил контакты: имя + e-mail или телефон (телефон хранится в лиде, поэтому
+ * достаточно leadId). Только такие чаты видит оператор и только в них отвечает ИИ.
+ */
+export function hasVisitorContact(s: Pick<ChatSession, 'visitorName' | 'visitorEmail' | 'leadId'>): boolean {
+  return !!(s.visitorName || '').trim() && (!!(s.visitorEmail || '').trim() || !!s.leadId);
+}
+
 @Injectable()
 export class OnlineChatService {
   private readonly logger = new Logger(OnlineChatService.name);
@@ -291,8 +299,9 @@ export class OnlineChatService {
     let qb: SelectQueryBuilder<ChatSession> = this.sessionsRepo
       .createQueryBuilder('s')
       .where('s.tenantId = :tenantId', { tenantId })
+      // Те же условия, что hasVisitorContact(): имя + e-mail или телефон (телефон живёт в лиде).
       .andWhere("coalesce(s.visitorName, '') <> ''")
-      .andWhere("coalesce(s.visitorEmail, '') <> ''")
+      .andWhere("(coalesce(s.visitorEmail, '') <> '' OR s.leadId IS NOT NULL)")
       .orderBy('s.lastMessageAt', 'DESC')
       .addOrderBy('s.createdAt', 'DESC')
       .take(200);
@@ -627,6 +636,19 @@ export class OnlineChatService {
   }
 
   async savePublicLead(params: PublicLeadParams): Promise<any> {
+    const result = await this.savePublicLeadInner(params);
+    // Пока контактов не было, ИИ молчал (см. OnlineChatAiService.processInner) — теперь пусть
+    // ответит на уже написанные сообщения.
+    try {
+      const session = await this.getSessionById(params.sessionId);
+      if (hasVisitorContact(session)) this.visitorMessageHook?.(session, null as unknown as ChatMessage);
+    } catch (e) {
+      this.logger.warn(`visitorMessageHook after lead failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return result;
+  }
+
+  private async savePublicLeadInner(params: PublicLeadParams): Promise<any> {
     const { sessionId, name, phone, email } = params;
 
     this.logger.debug(`savePublicLead: incoming = ${JSON.stringify(params)}`);

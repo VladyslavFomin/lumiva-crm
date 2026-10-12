@@ -1319,7 +1319,15 @@
       "aiEmployeesKnowledge": "Knowledge base",
       "aiEmployeesInsights": "Impact",
       "marketingReviews": "Reviews",
-      "marketingRoi": "ROI by client"
+      "marketingRoi": "ROI by client",
+      "aiOffice": "AI departments",
+      "aiOfficeOffice": "Office",
+      "aiOfficeBrain": "Brain",
+      "aiOfficeConnect": "Connections",
+      "aiOfficePlan": "Plan & departments",
+      "auraCreate": "Create",
+      "auraTemplates": "Templates",
+      "auraApps": "My apps"
     },
     "aiEmployees": {
       "badge": {
@@ -2641,6 +2649,51 @@
           "other": "Booking step",
           "testNote": "This is a test: no bookings are created or changed."
         }
+      },
+      "v3": {
+        "working": "{{count}} at work",
+        "planPill": "{{plan}} plan · {{used}} of {{limit}} seats",
+        "planPillUnlimited": "{{plan}} plan · unlimited seats",
+        "title": "Your AI team",
+        "todayLabel": "Actions today",
+        "todayExecuted": "{{count}} executed",
+        "todayFailed": "{{count}} failed",
+        "savedLabel": "Saved in 30 days",
+        "savedNote": "from the action log",
+        "hShort": "h",
+        "minShort": "min",
+        "pendingLabel": "Awaiting your decision",
+        "pendingGo": "Review queue",
+        "staff": "Staff",
+        "doingIdle": "Waiting for events",
+        "doingPaused": "Paused",
+        "doingSetup": "Needs setup",
+        "hrsFrom": "−12 h",
+        "hrsNow": "now",
+        "statToday": "actions today",
+        "statSaved": "saved",
+        "statPending": "awaiting decision",
+        "hoursShort": "{{count}} h",
+        "access": "Access · {{level}}",
+        "accessCounts": "{{auto}} auto · {{appr}} w/ approval",
+        "lastActivity": "Activity: {{time}}",
+        "never": "none yet",
+        "hireMore": "Hire more",
+        "freeSeats": "Free seats: {{count}}",
+        "freeSeatsUnlimited": "Unlimited seats",
+        "lockedOn": "Available on {{plan}}",
+        "drawerKick": "New employee",
+        "drawerTitle": "Hire an AI employee",
+        "role": "Role",
+        "name": "Name",
+        "level": "Access level",
+        "cancel": "Cancel",
+        "hireBtn": "Hire {{name}}",
+        "advanced": "Advanced setup",
+        "noFreeRoles": "All available roles are already filled.",
+        "emptyFilter": "No employees match this filter.",
+        "configure": "Configure",
+        "all": "All"
       }
     },
     "settings": {
@@ -10773,14 +10826,18 @@
             "integrations": "Integrations",
             "bookings": "Bookings",
             "hotels": "Hotels",
-            "products": "Products"
+            "products": "Products",
+            "aiOffice": "AI departments",
+            "helpdesk": "Support"
           },
           "triggerDesc": {
             "scheduled": "CRON or interval",
-            "stale": "Checked once a day · 14-day no-activity threshold"
+            "stale": "Checked once a day · 14-day no-activity threshold",
+            "aiOffice": "Events from AI departments"
           },
           "actionDesc": {
-            "send_email": "Template or custom email"
+            "send_email": "Template or custom email",
+            "ai_office_task": "The department does the task on its own"
           }
         },
         "validation": {
@@ -10795,7 +10852,9 @@
           "teamsConnectionMissing": "Teams connection is not configured",
           "taskTitleWarning": "task title is empty",
           "noteContentWarning": "note body is empty",
-          "reportTypeMissing": "report type is not selected"
+          "reportTypeMissing": "report type is not selected",
+          "aiOfficeDeptMissing": "Choose an AI department",
+          "aiOfficeTitleMissing": "Enter the task title"
         },
         "templatePresets": {
           "t1": {
@@ -11031,7 +11090,18 @@
           "jiraIssueTypeLabel": "Issue type",
           "jiraProjectKeyLabel": "Project key (optional)",
           "jiraTitleLabel": "Issue title",
-          "selectConnection": "— select a connection —"
+          "selectConnection": "— select a connection —",
+          "aiOfficeDeptLabel": "AI department",
+          "aiOfficeNoDepts": "No departments yet.",
+          "aiOfficeCreateDept": "Create a department",
+          "aiOfficeTitlePlaceholder": "For example: Qualify lead [[lead.name]]",
+          "aiOfficeDetailsLabel": "What to do",
+          "aiOfficeDetailsPlaceholder": "Task details for the department",
+          "aiOfficePriorityLabel": "Priority",
+          "aiOfficePriority1": "Urgent",
+          "aiOfficePriority2": "Normal",
+          "aiOfficePriority3": "When there's time",
+          "aiOfficeHelp": "The department takes the task on its own: picks an agent, applies permissions and approvals. The event's record is linked to the task."
         },
         "triggerGroups": {
           "contacts": "Contacts",
@@ -11069,6 +11139,7 @@
           "EMAIL_SENT": "Email sent",
           "EMAIL_RECEIVED": "Email received",
           "TELEGRAM_MESSAGE_RECEIVED": "Telegram message received",
+          "WHATSAPP_MESSAGE_RECEIVED": "WhatsApp message received",
           "NOTE_CREATED": "Note created",
           "CUSTOM_OBJECT_RECORD_CREATED": "Record created (custom object)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Record updated (custom object)",
@@ -11087,7 +11158,15 @@
           "PRODUCT_STATUS_CHANGED": "Product status changed",
           "PRODUCT_STOCK_LOW": "Product stock low",
           "LEAD_STALE": "Lead has gone stale",
-          "SALE_STALE": "Deal has gone stale"
+          "SALE_STALE": "Deal has gone stale",
+          "AI_OFFICE_TASK_DONE": "AI department delivered a task",
+          "AI_OFFICE_TASK_FAILED": "AI department failed a task",
+          "AI_OFFICE_TASK_REJECTED": "You rejected an AI department task",
+          "AI_OFFICE_APPROVAL_NEEDED": "AI department awaits approval",
+          "AI_OFFICE_HELP_NEEDED": "AI department needs help",
+          "AI_OFFICE_BUDGET_EXHAUSTED": "AI department ran out of budget",
+          "HELPDESK_TICKET_CREATED": "New support ticket",
+          "HELPDESK_MESSAGE_RECEIVED": "Client replied in a ticket"
         },
         "report": {
           "type": "Report type",
@@ -11455,7 +11534,8 @@
           "remove_tag": "Remove tag",
           "send_notification": "Push notification",
           "create_jira_issue": "Create Jira Issue",
-          "shopify_payment_received": "Shopify Payment Received"
+          "shopify_payment_received": "Shopify Payment Received",
+          "ai_office_task": "Task for AI department"
         },
         "openMarketingIntegrationsPage": "Marketing · integrations",
         "errors": {
@@ -12355,7 +12435,8 @@
           "created": "Lead created",
           "statusChanged": "Status changed",
           "assigneeChanged": "Assignee changed",
-          "comment": "Comment"
+          "comment": "Comment",
+          "callAnalyzed": "Call analysis"
         },
         "sections": {
           "relatedProjects": "Related projects",
@@ -14045,6 +14126,18 @@
         },
         "relations": {
           "title": "Relations"
+        },
+        "watchers": {
+          "title": "Watchers",
+          "hint": "They can see the project without being responsible for it.",
+          "empty": "No watchers",
+          "roleReader": "View",
+          "roleEditor": "Edit",
+          "remove": "Remove",
+          "add": "+ Add watcher",
+          "saveHint": "Changes apply after “Save”.",
+          "readOnly": "View only",
+          "readOnlyHint": "You are a view-only watcher of this project."
         }
       },
       "analytics": {
@@ -14620,7 +14713,8 @@
           "load": "Couldn't load permissions",
           "loadUsers": "Couldn't load employees",
           "save": "Couldn't save permissions",
-          "saveUser": "Couldn't save the employee's permissions"
+          "saveUser": "Couldn't save the employee's permissions",
+          "ownRole": "You can't change your own role's permissions — ask the owner."
         },
         "user": {
           "loading": "Loading employee permissions…",
@@ -14694,7 +14788,8 @@
           "products_publish": "Approve or reject requests to show a product in the public catalog",
           "bookings_manage_settings": "Manage services, locations, resources and staff availability",
           "hotels_manage_pricing": "Manage market pricing, calendar and occupancy rates for hotels",
-          "hotels_manage_reservations": "Create/edit reservations, check-in/out, payments and rooms"
+          "hotels_manage_reservations": "Create/edit reservations, check-in/out, payments and rooms",
+          "projects_view_all": "Sees every project in the main table (view only), not just their own — e.g. for analytics. Does not allow editing others' projects."
         },
         "desc": {
           "leads": "Pipelines, inbound leads from forms and channels",
@@ -14721,7 +14816,8 @@
           "custom_objects": "No-code Workspace and custom tables",
           "staff": "Staff list, invites, departments",
           "settings": "Company settings, API, integrations",
-          "ai_employees": "Hiring and managing AI employees: their permissions, settings, reports and activity log"
+          "ai_employees": "Hiring and managing AI employees: their permissions, settings, reports and activity log",
+          "ai_office": "AI departments office: creating departments, tasks, approvals, Brain, connections and plan"
         },
         "tabs": {
           "roles": "Roles & permissions",
@@ -14863,7 +14959,9 @@
             "loading": "Calculating…"
           }
         },
-        "ai_employees": "AI Employees"
+        "ai_employees": "AI Employees",
+        "projects_view_all": "See all projects",
+        "ai_office": "AI departments"
       },
       "actions": {
         "activate": "Activate",
@@ -14880,7 +14978,7 @@
         "departmentPlaceholder": "No department",
         "email": "Email",
         "fullName": "Full name",
-        "ownerOnly": "Only the company owner can invite new employees.",
+        "ownerOnly": "Only the owner or an employee with the “Staff” permission can invite and edit employees.",
         "submit": "Create",
         "title": "New employee"
       },
@@ -15840,7 +15938,8 @@
         "groupContract": "Contract",
         "groupOrg": "Our side",
         "groupProduct": "Products",
-        "groupService": "Services (Booking)"
+        "groupService": "Services (Booking)",
+        "groupQuote": "Commercial offer"
       },
       "issueTab": {
         "step1": "Template",
@@ -15906,7 +16005,21 @@
           "lead": "Lead",
           "project": "Project",
           "sale": "Sale"
-        }
+        },
+        "quoteTitle": "Offer parameters",
+        "quoteHint": "Overall discount, tax and how long the offer is valid",
+        "quoteDiscount": "Overall discount, %",
+        "quoteTax": "Tax (VAT / KDV), %",
+        "quoteValidUntil": "Valid until",
+        "quoteTotal": "Total due",
+        "quoteMixedCurrency": "All offer items must be in one currency — remove the items in another currency.",
+        "qty": "Quantity",
+        "qtyShort": "Qty",
+        "lineDiscount": "Line discount, %",
+        "quoteLead": "Attach to lead",
+        "quoteLeadNone": "Not attached",
+        "quoteLeadEmpty": "This client has no open leads",
+        "quoteLeadHint": "When the client signs the offer, the lead moves to \"Won\" with the offer amount."
       },
       "errors": {
         "loadDocs": "Failed to load documents",
@@ -20086,7 +20199,8 @@
       "tabs": {
         "chat": "Conversation",
         "comments": "Comments",
-        "history": "History"
+        "history": "History",
+        "calls": "Calls"
       },
       "comments": {
         "send": "Send"
@@ -20182,6 +20296,53 @@
         "savedHint": "The message is saved to the lead history",
         "kbEmail": "Ctrl/⌘ + Enter to send",
         "kbChat": "Enter to send · Shift+Enter for new line"
+      },
+      "calls": {
+        "uploadTitle": "Upload a call recording",
+        "uploadHint": "mp3, m4a, wav, ogg — up to 25 MB. AI transcribes the call and breaks it down: outcome, agreements, objections and how the rep did.",
+        "directionLabel": "Call direction",
+        "upload": "Upload recording",
+        "uploading": "Uploading…",
+        "tooLarge": "The file is larger than 25 MB. Compress the recording or split it into parts.",
+        "uploadError": "Could not upload the recording",
+        "loadError": "Could not load calls",
+        "emptyTitle": "No calls yet",
+        "emptyText": "Upload a recording of a conversation with the client or drop a file here. Calls through connected telephony appear automatically.",
+        "dir": {
+          "inbound": "Inbound",
+          "outbound": "Outbound"
+        },
+        "sourceUpload": "uploaded manually",
+        "sourceTwilio": "telephony",
+        "intent": {
+          "hot": "Hot client",
+          "warm": "Warm client",
+          "cold": "Cold client"
+        },
+        "score": "Rep",
+        "scoreHint": "Rep performance from 0 to 100: discovering needs, handling objections, agreeing on a next step",
+        "transcribing": "Transcribing…",
+        "analyzing": "AI is analyzing the call…",
+        "failed": "Could not analyze the call",
+        "retry": "Retry",
+        "retryError": "Could not start the analysis",
+        "nextSteps": "Agreements and next steps",
+        "dueToday": "today",
+        "dueIn_one": "in {{count}} day",
+        "dueIn_other": "in {{count}} days",
+        "objections": "Client objections",
+        "strengths": "What went well",
+        "improvements": "What to improve",
+        "listen": "Listen",
+        "loadingAudio": "Loading…",
+        "audioError": "Could not load the recording",
+        "showTranscript": "Show transcript",
+        "hideTranscript": "Hide transcript",
+        "reanalyze": "Analyze again",
+        "reanalyzeHint": "Run the AI analysis again on the same transcript",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this call recording and its analysis?",
+        "deleteError": "Could not delete the recording"
       }
     },
     "aiCards": {
@@ -20521,6 +20682,758 @@
         "url": "Store URL (REST API)",
         "consumerSecret": "Consumer Secret"
       }
+    },
+    "trafficPage": {
+      "kicker": "Ads · website · CRM",
+      "title": "Traffic",
+      "subtitle": "Impressions, visits, leads and money by channel for the period. Click a channel to see its campaigns; charts, geography and all campaigns are behind the button at the end of the row.",
+      "loading": "loading…",
+      "updatedAt": "updated at {{time}}",
+      "retry": "Retry",
+      "dataSource": "Data source",
+      "account": "Ad account",
+      "allAccounts": "All accounts ({{count}})",
+      "adsTag": "ads",
+      "dataRows": "Data rows",
+      "fullBtn": "Charts, geography, all campaigns",
+      "fullTitle": "Full channel analytics",
+      "unknownChannel": "No channel",
+      "unknownSub": "No dataSource on import",
+      "unknownNote": "Rows without an integration channel — usually imports from n8n or analytics without a tag. Impressions and spend here may duplicate Meta or Google; do not add them to other channels.",
+      "notSet": "(not set)",
+      "noData": "No data",
+      "total": "Total",
+      "channels": "Channels",
+      "shareBy": "Share by",
+      "share": {
+        "sessions": "Sessions",
+        "leads": "Leads",
+        "cost": "Spend",
+        "revenue": "Revenue"
+      },
+      "dims": {
+        "source": "Sources",
+        "medium": "Mediums",
+        "campaign": "Campaigns"
+      },
+      "dim1": {
+        "source": "Source",
+        "medium": "Medium",
+        "campaign": "Campaign"
+      },
+      "whereFrom": "Where they come from",
+      "byRevenue": "by revenue",
+      "bySessions": "by sessions",
+      "mixedHint": "Revenue in different currencies — switch to “Single currency” to add it up",
+      "emptyTitle": "No data for the period",
+      "emptyText": "Connect ad accounts and analytics in marketing integrations, or pick another period.",
+      "cond": "cond.",
+      "condHint": "Less than 10 per conversion on average: the value is nominal (calls, clicks, forms), not revenue",
+      "footAds": "* For ad platforms — conversions, CPA and conversion value as reported by the ad account; they are not included in total leads and revenue.",
+      "col": {
+        "channel": "Channel",
+        "share": "Share · {{what}}",
+        "impressions": "Impressions",
+        "clicks": "Clicks",
+        "sessions": "Sessions",
+        "leads": "Leads",
+        "conversions": "Conversions",
+        "cost": "Spend",
+        "revenue": "Revenue",
+        "value": "Value",
+        "campaign": "Campaign",
+        "sourceMedium": "Source / medium"
+      },
+      "kpi": {
+        "clicksNote": "ad clicks",
+        "sessionsNote": "website visits",
+        "leads": "Leads",
+        "leadsNote": "from web forms and chats",
+        "currencies": "Currencies in data: {{count}}",
+        "revenue": "Revenue",
+        "platformValue": "+ {{v}} platform conversion value"
+      },
+      "cur": {
+        "native": "Currency as in data",
+        "inCurrency": "In {{cur}}",
+        "mode": "Currency mode",
+        "single": "Single currency",
+        "asChannel": "As in channel",
+        "report": "Report currency",
+        "footAsOf": "{{source}} rates as of {{date}}.",
+        "footLoading": "Loading rates…",
+        "footRows": "Row currency is set in integrations.",
+        "footNative": "Amounts are shown in each channel’s currency; money totals are split by currency."
+      },
+      "an": {
+        "aria": "Analytics · {{name}}",
+        "clearFilter": "Clear filter",
+        "close": "Close (Esc)",
+        "searchPh": "Search campaign",
+        "asPage": "Same as page",
+        "last7": "Last 7 days",
+        "last30": "Last 30 days",
+        "last90": "Last 90 days",
+        "thisYear": "This year",
+        "allTime": "All time",
+        "fxTitle": "Converted at ECB rates",
+        "nativeCur": "Original currency",
+        "country": "Country",
+        "allCountries": "All countries ({{count}})",
+        "reset": "Reset",
+        "tabOverview": "Overview",
+        "tabCampaigns": "Campaigns",
+        "tabGeo": "Geography",
+        "tabAccounts": "Accounts",
+        "rows": "Data rows: {{count}}",
+        "daily": "Daily trend",
+        "chartTraffic": "Sessions and clicks",
+        "chartMoney": "Spend and revenue",
+        "noDaily": "No daily data for the selected filter",
+        "structure": "Breakdown",
+        "topAndOther": "top and other",
+        "costByCampaign": "Spend by campaign, {{cur}}",
+        "sessionsBySource": "Sessions by source",
+        "imprByMedium": "Impressions by medium",
+        "other": "Other",
+        "noCampaigns": "No campaigns match the filter",
+        "shownFirst": "Showing the first {{n}} of {{total}} rows — refine the search.",
+        "geoImpr": "Impressions by country",
+        "geoTraffic": "Traffic by country",
+        "geoMeta": "country of impression · Meta Ads data",
+        "geoGa4": "country from GA4 · by sessions",
+        "geoCabinet": "ad account data",
+        "geoInferred": "estimated from campaign names",
+        "geoEmpty": "No country data for the period",
+        "costShare": "Spend share",
+        "unknownCountry": "Unknown country",
+        "noCountryData": "no data",
+        "less": "less",
+        "more": "more",
+        "imprShort": "{{v}} impr.",
+        "clicksShort": "{{v}} clicks",
+        "sessShort": "{{v}} sess.",
+        "noAccount": "No account tag",
+        "campaignsCount": "Campaigns",
+        "adsFoot": "Conversions and their value come from the ad account; they are not CRM leads or revenue."
+      }
+    },
+    "aura": {
+      "beta": "beta",
+      "back": "Back",
+      "cancel": "Cancel",
+      "close": "Close",
+      "total": "total",
+      "empty": "No data for this period",
+      "noManager": "No manager",
+      "hoursNote": "Hours in your time zone",
+      "daysLeft_one": "{{count}} day",
+      "daysLeft_other": "{{count}} days",
+      "unit": {
+        "pp": "pp",
+        "pcs": "pcs"
+      },
+      "nav": {
+        "apps": "My apps",
+        "templates": "Templates"
+      },
+      "ago": {
+        "now": "just now",
+        "min_one": "{{count}} min ago",
+        "min_other": "{{count}} min ago",
+        "hour_one": "{{count}} h ago",
+        "hour_other": "{{count}} h ago"
+      },
+      "src": {
+        "leads": {
+          "name": "Leads",
+          "desc": "Requests, sources, statuses"
+        },
+        "deals": {
+          "name": "Deals & funnel",
+          "desc": "Sales, amounts, conversion"
+        },
+        "team": {
+          "name": "Team",
+          "desc": "Managers, revenue, team goal"
+        },
+        "calls": {
+          "name": "Calls",
+          "desc": "Telephony, missed calls"
+        },
+        "booking": {
+          "name": "Bookings",
+          "desc": "Appointments, occupancy, no-shows"
+        },
+        "stock": {
+          "name": "Stock",
+          "desc": "Inventory, stock movements"
+        },
+        "finance": {
+          "name": "Finance",
+          "desc": "Income and ad spend"
+        },
+        "marketing": {
+          "name": "Marketing",
+          "desc": "Ad channels, spend, cost per lead"
+        }
+      },
+      "w": {
+        "leads_kpi": "New leads",
+        "leads_line": "Leads over time",
+        "leads_src": "Lead sources",
+        "leads_won": "Won leads",
+        "deals_rev": "Revenue",
+        "deals_conv": "Win rate",
+        "deals_avg": "Average deal",
+        "deals_funnel": "Sales funnel",
+        "deals_table": "Biggest deals",
+        "team_goal": "Monthly team goal",
+        "team_bar": "Revenue by manager",
+        "team_table": "Manager ranking",
+        "calls_kpi": "Calls",
+        "calls_miss": "Missed calls",
+        "calls_hours": "Calls by hour",
+        "book_load": "Occupancy",
+        "book_heat": "Bookings by day and hour",
+        "book_noshow": "No-shows",
+        "book_count": "New bookings",
+        "stock_kpi": "Units in stock",
+        "stock_low": "Running out",
+        "stock_top": "Top-selling products",
+        "fin_profit": "Income minus ads",
+        "fin_pl": "Income vs ad spend",
+        "fin_mix": "Income structure",
+        "mk_cpl": "Cost per lead",
+        "mk_channels": "Spend by channel",
+        "mk_spend": "Ad spend",
+        "alerts": "Needs attention",
+        "compare": "Revenue: current vs previous period"
+      },
+      "type": {
+        "kpi": "Metric",
+        "line": "Line chart",
+        "donut": "Donut",
+        "funnel": "Funnel",
+        "table": "Table",
+        "bar": "Ranking",
+        "col": "Columns",
+        "col2": "Columns ×2",
+        "heat": "Heatmap",
+        "list": "List",
+        "goal": "Goal"
+      },
+      "period": {
+        "today": "Today",
+        "7d": "7 days",
+        "30d": "30 days",
+        "quarter": "Quarter",
+        "year": "Year"
+      },
+      "filter": {
+        "manager": "Manager",
+        "channel": "Channel",
+        "branch": "Branch",
+        "product": "Product",
+        "all": "All",
+        "by": {
+          "manager": "By manager",
+          "channel": "By channel",
+          "branch": "By branch",
+          "product": "By product"
+        }
+      },
+      "viewer": {
+        "me": "Just me",
+        "leaders": "Managers",
+        "team": "Whole team",
+        "tv": "Office TV screen"
+      },
+      "density": {
+        "normal": "Normal",
+        "compact": "Compact",
+        "large": "Large (TV)"
+      },
+      "theme": {
+        "lumiva": {
+          "name": "Lumiva",
+          "desc": "Clean monochrome, like the CRM"
+        },
+        "bento": {
+          "name": "Bento",
+          "desc": "Colorful tiles, big numbers"
+        },
+        "graphite": {
+          "name": "Graphite",
+          "desc": "Dark with lime accent. For TV"
+        },
+        "swiss": {
+          "name": "Contrast",
+          "desc": "Swiss grid, blue accent"
+        },
+        "industry": {
+          "name": "Blueprint",
+          "desc": "Steel blue, grid, marks"
+        }
+      },
+      "access": {
+        "private": {
+          "name": "Just me",
+          "desc": "Only you can see it"
+        },
+        "department": {
+          "name": "My department",
+          "desc": "People in your department"
+        },
+        "company": {
+          "name": "Whole company",
+          "desc": "Everyone with analytics access"
+        }
+      },
+      "refresh": {
+        "60": "1 min",
+        "300": "5 min",
+        "900": "15 min",
+        "3600": "1 hour"
+      },
+      "series": {
+        "current": "Current period",
+        "previous": "Previous period",
+        "income": "Income",
+        "adSpend": "Ads"
+      },
+      "funnel": {
+        "all": "All leads",
+        "contacted": "Contacted",
+        "active": "Active",
+        "won": "Won"
+      },
+      "col": {
+        "deal": "Deal",
+        "manager": "Manager",
+        "status": "Status",
+        "amount": "Amount",
+        "deals": "Deals",
+        "conv": "Win rate",
+        "revenue": "Revenue",
+        "product": "Product",
+        "sku": "SKU",
+        "qty": "In stock",
+        "left": "Lasts",
+        "group": "Value",
+        "count": "Records",
+        "value": "Total"
+      },
+      "saleStatus": {
+        "new": "New",
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "other": "Other"
+      },
+      "incomeKind": {
+        "sales": "Sales",
+        "bookings": "Bookings",
+        "hotels": "Hotels"
+      },
+      "leadSource": {
+        "crm": "Manual",
+        "web": "Website",
+        "form": "Form",
+        "embed_form": "Website form",
+        "woocommerce": "WooCommerce",
+        "wc": "WooCommerce",
+        "csv_import": "Import",
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "chat": "Website chat",
+        "online-chat": "Online chat",
+        "api": "API",
+        "booking": "Bookings",
+        "storefront": "Storefront",
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "unknown": "Not set",
+        "other": "Other"
+      },
+      "dow": {
+        "0": "Mon",
+        "1": "Tue",
+        "2": "Wed",
+        "3": "Thu",
+        "4": "Fri",
+        "5": "Sat",
+        "6": "Sun"
+      },
+      "alert": {
+        "stale_leads": "Leads in progress with no activity for 7+ days: {{n}}",
+        "lost_leads": "Lost leads this period: {{n}} — check the reasons",
+        "low_stock": "Running out: {{name}} (items low: {{n}})",
+        "missed_calls": "Missed inbound calls: {{n}}",
+        "no_show": "No-shows at {{pct}}% — consider reminders",
+        "goal": "Team reached {{pct}}% of the monthly goal, {{n}} days left",
+        "all_good": "No critical issues found"
+      },
+      "alertTag": {
+        "stale_leads": "risk",
+        "lost_leads": "leads",
+        "low_stock": "stock",
+        "missed_calls": "calls",
+        "no_show": "bookings",
+        "goal": "goal",
+        "all_good": "ok"
+      },
+      "err": {
+        "denied": "No access to “{{source}}” — permissions follow your CRM role",
+        "amounts_hidden": "Amounts are hidden by Data visibility settings",
+        "failed": "Couldn't calculate this metric",
+        "load": "Couldn't load data"
+      },
+      "goal": {
+        "ofPlan": "of goal",
+        "done": "This month",
+        "target": "Goal",
+        "left": "Month ends in",
+        "set": "Set goal",
+        "notSet": "not set",
+        "promptTitle": "Monthly team goal",
+        "promptLabel": "Revenue per month, {{currency}}"
+      },
+      "dash": {
+        "updatedAt": "Updated at {{time}}",
+        "loading": "Loading data…",
+        "ownScope": "Based on your access, only your records are shown"
+      },
+      "card": {
+        "menu": "Widget actions",
+        "moveUp": "Move earlier",
+        "moveDown": "Move later",
+        "remove": "Remove widget"
+      },
+      "home": {
+        "h1a": "Describe the task.",
+        "h1b": "Aura will build",
+        "words": [
+          "a dashboard",
+          "a TV screen",
+          "a report",
+          "an app"
+        ],
+        "typed": [
+          "Morning stand-up dashboard: weekly revenue and who's behind the goal",
+          "Office screen: calls, missed calls and today's revenue",
+          "What's running out in stock and what sells best",
+          "Ad spend by channel and cost per lead this quarter"
+        ],
+        "suggest": [
+          "Sales team dashboard with manager ranking",
+          "Office TV screen: today's calls and revenue",
+          "Stock: what's running out and what sells best",
+          "Marketing: spend by channel and cost per lead"
+        ],
+        "sub": "Apps on live CRM data: analytics, office screens, reports. AI asks a couple of questions and suggests a style.",
+        "aria": "Request for Aura",
+        "focusPh": "What do you want to see?",
+        "create": "Create",
+        "allApps": "All · {{count}}",
+        "fromTemplate": "Start from a template",
+        "allTemplates": "All templates"
+      },
+      "apps": {
+        "sub": "Apps built with Aura. Open them inside the CRM or full screen without the menu.",
+        "new": "New app",
+        "newShort": "New",
+        "edit": "Edit",
+        "openFull": "Open without menu",
+        "duplicate": "Duplicate",
+        "delete": "Delete",
+        "deleteConfirm": "Delete “{{name}}”? Its public link will stop working.",
+        "copyName": "{{name}} (copy)",
+        "public": "public link"
+      },
+      "tpl": {
+        "sub": "Ready-made apps on CRM data. Use as is or let AI adapt them.",
+        "realData": "Preview on your data for the last 30 days",
+        "adapt": "Adapt with AI",
+        "use": "Use template",
+        "adaptPrompt": "Based on the “{{name}}” template",
+        "sales": {
+          "name": "Sales team",
+          "desc": "Revenue, funnel, team goal, manager ranking and biggest deals."
+        },
+        "leads": {
+          "name": "Lead pulse",
+          "desc": "Lead flow, sources, cost per lead and spend by channel."
+        },
+        "tv": {
+          "name": "Office TV",
+          "desc": "Big numbers for today: revenue, calls, goal."
+        },
+        "stock": {
+          "name": "Stock levels",
+          "desc": "Inventory, items running out and best sellers."
+        },
+        "booking": {
+          "name": "Salon occupancy",
+          "desc": "Occupancy, no-shows and a bookings heatmap."
+        },
+        "finance": {
+          "name": "Finance",
+          "desc": "Income vs ad spend and its structure by month."
+        }
+      },
+      "tplCat": {
+        "all": "All",
+        "sales": "Sales",
+        "marketing": "Marketing",
+        "ops": "Operations",
+        "finance": "Finance"
+      },
+      "autoTitle": {
+        "leads": "Lead pulse",
+        "deals": "Sales overview",
+        "team": "Sales team",
+        "calls": "Telephony",
+        "booking": "Bookings load",
+        "stock": "Stock levels",
+        "finance": "Finance",
+        "marketing": "Marketing",
+        "default": "My app"
+      },
+      "brief": {
+        "newApp": "New app",
+        "q": {
+          "sources": "Got it. Which CRM sections should the data come from? I've checked what I found in your request.",
+          "widgets": "Which metrics should it show? The list is based on the selected sections.",
+          "period": "What period should it show by default? You can switch it in the app itself.",
+          "breakdown": "Need breakdowns? I'll add them as filters in the app header. You can skip this.",
+          "viewer": "Who will look at the app? This sets font size and display mode."
+        },
+        "qSourcesNoAi": "AI is unavailable right now — I matched sections by keywords. Check which CRM sections to use.",
+        "qn": "Question {{n}} of {{total}}",
+        "done": "Brief is ready: {{widgets}} widgets from {{sources}} sections. Now pick a style.",
+        "change": "Change answer",
+        "toStyle": "Choose style",
+        "skip": "Skip",
+        "answer": "Answer",
+        "thinking": "Thinking…",
+        "freePh": "Or answer in your own words…",
+        "freeMiss": "Didn't get that — pick an option above or rephrase.",
+        "noBreakdown": "No breakdowns",
+        "side": "Brief",
+        "task": "Task",
+        "data": "Data",
+        "metrics": "Metrics",
+        "period": "Period",
+        "viewer": "Viewer",
+        "wire": "Layout draft",
+        "widgetsN_one": "{{count}} widget",
+        "widgetsN_other": "{{count}} widgets"
+      },
+      "style": {
+        "toBrief": "Back to brief",
+        "h1": "App style",
+        "sub": "Previews use your data. You can change the style later in the editor.",
+        "name": "Name",
+        "density": "Density",
+        "open": "Opens",
+        "openCrm": "In CRM with menu",
+        "openKiosk": "Full screen, no menu",
+        "build": "Build app"
+      },
+      "gen": {
+        "s1": "Reading the brief",
+        "s2": "Connecting data: {{list}}",
+        "s3": "Calculating metrics for {{period}}",
+        "s4": "Choosing widgets and grid",
+        "s5": "Applying the “{{name}}” style",
+        "s6": "Checking the layout on phone and TV"
+      },
+      "build": {
+        "opened": "The app is open for editing. Tell me what to change: widgets, style, period, breakdowns, goal.",
+        "fromTemplate": "“{{name}}” template",
+        "ready": "Built “{{title}}”: {{count}} widgets on live CRM data. Check the preview on different screens or ask for changes.",
+        "chips": [
+          "Add a comparison with the previous period",
+          "Make it dark",
+          "Add a “Needs attention” block"
+        ],
+        "readyShort": "Ready for edits",
+        "building": "Building the app…",
+        "inputPh": "What to change? E.g. add the funnel",
+        "inputWait": "Please wait, building…",
+        "send": "Send",
+        "notUnderstood": "I'm not sure what to change. I can add or remove a widget, change style, density, period, breakdowns or set a goal. E.g. “add a comparison with last month”.",
+        "editFailed": "Couldn't apply the change: {{error}}",
+        "tab": {
+          "preview": "Preview",
+          "data": "Data"
+        },
+        "dev": {
+          "desktop": "Desktop",
+          "tablet": "Tablet",
+          "phone": "Phone",
+          "tv": "TV"
+        },
+        "styleLabel": "Style",
+        "styleOpt": "Style: {{name}}",
+        "hideMenu": "Hide CRM menu",
+        "showMenu": "Show CRM menu",
+        "noMenu": "No menu",
+        "publish": "Publish",
+        "save": "Save",
+        "fallbackHelp": "Without AI I only understand simple commands: “add the funnel”, “remove …”, “dark theme”, “red background”, “white cards”, “period — week”, “goal 500000”. Custom widgets from any data need AI."
+      },
+      "edit": {
+        "done": "Done: {{list}}.",
+        "added": "added “{{name}}”",
+        "removed": "removed “{{name}}”",
+        "moved": "moved “{{name}}”",
+        "theme": "switched style to “{{name}}”",
+        "density": "density — {{name}}",
+        "period": "period — {{name}}",
+        "title": "renamed to “{{name}}”",
+        "filterAdd": "added breakdown “{{name}}”",
+        "filterRemove": "removed breakdown “{{name}}”",
+        "goal": "set the team goal",
+        "addedCustom": "built the “{{name}}” widget from CRM data",
+        "style": "changed the look",
+        "styleReset": "restored theme colors"
+      },
+      "data": {
+        "widget": "Widget",
+        "type": "Type",
+        "source": "Section",
+        "fields": "Data from",
+        "filters": "Filters",
+        "status": "Status",
+        "ok": "Calculated",
+        "note": "Amounts are converted to the company's main currency ({{currency}}) at the current rate. Data permissions follow CRM roles.",
+        "wsTable": "Workspace table",
+        "periodFilter": "period, permissions"
+      },
+      "fields": {
+        "leads_kpi": "Leads · created date",
+        "leads_line": "Leads · created date, both periods",
+        "leads_src": "Leads · source",
+        "leads_won": "Leads · status “won”",
+        "deals_rev": "Sales (new, confirmed) · amount",
+        "deals_conv": "Leads · share “won”",
+        "deals_avg": "Sales · average amount",
+        "deals_funnel": "Leads · statuses",
+        "deals_table": "Sales · top by amount",
+        "team_goal": "Sales this month / app goal",
+        "team_bar": "Sales × lead owner",
+        "team_table": "Sales and leads × owner",
+        "calls_kpi": "Telephony · calls",
+        "calls_miss": "Telephony · unanswered inbound",
+        "calls_hours": "Telephony · call hour",
+        "book_load": "Bookings · resource minutes / working hours",
+        "book_heat": "Bookings · visit day and hour",
+        "book_noshow": "Bookings · no-shows",
+        "book_count": "Bookings · created date",
+        "stock_kpi": "Products · quantity, stock movements",
+        "stock_low": "Products · quantity, 30-day sales",
+        "stock_top": "Stock movements · sales",
+        "fin_profit": "Sales + bookings + hotels − ad spend",
+        "fin_pl": "Income and ad spend by month",
+        "fin_mix": "Income by module",
+        "mk_cpl": "Ad spend / new leads",
+        "mk_channels": "Ad accounts · spend",
+        "mk_spend": "Ad accounts · spend",
+        "alerts": "Aura rules on leads, stock, calls, bookings, goal",
+        "compare": "Sales · amount, two periods"
+      },
+      "wfilters": {
+        "leads_kpi": "manager, channel",
+        "leads_line": "manager, channel",
+        "leads_src": "manager",
+        "leads_won": "manager, channel",
+        "deals_rev": "manager, channel",
+        "deals_conv": "manager, channel",
+        "deals_avg": "manager, channel",
+        "deals_funnel": "manager, channel",
+        "deals_table": "manager, channel",
+        "team_goal": "manager",
+        "team_bar": "channel",
+        "team_table": "channel",
+        "calls_kpi": "manager",
+        "calls_miss": "manager",
+        "calls_hours": "manager",
+        "book_load": "—",
+        "book_heat": "manager, branch",
+        "book_noshow": "manager, branch",
+        "book_count": "manager, branch",
+        "stock_kpi": "product",
+        "stock_low": "product",
+        "stock_top": "product",
+        "fin_profit": "—",
+        "fin_pl": "—",
+        "fin_mix": "—",
+        "mk_cpl": "—",
+        "mk_channels": "—",
+        "mk_spend": "—",
+        "alerts": "—",
+        "compare": "manager, channel"
+      },
+      "pub": {
+        "title": "Publish app",
+        "saveTitle": "Save changes",
+        "sub": "Data permissions follow CRM roles: everyone sees only their sections.",
+        "name": "Name",
+        "access": "Access in CRM",
+        "refresh": "Data refresh",
+        "inMenu": "Show in the CRM menu under “Aura”",
+        "shareOn": "Public link (TV, partners, no CRM login)",
+        "shareHint": "The link opens the app without the menu and without login. Data is calculated with your permissions. You can set a password and an expiry date.",
+        "password": "Password",
+        "newPassword": "New password",
+        "passwordPh": "Optional, 4+ characters",
+        "expires": "Access until",
+        "dropPassword": "Remove password",
+        "passShort": "Password must be at least 4 characters",
+        "copy": "Copy",
+        "copied": "Copied",
+        "doneTitle": "Published",
+        "doneSub": "The app is now in “My apps”. Public link:",
+        "withPassword": "The link is password-protected — share the password separately.",
+        "noPassword": "The link opens without a password — anyone with it will see the data.",
+        "close": "Done",
+        "saving": "Saving…"
+      },
+      "view": {
+        "refresh": "Refresh",
+        "copyLink": "Link",
+        "noMenu": "No menu",
+        "toCrm": "Back to CRM",
+        "fullscreen": "Full screen",
+        "draft": "draft"
+      },
+      "public": {
+        "unavailable": "This link is unavailable",
+        "expired": "This link has expired",
+        "askOwner": "Ask the owner for a new link.",
+        "passwordNeeded": "{{company}} protected this app with a password.",
+        "open": "Open",
+        "wrongPassword": "Wrong password"
+      },
+      "aiErr": {
+        "provider_quota": "AI is unavailable: the platform OpenAI key is out of credits (the platform admin needs to top it up).",
+        "tenant_quota": "AI is unavailable: your plan's AI limit for this month is used up.",
+        "unavailable": "AI did not respond right now."
+      },
+      "ds": {
+        "leads": "Leads",
+        "sales": "Sales",
+        "calls": "Calls",
+        "bookings": "Bookings",
+        "hotel_bookings": "Hotels",
+        "products": "Products",
+        "contacts": "Contacts",
+        "companies": "Companies",
+        "ads": "Ads"
+      }
     }
   },
   "landing": {
@@ -20575,6 +21488,386 @@
       "sub": "Describe your task — we will get in touch shortly and prepare a personal demo.",
       "success": "Thank you! We will get in touch with you shortly.",
       "surname": "Last name"
+    },
+    "v4": {
+      "heroCtaDemo": "Request a demo",
+      "heroMetrics": [
+        {
+          "label": "FREE TRIAL",
+          "val": "14 days"
+        },
+        {
+          "label": "INTEGRATIONS",
+          "val": "30+"
+        },
+        {
+          "label": "LANGUAGES",
+          "val": "RU · EN · TR"
+        }
+      ],
+      "integrationsKicker": "INTEGRATIONS",
+      "integrationsSub": "Works with the tools you already use",
+      "modulesKicker": "01 · Modules",
+      "modulesTitle": "Nine modules, one customer base.",
+      "modulesSub": "Everything sales, marketing and service need in one platform. Modules share contacts and companies — no duplicated data.",
+      "features": [
+        {
+          "t": "Leads & deals",
+          "d": "Requests from your website, forms and messengers with source and UTM. Kanban, list, owners and duplicate search."
+        },
+        {
+          "t": "Communications",
+          "d": "WhatsApp, Telegram, email, SMS, calls and website chat — the whole conversation in the customer card."
+        },
+        {
+          "t": "Marketing",
+          "d": "UTM links, spend from Google Ads, Meta, Yandex Direct and VK — and revenue for every channel."
+        },
+        {
+          "t": "Automations",
+          "d": "Trigger → conditions → actions: tasks, messages, webhooks, hand-off to other systems."
+        },
+        {
+          "t": "AI assistant & AI employees",
+          "d": "Answer from your CRM data, prepare reports and take actions with approval."
+        },
+        {
+          "t": "Workspaces",
+          "d": "No-code tables, Kanban, calendar and Gantt with formulas and Excel import."
+        },
+        {
+          "t": "Bookings & hotels",
+          "d": "Online booking, a waitlist and a room reservation system in the same CRM."
+        },
+        {
+          "t": "Analytics",
+          "d": "Reports on leads, sales, managers and projects, a BI dashboard and export."
+        },
+        {
+          "t": "Security",
+          "d": "Roles and permissions, two-factor sign-in, an action log, EU servers and daily backups."
+        }
+      ],
+      "autoKicker": "02 · Automation",
+      "autoTitle": "Scenarios that do the work for you.",
+      "autoSub": "A visual builder: trigger → condition → action. Routine work — new requests, reminders, notifications — runs by itself.",
+      "autoFlowTitle": "Scenario \"New lead from ads\"",
+      "autoSteps": [
+        {
+          "label": "Lead",
+          "sub": "Instagram Ads"
+        },
+        {
+          "label": "Condition",
+          "sub": "Source = ads"
+        },
+        {
+          "label": "Owner",
+          "sub": "Manager"
+        },
+        {
+          "label": "Message",
+          "sub": "WhatsApp + Email"
+        },
+        {
+          "label": "Task",
+          "sub": "Call back"
+        }
+      ],
+      "autoCardKicker": "WHAT YOU CAN AUTOMATE",
+      "autoCardTitle": "Scenario actions",
+      "autoActions": [
+        "Create a task or a note",
+        "Assign an owner and change status",
+        "Send an email, SMS or Telegram message",
+        "Call a webhook or push the deal to amoCRM, Bitrix24, HubSpot",
+        "Wait or ask for approval"
+      ],
+      "stepsKicker": "03 · Getting started",
+      "stepsTitle": "How to get started.",
+      "stepsSub": "From sign-up to the first leads in the CRM — usually within a day.",
+      "steps": [
+        {
+          "v": "01",
+          "l": "Sign up — 14 days of the Enterprise plan for free, no card."
+        },
+        {
+          "v": "02",
+          "l": "Import customers and leads from Excel or CSV; AI helps to parse the sheet."
+        },
+        {
+          "v": "03",
+          "l": "Connect your website, messengers and ad accounts."
+        },
+        {
+          "v": "04",
+          "l": "Invite your team and set up roles and access rights."
+        }
+      ],
+      "pricingKicker": "04 · Pricing",
+      "pricingTitle": "Honest pricing.",
+      "pricingSub": "Plans differ by modules, storage and support level. No hidden fees.",
+      "perMonth": "/mo",
+      "perYearNote": "billed yearly",
+      "perUser": "+ €5/mo per additional user",
+      "plans": {
+        "standard": {
+          "sub": "Core CRM for daily sales and marketing work.",
+          "cta": "Start free"
+        },
+        "professional": {
+          "sub": "For teams that talk to customers in messengers.",
+          "cta": "Start free"
+        },
+        "enterprise": {
+          "sub": "Client finances, client portals and implementation help.",
+          "cta": "14 days free"
+        },
+        "ultimate": {
+          "sub": "Premium package: telephony, custom domain and consulting.",
+          "cta": "Contact us"
+        }
+      },
+      "ctaKicker": "START TODAY",
+      "ctaTitle": "14 days free. No card required.",
+      "ctaCreate": "Create account",
+      "ctaDemo": "Demo",
+      "formContactNote": "We reply during business hours, usually within a day."
+    },
+    "v5": {
+      "pill": "New",
+      "pillText": "Aura dashboards and AI employees",
+      "h1a": "A CRM that grows",
+      "h1b": "with your business. For",
+      "words": [
+        "sales.",
+        "inventory.",
+        "finance.",
+        "marketing.",
+        "service."
+      ],
+      "sub": "Lumiva is a CRM for small and mid-sized businesses: leads and deals, inventory and products, bookings, invoices and analytics in one place. Setup usually takes a day.",
+      "ctaStart": "Start 14-day trial",
+      "ctaLogin": "Sign in",
+      "ctaOpen": "Open CRM",
+      "ctaAccount": "My account",
+      "metrics": [
+        {
+          "l": "Free trial",
+          "v": 14,
+          "s": " days"
+        },
+        {
+          "l": "Integrations",
+          "v": 30,
+          "s": "+"
+        },
+        {
+          "l": "Languages",
+          "t": "RU · EN · TR"
+        }
+      ],
+      "demoNote": "Example with demo data",
+      "heroDashTitle": "Sales team · overview",
+      "flA": [
+        "Qualifying a lead",
+        "Summarizing the request",
+        "Assigning a manager"
+      ],
+      "flB": "\"Add a comparison with last month\"",
+      "flCt": "Deal won",
+      "flCs": "Task closed automatically",
+      "ticker": [
+        [
+          "Mila AI",
+          "qualifies a lead",
+          "from the website"
+        ],
+        [
+          "Aura",
+          "builds a dashboard",
+          "\"Stock levels\""
+        ],
+        [
+          "Sofia AI",
+          "creates a task",
+          "for a stalled deal"
+        ],
+        [
+          "Sales department",
+          "sorts requests",
+          "from Telegram"
+        ],
+        [
+          "Eva AI",
+          "drafts a reply",
+          "to a client email"
+        ],
+        [
+          "Mira AI",
+          "calculates cost per lead",
+          "by channel"
+        ],
+        [
+          "Finance",
+          "reconciles",
+          "invoice payments"
+        ]
+      ],
+      "intK": "Integrations",
+      "intS": "Works with the tools you already use",
+      "platK": "Platform",
+      "platT": "Three AI layers on top of one CRM",
+      "platD": "Every layer works with the same data: leads, deals, inventory and finance.",
+      "plat": [
+        [
+          "Aura",
+          "Describe what you need in words. Aura clarifies data and period, then builds a dashboard on live CRM data."
+        ],
+        [
+          "AI employees",
+          "Qualify leads, draft email replies, create tasks. You decide what they do on their own and what needs your approval."
+        ],
+        [
+          "AI departments",
+          "Teams of agents connected to your services. They hand tasks to each other and return results to the CRM."
+        ]
+      ],
+      "more": "Learn more",
+      "modK": "01 · Modules",
+      "autoK": "02 · Automation",
+      "autoActive": "Active",
+      "autoRun": "Mila AI is moving the lead through the scenario…",
+      "autoDone": "A \"Call\" task was assigned to the responsible manager",
+      "auraK": "Lumiva Aura",
+      "auraT": "A dashboard from a single sentence",
+      "auraD": "Write what you want to see. Aura clarifies data, period and audience, suggests a style and builds the app. Open it in the CRM or put it on the office screen.",
+      "auraList": [
+        "5 styles: from monochrome to TV screen",
+        "Templates for sales, marketing, inventory and finance",
+        "Edit in chat: \"add a funnel\"",
+        "Access by CRM roles and a password-protected TV link"
+      ],
+      "auraCta": "Try Aura",
+      "auraPrompts": [
+        "Morning stand-up dashboard: revenue, funnel and who is behind plan",
+        "Daily lead flow and cost per lead by channel",
+        "Office TV screen: calls and revenue today",
+        "What is running out in stock and what sells best"
+      ],
+      "auraSteps": [
+        "Reading the request",
+        "Connecting CRM data",
+        "Choosing widgets",
+        "Applying the style"
+      ],
+      "crewK": "AI employees",
+      "crewT": "Hire AI onto your team, like people",
+      "crewD": "Each has a role, an access level and an action log. Risky actions come to you for approval.",
+      "crewWork": "Working",
+      "crewLog": "Action log",
+      "crew": [
+        [
+          "Mila AI",
+          "Lead manager",
+          [
+            "Qualifies a website lead",
+            "Flags spam",
+            "Assigns a manager"
+          ]
+        ],
+        [
+          "Sofia AI",
+          "Sales manager",
+          [
+            "Finds stalled deals",
+            "Drafts a follow-up",
+            "Creates a task for a manager"
+          ]
+        ],
+        [
+          "Mira AI",
+          "Marketing analyst",
+          [
+            "Calculates CPL by channel",
+            "Builds a report",
+            "Compares campaigns"
+          ]
+        ],
+        [
+          "Eva AI",
+          "Email assistant",
+          [
+            "Drafts an email reply",
+            "Summarizes a thread",
+            "Finds unanswered emails"
+          ]
+        ]
+      ],
+      "deptK": "AI departments · Enterprise and Ultimate",
+      "deptT": "Whole departments of agents connected to your services",
+      "deptD": "Requests, messages and ad data go to the right department. Agents hand tasks to each other and return results to the CRM.",
+      "deptHub": "Lumiva AI core",
+      "depts": [
+        [
+          "Marketing",
+          "Ad reports"
+        ],
+        [
+          "Sales",
+          "Deal follow-ups"
+        ],
+        [
+          "Inventory",
+          "Supplier orders"
+        ],
+        [
+          "Finance",
+          "Payment reconciliation"
+        ]
+      ],
+      "startK": "03 · Getting started",
+      "priceYear": "Yearly",
+      "priceMonth": "Monthly",
+      "priceUpTo": "up to −20%",
+      "priceMonthly": "€{{v}} billed monthly",
+      "priceHot": "Popular",
+      "endK": "Start today",
+      "endT": "14 days free. No card.",
+      "endD": "All Enterprise modules are available during the trial.",
+      "endHave": "Already have an account? Sign in",
+      "close": "Close",
+      "demo": {
+        "managers": [
+          "Anna Kovaleva",
+          "Mert Yilmaz",
+          "Ilya Petrov",
+          "Elif Demir",
+          "Oleg Smirnov"
+        ],
+        "deals": [
+          "CRM rollout, 25 seats",
+          "Annual service contract",
+          "Equipment supply",
+          "Website redesign",
+          "Corporate training",
+          "Ad account audit"
+        ],
+        "products": [
+          "Coffee beans 1 kg",
+          "Paper filters",
+          "Vanilla syrup",
+          "Cups 350 ml",
+          "Oat milk",
+          "Cup lids"
+        ],
+        "channels": [
+          "Google Ads",
+          "Meta Ads",
+          "Yandex Direct",
+          "VK Ads"
+        ]
+      }
     }
   },
   "publicPages": {
@@ -20622,13 +21915,13 @@
       "ctaTitle": "Start today",
       "ctaSubtitle": "Sign up and get full access. No hidden fees.",
       "integrationsTitle": "Connects to your tools",
-      "integrationsSubtitle": "20+ ready-made integrations out of the box",
+      "integrationsSubtitle": "30+ ready-made integrations",
       "allFeaturesTitle": "All platform capabilities",
       "allFeaturesKicker": "Features"
     },
     "about": {
       "title": "About Lumiva CRM",
-      "subtitle": "We build CRM that helps small and medium businesses grow faster.",
+      "subtitle": "We build a CRM that brings sales, marketing, communications and bookings of small and mid-sized businesses into one system.",
       "missionKicker": "Our mission",
       "missionQuote": "Make professional business management tools accessible to every team.",
       "valuesKicker": "Values",
@@ -20642,11 +21935,11 @@
       "ctaBtnDemo": "Book a demo",
       "ctaBtnFeatures": "See features",
       "missionAttribution": "The Lumiva CRM team",
-      "statsClients": "Clients",
+      "statsClients": "Modules",
       "statsIntegrations": "Integrations",
-      "statsUptime": "Uptime",
-      "statsYears": "Years on market",
-      "statsYearsValue": "4 years",
+      "statsUptime": "Interface languages",
+      "statsYears": "Free trial",
+      "statsYearsValue": "14 days",
       "values": [
         {
           "title": "Simplicity",
@@ -20658,7 +21951,7 @@
         },
         {
           "title": "Reliability",
-          "desc": "Your data is safe. Isolated accounts, encryption, and regular backups."
+          "desc": "Isolated data for every company, roles and permissions, two-factor sign-in and daily backups."
         },
         {
           "title": "Partnership",
@@ -20672,7 +21965,7 @@
         },
         {
           "year": "2023",
-          "text": "Beta launch. First 50 clients."
+          "text": "Beta launch and the first customers."
         },
         {
           "year": "2024",
@@ -20680,11 +21973,11 @@
         },
         {
           "year": "2025",
-          "text": "Integrations with 20+ services. AI assistant."
+          "text": "Integrations with messengers, ad platforms and other CRMs. AI assistant."
         },
         {
           "year": "2026",
-          "text": "New design, mobile app. 3× growth."
+          "text": "New design, AI employees, bookings and hotels, Turkish interface."
         }
       ],
       "techStack": [
@@ -20762,7 +22055,7 @@
             },
             {
               "q": "Do I need to install anything on my computer?",
-              "a": "No. Lumiva CRM runs entirely in the browser. There's also a mobile app for iOS and Android. No installation or server maintenance required."
+              "a": "No. Lumiva CRM runs in the browser — on desktop and on your phone. No installation or server maintenance is required."
             }
           ]
         },
@@ -20771,15 +22064,15 @@
           "items": [
             {
               "q": "Is there a free tier?",
-              "a": "Yes. After signing up, the account works in a limited mode indefinitely. To unlock all modules, choose a plan."
+              "a": "Yes. After sign-up you get 14 days of the Enterprise plan with full access, no card required. Then pick a plan — your data is kept."
             },
             {
               "q": "How does billing work?",
-              "a": "Billing is per user, per month. An annual plan gets an automatic 10–20% discount depending on the tier. We accept cards and bank transfer."
+              "a": "Monthly or yearly. Yearly billing gives a 10% to 20% discount depending on the plan. Payment by bank card: iyzico and PayTR in Turkey, YooKassa in Russia, Stripe elsewhere."
             },
             {
               "q": "Can I cancel my subscription?",
-              "a": "Yes, anytime. After cancellation the account switches to a limited mode; data is kept for 30 days."
+              "a": "Yes, at any time. If the plan is not renewed, access to the CRM is paused and your data is not deleted."
             },
             {
               "q": "Are there discounts for nonprofits and schools?",
@@ -20792,19 +22085,19 @@
           "items": [
             {
               "q": "How is my data protected?",
-              "a": "Every client runs in an isolated account (multi-tenant architecture). All data is encrypted in transit (TLS 1.3) and at rest. Regular backups."
+              "a": "Each company's data is isolated at the database level. Connections go over HTTPS only, passwords are stored as hashes, and two-factor sign-in is available. The database is backed up every night."
             },
             {
               "q": "Is there an API for integrations?",
-              "a": "Yes. Lumiva CRM provides a REST API with token authentication. Documentation is available in the API section after signup."
+              "a": "Yes. A REST API with token authentication: lead intake, products, bookings and other objects. See the API section for docs."
             },
             {
               "q": "Can I import data from another CRM?",
-              "a": "Yes. Import from Excel/CSV is supported, along with direct connectors for AmoCRM, Bitrix24, and HubSpot."
+              "a": "Yes. Leads, products and workspace tables can be imported from Excel/CSV. amoCRM, Bitrix24 and HubSpot have ready-made integrations."
             },
             {
-              "q": "What's the platform's SLA?",
-              "a": "We guarantee 99.9% uptime for paid plans. Scheduled maintenance is announced at least 24 hours in advance."
+              "q": "How do you monitor the platform?",
+              "a": "Website and API availability is checked automatically every 5 minutes, and the team is alerted immediately about failures. We announce planned maintenance in advance."
             }
           ]
         },
@@ -20813,7 +22106,7 @@
           "items": [
             {
               "q": "Which integrations are supported?",
-              "a": "Google Analytics 4, Meta Ads, Google Ads, Mailchimp, WooCommerce, AmoCRM, Bitrix24, HubSpot, Telegram, WhatsApp, Slack, Google Sheets, WordPress CF7, Zapier, 1C, SAP, Jira, OpenAI, and more."
+              "a": "WhatsApp, Telegram, email, SMS, Google Ads, Meta Ads, Yandex Direct, VK Ads, Google Analytics 4, Yandex Metrika, WooCommerce, Shopify, WordPress CF7, amoCRM, Bitrix24, HubSpot, Mailchimp, Slack, MS Teams, Google Sheets, Google Calendar, Outlook, Jira, 1C, SAP, Zapier, Make, iyzico, PayTR, YooKassa, OpenAI and Anthropic."
             },
             {
               "q": "How do I connect a Telegram bot?",
@@ -20821,7 +22114,7 @@
             },
             {
               "q": "Are webhooks supported?",
-              "a": "Yes. You can set up inbound webhooks for WordPress Contact Form 7, AmoCRM, WhatsApp, and custom sources."
+              "a": "Yes. Incoming webhooks accept leads from websites, forms and bots, and automations can send outgoing webhooks to your URL."
             }
           ]
         }
@@ -20898,45 +22191,153 @@
       "followTitle": "Follow the updates",
       "releases": [
         {
+          "version": "2.9.0",
+          "date": "October 1, 2026",
+          "highlight": "New lead card and website chat",
+          "changes": [
+            {
+              "type": "new",
+              "text": "Lead card: WhatsApp, Telegram and email conversations in one feed"
+            },
+            {
+              "type": "new",
+              "text": "Website chat: new interface, closing and reopening conversations, visitor UTM"
+            },
+            {
+              "type": "new",
+              "text": "Lead trash and archive: restore deleted leads within 30 days"
+            },
+            {
+              "type": "new",
+              "text": "Manager report: won, lost and repeat sales"
+            },
+            {
+              "type": "improved",
+              "text": "One period picker across all analytics sections"
+            },
+            {
+              "type": "improved",
+              "text": "File storage limits by plan: 3, 5 and 10 GB"
+            }
+          ]
+        },
+        {
+          "version": "2.8.0",
+          "date": "September 25, 2026",
+          "highlight": "AI employees and Turkish interface",
+          "changes": [
+            {
+              "type": "new",
+              "text": "AI employees by department: lead, sales and marketing managers, analyst and SEO"
+            },
+            {
+              "type": "new",
+              "text": "AI consultant on your website, WhatsApp and Telegram books customers into Bookings"
+            },
+            {
+              "type": "new",
+              "text": "Google reviews monitoring with replies drafted in the reviewer's language"
+            },
+            {
+              "type": "new",
+              "text": "CRM interface in Turkish"
+            },
+            {
+              "type": "improved",
+              "text": "Workspaces: AI-assisted import of messy Excel sheets and auto-refresh from integrations"
+            },
+            {
+              "type": "security",
+              "text": "Signature verification for incoming WhatsApp messages"
+            }
+          ]
+        },
+        {
+          "version": "2.7.0",
+          "date": "September 1, 2026",
+          "highlight": "Payments and 14 days free",
+          "changes": [
+            {
+              "type": "new",
+              "text": "Payments via iyzico, PayTR and YooKassa, with a payments ledger in Sales"
+            },
+            {
+              "type": "new",
+              "text": "14 days of the Enterprise plan free for new accounts"
+            },
+            {
+              "type": "new",
+              "text": "Access rights: own / all visibility, hiding amounts and contacts, office-only sign-in"
+            },
+            {
+              "type": "new",
+              "text": "Duplicate search and merge for contacts, leads and companies, with undo"
+            },
+            {
+              "type": "new",
+              "text": "Documents: templates with data placeholders and e-signature"
+            },
+            {
+              "type": "improved",
+              "text": "Jira, HubSpot, Mailchimp, Bitrix24 and amoCRM connect via OAuth"
+            },
+            {
+              "type": "improved",
+              "text": "Use your own OpenAI or Anthropic key for AI features"
+            }
+          ]
+        },
+        {
+          "version": "2.6.0",
+          "date": "August 6, 2026",
+          "highlight": "Products, bookings and hotels",
+          "changes": [
+            {
+              "type": "new",
+              "text": "Products: catalog, prices, stock, warehouses and storage bins"
+            },
+            {
+              "type": "new",
+              "text": "Bookings: services, resources, schedule, waitlist and online booking"
+            },
+            {
+              "type": "new",
+              "text": "Hotel reservation system: rooms, occupancy grid, front desk, market rates"
+            },
+            {
+              "type": "new",
+              "text": "Helpdesk: customer tickets answered via email, Telegram, WhatsApp and SMS"
+            },
+            {
+              "type": "new",
+              "text": "BI dashboard with custom widgets"
+            },
+            {
+              "type": "improved",
+              "text": "The AI assistant changes prices, rates and bookings on command in chat"
+            }
+          ]
+        },
+        {
           "version": "2.5.0",
           "date": "April 18, 2026",
           "highlight": "New design and marketing pages",
           "changes": [
             {
               "type": "new",
-              "text": "Unified design system: Button, Card, Badge, Modal, Input components"
-            },
-            {
-              "type": "new",
-              "text": "New pages: Features, About, Contact, FAQ, Terms, Changelog"
-            },
-            {
-              "type": "new",
-              "text": "Redesigned footer with section navigation"
+              "text": "New website design: features, pricing, solutions, about, FAQ"
             },
             {
               "type": "improved",
-              "text": "Buttons and forms now look consistent across the whole CRM"
-            },
-            {
-              "type": "improved",
-              "text": "Rate limiting: API protection against overload (20 req/s, 100 req/10s)"
+              "text": "Buttons and forms look consistent across the CRM"
             },
             {
               "type": "security",
-              "text": "JWT_SECRET no longer has a fallback value — it's now required in the environment"
+              "text": "API rate limiting against overload and brute force"
             },
             {
               "type": "security",
-              "text": "Added security HTTP headers via Helmet"
-            },
-            {
-              "type": "security",
-              "text": "CORS origins moved to the CORS_ORIGINS environment variable"
-            },
-            {
-              "type": "fixed",
-              "text": "synchronize: false in production — the schema no longer changes automatically"
+              "text": "Additional HTTP security headers"
             }
           ]
         },
@@ -20954,7 +22355,7 @@
             },
             {
               "type": "improved",
-              "text": "Sped up the leads page load by 40% via query optimization"
+              "text": "Sped up the leads page load"
             }
           ]
         },
@@ -21108,7 +22509,7 @@
         {
           "id": "storage",
           "title": "5. Storage and protection of data",
-          "content": "**5.1 Where data is stored:**\nData is stored on servers in secure data centers. Core infrastructure is located in Russia and/or the EU. Backups are created daily and stored encrypted.\n\n**5.2 Retention periods:**\n- Account and CRM data: for the full term of the contract + 30 days after account deletion\n- Financial documents: 5 years (legal requirement)\n- Technical logs: 90 days\n- Support request data: 2 years\n\n**5.3 Protection measures:**\n- Encryption in transit: TLS 1.3\n- Encryption at rest: AES-256\n- Multi-factor authentication for staff\n- Regular security audits and penetration testing\n- Multi-tenant architecture: each account is isolated at the database level\n- Restricted staff access to data — only on a documented need basis and on request\n\n**5.4 Incident notification:**\nIn the event of a data breach that could pose a risk to your rights, we will notify you and the relevant regulators within the timeframes required by law (no later than 72 hours)."
+          "content": "**5.1 Where data is stored:**\nData is stored on servers in a data center in the European Union (Lithuania). A database backup is created daily.\n\n**5.2 Retention periods:**\n- Account and CRM data: for the full term of the contract + 30 days after account deletion\n- Financial documents: 5 years (legal requirement)\n- Technical logs: 90 days\n- Support request data: 2 years\n\n**5.3 Protection measures:**\n- Encryption in transit: HTTPS (TLS)\n- Passwords stored only as hashes\n- Two-factor authentication for users\n- User action log\n- Multi-tenant architecture: each account is isolated at the database level\n- Restricted staff access to data — only on a documented need basis and on request\n\n**5.4 Incident notification:**\nIn the event of a data breach that could pose a risk to your rights, we will notify you and the relevant regulators within the timeframes required by law (no later than 72 hours)."
         },
         {
           "id": "sharing",
@@ -21160,16 +22561,16 @@
     "security": {
       "title": "Security & Data Protection",
       "subtitle": "How data protection actually works in Lumiva CRM — infrastructure, application, and access. No marketing promises, only what's actually implemented.",
-      "s1Kicker": "01 · ENCRYPTION",
-      "s1Title": "Data encryption",
+      "s1Kicker": "01 · ENCRYPTION & PASSWORDS",
+      "s1Title": "Connection and password protection",
       "s1Items": [
         {
           "title": "Encryption in transit",
-          "desc": "All connections to the platform use TLS 1.3."
+          "desc": "All connections to the platform go over HTTPS (TLS) only."
         },
         {
-          "title": "Encryption at rest",
-          "desc": "Data in the database is encrypted with AES-256."
+          "title": "Two-factor authentication",
+          "desc": "Sign-in can be protected with a code from an authenticator app; backup codes are available."
         },
         {
           "title": "Password storage",
@@ -21200,8 +22601,8 @@
           "desc": "Applied via Helmet — protection against clickjacking, MIME-sniffing, and other common header-level attacks."
         },
         {
-          "title": "Mandatory token secret",
-          "desc": "JWT_SECRET is required in the environment with no fallback default — this eliminates a whole class of vulnerabilities from a guessable secret."
+          "title": "Short-lived access tokens",
+          "desc": "Sessions run on signed tokens with a limited lifetime; the signing secret is mandatory and has no default value."
         },
         {
           "title": "Configurable CORS",
@@ -21210,7 +22611,7 @@
       ],
       "s4Kicker": "04 · CHANGE TRACKING",
       "s4Title": "Change logs",
-      "s4Text": "The Products module keeps a full change log — price, cost, status, SKU, barcode — with the author and time of every change. Equivalent logging for other CRM modules (Leads, Deals, Projects) isn't implemented to the same extent yet — it's on the backlog, not a shipped feature.",
+      "s4Text": "The action log records who changed what in the CRM, with date and time. For products we also keep a detailed history of price, cost, status, SKU and barcode.",
       "s5Kicker": "05 · DATA PRIVACY",
       "s5Title": "Privacy and control over your data",
       "s5Items": [
@@ -21219,8 +22620,8 @@
           "desc": "You can request an export or deletion of your data — timelines and process are described in the Privacy Policy."
         },
         {
-          "title": "Choice of storage region",
-          "desc": "Data is stored in secure data centers in Russia and/or the EU."
+          "title": "Where data is stored",
+          "desc": "Servers are located in the European Union (Lithuania). The database is backed up every night."
         }
       ],
       "s5PrivacyLink": "More details in the Privacy Policy",
@@ -21250,11 +22651,11 @@
         },
         {
           "title": "Transparent pricing",
-          "desc": "All 9 modules are available on every plan — the difference is in limits and support level, not hidden feature paywalls."
+          "desc": "Prices are published on the website, and the plan table shows which modules and limits each plan includes — no hidden fees."
         },
         {
           "title": "Security by facts, not by badges",
-          "desc": "TLS 1.3, AES-256, role-based access, database-level multi-tenant isolation — concrete technical measures you can verify."
+          "desc": "Per-company data isolation, role-based access, two-factor sign-in, HTTPS and daily backups — concrete measures you can verify."
         }
       ],
       "pricingLink": "See pricing",
@@ -21395,5 +22796,756 @@
     "ru": "RU",
     "en": "EN",
     "tr": "TR"
+  },
+  "aiOffice": {
+    "prog": {
+      "debts": "Payment reminders: {{days}} days",
+      "debtsHint": "Built-in program. Unpaid sales — a polite email to the client with a payment link (iyzico / PayTR / YooKassa). Every email after your approval.",
+      "finWeek": "Finance summary on Mondays",
+      "finWeekHint": "Built-in program. Week over week: paid, awaiting payment, refunds, who owes — the system computes the numbers, the department writes conclusions.",
+      "watch": "Ads watchdog",
+      "watchHint": "Built-in program. Every morning: campaigns spending for {{days}} days without conversions — an instant notification to you and a review by the department with a pause/cut proposal. Awareness campaigns are left alone.",
+      "budget": "Budget review on Mondays",
+      "budgetHint": "Built-in program. ROAS and cost per conversion by campaign over 14 days → a proposal: what to cut, what to scale. Every change in the ad account only after your approval.",
+      "followup": "Follow-up without reply: {{days}} days",
+      "followupHint": "Built-in program. If the client is silent after our message — short useful follow-ups on these days, stops on reply. After {{lose}} silent days — status lost.",
+      "react": "Win back lost leads",
+      "reactHint": "Built-in program. Weekly, up to {{n}} leads lost more than {{days}} days ago get one warm message. Not again within six months.",
+      "stock": "Reorder items running low",
+      "stockHint": "Built-in program. Every morning the system checks stock and 30-day usage; items that are out, below threshold or will run out within 14 days become one task: group by supplier and prepare orders. Every purchase order goes out after your approval.",
+      "pr": "Review every pull request",
+      "prHint": "Built-in program. Every hour the department checks the repository: a new PR or new commits in it → it reads the diff and CI status and posts a review with line comments. It never approves or merges — that is your call.",
+      "sla": "Reply watch: {{h}} h",
+      "slaHint": "Built-in program. Every hour: tickets where the client has waited longer than {{h}} h become a task for the department right away. Works even if a scenario was off or a reply was rejected.",
+      "remind": "Reminder the day before",
+      "remindHint": "Built-in program. Guests whose visit or check-in is tomorrow get an email with date, time, address and directions (from the Brain). During the department’s daytime.",
+      "confirm": "Unconfirmed bookings",
+      "confirmHint": "Built-in program. A booking has waited more than 2 hours — the department confirms it by the Brain rules or reports what blocks it.",
+      "noshow": "No-shows",
+      "noshowHint": "Built-in program. The booking time passed and the guest is not checked in — the department marks a no-show and politely offers a new time.",
+      "review": "Review request",
+      "reviewHint": "Built-in program. After the visit or check-out — a thank-you and the review link from the Brain. Without a link nothing is sent.",
+      "reconcile": "Payments vs sales reconciliation",
+      "reconcileHint": "Built-in program. Every day: paid but the sale is not marked; payment amount differs; the client could not pay — the department handles each row. Marking as paid goes after your approval."
+    },
+    "curator": {
+      "curates": "Curates “{{name}}”",
+      "label": "Department curator",
+      "none": "No curator — you decide",
+      "paused": "paused",
+      "hintOn": "The curator approves regular agent actions on its own and sends weak ones back for rework. You get money and contracts, mass mailings and its doubts. Its instructions become department rules.",
+      "hintOff": "Pick an AI employee — it will run the department and decide instead of you.",
+      "hintNoEmployees": "A curator is an AI employee. Create one under “AI employees”.",
+      "title": "Department curator",
+      "pausedLong": "paused — decisions wait for you",
+      "decides": "Decides on regular agent actions for you. Money, contracts and doubts come to you.",
+      "approved": "approved · 7 d",
+      "revised": "sent back",
+      "escalated": "passed to you",
+      "approvedBy": "✓ Approved by curator {{name}}"
+    },
+    "safety": {
+      "ads": "Allow AI departments to change ads in the ad accounts",
+      "adsHint": "Pause, enable and daily budgets of Google Ads / Meta campaigns — every change still waits for your approval. Off: the department only describes recommendations in its report, and approving old proposals changes nothing.",
+      "hint": "Checked before every email, WhatsApp, Telegram and bulk send. If a rule is broken, nothing is sent and the reason shows in the task.",
+      "daily": "Max messages per day",
+      "dailyHint": "For the whole department. A bulk send counts each recipient. 0 — no limit.",
+      "freq": "One client at most once every (hours)",
+      "freqHint": "Replying to a message the client wrote is always allowed. 0 — no limit.",
+      "stop": "Stop list",
+      "stopPh": "client@mail.com\ncompetitor.com",
+      "stopHint": "Addresses or domains the department never contacts — one per line.",
+      "autoOrders": "Auto-ordering from suppliers",
+      "autoOrdersHint": "A purchase order goes out without your approval: items and quantities come from the system’s calculation, the supplier address only from the Brain or CRM contacts.",
+      "autoKb": "Reply on its own from the knowledge base",
+      "autoKbHint": "A reply goes out by itself only when it is based on a verbatim fragment of an .md file in the Brain. No answer in the files, a refund or a complaint — the ticket goes to a human. Staff answers are added to the “Support knowledge base” by the department.",
+      "autoBooking": "Guest emails on their own",
+      "autoBookingHint": "Confirmation, reminder, no-show and review emails go out by themselves from the templates in “Email templates” (you can edit them); booking data is filled in by the system. Free-text emails only after approval.",
+      "autoPosting": "Autoposting",
+      "autoPostingHint": "The department prepares a content plan, you approve it — then posts go to the Telegram channel on schedule by themselves. Works only if the department folder in the Brain has an .md content instruction."
+    },
+    "common": {
+      "kicker": "AI departments",
+      "light": "Room lighting",
+      "mode_auto": "Auto",
+      "mode_day": "Day",
+      "mode_night": "Night",
+      "now": "now",
+      "minAgo": "{{n}} min",
+      "hAgo": "{{n}} h",
+      "dAgo": "{{n}} d",
+      "add": "Add",
+      "approve": "Approve",
+      "reject": "Reject",
+      "cancel": "Cancel",
+      "empty": "Empty",
+      "loading": "Loading…",
+      "open": "open",
+      "pick": "Choose…",
+      "save": "Save",
+      "saved": "Saved",
+      "saving": "Saving…",
+      "close": "Close"
+    },
+    "nav": {
+      "connect": "Connections"
+    },
+    "plans": {
+      "free_locked": "No plan",
+      "standard": "Standard",
+      "professional": "Pro",
+      "enterprise": "Enterprise",
+      "ultimate": "Ultimate"
+    },
+    "lock": {
+      "title": "AI departments are available on Enterprise and Ultimate",
+      "text": "Departments of AI agents work on their own: they take tasks from automations and from the department goal, get your approval on what matters and write findings to the Brain. Enterprise includes 3 departments, Ultimate includes 5.",
+      "cta": "Change plan"
+    },
+    "office": {
+      "title": "Office",
+      "sub": "Your departments are working right now. Click a room to see its tasks.",
+      "agents": "agents",
+      "agents_one": "agent",
+      "agents_other": "agents",
+      "doing": "doing",
+      "next": "next",
+      "done": "done",
+      "roomColor": "Department color",
+      "openDept": "Open department",
+      "newDept": "New department",
+      "freeSlots": "{{count}} free slots",
+      "freeSlots_one": "{{count}} free slot",
+      "freeSlots_other": "{{count}} free slots",
+      "slotPrice": "{{included}} in plan · {{extra}} extra · one more {{price}} €/mo",
+      "waitingApproval": "Awaiting approval: {{count}}",
+      "department": "Department",
+      "taskFor": "Task for “{{name}}”…",
+      "noDepts": "Create a department first",
+      "needHelp": "Needs your help",
+      "taskStatus": "Task status",
+      "wholeOffice": "whole office",
+      "connected": "Connected",
+      "runsOn": "Runs on",
+      "enginesMixed": "Lumiva AI + own key ({{n}})",
+      "legendDepts": "departments",
+      "legendDepts_one": "department",
+      "legendDepts_other": "departments",
+      "legendInWork": "tasks in progress",
+      "cards": "Cards",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomFit": "Whole office",
+      "seeWhat": "see what exactly"
+    },
+    "status": {
+      "all": "All",
+      "backlog": "Queue",
+      "progress": "In progress",
+      "waiting": "Waiting",
+      "done": "Done"
+    },
+    "step": {
+      "queued": "Queued",
+      "context": "Collecting data",
+      "brain": "Checking the Brain",
+      "thinking": "Thinking",
+      "acting": "Acting",
+      "reviewing": "Reviewing the result",
+      "done": "Done"
+    },
+    "agentState": {
+      "idle": "free",
+      "paused": "paused",
+      "waiting": "waiting for decision",
+      "queued": "queued",
+      "context": "reading data",
+      "brain": "reading the Brain",
+      "thinking": "thinking",
+      "acting": "typing",
+      "reviewing": "reviewing",
+      "done": "delivered"
+    },
+    "source": {
+      "program": "department program",
+      "manual": "from you",
+      "automation": "automation",
+      "event": "CRM event",
+      "proactive": "from the department goal",
+      "handoff": "from another department"
+    },
+    "paused": {
+      "manual": "Paused",
+      "budget": "Spend limit reached",
+      "daily_budget": "Daily limit",
+      "plan": "Exceeds paid slots",
+      "quota": "AI quota used up"
+    },
+    "issueKind": {
+      "trust": "Suggestion",
+      "error": "Error",
+      "data": "Missing data",
+      "access": "No access"
+    },
+    "fix": {
+      "autonomy": "Let it send on its own",
+      "autonomyDone": "Done: the department sends regular messages itself, prices and payments go through you",
+      "grant": "Grant access",
+      "connect": "Connect",
+      "granted": "Access granted — tasks will continue",
+      "grantFailed": "Connect an ad account in Integrations first",
+      "upload": "Upload",
+      "access": "Grant access",
+      "reconnect": "Connect",
+      "billing": "Top up quota",
+      "settings": "Configure"
+    },
+    "engine": {
+      "platform": "Lumiva AI",
+      "platformHint": "Platform key, usage is charged to the company AI quota",
+      "byok": "Own API key",
+      "byokOnRequest": "Your own OpenAI or Anthropic key — connected on request"
+    },
+    "connStatus": {
+      "ok": "connected",
+      "expired": "token expired",
+      "error": "error",
+      "off": "not connected"
+    },
+    "kpi": {
+      "tasks_done_today": "Done today",
+      "tasks_waiting": "Awaiting decision",
+      "leads_new_7d": "New leads, 7 d",
+      "leads_open": "Leads in work",
+      "meetings_upcoming": "Upcoming meetings",
+      "sales_won_30d": "Paid, 30 d",
+      "tasks_overdue": "Overdue tasks",
+      "tickets_open": "Open tickets",
+      "bookings_upcoming": "Upcoming bookings",
+      "brain_files": "Brain files",
+      "spend_month": "Spend this month"
+    },
+    "brain": {
+      "title": "Brain",
+      "files": "files",
+      "files_one": "file",
+      "files_other": "files",
+      "hint": "Shared memory of departments: prompts, procedures, data",
+      "mapLabel": "Brain · {{count}} files",
+      "sub": "Shared storage of departments: prompts, procedures, data, files and access. Agents read from here before every task and write findings back.",
+      "upload": "Upload file",
+      "newDoc": ".md document",
+      "newDocName": "New document",
+      "newDocTitle": "Title",
+      "requests": "Departments are asking",
+      "requestsHint": "tasks are on hold without this",
+      "dropFor": "Drop a file or choose → {{folder}}",
+      "tabFiles": "Files & prompts · {{count}}",
+      "tabAccess": "Access",
+      "allFiles": "All files",
+      "common": "Shared",
+      "dropHere": "Drop — files go to “{{folder}}”",
+      "colFile": "File",
+      "colWho": "Who reads",
+      "colRead": "Last read",
+      "colChanged": "Changed",
+      "indexFailed": "indexing failed",
+      "indexing": "indexing {{p}}%",
+      "readsNow": "{{who}} is reading",
+      "dropHint": "Drop .md, PDF, DOCX, spreadsheets or images here — agents use them once indexed",
+      "edit": "Edit",
+      "binMeta": "{{size}} · split into {{n}} chunks for search",
+      "whoCanRead": "Available to",
+      "all": "All",
+      "allDepts": "all departments",
+      "byAgent": "written by {{who}}",
+      "download": "Download",
+      "renameBtn": "Rename",
+      "rename": "New file name",
+      "delete": "Delete",
+      "deleteConfirm": "Delete “{{name}}”? Agents will no longer read it.",
+      "pickFile": "Choose a file on the left",
+      "accessHint": "tokens live in CRM connections; an agent sees only what its department may use",
+      "scopeAllHint": "Currently available to every department with this connector — click to restrict",
+      "until": "until {{date}}",
+      "grantTitle": "Grant access to a department",
+      "byRequest": "Requested: {{title}}",
+      "service": "Service",
+      "grantOthers": "Email, messengers, ads and other services are connected in Connections.",
+      "whichDepts": "Which departments",
+      "saveAccess": "Save access"
+    },
+    "connect": {
+      "title": "Connections",
+      "sub": "What agents run on and which services departments can use. Tokens are stored in CRM connections, access scope — in Brain → Access.",
+      "engines": "Engines",
+      "works": "working",
+      "spendMonth": "Spend this month",
+      "noDeptsYet": "no departments yet",
+      "byokBilling": "Usage is billed by the key's provider",
+      "byokHow": "Your own OpenAI or Anthropic key is connected on request: add it in the Integrations Hub (OpenAI card) and it appears here and in department settings.",
+      "openHub": "Integrations Hub",
+      "connectedN": "{{count}} connected",
+      "attentionN": "{{count}} need attention",
+      "accessInBrain": "Access in Brain",
+      "needsSettings": "connected — choose where to write",
+      "instancesN": "{{count}} connections",
+      "expired": "token expired — tasks are on hold",
+      "settings": "Configure",
+      "connect": "Connect",
+      "reconnect": "Reconnect",
+      "byToken": "With a token",
+      "appNotConfigured": "app not configured",
+      "repo": "Repository",
+      "repoHint": "Department agents open issues and comment here.",
+      "notionPage": "Notion page",
+      "notionPageHint": "Agents create new pages under this page. Share it with the integration in Notion.",
+      "githubTokenHelp": "Create a fine-grained token in GitHub → Settings → Developer settings with access to the repository (Issues: read & write).",
+      "notionTokenHelp": "Create an internal integration at notion.so/my-integrations, copy its token and share the page with the integration.",
+      "token": "Token, key or password",
+      "checking": "Checking…",
+      "connected": "{{name}}: connected",
+      "oauthFailed": "{{name}}: could not connect — please try again",
+      "foot": "Services the CRM already connects (email, Telegram, WhatsApp, ads, Slack, Jira and more) are connected in their own sections — departments use them right away."
+    },
+    "dept": {
+      "notFound": "Department not found",
+      "toOffice": "To office",
+      "sub": "Agents: {{count}} · {{engine}}. See what the department is doing now, what waits for your decision and what is delivered.",
+      "pauseHint": "Pause the department",
+      "working": "Working",
+      "configure": "Configure",
+      "addDept": "Department",
+      "resolved": "Resolved",
+      "live": "live",
+      "pausedShort": "paused",
+      "kInWork": "In progress",
+      "kWaiting": "Waiting for you",
+      "kDoneToday": "Done today",
+      "kSpend": "Spend this month · limit {{limit}}",
+      "mission": "Department goal",
+      "noMission": "No goal set — open the settings.",
+      "staff": "Staff",
+      "agent": "Agent",
+      "free": "Free — takes the next task from the queue",
+      "today": "today",
+      "colDoing": "In progress",
+      "colWaiting": "Awaiting decision",
+      "colDone": "Done",
+      "unassigned": "not assigned yet",
+      "cancel": "Cancel",
+      "nothingDoing": "Nothing in progress right now",
+      "blocked": "On hold: the department is waiting for data or access",
+      "retry": "Retry",
+      "allApproved": "Everything approved",
+      "rejectedByYou": "rejected by you",
+      "failed": "failed",
+      "journal": "Action log",
+      "realtime": "real time",
+      "pausedJournal": "department paused",
+      "askTitle": "Assign to the department",
+      "askPh": "What should be done? E.g.: analyse this week's leads and suggest 3 improvements",
+      "askBtn": "Assign",
+      "askHint": "The department lead picks who does it. Progress, questions and the result appear in the task card.",
+      "planTitle": "Lead's plan",
+      "planOnDemand": "Doesn't plan on its own — works on assignments",
+      "planNoGoal": "Set a department goal so the lead can plan on its own",
+      "planNext": "Next planning in {{when}}",
+      "planSoon": "First planning within a minute",
+      "planLast": "Last time: {{ago}} ago",
+      "planNever": "Hasn't planned yet",
+      "planNow": "Plan now",
+      "planning": "Planning…",
+      "planned": "Tasks planned: {{count}}",
+      "plannedNone": "No new tasks — enough in progress or nothing to do",
+      "review": "Review",
+      "inMoment": "a minute",
+      "inHM": "{{h}} h {{m}} min",
+      "inM": "{{m}} min"
+    },
+    "edit": {
+      "newTitle": "New department",
+      "editTitle": "Settings · {{name}}",
+      "newSub": "Describe what the department does, add staff, connect services and set permissions. The department appears in the office right after creation.",
+      "editSub": "Prompts, staff, connectors and permissions. Changes apply to new tasks; running ones finish under the old rules.",
+      "defaultLead": "Lead",
+      "toDept": "To department",
+      "create": "Create department",
+      "nameRequired": "Enter the department name",
+      "created": "Department created — staff are entering the room",
+      "saved": "Saved. New tasks follow the new rules",
+      "deleteConfirm": "Delete the department “{{name}}”? Its agents, tasks and Brain folder will be deleted.",
+      "delete": "Delete department",
+      "deleteHint": "Deleting a department frees a plan slot.",
+      "sec": {
+        "safety": "Client protection",
+        "base": "Basics",
+        "prompt": "Goal & prompt",
+        "agents": "Staff",
+        "conns": "Connectors",
+        "brain": "Knowledge",
+        "perms": "Permissions",
+        "auto": "Automations",
+        "engine": "Engine & budget"
+      },
+      "template": "Start from a template",
+      "emptyDept": "Empty department",
+      "templateHint": "Fills in the goal, staff, connectors and permissions — you can change them afterwards.",
+      "name": "Name",
+      "namePh": "For example, Sales",
+      "color": "Room color",
+      "ownColor": "Custom color",
+      "colorHint": "Room floor, staff uniforms and lines on the office map.",
+      "mission": "Department goal",
+      "missionPh": "What the department must achieve and how the result is measured",
+      "missionHint": "The department lead plans tasks from this goal.",
+      "systemPrompt": "Department system prompt",
+      "systemPromptPh": "How to work: tone, order of steps, what matters to the company…",
+      "systemPromptHint": "Shared by all department agents. Each agent's own prompt is added to it.",
+      "rules": "Rules",
+      "newAgent": "New agent",
+      "lead": "Department lead",
+      "prompt": "Prompt",
+      "removeAgent": "Remove",
+      "agentPromptPh": "What “{{role}}” does, what matters, what is not allowed",
+      "connectNew": "Connect a new one",
+      "openBrain": "Open Brain",
+      "afterCreate": "after creation",
+      "noFiles": "No files yet",
+      "dropFiles": "Drop or choose .md, PDF, DOCX, spreadsheets — they go to the department folder",
+      "brainHint": "If an agent lacks something, it will say so — the request appears in the office and in the Brain.",
+      "permsHint": "what agents may do on their own",
+      "levelUnavailable": "No such actions for this category yet",
+      "budget": "Monthly spend limit · {{v}}",
+      "budgetHint": "When the limit is reached the department pauses and notifies you.",
+      "parallel": "Parallel tasks",
+      "hours": "Working hours",
+      "planEvery": "Plan tasks from the goal every N hours",
+      "timezone": "Time zone",
+      "kpis": "Card metrics",
+      "kpisHint": "Two metrics shown on the department card in the office.",
+      "room": "Room",
+      "preview": "preview",
+      "limit": "Limit",
+      "payment": "Payment",
+      "slotText": "This is department #{{n}}. The {{plan}} plan includes {{included}}, {{extra}} more are paid.",
+      "officeFull": "There are no free rooms in the office.",
+      "perMonth": "per month · by card",
+      "buySlot": "Pay for a slot",
+      "freeSlot": "a paid slot is free",
+      "planLink": "Plan and all departments",
+      "connWarn": "Not connected",
+      "language": "Department language",
+      "languageHint": "Agents plan tasks, write results, the log and client messages in this language."
+    },
+    "rules": {
+      "approve_sensitive": "Prices, discounts, payments and contracts — only through me",
+      "approve_sensitive_hint": "Even when the department sends on its own, such messages wait for your approval.",
+      "no_client_send_without_approval": "Never send anything to a client without approval",
+      "no_client_send_without_approval_hint": "Emails and messages to clients wait for your approval, even at the “Auto” level.",
+      "respect_daily_budget": "Stay within the daily limit",
+      "respect_daily_budget_hint": "Daily limit = monthly / 30. Once exceeded it continues tomorrow.",
+      "write_brain_notes": "Write findings to the Brain",
+      "write_brain_notes_hint": "Each task result is appended to the department findings log.",
+      "notify_slack_on_done": "Post every delivered task to Slack",
+      "notify_slack_on_done_hint": "Requires a connected Slack.",
+      "no_pii_outside_crm": "Keep personal data inside the CRM",
+      "no_pii_outside_crm_hint": "Emails and phones won't reach Notion, Canva or GitHub."
+    },
+    "perm": {
+      "crm": "Leads & contacts",
+      "crm_hint": "records, notes, statuses, assignment, tickets",
+      "finance": "Deals & payments",
+      "finance_hint": "deals, payments, receivables; marking paid after reconciliation",
+      "tasks": "Tasks & projects",
+      "tasks_hint": "tasks, meetings, projects, tables, Jira, Slack",
+      "msg": "Email & messengers",
+      "msg_hint": "drafts, sending to clients, ticket replies",
+      "ads": "Ads & analytics",
+      "ads_hint": "marketing data and reports",
+      "content": "Content & layouts",
+      "content_hint": "Notion, Canva; Telegram channel posts",
+      "stock": "Stock & bookings",
+      "stock_hint": "stock and bookings; purchase orders, booking statuses",
+      "code": "Code & repositories",
+      "code_hint": "code, PRs and CI; issues, comments, reviews"
+    },
+    "level": {
+      "off": "None",
+      "read": "Read",
+      "draft": "Drafts",
+      "appr": "With approval",
+      "auto": "Auto",
+      "off_hint": "No access",
+      "read_hint": "Read data only",
+      "draft_hint": "Prepare drafts, send nothing",
+      "appr_hint": "Every action waits for your approval",
+      "auto_hint": "Acts on its own (within the rules)"
+    },
+    "hours": {
+      "always": "24/7",
+      "weekdays": "Weekdays 9–19",
+      "on_demand": "On request",
+      "always_hint": "The department works around the clock.",
+      "weekdays_hint": "Tasks outside working hours wait for the morning (department time zone).",
+      "on_demand_hint": "Only tasks from you and automations, no self-planning."
+    },
+    "auto": {
+      "builder": "Builder",
+      "afterCreate": "Recommended automations appear after the department is created.",
+      "when": "When",
+      "off": "off",
+      "recommended": "recommended",
+      "none": "No automations for this department yet — create one in the builder with the “Task for AI department” action.",
+      "added": "Automation added",
+      "createdFrom": "Created from AI department settings",
+      "qualifyTitle": "Qualify new lead [[lead.name]]",
+      "qualifyDetails": "A new lead in the CRM. Reply within 5 minutes, qualify it with the script from the Brain and hand it to a manager.",
+      "followupTitle": "Follow up stale lead [[lead.name]]",
+      "followupDetails": "The lead has been idle for a while. Send a short, relevant reminder, through approval.",
+      "paymentTitle": "Check the deal payment",
+      "paymentDetails": "The deal status changed. Check the payment and prepare a polite reminder if it is overdue.",
+      "stockTitle": "Item running low — prepare a reorder",
+      "stockDetails": "Stock is below the threshold. Check sales and create a reorder task.",
+      "failedTitle": "Investigate failure in “[[departmentName]]”",
+      "failedDetails": "Task “[[title]]” failed: [[error]]. Find the cause and suggest a fix.",
+      "sourceTitle": "Check the new lead's source",
+      "sourceDetails": "Match the new lead's source and UTM against ad campaigns.",
+      "helpTitle": "Handle help request: [[title]]",
+      "helpDetails": "A department lacks data or access: [[detail]]. Prepare what to ask the owner for.",
+      "contentTitle": "Content from task “[[title]]”",
+      "contentDetails": "Another department delivered: [[summary]]. Decide whether a post or material is needed."
+    },
+    "plan": {
+      "title": "Plan & departments",
+      "sub": "AI departments are available on {{plan}} and above. The plan includes {{included}} departments, each additional one is {{price}} € per month.",
+      "billing": "CRM plan",
+      "slots": "Department slots",
+      "usedOf": "{{used}} of {{total}} used",
+      "inPlan": "in plan",
+      "paidSlot": "paid",
+      "unpaid": "unpaid",
+      "free": "Free",
+      "afterPay": "after payment",
+      "extraDepts": "Extra departments",
+      "planLine": "{{plan}}, departments: {{count}}",
+      "extraLine": "Extra departments · {{n}} × {{price}} €",
+      "total": "Total for AI departments",
+      "mo": "mo",
+      "rate": "Today's rate: 1 € = {{rate}} {{sign}}",
+      "activeUntil": "Extra slots paid: {{n}}, until {{date}}.",
+      "redirecting": "Redirecting to payment…",
+      "nothingToPay": "No extra slots needed",
+      "renew": "Renew for a month · {{amount}} €",
+      "payN": "Pay for slots: {{count}} · {{amount}} €",
+      "note": "Paid by card for a month, renewed manually — like the CRM plan. Rubles and lira at the rate on the payment day.",
+      "proPrice": "AI employees",
+      "includedN": "Departments included: {{count}}",
+      "perMonth": "{{price}} € / mo",
+      "yourPlan": "your plan",
+      "extraCard": "Extra department",
+      "proF1": "Individual AI employees",
+      "proF2": "No departments or office",
+      "proF3": "Permissions and approvals",
+      "entF1": "3 departments included",
+      "entF2": "Up to 8 agents per department",
+      "entF3": "Office, Brain, action log",
+      "entF4": "Lumiva AI key or your own key",
+      "ultF1": "5 departments included",
+      "extraF1": "One more room in the office",
+      "extraF2": "Own prompts, permissions, budget",
+      "extraF3": "Set up in a minute",
+      "extraF4": "Paid by card monthly",
+      "deptsInSub": "Departments in subscription",
+      "agentsCol": "Agents",
+      "engineCol": "Engine",
+      "spendCol": "AI spend this month",
+      "slotCol": "Slot",
+      "byokSpend": "on your key",
+      "noDepts": "No departments yet",
+      "foot": "Lumiva AI usage is charged to the company AI quota and shown per department. Usage on your own key is billed by the provider directly.",
+      "paid": "Payment received — slots added",
+      "notPaid": "The payment was not confirmed. If you were charged, contact support."
+    },
+    "lang": {
+      "ru": "Русский",
+      "en": "English",
+      "tr": "Türkçe"
+    },
+    "taskStatus": {
+      "foreign": "other department",
+      "backlog": "queued",
+      "progress": "in progress",
+      "waiting": "waiting for you",
+      "blocked": "on hold",
+      "done": "done",
+      "rejected": "rejected",
+      "failed": "failed"
+    },
+    "actStatus": {
+      "pending": "awaiting approval",
+      "executed": "done",
+      "rejected": "rejected",
+      "failed": "error",
+      "approved": "approved"
+    },
+    "actType": {
+      "handoff_to_colleague": "Handoff to a colleague",
+      "workspace_add_field": "New table field",
+      "workspace_bulk_add_records": "Records into a table",
+      "workspace_enable_views": "Table views",
+      "send_payment_link": "Payment link to the client",
+      "ads_campaign_control": "Change in the ad account",
+      "create_quote": "Commercial offer",
+      "create_task": "Task",
+      "update_task": "Task update",
+      "create_note": "Note",
+      "add_comment": "Comment",
+      "assign_lead": "Lead assignment",
+      "assign_self": "Take ownership",
+      "update_lead_status": "Lead status",
+      "send_email": "Email to client",
+      "draft_email": "Email draft",
+      "send_bulk_email": "Newsletter",
+      "send_telegram": "Telegram message",
+      "send_whatsapp": "WhatsApp message",
+      "draft_whatsapp": "WhatsApp draft",
+      "create_meeting": "Meeting",
+      "create_report": "Report",
+      "create_project": "Project",
+      "escalate_to_human": "Call a human",
+      "office_handoff": "Handoff to another department",
+      "office_request_help": "Help request",
+      "brain_write": "Brain entry",
+      "notion_create_page": "Notion page",
+      "notion_append": "Notion append",
+      "canva_create_design": "Canva design",
+      "github_create_issue": "GitHub issue",
+      "github_comment": "GitHub comment",
+      "create_workspace_table": "Table",
+      "workspace_add_record": "Table row",
+      "workspace_update_record": "Row update",
+      "stock_purchase_order": "Purchase order to supplier",
+      "github_review": "Pull request review",
+      "helpdesk_reply": "Ticket reply",
+      "helpdesk_update": "Ticket update",
+      "send_booking_message": "Email to the guest",
+      "booking_update": "Booking change",
+      "publish_telegram_post": "Telegram channel post",
+      "jira_create_issue": "Jira issue",
+      "slack_post": "Slack message",
+      "sale_confirm_payment": "Mark sale as paid",
+      "content_plan": "Content plan (autoposting)"
+    },
+    "field": {
+      "to": "To",
+      "subject": "Subject",
+      "textBody": "Email text",
+      "bodyText": "Text",
+      "text": "Text",
+      "title": "Title",
+      "description": "Description",
+      "content": "Content",
+      "contentMd": "Content",
+      "body": "Text",
+      "status": "Status",
+      "dueDate": "Due",
+      "priority": "Priority",
+      "startsAt": "Starts",
+      "labels": "Labels"
+    },
+    "drawer": {
+      "preview": "How the client sees it",
+      "sendNow": "Send",
+      "sendConfirmTitle": "Send to the client?",
+      "sendConfirmText": "The message will really be sent: {{to}}",
+      "sentOk": "Sent",
+      "sentByYou": "✉️ You sent this draft to the client",
+      "willSend": "⚠ This is a real send: after approval the message goes to recipients",
+      "upTo": "(up to {{n}} recipients)",
+      "sentResult": "✉️ Sent: {{sent}} of {{total}}",
+      "notDelivered": "not delivered: {{n}}",
+      "report": "Report",
+      "copy": "Copy",
+      "copied": "Report copied",
+      "data": "Data used",
+      "dataSales": "CRM sales",
+      "dataAds": "Ads",
+      "foreign": "This task belongs to another department",
+      "assigned": "Assignment",
+      "waitingYou": "Waiting for your decision: {{count}}",
+      "waitingHint": "Check what exactly will go out. You can edit the text before approving — agents remember why you reject.",
+      "approveAll": "Approve and run",
+      "rejectAll": "Reject",
+      "rejectTitle": "Reject",
+      "rejectLabel": "Why? Agents will take it into account next time",
+      "rejectPh": "For example: don't promise a discount, ask about the budget first",
+      "rejectReason": "Rejection reason",
+      "result": "Result",
+      "actions": "What was done",
+      "timeline": "Progress",
+      "noSteps": "No steps yet — the task is queued",
+      "openResult": "Open",
+      "saveEdits": "Save edit",
+      "editSaved": "Edit saved — approve to send it"
+    },
+    "life": {
+      "waitingYou": "Waiting for your decision",
+      "leadIdle": "Watching the queue",
+      "idle": "Free",
+      "ready": "Ready for a task"
+    },
+    "impact": {
+      "title": "Department impact",
+      "realOnly": "only what was actually done",
+      "days": "{{n}} d",
+      "leads": "Leads handled",
+      "firstResponse": "First reply to new leads",
+      "lt1min": "< 1 min",
+      "minutes": "{{n}} min",
+      "firstResponseSub": "median · replied to {{answered}} of {{total}}, within 5 min — {{within5}}",
+      "noNewLeads": "no new leads",
+      "messages": "Messages to clients",
+      "bulk": "and newsletters: {{n}}",
+      "meetings": "Meetings booked",
+      "won": "Deals won",
+      "wonSub": "among leads the department worked",
+      "managerTasks": "Tasks for managers",
+      "docs": "Reports and documents",
+      "tasksDone": "Tasks delivered",
+      "failed": "failed: {{n}}",
+      "saved": "Work saved",
+      "hours": "≈ {{n}} h",
+      "how": "how we count",
+      "cost": "AI work cost",
+      "perHour": "≈ {{v}} per hour of work",
+      "formula": "Estimate: completed actions × typical human time for such an action —",
+      "min": "min"
+    },
+    "scen": {
+      "title": "Runs automatically",
+      "add": "+ Scenario",
+      "runs": "ran {{n}} times",
+      "edit": "Edit",
+      "on": "Turn on",
+      "off": "Turn off",
+      "none": "No scenarios — the department works only on assignments and its own plan."
+    },
+    "posts": {
+      "title": "Posts",
+      "none": "No scheduled posts yet",
+      "off": "Autoposting is off — scheduled posts are not published (turn it on in department settings → Protection).",
+      "cancel": "Cancel",
+      "cancelConfirm": "The post will not be published.",
+      "open": "Open",
+      "item": "Post {{n}}",
+      "st": {
+        "scheduled": "scheduled",
+        "published": "published",
+        "failed": "error",
+        "cancelled": "cancelled",
+        "expired": "expired"
+      }
+    }
   }
 }

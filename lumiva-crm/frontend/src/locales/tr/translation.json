@@ -3510,7 +3510,15 @@
       "aiEmployeesKnowledge": "Bilgi tabanı",
       "aiEmployeesInsights": "Fayda",
       "marketingReviews": "Yorumlar",
-      "marketingRoi": "Müşteri ROI"
+      "marketingRoi": "Müşteri ROI",
+      "aiOffice": "YZ departmanları",
+      "aiOfficeOffice": "Ofis",
+      "aiOfficeBrain": "Beyin",
+      "aiOfficeConnect": "Bağlantılar",
+      "aiOfficePlan": "Plan ve departmanlar",
+      "auraCreate": "Oluştur",
+      "auraTemplates": "Şablonlar",
+      "auraApps": "Uygulamalarım"
     },
     "aiEmployees": {
       "badge": {
@@ -4832,6 +4840,51 @@
           "other": "Kayıt adımı",
           "testNote": "Bu bir testtir: randevu oluşturulmaz veya değiştirilmez."
         }
+      },
+      "v3": {
+        "working": "{{count}} çalışıyor",
+        "planPill": "{{plan}} paketi · {{limit}} koltuktan {{used}}",
+        "planPillUnlimited": "{{plan}} paketi · sınırsız koltuk",
+        "title": "Yapay zekâ ekibiniz",
+        "todayLabel": "Bugünkü işlemler",
+        "todayExecuted": "{{count}} tamamlandı",
+        "todayFailed": "{{count}} hatalı",
+        "savedLabel": "30 günde kazanılan",
+        "savedNote": "işlem günlüğüne göre",
+        "hShort": "sa",
+        "minShort": "dk",
+        "pendingLabel": "Kararınızı bekliyor",
+        "pendingGo": "Kuyruğu incele",
+        "staff": "Kadro",
+        "doingIdle": "Olay bekliyor",
+        "doingPaused": "Duraklatıldı",
+        "doingSetup": "Kurulum gerekiyor",
+        "hrsFrom": "−12 sa",
+        "hrsNow": "şimdi",
+        "statToday": "bugünkü işlem",
+        "statSaved": "kazanıldı",
+        "statPending": "karar bekliyor",
+        "hoursShort": "{{count}} sa",
+        "access": "Erişim · {{level}}",
+        "accessCounts": "{{auto}} otomatik · {{appr}} onaylı",
+        "lastActivity": "Etkinlik: {{time}}",
+        "never": "henüz yok",
+        "hireMore": "Daha fazla işe al",
+        "freeSeats": "Boş koltuk: {{count}}",
+        "freeSeatsUnlimited": "Sınırsız koltuk",
+        "lockedOn": "{{plan}} paketinde mevcut",
+        "drawerKick": "Yeni çalışan",
+        "drawerTitle": "Yapay zekâ çalışanı işe al",
+        "role": "Rol",
+        "name": "Ad",
+        "level": "Erişim seviyesi",
+        "cancel": "İptal",
+        "hireBtn": "{{name}} işe al",
+        "advanced": "Gelişmiş kurulum",
+        "noFreeRoles": "Tüm uygun roller zaten dolu.",
+        "emptyFilter": "Bu filtreye uyan çalışan yok.",
+        "configure": "Ayarla",
+        "all": "Tümü"
       }
     },
     "settings": {
@@ -8019,14 +8072,18 @@
             "integrations": "Entegrasyonlar",
             "bookings": "Rezervasyonlar",
             "hotels": "Oteller",
-            "products": "Ürünler"
+            "products": "Ürünler",
+            "aiOffice": "YZ departmanları",
+            "helpdesk": "Destek"
           },
           "triggerDesc": {
             "scheduled": "CRON veya aralık",
-            "stale": "Günde bir kez kontrol edilir · 14 günlük hareketsizlik eşiği"
+            "stale": "Günde bir kez kontrol edilir · 14 günlük hareketsizlik eşiği",
+            "aiOffice": "YZ departmanlarından olaylar"
           },
           "actionDesc": {
-            "send_email": "Şablon veya özel e-posta"
+            "send_email": "Şablon veya özel e-posta",
+            "ai_office_task": "Departman görevi kendi başına yapar"
           }
         },
         "validation": {
@@ -8041,7 +8098,9 @@
           "teamsConnectionMissing": "Teams bağlantısı yapılandırılmadı",
           "taskTitleWarning": "görev başlığı boş",
           "noteContentWarning": "not içeriği boş",
-          "reportTypeMissing": "rapor türü seçilmedi"
+          "reportTypeMissing": "rapor türü seçilmedi",
+          "aiOfficeDeptMissing": "Bir YZ departmanı seçin",
+          "aiOfficeTitleMissing": "Görev başlığını girin"
         },
         "templatePresets": {
           "t1": {
@@ -8277,7 +8336,18 @@
           "jiraIssueTypeLabel": "Görev türü",
           "jiraProjectKeyLabel": "Proje anahtarı (isteğe bağlı)",
           "jiraTitleLabel": "Görev başlığı",
-          "selectConnection": "— bir bağlantı seçin —"
+          "selectConnection": "— bir bağlantı seçin —",
+          "aiOfficeDeptLabel": "YZ departmanı",
+          "aiOfficeNoDepts": "Henüz departman yok.",
+          "aiOfficeCreateDept": "Departman oluştur",
+          "aiOfficeTitlePlaceholder": "Örneğin: Lead’i nitelendir [[lead.name]]",
+          "aiOfficeDetailsLabel": "Ne yapılacak",
+          "aiOfficeDetailsPlaceholder": "Departman için görev ayrıntıları",
+          "aiOfficePriorityLabel": "Öncelik",
+          "aiOfficePriority1": "Acil",
+          "aiOfficePriority2": "Normal",
+          "aiOfficePriority3": "Zaman olunca",
+          "aiOfficeHelp": "Departman görevi kendisi alır: ajan seçer, yetkileri ve onayları uygular. Olayın kaydı göreve bağlanır."
         },
         "triggerGroups": {
           "contacts": "Kişiler",
@@ -8315,6 +8385,7 @@
           "EMAIL_SENT": "E-posta gönderildi",
           "EMAIL_RECEIVED": "E-posta alındı",
           "TELEGRAM_MESSAGE_RECEIVED": "Telegram mesajı alındı",
+          "WHATSAPP_MESSAGE_RECEIVED": "WhatsApp mesajı alındı",
           "NOTE_CREATED": "Not oluşturuldu",
           "CUSTOM_OBJECT_RECORD_CREATED": "Kayıt oluşturuldu (özel nesne)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Kayıt güncellendi (özel nesne)",
@@ -8333,7 +8404,15 @@
           "PRODUCT_STATUS_CHANGED": "Ürün durumu değişti",
           "PRODUCT_STOCK_LOW": "Ürün stoku azaldı",
           "LEAD_STALE": "Müşteri adayı durgunlaştı",
-          "SALE_STALE": "Fırsat durgunlaştı"
+          "SALE_STALE": "Fırsat durgunlaştı",
+          "AI_OFFICE_TASK_DONE": "YZ departmanı görevi teslim etti",
+          "AI_OFFICE_TASK_FAILED": "YZ departmanı görevi yapamadı",
+          "AI_OFFICE_TASK_REJECTED": "YZ departmanı görevini reddettiniz",
+          "AI_OFFICE_APPROVAL_NEEDED": "YZ departmanı onay bekliyor",
+          "AI_OFFICE_HELP_NEEDED": "YZ departmanının yardıma ihtiyacı var",
+          "AI_OFFICE_BUDGET_EXHAUSTED": "YZ departmanının bütçesi bitti",
+          "HELPDESK_TICKET_CREATED": "Yeni destek talebi",
+          "HELPDESK_MESSAGE_RECEIVED": "Müşteri talepte yanıtladı"
         },
         "report": {
           "type": "Rapor türü",
@@ -8695,7 +8774,8 @@
           "remove_tag": "Etiketi kaldır",
           "send_notification": "Anlık bildirim",
           "create_jira_issue": "Jira Görevi Oluştur",
-          "shopify_payment_received": "Shopify Ödemesi Alındı"
+          "shopify_payment_received": "Shopify Ödemesi Alındı",
+          "ai_office_task": "YZ departmanına görev"
         },
         "openMarketingIntegrationsPage": "Pazarlama · entegrasyonlar",
         "errors": {
@@ -12337,7 +12417,8 @@
           "created": "Lead oluşturuldu",
           "statusChanged": "Durum değiştirildi",
           "assigneeChanged": "Sorumlu değiştirildi",
-          "comment": "Yorum"
+          "comment": "Yorum",
+          "callAnalyzed": "Arama analizi"
         },
         "sections": {
           "relatedProjects": "İlgili projeler",
@@ -14027,6 +14108,18 @@
         },
         "relations": {
           "title": "İlişkiler"
+        },
+        "watchers": {
+          "title": "Takipçiler",
+          "hint": "Sorumlu olmadan projeyi görebilirler.",
+          "empty": "Takipçi yok",
+          "roleReader": "Görüntüleme",
+          "roleEditor": "Düzenleme",
+          "remove": "Kaldır",
+          "add": "+ Takipçi ekle",
+          "saveHint": "Değişiklikler «Kaydet» sonrası uygulanır.",
+          "readOnly": "Yalnızca görüntüleme",
+          "readOnlyHint": "Bu projenin yalnızca görüntüleme yetkili takipçisisiniz."
         }
       },
       "analytics": {
@@ -14602,7 +14695,8 @@
           "load": "İzinler yüklenemedi",
           "loadUsers": "Personel yüklenemedi",
           "save": "İzinler kaydedilemedi",
-          "saveUser": "Personelin izinleri kaydedilemedi"
+          "saveUser": "Personelin izinleri kaydedilemedi",
+          "ownRole": "Kendi rolünüzün izinlerini değiştiremezsiniz — şirket sahibine başvurun."
         },
         "user": {
           "loading": "Personel izinleri yükleniyor…",
@@ -14676,7 +14770,8 @@
           "products_publish": "Ürünün genel katalogda gösterilme taleplerini onaylama veya reddetme",
           "bookings_manage_settings": "Hizmetleri, lokasyonları, kaynakları ve personel uygunluğunu yönetme",
           "hotels_manage_pricing": "Otel pazar fiyatlarını, takvimi ve oda fiyatlandırmasını yönetme",
-          "hotels_manage_reservations": "Rezervasyon oluşturma/düzenleme, giriş/çıkış, ödemeler ve odalar"
+          "hotels_manage_reservations": "Rezervasyon oluşturma/düzenleme, giriş/çıkış, ödemeler ve odalar",
+          "projects_view_all": "Yalnızca kendi projelerini değil, ana tablodaki tüm projeleri görür (yalnızca görüntüleme) — örn. analitik için. Başkalarının projelerini düzenlemeye izin vermez."
         },
         "desc": {
           "leads": "Formlardan ve kanallardan gelen fırsatlar ve süreçler",
@@ -14703,7 +14798,8 @@
           "custom_objects": "No-code Workspace ve özel tablolar",
           "staff": "Personel listesi, davetler, departmanlar",
           "settings": "Şirket ayarları, API, entegrasyonlar",
-          "ai_employees": "YZ çalışanların işe alımı ve yönetimi: yetkileri, ayarları, raporları ve etkinlik günlüğü"
+          "ai_employees": "YZ çalışanların işe alımı ve yönetimi: yetkileri, ayarları, raporları ve etkinlik günlüğü",
+          "ai_office": "YZ departmanları ofisi: departman oluşturma, görevler, onaylar, Beyin, bağlantılar ve plan"
         },
         "tabs": {
           "roles": "Roller ve izinler",
@@ -14845,7 +14941,9 @@
             "loading": "Hesaplanıyor…"
           }
         },
-        "ai_employees": "YZ Çalışanlar"
+        "ai_employees": "YZ Çalışanlar",
+        "projects_view_all": "Tüm projeleri görme",
+        "ai_office": "YZ departmanları"
       },
       "actions": {
         "activate": "Etkinleştir",
@@ -14862,7 +14960,7 @@
         "departmentPlaceholder": "Departman yok",
         "email": "E-posta",
         "fullName": "Ad soyad",
-        "ownerOnly": "Yeni çalışanları yalnızca şirket sahibi davet edebilir.",
+        "ownerOnly": "Çalışanları yalnızca şirket sahibi veya «Çalışanlar» iznine sahip bir çalışan davet edip düzenleyebilir.",
         "submit": "Oluştur",
         "title": "Yeni çalışan"
       },
@@ -15822,7 +15920,8 @@
         "groupContract": "Sözleşme",
         "groupOrg": "Bizim tarafımız",
         "groupProduct": "Ürünler",
-        "groupService": "Hizmetler (Rezervasyonlar)"
+        "groupService": "Hizmetler (Rezervasyonlar)",
+        "groupQuote": "Fiyat teklifi"
       },
       "issueTab": {
         "step1": "Şablon",
@@ -15888,7 +15987,21 @@
           "lead": "Lead",
           "project": "Proje",
           "sale": "Satış"
-        }
+        },
+        "quoteTitle": "Teklif parametreleri",
+        "quoteHint": "Genel indirim, vergi ve teklifin geçerlilik süresi",
+        "quoteDiscount": "Genel indirim, %",
+        "quoteTax": "Vergi (KDV), %",
+        "quoteValidUntil": "Geçerlilik tarihi",
+        "quoteTotal": "Ödenecek toplam",
+        "quoteMixedCurrency": "Teklifteki tüm kalemler aynı para biriminde olmalı — farklı para birimindeki kalemleri kaldırın.",
+        "qty": "Miktar",
+        "qtyShort": "Adet",
+        "lineDiscount": "Kalem indirimi, %",
+        "quoteLead": "Lead'e bağla",
+        "quoteLeadNone": "Bağlantı yok",
+        "quoteLeadEmpty": "Müşterinin açık lead'i yok",
+        "quoteLeadHint": "Müşteri teklifi imzaladığında lead, teklif tutarıyla \"Kazanıldı\" durumuna geçer."
       },
       "errors": {
         "loadDocs": "Belgeler yüklenemedi",
@@ -20068,7 +20181,8 @@
       "tabs": {
         "chat": "Yazışma",
         "comments": "Yorumlar",
-        "history": "Geçmiş"
+        "history": "Geçmiş",
+        "calls": "Aramalar"
       },
       "comments": {
         "send": "Gönder"
@@ -20164,6 +20278,53 @@
         "savedHint": "Mesaj kaydın geçmişine kaydedilir",
         "kbEmail": "Göndermek için Ctrl/⌘ + Enter",
         "kbChat": "Enter — gönder · Shift+Enter — yeni satır"
+      },
+      "calls": {
+        "uploadTitle": "Görüşme kaydını yükleyin",
+        "uploadHint": "mp3, m4a, wav, ogg — 25 MB’a kadar. Yapay zekâ konuşmayı metne döker ve analiz eder: sonuç, anlaşmalar, itirazlar ve temsilcinin performansı.",
+        "directionLabel": "Arama yönü",
+        "upload": "Kaydı yükle",
+        "uploading": "Yükleniyor…",
+        "tooLarge": "Dosya 25 MB’tan büyük. Kaydı sıkıştırın veya parçalara bölün.",
+        "uploadError": "Kayıt yüklenemedi",
+        "loadError": "Aramalar yüklenemedi",
+        "emptyTitle": "Henüz arama yok",
+        "emptyText": "Müşteriyle yapılan görüşmenin kaydını yükleyin veya dosyayı buraya sürükleyin. Bağlı telefon hattı üzerinden yapılan aramalar otomatik olarak görünür.",
+        "dir": {
+          "inbound": "Gelen",
+          "outbound": "Giden"
+        },
+        "sourceUpload": "elle yüklendi",
+        "sourceTwilio": "telefon hattı",
+        "intent": {
+          "hot": "Sıcak müşteri",
+          "warm": "Ilık müşteri",
+          "cold": "Soğuk müşteri"
+        },
+        "score": "Temsilci",
+        "scoreHint": "0–100 arası temsilci puanı: ihtiyacı belirleme, itirazları yanıtlama, bir sonraki adımda anlaşma",
+        "transcribing": "Konuşma metne dökülüyor…",
+        "analyzing": "Yapay zekâ görüşmeyi analiz ediyor…",
+        "failed": "Arama analiz edilemedi",
+        "retry": "Tekrar dene",
+        "retryError": "Analiz başlatılamadı",
+        "nextSteps": "Anlaşmalar ve sonraki adımlar",
+        "dueToday": "bugün",
+        "dueIn_one": "{{count}} gün içinde",
+        "dueIn_other": "{{count}} gün içinde",
+        "objections": "Müşteri itirazları",
+        "strengths": "İyi giden noktalar",
+        "improvements": "Geliştirilecek noktalar",
+        "listen": "Dinle",
+        "loadingAudio": "Yükleniyor…",
+        "audioError": "Kayıt yüklenemedi",
+        "showTranscript": "Metni göster",
+        "hideTranscript": "Metni gizle",
+        "reanalyze": "Yeniden analiz et",
+        "reanalyzeHint": "Aynı metin üzerinden yapay zekâ analizini tekrar çalıştır",
+        "delete": "Sil",
+        "deleteConfirm": "Bu arama kaydı ve analizi silinsin mi?",
+        "deleteError": "Kayıt silinemedi"
       }
     },
     "aiCards": {
@@ -20503,6 +20664,758 @@
         "url": "Mağaza URL'si (REST API)",
         "consumerSecret": "Consumer Secret"
       }
+    },
+    "trafficPage": {
+      "kicker": "Reklam · site · CRM",
+      "title": "Trafik",
+      "subtitle": "Döneme göre kanallardaki gösterimler, ziyaretler, potansiyel müşteriler ve para. Kampanyaları görmek için bir kanala tıklayın; grafikler, coğrafya ve tüm kampanyalar satırın sonundaki düğmede.",
+      "loading": "yükleniyor…",
+      "updatedAt": "{{time}} itibarıyla güncellendi",
+      "retry": "Tekrar dene",
+      "dataSource": "Veri kaynağı",
+      "account": "Reklam hesabı",
+      "allAccounts": "Tüm hesaplar ({{count}})",
+      "adsTag": "reklam",
+      "dataRows": "Veri satırı",
+      "fullBtn": "Grafikler, coğrafya, tüm kampanyalar",
+      "fullTitle": "Kanalın tam analitiği",
+      "unknownChannel": "Kanalsız",
+      "unknownSub": "İçe aktarmada dataSource yok",
+      "unknownNote": "Entegrasyon kanalı olmayan satırlar — genellikle etiketsiz n8n veya analitik içe aktarımları. Buradaki gösterim ve harcamalar Meta veya Google ile çakışabilir; diğer kanallarla toplamayın.",
+      "notSet": "(belirtilmemiş)",
+      "noData": "Veri yok",
+      "total": "Toplam",
+      "channels": "Kanallar",
+      "shareBy": "Pay ölçütü",
+      "share": {
+        "sessions": "Oturumlar",
+        "leads": "Potansiyel",
+        "cost": "Harcama",
+        "revenue": "Gelir"
+      },
+      "dims": {
+        "source": "Kaynaklar",
+        "medium": "Ortamlar",
+        "campaign": "Kampanyalar"
+      },
+      "dim1": {
+        "source": "Kaynak",
+        "medium": "Ortam",
+        "campaign": "Kampanya"
+      },
+      "whereFrom": "Nereden geliyorlar",
+      "byRevenue": "gelire göre",
+      "bySessions": "oturumlara göre",
+      "mixedHint": "Farklı para birimlerinde gelir — toplamak için “Tek para birimi”ni seçin",
+      "emptyTitle": "Bu dönem için veri yok",
+      "emptyText": "Pazarlama entegrasyonlarında reklam hesaplarını ve analitiği bağlayın ya da başka bir dönem seçin.",
+      "cond": "şartlı",
+      "condHint": "Dönüşüm başına ortalama 10’dan az: değer şartlıdır (aramalar, tıklamalar, formlar), gelir değildir",
+      "footAds": "* Reklam platformlarında — reklam hesabı verilerine göre dönüşümler, CPA ve dönüşüm değeri; toplam potansiyel müşteri ve gelire dahil edilmez.",
+      "col": {
+        "channel": "Kanal",
+        "share": "Pay · {{what}}",
+        "impressions": "Gösterimler",
+        "clicks": "Tıklamalar",
+        "sessions": "Oturumlar",
+        "leads": "Potansiyel",
+        "conversions": "Dönüşümler",
+        "cost": "Harcama",
+        "revenue": "Gelir",
+        "value": "Değer",
+        "campaign": "Kampanya",
+        "sourceMedium": "Kaynak / ortam"
+      },
+      "kpi": {
+        "clicksNote": "reklam tıklamaları",
+        "sessionsNote": "site ziyaretleri",
+        "leads": "Potansiyel müşteriler",
+        "leadsNote": "web formları ve sohbetlerden",
+        "currencies": "Verideki para birimi: {{count}}",
+        "revenue": "Gelir",
+        "platformValue": "+ {{v}} platform dönüşüm değeri"
+      },
+      "cur": {
+        "native": "Verideki para birimi",
+        "inCurrency": "{{cur}} cinsinden",
+        "mode": "Para birimi modu",
+        "single": "Tek para birimi",
+        "asChannel": "Kanaldaki gibi",
+        "report": "Rapor para birimi",
+        "footAsOf": "{{date}} tarihli {{source}} kurları.",
+        "footLoading": "Kurlar yükleniyor…",
+        "footRows": "Satırların para birimi entegrasyonlarda ayarlanır.",
+        "footNative": "Tutarlar her kanalın para biriminde gösterilir; para toplamları para birimine göre ayrılır."
+      },
+      "an": {
+        "aria": "Analitik · {{name}}",
+        "clearFilter": "Filtreyi kaldır",
+        "close": "Kapat (Esc)",
+        "searchPh": "Kampanya ara",
+        "asPage": "Sayfadaki gibi",
+        "last7": "Son 7 gün",
+        "last30": "Son 30 gün",
+        "last90": "Son 90 gün",
+        "thisYear": "Bu yıl",
+        "allTime": "Tüm dönem",
+        "fxTitle": "ECB kurlarıyla çevrilir",
+        "nativeCur": "Orijinal para birimi",
+        "country": "Ülke",
+        "allCountries": "Tüm ülkeler ({{count}})",
+        "reset": "Sıfırla",
+        "tabOverview": "Genel bakış",
+        "tabCampaigns": "Kampanyalar",
+        "tabGeo": "Coğrafya",
+        "tabAccounts": "Hesaplar",
+        "rows": "Veri satırı: {{count}}",
+        "daily": "Günlük seyir",
+        "chartTraffic": "Oturumlar ve tıklamalar",
+        "chartMoney": "Harcama ve gelir",
+        "noDaily": "Seçilen filtre için günlük veri yok",
+        "structure": "Yapı",
+        "topAndOther": "en iyiler ve diğerleri",
+        "costByCampaign": "Kampanyalara göre harcama, {{cur}}",
+        "sessionsBySource": "Kaynaklara göre oturumlar",
+        "imprByMedium": "Ortamlara göre gösterimler",
+        "other": "Diğer",
+        "noCampaigns": "Filtreye uyan kampanya yok",
+        "shownFirst": "{{total}} satırdan ilk {{n}} gösteriliyor — aramayı daraltın.",
+        "geoImpr": "Gösterimlerin coğrafyası",
+        "geoTraffic": "Trafiğin coğrafyası",
+        "geoMeta": "gösterim ülkesi · Meta Ads verisi",
+        "geoGa4": "GA4 ülkesi · oturumlara göre",
+        "geoCabinet": "reklam hesabı verisi",
+        "geoInferred": "kampanya adlarına göre tahmin",
+        "geoEmpty": "Bu dönem için ülke verisi yok",
+        "costShare": "Harcama payı",
+        "unknownCountry": "Ülke belirlenemedi",
+        "noCountryData": "veri yok",
+        "less": "az",
+        "more": "çok",
+        "imprShort": "{{v}} göst.",
+        "clicksShort": "{{v}} tık.",
+        "sessShort": "{{v}} oturum",
+        "noAccount": "Hesap etiketi yok",
+        "campaignsCount": "Kampanya",
+        "adsFoot": "Dönüşümler ve değerleri reklam hesabından gelir; CRM potansiyel müşterileri veya geliri değildir."
+      }
+    },
+    "aura": {
+      "beta": "beta",
+      "back": "Geri",
+      "cancel": "İptal",
+      "close": "Kapat",
+      "total": "toplam",
+      "empty": "Bu dönem için veri yok",
+      "noManager": "Yöneticisiz",
+      "hoursNote": "Saatler sizin saat diliminize göre",
+      "daysLeft_one": "{{count}} gün",
+      "daysLeft_other": "{{count}} gün",
+      "unit": {
+        "pp": "puan",
+        "pcs": "adet"
+      },
+      "nav": {
+        "apps": "Uygulamalarım",
+        "templates": "Şablonlar"
+      },
+      "ago": {
+        "now": "az önce",
+        "min_one": "{{count}} dk önce",
+        "min_other": "{{count}} dk önce",
+        "hour_one": "{{count}} sa önce",
+        "hour_other": "{{count}} sa önce"
+      },
+      "src": {
+        "leads": {
+          "name": "Potansiyel müşteriler",
+          "desc": "Talepler, kaynaklar, durumlar"
+        },
+        "deals": {
+          "name": "Satışlar ve huni",
+          "desc": "Satışlar, tutarlar, dönüşüm"
+        },
+        "team": {
+          "name": "Ekip",
+          "desc": "Yöneticiler, ciro, ekip hedefi"
+        },
+        "calls": {
+          "name": "Aramalar",
+          "desc": "Telefon, cevapsız aramalar"
+        },
+        "booking": {
+          "name": "Rezervasyonlar",
+          "desc": "Randevular, doluluk, gelmeyenler"
+        },
+        "stock": {
+          "name": "Stok",
+          "desc": "Stok miktarı, hareketler"
+        },
+        "finance": {
+          "name": "Finans",
+          "desc": "Gelir ve reklam harcaması"
+        },
+        "marketing": {
+          "name": "Pazarlama",
+          "desc": "Reklam kanalları, harcama, müşteri adayı maliyeti"
+        }
+      },
+      "w": {
+        "leads_kpi": "Yeni talepler",
+        "leads_line": "Zamana göre talepler",
+        "leads_src": "Talep kaynakları",
+        "leads_won": "Kazanılan talepler",
+        "deals_rev": "Ciro",
+        "deals_conv": "Kazanma oranı",
+        "deals_avg": "Ortalama satış",
+        "deals_funnel": "Satış hunisi",
+        "deals_table": "En büyük satışlar",
+        "team_goal": "Aylık ekip hedefi",
+        "team_bar": "Yöneticiye göre ciro",
+        "team_table": "Yönetici sıralaması",
+        "calls_kpi": "Aramalar",
+        "calls_miss": "Cevapsız aramalar",
+        "calls_hours": "Saate göre aramalar",
+        "book_load": "Doluluk",
+        "book_heat": "Gün ve saate göre rezervasyonlar",
+        "book_noshow": "Gelmeyenler",
+        "book_count": "Yeni rezervasyonlar",
+        "stock_kpi": "Stoktaki adet",
+        "stock_low": "Tükenmek üzere",
+        "stock_top": "En çok satan ürünler",
+        "fin_profit": "Gelir eksi reklam",
+        "fin_pl": "Gelir ve reklam harcaması",
+        "fin_mix": "Gelir yapısı",
+        "mk_cpl": "Talep başı maliyet",
+        "mk_channels": "Kanala göre harcama",
+        "mk_spend": "Reklam harcaması",
+        "alerts": "Dikkat gerektiren",
+        "compare": "Ciro: bu dönem ve önceki dönem"
+      },
+      "type": {
+        "kpi": "Gösterge",
+        "line": "Çizgi grafik",
+        "donut": "Halka",
+        "funnel": "Huni",
+        "table": "Tablo",
+        "bar": "Sıralama",
+        "col": "Sütunlar",
+        "col2": "Sütunlar ×2",
+        "heat": "Isı haritası",
+        "list": "Liste",
+        "goal": "Hedef"
+      },
+      "period": {
+        "today": "Bugün",
+        "7d": "7 gün",
+        "30d": "30 gün",
+        "quarter": "Çeyrek",
+        "year": "Yıl"
+      },
+      "filter": {
+        "manager": "Yönetici",
+        "channel": "Kanal",
+        "branch": "Şube",
+        "product": "Ürün",
+        "all": "Tümü",
+        "by": {
+          "manager": "Yöneticiye göre",
+          "channel": "Kanala göre",
+          "branch": "Şubeye göre",
+          "product": "Ürüne göre"
+        }
+      },
+      "viewer": {
+        "me": "Sadece ben",
+        "leaders": "Yöneticiler",
+        "team": "Tüm ekip",
+        "tv": "Ofis TV ekranı"
+      },
+      "density": {
+        "normal": "Normal",
+        "compact": "Sıkı",
+        "large": "Büyük (TV)"
+      },
+      "theme": {
+        "lumiva": {
+          "name": "Lumiva",
+          "desc": "CRM gibi sade monokrom"
+        },
+        "bento": {
+          "name": "Bento",
+          "desc": "Renkli kutular, büyük rakamlar"
+        },
+        "graphite": {
+          "name": "Grafit",
+          "desc": "Koyu, limon yeşili vurgu. TV için"
+        },
+        "swiss": {
+          "name": "Kontrast",
+          "desc": "İsviçre ızgarası, mavi vurgu"
+        },
+        "industry": {
+          "name": "Teknik çizim",
+          "desc": "Çelik mavisi, ızgara, işaretler"
+        }
+      },
+      "access": {
+        "private": {
+          "name": "Sadece ben",
+          "desc": "Yalnızca siz görürsünüz"
+        },
+        "department": {
+          "name": "Departmanım",
+          "desc": "Departmanınızdaki çalışanlar"
+        },
+        "company": {
+          "name": "Tüm şirket",
+          "desc": "Analitik erişimi olan herkes"
+        }
+      },
+      "refresh": {
+        "60": "1 dk",
+        "300": "5 dk",
+        "900": "15 dk",
+        "3600": "1 saat"
+      },
+      "series": {
+        "current": "Bu dönem",
+        "previous": "Önceki dönem",
+        "income": "Gelir",
+        "adSpend": "Reklam"
+      },
+      "funnel": {
+        "all": "Tüm talepler",
+        "contacted": "İletişimde",
+        "active": "Aktif",
+        "won": "Kazanıldı"
+      },
+      "col": {
+        "deal": "Satış",
+        "manager": "Yönetici",
+        "status": "Durum",
+        "amount": "Tutar",
+        "deals": "Satış",
+        "conv": "Kazanma",
+        "revenue": "Ciro",
+        "product": "Ürün",
+        "sku": "SKU",
+        "qty": "Stok",
+        "left": "Yeter",
+        "group": "Değer",
+        "count": "Kayıt",
+        "value": "Toplam"
+      },
+      "saleStatus": {
+        "new": "Yeni",
+        "pending": "Bekliyor",
+        "confirmed": "Onaylandı",
+        "cancelled": "İptal",
+        "refunded": "İade",
+        "other": "Diğer"
+      },
+      "incomeKind": {
+        "sales": "Satışlar",
+        "bookings": "Rezervasyonlar",
+        "hotels": "Oteller"
+      },
+      "leadSource": {
+        "crm": "Manuel",
+        "web": "Web sitesi",
+        "form": "Form",
+        "embed_form": "Site formu",
+        "woocommerce": "WooCommerce",
+        "wc": "WooCommerce",
+        "csv_import": "İçe aktarma",
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "chat": "Site sohbeti",
+        "online-chat": "Canlı sohbet",
+        "api": "API",
+        "booking": "Rezervasyonlar",
+        "storefront": "Vitrin",
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "unknown": "Belirtilmemiş",
+        "other": "Diğer"
+      },
+      "dow": {
+        "0": "Pzt",
+        "1": "Sal",
+        "2": "Çar",
+        "3": "Per",
+        "4": "Cum",
+        "5": "Cmt",
+        "6": "Paz"
+      },
+      "alert": {
+        "stale_leads": "7 günden uzun süredir hareketsiz talepler: {{n}}",
+        "lost_leads": "Bu dönemde kaybedilen talepler: {{n}} — nedenlerini kontrol edin",
+        "low_stock": "Tükeniyor: {{name}} (azalan ürün: {{n}})",
+        "missed_calls": "Cevapsız gelen aramalar: {{n}}",
+        "no_show": "Gelmeme oranı %{{pct}} — hatırlatmaları açın",
+        "goal": "Ekip aylık hedefin %{{pct}}'ine ulaştı, {{n}} gün kaldı",
+        "all_good": "Kritik bir sorun bulunamadı"
+      },
+      "alertTag": {
+        "stale_leads": "risk",
+        "lost_leads": "talepler",
+        "low_stock": "stok",
+        "missed_calls": "aramalar",
+        "no_show": "rezervasyon",
+        "goal": "hedef",
+        "all_good": "tamam"
+      },
+      "err": {
+        "denied": "“{{source}}” bölümüne erişim yok — yetkiler CRM rolünüzden gelir",
+        "amounts_hidden": "Tutarlar «Veri görünürlüğü» ayarlarıyla gizlendi",
+        "failed": "Gösterge hesaplanamadı",
+        "load": "Veriler yüklenemedi"
+      },
+      "goal": {
+        "ofPlan": "hedef",
+        "done": "Bu ay",
+        "target": "Hedef",
+        "left": "Ay sonuna",
+        "set": "Hedef belirle",
+        "notSet": "belirlenmedi",
+        "promptTitle": "Aylık ekip hedefi",
+        "promptLabel": "Aylık ciro, {{currency}}"
+      },
+      "dash": {
+        "updatedAt": "{{time}} itibarıyla güncel",
+        "loading": "Veriler yükleniyor…",
+        "ownScope": "Erişim haklarınıza göre yalnızca kendi kayıtlarınız gösteriliyor"
+      },
+      "card": {
+        "menu": "Widget işlemleri",
+        "moveUp": "Öne al",
+        "moveDown": "Arkaya al",
+        "remove": "Widget'ı kaldır"
+      },
+      "home": {
+        "h1a": "Görevi anlatın.",
+        "h1b": "Aura oluştursun:",
+        "words": [
+          "panel",
+          "TV ekranı",
+          "rapor",
+          "uygulama"
+        ],
+        "typed": [
+          "Sabah toplantısı paneli: haftalık ciro ve hedefin gerisinde kalanlar",
+          "Ofis ekranı: aramalar, cevapsızlar ve bugünkü ciro",
+          "Stokta neler bitiyor ve en çok ne satıyor",
+          "Kanala göre reklam harcaması ve çeyreklik talep başı maliyet"
+        ],
+        "suggest": [
+          "Yönetici sıralamalı satış ekibi paneli",
+          "Ofis TV ekranı: bugünkü aramalar ve ciro",
+          "Stok: neler bitiyor ve en çok ne satıyor",
+          "Pazarlama: kanal harcaması ve talep başı maliyet"
+        ],
+        "sub": "Canlı CRM verisiyle uygulamalar: analitik, ofis ekranları, raporlar. Yapay zekâ birkaç soru sorar ve stil önerir.",
+        "aria": "Aura için istek",
+        "focusPh": "Ne görmek istiyorsunuz?",
+        "create": "Oluştur",
+        "allApps": "Tümü · {{count}}",
+        "fromTemplate": "Şablonla başla",
+        "allTemplates": "Tüm şablonlar"
+      },
+      "apps": {
+        "sub": "Aura ile oluşturulan uygulamalar. CRM içinde ya da menüsüz tam ekran açılır.",
+        "new": "Yeni uygulama",
+        "newShort": "Yeni",
+        "edit": "Düzenle",
+        "openFull": "Menüsüz aç",
+        "duplicate": "Çoğalt",
+        "delete": "Sil",
+        "deleteConfirm": "“{{name}}” silinsin mi? Herkese açık bağlantı çalışmayı durduracak.",
+        "copyName": "{{name}} (kopya)",
+        "public": "bağlantıyla"
+      },
+      "tpl": {
+        "sub": "CRM verisiyle hazır uygulamalar. Olduğu gibi kullanın ya da yapay zekâya uyarlatın.",
+        "realData": "Son 30 günlük verilerinizle önizleme",
+        "adapt": "Yapay zekâ ile uyarla",
+        "use": "Şablonu kullan",
+        "adaptPrompt": "“{{name}}” şablonu temelinde",
+        "sales": {
+          "name": "Satış ekibi",
+          "desc": "Ciro, huni, ekip hedefi, yönetici sıralaması ve büyük satışlar."
+        },
+        "leads": {
+          "name": "Talep nabzı",
+          "desc": "Talep akışı, kaynaklar, talep başı maliyet ve kanal harcaması."
+        },
+        "tv": {
+          "name": "Ofis TV'si",
+          "desc": "Bugün için büyük rakamlar: ciro, aramalar, hedef."
+        },
+        "stock": {
+          "name": "Stok durumu",
+          "desc": "Stok, tükenen ürünler ve en çok satanlar."
+        },
+        "booking": {
+          "name": "Salon doluluğu",
+          "desc": "Doluluk, gelmeyenler ve rezervasyon ısı haritası."
+        },
+        "finance": {
+          "name": "Finans",
+          "desc": "Gelir ve reklam harcaması, aylara göre yapısı."
+        }
+      },
+      "tplCat": {
+        "all": "Tümü",
+        "sales": "Satış",
+        "marketing": "Pazarlama",
+        "ops": "Operasyon",
+        "finance": "Finans"
+      },
+      "autoTitle": {
+        "leads": "Talep nabzı",
+        "deals": "Satış özeti",
+        "team": "Satış ekibi",
+        "calls": "Telefon",
+        "booking": "Rezervasyon doluluğu",
+        "stock": "Stok durumu",
+        "finance": "Finans",
+        "marketing": "Pazarlama",
+        "default": "Uygulamam"
+      },
+      "brief": {
+        "newApp": "Yeni uygulama",
+        "q": {
+          "sources": "Anladım. Veriler CRM'in hangi bölümlerinden gelsin? İsteğinizde bulduklarımı işaretledim.",
+          "widgets": "Hangi göstergeler görünsün? Liste seçilen bölümlere göre hazırlandı.",
+          "period": "Varsayılan olarak hangi dönem gösterilsin? Uygulamanın içinden değiştirebilirsiniz.",
+          "breakdown": "Kırılımlar gerekli mi? Uygulama başlığına filtre olarak eklerim. Atlayabilirsiniz.",
+          "viewer": "Uygulamayı kim izleyecek? Yazı boyutu ve gösterim modu buna göre ayarlanır."
+        },
+        "qSourcesNoAi": "Yapay zekâ şu an kullanılamıyor — bölümleri anahtar kelimelere göre seçtim. Hangi CRM bölümlerinin kullanılacağını kontrol edin.",
+        "qn": "Soru {{n}} / {{total}}",
+        "done": "Brif hazır: {{sources}} bölümden {{widgets}} widget. Şimdi stil seçin.",
+        "change": "Cevabı değiştir",
+        "toStyle": "Stil seç",
+        "skip": "Atla",
+        "answer": "Cevapla",
+        "thinking": "Düşünüyorum…",
+        "freePh": "Ya da kendi sözlerinizle cevaplayın…",
+        "freeMiss": "Anlayamadım — yukarıdan bir seçenek seçin ya da farklı ifade edin.",
+        "noBreakdown": "Kırılım yok",
+        "side": "Brif",
+        "task": "Görev",
+        "data": "Veriler",
+        "metrics": "Göstergeler",
+        "period": "Dönem",
+        "viewer": "İzleyici",
+        "wire": "Taslak düzen",
+        "widgetsN_one": "{{count}} widget",
+        "widgetsN_other": "{{count}} widget"
+      },
+      "style": {
+        "toBrief": "Brife dön",
+        "h1": "Uygulama stili",
+        "sub": "Önizlemeler sizin verilerinizle. Stili daha sonra düzenleyicide değiştirebilirsiniz.",
+        "name": "Ad",
+        "density": "Yoğunluk",
+        "open": "Açılış",
+        "openCrm": "CRM içinde, menüyle",
+        "openKiosk": "Menüsüz, tam ekran",
+        "build": "Uygulamayı oluştur"
+      },
+      "gen": {
+        "s1": "Brifi okuyorum",
+        "s2": "Verileri bağlıyorum: {{list}}",
+        "s3": "{{period}} için göstergeleri hesaplıyorum",
+        "s4": "Widget'ları ve ızgarayı seçiyorum",
+        "s5": "“{{name}}” stilini uyguluyorum",
+        "s6": "Düzeni telefonda ve TV'de kontrol ediyorum"
+      },
+      "build": {
+        "opened": "Uygulama düzenlemeye açık. Neyi değiştireyim yazın: widget'lar, stil, dönem, kırılımlar, hedef.",
+        "fromTemplate": "“{{name}}” şablonu",
+        "ready": "“{{title}}” hazır: canlı CRM verisiyle {{count}} widget. Önizlemeyi farklı ekranlarda inceleyin ya da değişiklik isteyin.",
+        "chips": [
+          "Önceki dönemle karşılaştırma ekle",
+          "Koyu tema yap",
+          "«Dikkat gerektiren» bloğu ekle"
+        ],
+        "readyShort": "Düzenlemeye hazır",
+        "building": "Uygulama oluşturuluyor…",
+        "inputPh": "Neyi değiştireyim? Örn: huniyi ekle",
+        "inputWait": "Lütfen bekleyin, oluşturuluyor…",
+        "send": "Gönder",
+        "notUnderstood": "Neyi değiştireceğimi tam anlamadım. Widget ekleyip kaldırabilir, stili, yoğunluğu, dönemi, kırılımları değiştirebilir ya da hedef belirleyebilirim. Örn: «geçen ayla karşılaştırma ekle».",
+        "editFailed": "Değişiklik uygulanamadı: {{error}}",
+        "tab": {
+          "preview": "Önizleme",
+          "data": "Veriler"
+        },
+        "dev": {
+          "desktop": "Bilgisayar",
+          "tablet": "Tablet",
+          "phone": "Telefon",
+          "tv": "TV"
+        },
+        "styleLabel": "Stil",
+        "styleOpt": "Stil: {{name}}",
+        "hideMenu": "CRM menüsünü gizle",
+        "showMenu": "CRM menüsünü göster",
+        "noMenu": "Menüsüz",
+        "publish": "Yayınla",
+        "save": "Kaydet",
+        "fallbackHelp": "Yapay zekâ olmadan yalnızca basit komutları anlarım: «huniyi ekle», «… kaldır», «koyu tema», «kırmızı arka plan», «beyaz kartlar», «dönem — hafta», «hedef 500000». Her veriden özel widget için yapay zekâ gerekir."
+      },
+      "edit": {
+        "done": "Tamam: {{list}}.",
+        "added": "“{{name}}” eklendi",
+        "removed": "“{{name}}” kaldırıldı",
+        "moved": "“{{name}}” taşındı",
+        "theme": "stil “{{name}}” oldu",
+        "density": "yoğunluk — {{name}}",
+        "period": "dönem — {{name}}",
+        "title": "adı “{{name}}” oldu",
+        "filterAdd": "“{{name}}” kırılımı eklendi",
+        "filterRemove": "“{{name}}” kırılımı kaldırıldı",
+        "goal": "ekip hedefi belirlendi",
+        "addedCustom": "CRM verilerinden “{{name}}” widget'ı oluşturuldu",
+        "style": "görünüm değiştirildi",
+        "styleReset": "tema renkleri geri yüklendi"
+      },
+      "data": {
+        "widget": "Widget",
+        "type": "Tür",
+        "source": "Bölüm",
+        "fields": "Veri kaynağı",
+        "filters": "Filtreler",
+        "status": "Durum",
+        "ok": "Hesaplandı",
+        "note": "Tutarlar güncel kurla şirketin ana para birimine ({{currency}}) çevrilir. Veri yetkileri CRM rollerinden gelir.",
+        "wsTable": "Çalışma alanı tablosu",
+        "periodFilter": "dönem, yetkiler"
+      },
+      "fields": {
+        "leads_kpi": "Talepler · oluşturma tarihi",
+        "leads_line": "Talepler · oluşturma tarihi, iki dönem",
+        "leads_src": "Talepler · kaynak",
+        "leads_won": "Talepler · “kazanıldı” durumu",
+        "deals_rev": "Satışlar (yeni, onaylı) · tutar",
+        "deals_conv": "Talepler · “kazanıldı” payı",
+        "deals_avg": "Satışlar · ortalama tutar",
+        "deals_funnel": "Talepler · durumlar",
+        "deals_table": "Satışlar · tutara göre ilk sıralar",
+        "team_goal": "Bu ayki satışlar / uygulama hedefi",
+        "team_bar": "Satışlar × talep sorumlusu",
+        "team_table": "Satış ve talepler × sorumlu",
+        "calls_kpi": "Telefon · aramalar",
+        "calls_miss": "Telefon · cevapsız gelenler",
+        "calls_hours": "Telefon · arama saati",
+        "book_load": "Rezervasyon · kaynak dakikası / çalışma saati",
+        "book_heat": "Rezervasyon · ziyaret günü ve saati",
+        "book_noshow": "Rezervasyon · gelmeyenler",
+        "book_count": "Rezervasyon · oluşturma tarihi",
+        "stock_kpi": "Ürünler · miktar, stok hareketleri",
+        "stock_low": "Ürünler · miktar, 30 günlük satış",
+        "stock_top": "Stok hareketleri · satışlar",
+        "fin_profit": "Satış + rezervasyon + otel − reklam",
+        "fin_pl": "Aylara göre gelir ve reklam",
+        "fin_mix": "Modüllere göre gelir",
+        "mk_cpl": "Reklam harcaması / yeni talepler",
+        "mk_channels": "Reklam hesapları · harcama",
+        "mk_spend": "Reklam hesapları · harcama",
+        "alerts": "Talep, stok, arama, rezervasyon ve hedef için Aura kuralları",
+        "compare": "Satışlar · tutar, iki dönem"
+      },
+      "wfilters": {
+        "leads_kpi": "yönetici, kanal",
+        "leads_line": "yönetici, kanal",
+        "leads_src": "yönetici",
+        "leads_won": "yönetici, kanal",
+        "deals_rev": "yönetici, kanal",
+        "deals_conv": "yönetici, kanal",
+        "deals_avg": "yönetici, kanal",
+        "deals_funnel": "yönetici, kanal",
+        "deals_table": "yönetici, kanal",
+        "team_goal": "yönetici",
+        "team_bar": "kanal",
+        "team_table": "kanal",
+        "calls_kpi": "yönetici",
+        "calls_miss": "yönetici",
+        "calls_hours": "yönetici",
+        "book_load": "—",
+        "book_heat": "yönetici, şube",
+        "book_noshow": "yönetici, şube",
+        "book_count": "yönetici, şube",
+        "stock_kpi": "ürün",
+        "stock_low": "ürün",
+        "stock_top": "ürün",
+        "fin_profit": "—",
+        "fin_pl": "—",
+        "fin_mix": "—",
+        "mk_cpl": "—",
+        "mk_channels": "—",
+        "mk_spend": "—",
+        "alerts": "—",
+        "compare": "yönetici, kanal"
+      },
+      "pub": {
+        "title": "Uygulamayı yayınla",
+        "saveTitle": "Değişiklikleri kaydet",
+        "sub": "Veri yetkileri CRM rollerinden gelir: herkes yalnızca kendi bölümlerini görür.",
+        "name": "Ad",
+        "access": "CRM'de erişim",
+        "refresh": "Veri yenileme",
+        "inMenu": "CRM menüsünde «Aura» altında göster",
+        "shareOn": "Herkese açık bağlantı (TV, iş ortakları, CRM girişi olmadan)",
+        "shareHint": "Bağlantı uygulamayı menüsüz ve girişsiz açar. Veriler sizin yetkilerinizle hesaplanır. Şifre ve bitiş tarihi koyabilirsiniz.",
+        "password": "Şifre",
+        "newPassword": "Yeni şifre",
+        "passwordPh": "İsteğe bağlı, en az 4 karakter",
+        "expires": "Erişim bitişi",
+        "dropPassword": "Şifreyi kaldır",
+        "passShort": "Şifre en az 4 karakter olmalı",
+        "copy": "Kopyala",
+        "copied": "Kopyalandı",
+        "doneTitle": "Yayınlandı",
+        "doneSub": "Uygulama «Uygulamalarım»a eklendi. Herkese açık bağlantı:",
+        "withPassword": "Bağlantı şifreli — şifreyi ayrıca iletin.",
+        "noPassword": "Bağlantı şifresiz açılır — bağlantıya sahip herkes verileri görür.",
+        "close": "Tamam",
+        "saving": "Kaydediliyor…"
+      },
+      "view": {
+        "refresh": "Yenile",
+        "copyLink": "Bağlantı",
+        "noMenu": "Menüsüz",
+        "toCrm": "CRM'e dön",
+        "fullscreen": "Tam ekran",
+        "draft": "taslak"
+      },
+      "public": {
+        "unavailable": "Bağlantı kullanılamıyor",
+        "expired": "Bağlantının süresi doldu",
+        "askOwner": "Sahibinden yeni bir bağlantı isteyin.",
+        "passwordNeeded": "{{company}} bu uygulamayı şifreyle korudu.",
+        "open": "Aç",
+        "wrongPassword": "Yanlış şifre"
+      },
+      "aiErr": {
+        "provider_quota": "Yapay zekâ şu an kullanılamıyor: platformun OpenAI anahtarının kredisi bitti (platform yöneticisi yüklemeli).",
+        "tenant_quota": "Yapay zekâ kullanılamıyor: planınızın bu ayki yapay zekâ limiti doldu.",
+        "unavailable": "Yapay zekâ şu an yanıt vermedi."
+      },
+      "ds": {
+        "leads": "Talepler",
+        "sales": "Satışlar",
+        "calls": "Aramalar",
+        "bookings": "Rezervasyonlar",
+        "hotel_bookings": "Oteller",
+        "products": "Ürünler",
+        "contacts": "Kişiler",
+        "companies": "Şirketler",
+        "ads": "Reklam"
+      }
     }
   },
   "landing": {
@@ -20557,6 +21470,386 @@
       "sub": "Görevinizi anlatın — kısa süre içinde sizinle iletişime geçip kişisel bir demo hazırlayacağız.",
       "success": "Teşekkürler! En kısa sürede sizinle iletişime geçeceğiz.",
       "surname": "Soyad"
+    },
+    "v4": {
+      "heroCtaDemo": "Demo talep et",
+      "heroMetrics": [
+        {
+          "label": "ÜCRETSİZ DENEME",
+          "val": "14 gün"
+        },
+        {
+          "label": "ENTEGRASYON",
+          "val": "30+"
+        },
+        {
+          "label": "DİLLER",
+          "val": "RU · EN · TR"
+        }
+      ],
+      "integrationsKicker": "ENTEGRASYONLAR",
+      "integrationsSub": "Zaten kullandığınız servislerle çalışır",
+      "modulesKicker": "01 · Modüller",
+      "modulesTitle": "Dokuz modül, tek müşteri tabanı.",
+      "modulesSub": "Satış, pazarlama ve hizmet için gereken her şey tek platformda. Modüller ortak kişi ve şirketleri kullanır — veri tekrarlanmaz.",
+      "features": [
+        {
+          "t": "Lead'ler ve fırsatlar",
+          "d": "Siteden, formlardan ve mesajlaşma uygulamalarından kaynak ve UTM ile gelen talepler. Kanban, liste, sorumlular ve mükerrer arama."
+        },
+        {
+          "t": "İletişim",
+          "d": "WhatsApp, Telegram, e-posta, SMS, aramalar ve site sohbeti — tüm yazışma müşteri kartında."
+        },
+        {
+          "t": "Pazarlama",
+          "d": "UTM linkleri, Google Ads, Meta, Yandex Direct ve VK harcamaları — ve her kanalın geliri."
+        },
+        {
+          "t": "Otomasyonlar",
+          "d": "Tetikleyici → koşullar → eylemler: görevler, mesajlar, webhook'lar, diğer sistemlere aktarım."
+        },
+        {
+          "t": "AI asistan ve AI çalışanlar",
+          "d": "CRM verilerinden yanıt verir, rapor hazırlar ve onaylı eylemler yapar."
+        },
+        {
+          "t": "Çalışma alanları",
+          "d": "Formüllü ve Excel içe aktarmalı no-code tablo, Kanban, takvim ve Gantt."
+        },
+        {
+          "t": "Rezervasyonlar ve oteller",
+          "d": "Online randevu, bekleme listesi ve oda rezervasyon sistemi aynı CRM'de."
+        },
+        {
+          "t": "Analitik",
+          "d": "Lead, satış, yönetici ve proje raporları, BI paneli ve dışa aktarma."
+        },
+        {
+          "t": "Güvenlik",
+          "d": "Roller ve yetkiler, iki faktörlü giriş, işlem günlüğü, AB sunucuları ve günlük yedekler."
+        }
+      ],
+      "autoKicker": "02 · Otomasyon",
+      "autoTitle": "İşi sizin yerinize yapan senaryolar.",
+      "autoSub": "Görsel oluşturucu: tetikleyici → koşul → eylem. Rutin işler — yeni talepler, hatırlatmalar, bildirimler — kendiliğinden çalışır.",
+      "autoFlowTitle": "\"Reklamdan yeni lead\" senaryosu",
+      "autoSteps": [
+        {
+          "label": "Lead",
+          "sub": "Instagram Ads"
+        },
+        {
+          "label": "Koşul",
+          "sub": "Kaynak = reklam"
+        },
+        {
+          "label": "Sorumlu",
+          "sub": "Yönetici"
+        },
+        {
+          "label": "Mesaj",
+          "sub": "WhatsApp + E-posta"
+        },
+        {
+          "label": "Görev",
+          "sub": "Geri ara"
+        }
+      ],
+      "autoCardKicker": "NELERİ OTOMATİKLEŞTİREBİLİRSİNİZ",
+      "autoCardTitle": "Senaryo eylemleri",
+      "autoActions": [
+        "Görev veya not oluştur",
+        "Sorumlu ata ve durumu değiştir",
+        "E-posta, SMS veya Telegram mesajı gönder",
+        "Webhook çağır veya fırsatı amoCRM, Bitrix24, HubSpot'a aktar",
+        "Bekle veya onay iste"
+      ],
+      "stepsKicker": "03 · Başlangıç",
+      "stepsTitle": "Nasıl başlanır.",
+      "stepsSub": "Kayıttan CRM'deki ilk lead'lere — genellikle bir gün içinde.",
+      "steps": [
+        {
+          "v": "01",
+          "l": "Kayıt olun — 14 gün Enterprise planı ücretsiz, kart gerekmez."
+        },
+        {
+          "v": "02",
+          "l": "Müşteri ve lead'leri Excel veya CSV'den aktarın; AI tabloyu ayrıştırmaya yardım eder."
+        },
+        {
+          "v": "03",
+          "l": "Sitenizi, mesajlaşma uygulamalarını ve reklam hesaplarını bağlayın."
+        },
+        {
+          "v": "04",
+          "l": "Ekibinizi davet edin, rolleri ve erişim haklarını ayarlayın."
+        }
+      ],
+      "pricingKicker": "04 · Fiyatlar",
+      "pricingTitle": "Dürüst fiyatlandırma.",
+      "pricingSub": "Planlar modüller, depolama ve destek düzeyiyle ayrılır. Gizli ücret yok.",
+      "perMonth": "/ay",
+      "perYearNote": "yıllık ödemede",
+      "perUser": "Her ek kullanıcı için + €5/ay",
+      "plans": {
+        "standard": {
+          "sub": "Günlük satış ve pazarlama işleri için temel CRM.",
+          "cta": "Ücretsiz başla"
+        },
+        "professional": {
+          "sub": "Müşterileriyle mesajlaşma uygulamalarında konuşan ekipler için.",
+          "cta": "Ücretsiz başla"
+        },
+        "enterprise": {
+          "sub": "Müşteri finansları, müşteri portalları ve kurulum desteği.",
+          "cta": "14 gün ücretsiz"
+        },
+        "ultimate": {
+          "sub": "Premium paket: telefon, özel domain ve danışmanlık.",
+          "cta": "İletişime geç"
+        }
+      },
+      "ctaKicker": "BUGÜN BAŞLAYIN",
+      "ctaTitle": "14 gün ücretsiz. Kart gerekmez.",
+      "ctaCreate": "Hesap oluştur",
+      "ctaDemo": "Demo",
+      "formContactNote": "Mesai saatlerinde, genellikle bir gün içinde yanıt veriyoruz."
+    },
+    "v5": {
+      "pill": "Yeni",
+      "pillText": "Aura panoları ve yapay zekâ çalışanları",
+      "h1a": "İşinizle birlikte",
+      "h1b": "büyüyen CRM. Hedef:",
+      "words": [
+        "satış.",
+        "depo.",
+        "finans.",
+        "pazarlama.",
+        "hizmet."
+      ],
+      "sub": "Lumiva, küçük ve orta ölçekli işletmeler için bir CRM: potansiyel müşteriler ve satışlar, depo ve ürünler, rezervasyonlar, faturalar ve analitik tek ekranda. Kurulum genellikle bir gün sürer.",
+      "ctaStart": "14 gün ücretsiz başla",
+      "ctaLogin": "Giriş yap",
+      "ctaOpen": "CRM'i aç",
+      "ctaAccount": "Hesabım",
+      "metrics": [
+        {
+          "l": "Deneme süresi",
+          "v": 14,
+          "s": " gün"
+        },
+        {
+          "l": "Entegrasyon",
+          "v": 30,
+          "s": "+"
+        },
+        {
+          "l": "Diller",
+          "t": "RU · EN · TR"
+        }
+      ],
+      "demoNote": "Demo verilerle örnek",
+      "heroDashTitle": "Satış ekibi · genel bakış",
+      "flA": [
+        "Talebi nitelendiriyor",
+        "Talep özetini yazıyor",
+        "Yönetici atıyor"
+      ],
+      "flB": "\"Geçen ayla karşılaştırma ekle\"",
+      "flCt": "Satış kazanıldı",
+      "flCs": "Görev otomatik kapatıldı",
+      "ticker": [
+        [
+          "Mila AI",
+          "talebi nitelendiriyor",
+          "web sitesinden"
+        ],
+        [
+          "Aura",
+          "pano oluşturuyor",
+          "\"Stok durumu\""
+        ],
+        [
+          "Sofia AI",
+          "görev açıyor",
+          "bekleyen satış için"
+        ],
+        [
+          "Satış departmanı",
+          "talepleri ayırıyor",
+          "Telegram'dan"
+        ],
+        [
+          "Eva AI",
+          "yanıt hazırlıyor",
+          "müşteri e-postasına"
+        ],
+        [
+          "Mira AI",
+          "talep maliyetini hesaplıyor",
+          "kanallara göre"
+        ],
+        [
+          "Finans",
+          "mutabakat yapıyor",
+          "fatura ödemeleri"
+        ]
+      ],
+      "intK": "Entegrasyonlar",
+      "intS": "Zaten kullandığınız servislerle çalışır",
+      "platK": "Platform",
+      "platT": "Tek CRM üzerinde üç yapay zekâ katmanı",
+      "platD": "Tüm katmanlar aynı verilerle çalışır: talepler, satışlar, depo ve finans.",
+      "plat": [
+        [
+          "Aura",
+          "İhtiyacınızı kelimelerle anlatın. Aura veriyi ve dönemi netleştirir, canlı CRM verileriyle pano oluşturur."
+        ],
+        [
+          "Yapay zekâ çalışanları",
+          "Talepleri nitelendirir, e-posta yanıtları hazırlar, görev açar. Neyi kendileri, neyi onayınızla yapacaklarına siz karar verirsiniz."
+        ],
+        [
+          "Yapay zekâ departmanları",
+          "Servislerinize bağlı ajan ekipleri. Görevleri birbirine devreder ve sonucu CRM'e geri getirir."
+        ]
+      ],
+      "more": "Daha fazla",
+      "modK": "01 · Modüller",
+      "autoK": "02 · Otomasyon",
+      "autoActive": "Aktif",
+      "autoRun": "Mila AI talebi senaryoya göre yürütüyor…",
+      "autoDone": "\"Ara\" görevi sorumlu yöneticiye atandı",
+      "auraK": "Lumiva Aura",
+      "auraT": "Tek cümleden pano",
+      "auraD": "Ne görmek istediğinizi yazın. Aura veriyi, dönemi ve izleyiciyi netleştirir, stil önerir ve uygulamayı kurar. CRM içinde açın veya ofis ekranına yansıtın.",
+      "auraList": [
+        "5 stil: monokromdan TV ekranına",
+        "Satış, pazarlama, depo ve finans şablonları",
+        "Sohbetle düzenleme: \"huni ekle\"",
+        "CRM rollerine göre erişim ve şifreli TV bağlantısı"
+      ],
+      "auraCta": "Aura'yı dene",
+      "auraPrompts": [
+        "Sabah toplantısı panosu: ciro, huni ve plandan geride kalanlar",
+        "Günlük talep akışı ve kanallara göre talep maliyeti",
+        "Ofis TV ekranı: bugünkü aramalar ve ciro",
+        "Stokta ne bitiyor ve en çok ne satılıyor"
+      ],
+      "auraSteps": [
+        "İstek okunuyor",
+        "CRM verileri bağlanıyor",
+        "Widget seçiliyor",
+        "Stil uygulanıyor"
+      ],
+      "crewK": "Yapay zekâ çalışanları",
+      "crewT": "Yapay zekâyı insan gibi kadroya alın",
+      "crewD": "Her birinin rolü, erişim seviyesi ve işlem günlüğü var. Riskli işlemler onayınıza gelir.",
+      "crewWork": "Çalışıyor",
+      "crewLog": "İşlem günlüğü",
+      "crew": [
+        [
+          "Mila AI",
+          "Talep yöneticisi",
+          [
+            "Web sitesi talebini nitelendirir",
+            "Spam işaretler",
+            "Yönetici atar"
+          ]
+        ],
+        [
+          "Sofia AI",
+          "Satış yöneticisi",
+          [
+            "Bekleyen satışları bulur",
+            "Takip mesajı hazırlar",
+            "Yöneticiye görev açar"
+          ]
+        ],
+        [
+          "Mira AI",
+          "Pazarlama analisti",
+          [
+            "Kanallara göre CPL hesaplar",
+            "Rapor hazırlar",
+            "Kampanyaları karşılaştırır"
+          ]
+        ],
+        [
+          "Eva AI",
+          "E-posta asistanı",
+          [
+            "E-posta yanıtı hazırlar",
+            "Yazışmayı özetler",
+            "Yanıtsız e-postaları bulur"
+          ]
+        ]
+      ],
+      "deptK": "Yapay zekâ departmanları · Enterprise ve Ultimate",
+      "deptT": "Servislerinize bağlı, ajanlardan oluşan departmanlar",
+      "deptD": "Talepler, mesajlar ve reklam verileri doğru departmana gider. Ajanlar görevleri birbirine devreder ve sonucu CRM'e döndürür.",
+      "deptHub": "Lumiva yapay zekâ çekirdeği",
+      "depts": [
+        [
+          "Pazarlama",
+          "Reklam raporları"
+        ],
+        [
+          "Satış",
+          "Satış takibi"
+        ],
+        [
+          "Depo",
+          "Tedarikçi siparişleri"
+        ],
+        [
+          "Finans",
+          "Ödeme mutabakatı"
+        ]
+      ],
+      "startK": "03 · Başlangıç",
+      "priceYear": "Yıllık",
+      "priceMonth": "Aylık",
+      "priceUpTo": "−20%'ye kadar",
+      "priceMonthly": "aylık ödemede €{{v}}",
+      "priceHot": "Popüler",
+      "endK": "Bugün başlayın",
+      "endT": "14 gün ücretsiz. Kart gerekmez.",
+      "endD": "Deneme süresince Enterprise tarifesinin tüm modülleri açıktır.",
+      "endHave": "Hesabınız var mı? Giriş yapın",
+      "close": "Kapat",
+      "demo": {
+        "managers": [
+          "Anna Kovaleva",
+          "Mert Yılmaz",
+          "İlya Petrov",
+          "Elif Demir",
+          "Oleg Smirnov"
+        ],
+        "deals": [
+          "CRM kurulumu, 25 kullanıcı",
+          "Yıllık servis sözleşmesi",
+          "Ekipman tedariki",
+          "Web sitesi yenileme",
+          "Kurumsal eğitim",
+          "Reklam hesabı denetimi"
+        ],
+        "products": [
+          "Çekirdek kahve 1 kg",
+          "Kâğıt filtre",
+          "Vanilya şurubu",
+          "Bardak 350 ml",
+          "Yulaf sütü",
+          "Bardak kapağı"
+        ],
+        "channels": [
+          "Google Ads",
+          "Meta Ads",
+          "Yandex Direct",
+          "VK Ads"
+        ]
+      }
     }
   },
   "publicPages": {
@@ -20604,13 +21897,13 @@
       "ctaTitle": "Bugün başlayın",
       "ctaSubtitle": "Kaydolun ve tam erişim alın.",
       "integrationsTitle": "Araçlarınıza bağlanır",
-      "integrationsSubtitle": "20+ hazır entegrasyon",
+      "integrationsSubtitle": "30+ hazır entegrasyon",
       "allFeaturesTitle": "Tüm özellikler",
       "allFeaturesKicker": "Özellikler"
     },
     "about": {
       "title": "Lumiva CRM Hakkında",
-      "subtitle": "KOBİ'lerin daha hızlı büyümesine yardımcı CRM.",
+      "subtitle": "Küçük ve orta ölçekli işletmelerin satış, pazarlama, iletişim ve rezervasyonlarını tek sistemde birleştiren bir CRM geliştiriyoruz.",
       "missionKicker": "Misyonumuz",
       "missionQuote": "Her ekibe profesyonel araçları erişilebilir kılmak.",
       "valuesKicker": "Değerler",
@@ -20624,11 +21917,11 @@
       "ctaBtnDemo": "Demo talep et",
       "ctaBtnFeatures": "Özellikleri gör",
       "missionAttribution": "Lumiva CRM ekibi",
-      "statsClients": "Müşteri",
+      "statsClients": "Modül",
       "statsIntegrations": "Entegrasyon",
-      "statsUptime": "Uptime",
-      "statsYears": "Yıl",
-      "statsYearsValue": "4 yıl",
+      "statsUptime": "Arayüz dili",
+      "statsYears": "Ücretsiz deneme",
+      "statsYearsValue": "14 gün",
       "values": [
         {
           "title": "Sadelik",
@@ -20640,7 +21933,7 @@
         },
         {
           "title": "Güvenilirlik",
-          "desc": "Verileriniz güvende. İzole hesaplar, şifreleme ve düzenli yedeklemeler."
+          "desc": "Her şirketin verileri ayrı, roller ve yetkiler, iki faktörlü giriş ve günlük yedekler."
         },
         {
           "title": "Ortaklık",
@@ -20654,7 +21947,7 @@
         },
         {
           "year": "2023",
-          "text": "Beta sürümü başlatıldı. İlk 50 müşteri."
+          "text": "Beta sürümü ve ilk müşteriler."
         },
         {
           "year": "2024",
@@ -20662,11 +21955,11 @@
         },
         {
           "year": "2025",
-          "text": "20+ hizmetle entegrasyon. Yapay zeka asistanı."
+          "text": "Mesajlaşma, reklam ve diğer CRM'lerle entegrasyonlar. AI asistan."
         },
         {
           "year": "2026",
-          "text": "Yeni tasarım, mobil uygulama. 3× büyüme."
+          "text": "Yeni tasarım, AI çalışanlar, rezervasyonlar ve oteller, Türkçe arayüz."
         }
       ],
       "techStack": [
@@ -20751,7 +22044,7 @@
             },
             {
               "q": "Bilgisayara bir şey kurmak gerekiyor mu?",
-              "a": "Hayır. Lumiva CRM tamamen tarayıcıda çalışır. Ayrıca iOS ve Android için mobil uygulama mevcuttur. Kurulum veya sunucu bakımı gerekmez."
+              "a": "Hayır. Lumiva CRM tarayıcıda çalışır — bilgisayarda ve telefonda. Kurulum veya sunucu bakımı gerekmez."
             }
           ]
         },
@@ -20760,15 +22053,15 @@
           "items": [
             {
               "q": "Ücretsiz bir dönem var mı?",
-              "a": "Evet. Kayıttan sonra hesap süresiz olarak sınırlı modda çalışır. Tüm modülleri etkinleştirmek için bir plan seçmeniz gerekir."
+              "a": "Evet. Kayıttan sonra 14 gün boyunca Enterprise planına tam erişim alırsınız, kart gerekmez. Ardından bir plan seçin — verileriniz korunur."
             },
             {
               "q": "Ödeme nasıl işliyor?",
-              "a": "Ödeme kullanıcı başına aylık olarak alınır. Yıllık planda plana bağlı olarak otomatik %10-20 indirim uygulanır. Kart ve banka havalesi kabul ediyoruz."
+              "a": "Aylık veya yıllık. Yıllık ödemede plana göre %10 ile %20 arası indirim. Banka kartıyla ödeme: Türkiye'de iyzico ve PayTR, Rusya'da YooKassa, diğer ülkelerde Stripe."
             },
             {
               "q": "Aboneliği iptal edebilir miyim?",
-              "a": "Evet, istediğiniz zaman. İptalden sonra hesap sınırlı moda geçer, veriler 30 gün saklanır."
+              "a": "Evet, istediğiniz zaman. Plan yenilenmezse CRM erişimi duraklatılır, verileriniz silinmez."
             },
             {
               "q": "STK'lar ve eğitim kurumları için indirim var mı?",
@@ -20781,19 +22074,19 @@
           "items": [
             {
               "q": "Verilerim nasıl korunuyor?",
-              "a": "Her müşteri izole bir hesapta çalışır (çoklu kiracı mimarisi). Tüm veriler aktarım sırasında (TLS 1.3) ve depolamada şifrelenir. Düzenli yedeklemeler yapılır."
+              "a": "Her şirketin verileri veritabanı düzeyinde ayrılır. Bağlantılar yalnızca HTTPS üzerinden yapılır, parolalar hash olarak saklanır, iki faktörlü giriş mevcuttur. Veritabanının her gece yedeği alınır."
             },
             {
               "q": "Entegrasyonlar için API var mı?",
-              "a": "Evet. Lumiva CRM, token kimlik doğrulamalı bir REST API sunar. Dokümantasyon kayıttan sonra API bölümünde mevcuttur."
+              "a": "Evet. Anahtar doğrulamalı REST API: lead alımı, ürünler, rezervasyonlar ve diğer nesneler. Dokümantasyon API bölümünde."
             },
             {
               "q": "Başka bir CRM'den veri aktarabilir miyim?",
-              "a": "Evet. Excel/CSV içe aktarma desteklenir. Ayrıca AmoCRM, Bitrix24 ve HubSpot için doğrudan bağlayıcılar mevcuttur."
+              "a": "Evet. Lead'ler, ürünler ve çalışma alanı tabloları Excel/CSV'den aktarılabilir. amoCRM, Bitrix24 ve HubSpot için hazır entegrasyonlar var."
             },
             {
-              "q": "Platformun SLA'sı nedir?",
-              "a": "Ücretli planlar için %99,9 çalışma süresi garanti ediyoruz. Planlı bakımlar en az 24 saat önceden duyurulur."
+              "q": "Platformun çalışmasını nasıl izliyorsunuz?",
+              "a": "Site ve API erişilebilirliği her 5 dakikada bir otomatik kontrol edilir, arızalar ekibe anında bildirilir. Planlı bakımları önceden duyururuz."
             }
           ]
         },
@@ -20802,7 +22095,7 @@
           "items": [
             {
               "q": "Hangi entegrasyonlar destekleniyor?",
-              "a": "Google Analytics 4, Meta Ads, Google Ads, Mailchimp, WooCommerce, AmoCRM, Bitrix24, HubSpot, Telegram, WhatsApp, Slack, Google Sheets, WordPress CF7, Zapier, 1C, SAP, Jira, OpenAI ve daha fazlası."
+              "a": "WhatsApp, Telegram, e-posta, SMS, Google Ads, Meta Ads, Yandex Direct, VK Ads, Google Analytics 4, Yandex Metrika, WooCommerce, Shopify, WordPress CF7, amoCRM, Bitrix24, HubSpot, Mailchimp, Slack, MS Teams, Google Sheets, Google Calendar, Outlook, Jira, 1C, SAP, Zapier, Make, iyzico, PayTR, YooKassa, OpenAI ve Anthropic."
             },
             {
               "q": "Telegram botu nasıl bağlanır?",
@@ -20810,7 +22103,7 @@
             },
             {
               "q": "Webhook desteği var mı?",
-              "a": "Evet. WordPress Contact Form 7, AmoCRM, WhatsApp ve özel kaynaklar için gelen webhook'lar yapılandırılabilir."
+              "a": "Evet. Gelen webhook'lar sitelerden, formlardan ve botlardan lead alır; otomasyonlar adresinize giden webhook gönderebilir."
             }
           ]
         }
@@ -20880,45 +22173,153 @@
       "followTitle": "Güncellemeleri takip edin",
       "releases": [
         {
+          "version": "2.9.0",
+          "date": "1 Ekim 2026",
+          "highlight": "Yeni lead kartı ve site sohbeti",
+          "changes": [
+            {
+              "type": "new",
+              "text": "Lead kartı: WhatsApp, Telegram ve e-posta yazışmaları tek akışta"
+            },
+            {
+              "type": "new",
+              "text": "Site sohbeti: yeni arayüz, görüşmeleri kapatma ve yeniden açma, ziyaretçi UTM'si"
+            },
+            {
+              "type": "new",
+              "text": "Lead çöp kutusu ve arşivi: silinen lead'leri 30 gün içinde geri yükleme"
+            },
+            {
+              "type": "new",
+              "text": "Yönetici raporu: kazanılan, kaybedilen ve tekrar satışlar"
+            },
+            {
+              "type": "improved",
+              "text": "Tüm analitik bölümlerinde tek dönem seçici"
+            },
+            {
+              "type": "improved",
+              "text": "Plana göre dosya depolama limitleri: 3, 5 ve 10 GB"
+            }
+          ]
+        },
+        {
+          "version": "2.8.0",
+          "date": "25 Eylül 2026",
+          "highlight": "AI çalışanlar ve Türkçe arayüz",
+          "changes": [
+            {
+              "type": "new",
+              "text": "Departman bazlı AI çalışanlar: lead, satış ve pazarlama yöneticisi, analist ve SEO"
+            },
+            {
+              "type": "new",
+              "text": "Sitede, WhatsApp'ta ve Telegram'da AI danışman müşterileri rezervasyona kaydeder"
+            },
+            {
+              "type": "new",
+              "text": "Google yorum takibi ve yorum sahibinin dilinde yanıt taslakları"
+            },
+            {
+              "type": "new",
+              "text": "Türkçe CRM arayüzü"
+            },
+            {
+              "type": "improved",
+              "text": "Çalışma alanları: dağınık Excel tablolarının AI ile içe aktarımı ve entegrasyonlardan otomatik yenileme"
+            },
+            {
+              "type": "security",
+              "text": "Gelen WhatsApp mesajları için imza doğrulama"
+            }
+          ]
+        },
+        {
+          "version": "2.7.0",
+          "date": "1 Eylül 2026",
+          "highlight": "Ödemeler ve 14 gün ücretsiz",
+          "changes": [
+            {
+              "type": "new",
+              "text": "iyzico, PayTR ve YooKassa ile ödeme alma, satışlarda ödeme günlüğü"
+            },
+            {
+              "type": "new",
+              "text": "Yeni hesaplar için 14 gün ücretsiz Enterprise planı"
+            },
+            {
+              "type": "new",
+              "text": "Erişim hakları: kendi / tümü görünürlüğü, tutar ve iletişim gizleme, yalnızca ofisten giriş"
+            },
+            {
+              "type": "new",
+              "text": "Kişi, lead ve şirketlerde mükerrer kayıt arama ve geri alınabilir birleştirme"
+            },
+            {
+              "type": "new",
+              "text": "Belgeler: veri yer tutuculu şablonlar ve e-imza"
+            },
+            {
+              "type": "improved",
+              "text": "Jira, HubSpot, Mailchimp, Bitrix24 ve amoCRM OAuth ile bağlanır"
+            },
+            {
+              "type": "improved",
+              "text": "AI özellikleri için kendi OpenAI veya Anthropic anahtarınızı kullanın"
+            }
+          ]
+        },
+        {
+          "version": "2.6.0",
+          "date": "6 Ağustos 2026",
+          "highlight": "Ürünler, rezervasyonlar ve oteller",
+          "changes": [
+            {
+              "type": "new",
+              "text": "Ürünler: katalog, fiyatlar, stok, depolar ve raflar"
+            },
+            {
+              "type": "new",
+              "text": "Rezervasyonlar: hizmetler, kaynaklar, takvim, bekleme listesi ve online randevu"
+            },
+            {
+              "type": "new",
+              "text": "Otel rezervasyon sistemi: odalar, doluluk tablosu, resepsiyon, pazar bazlı fiyatlar"
+            },
+            {
+              "type": "new",
+              "text": "Yardım masası: e-posta, Telegram, WhatsApp ve SMS ile yanıtlanan müşteri talepleri"
+            },
+            {
+              "type": "new",
+              "text": "Özel widget'lı BI paneli"
+            },
+            {
+              "type": "improved",
+              "text": "AI asistan sohbette komutla fiyatları, oda fiyatlarını ve rezervasyonları değiştirir"
+            }
+          ]
+        },
+        {
           "version": "2.5.0",
           "date": "18 Nisan 2026",
           "highlight": "Yeni tasarım ve pazarlama sayfaları",
           "changes": [
             {
               "type": "new",
-              "text": "Birleşik tasarım sistemi: Button, Card, Badge, Modal, Input bileşenleri"
-            },
-            {
-              "type": "new",
-              "text": "Yeni sayfalar: Özellikler, Hakkımızda, İletişim, SSS, Şartlar, Güncellemeler"
-            },
-            {
-              "type": "new",
-              "text": "Bölüm navigasyonlu yenilenmiş alt bilgi (footer)"
+              "text": "Yeni site tasarımı: özellikler, fiyatlar, çözümler, hakkımızda, SSS"
             },
             {
               "type": "improved",
-              "text": "Butonlar ve formlar artık tüm CRM'de tutarlı görünüyor"
-            },
-            {
-              "type": "improved",
-              "text": "Rate limiting: aşırı yüke karşı API koruması (20 istek/sn, 100 istek/10sn)"
+              "text": "Butonlar ve formlar CRM genelinde tutarlı görünür"
             },
             {
               "type": "security",
-              "text": "JWT_SECRET artık varsayılan bir değere sahip değil — ortamda zorunlu"
+              "text": "Aşırı yük ve kaba kuvvete karşı API istek sınırlaması"
             },
             {
               "type": "security",
-              "text": "Helmet ile güvenlik HTTP başlıkları eklendi"
-            },
-            {
-              "type": "security",
-              "text": "CORS origin'leri CORS_ORIGINS ortam değişkenine taşındı"
-            },
-            {
-              "type": "fixed",
-              "text": "Üretimde synchronize: false — şema artık otomatik değişmiyor"
+              "text": "Ek HTTP güvenlik başlıkları"
             }
           ]
         },
@@ -20936,7 +22337,7 @@
             },
             {
               "type": "improved",
-              "text": "Sorgu optimizasyonuyla müşteri adayları sayfası yüklemesi %40 hızlandı"
+              "text": "Müşteri adayları sayfasının yüklenmesi hızlandırıldı"
             }
           ]
         },
@@ -21090,7 +22491,7 @@
         {
           "id": "storage",
           "title": "5. Veri saklama ve koruma",
-          "content": "**5.1 Veriler nerede saklanır:**\nVeriler güvenli veri merkezlerindeki sunucularda saklanır. Ana altyapı Rusya ve/veya AB'de bulunmaktadır. Yedeklemeler günlük olarak oluşturulur ve şifrelenmiş şekilde saklanır.\n\n**5.2 Saklama süreleri:**\n- Hesap ve CRM verileri: sözleşme süresi boyunca + hesap silindikten sonra 30 gün\n- Mali belgeler: 5 yıl (yasal gereklilik)\n- Teknik loglar: 90 gün\n- Destek talebi verileri: 2 yıl\n\n**5.3 Koruma önlemleri:**\n- Aktarım sırasında şifreleme: TLS 1.3\n- Depolanan verilerde şifreleme: AES-256\n- Personel için çok faktörlü kimlik doğrulama\n- Düzenli güvenlik denetimleri ve sızma testleri\n- Çoklu kiracı mimarisi: her hesap veritabanı düzeyinde izole edilir\n- Personelin veriye erişimi sınırlıdır — yalnızca gerekçeli ihtiyaç halinde ve talep üzerine\n\n**5.4 Olay bildirimi:**\nHaklarınız için risk oluşturabilecek bir veri ihlali durumunda, sizi ve ilgili düzenleyici kurumları yasaların öngördüğü süreler içinde (en geç 72 saat) bilgilendireceğiz."
+          "content": "**5.1 Veriler nerede saklanır:**\nVeriler Avrupa Birliği'ndeki (Litvanya) bir veri merkezinde bulunan sunucularda saklanır. Veritabanı yedeği her gün oluşturulur.\n\n**5.2 Saklama süreleri:**\n- Hesap ve CRM verileri: sözleşme süresi boyunca + hesap silindikten sonra 30 gün\n- Mali belgeler: 5 yıl (yasal gereklilik)\n- Teknik loglar: 90 gün\n- Destek talebi verileri: 2 yıl\n\n**5.3 Koruma önlemleri:**\n- Aktarım sırasında şifreleme: HTTPS (TLS)\n- Parolalar yalnızca hash olarak saklanır\n- Kullanıcılar için iki faktörlü doğrulama\n- Kullanıcı işlem günlüğü\n- Çoklu kiracı mimarisi: her hesap veritabanı düzeyinde izole edilir\n- Personelin veriye erişimi sınırlıdır — yalnızca gerekçeli ihtiyaç halinde ve talep üzerine\n\n**5.4 Olay bildirimi:**\nHaklarınız için risk oluşturabilecek bir veri ihlali durumunda, sizi ve ilgili düzenleyici kurumları yasaların öngördüğü süreler içinde (en geç 72 saat) bilgilendireceğiz."
         },
         {
           "id": "sharing",
@@ -21142,16 +22543,16 @@
     "security": {
       "title": "Güvenlik ve Veri Koruma",
       "subtitle": "Lumiva CRM'de veri koruması gerçekte nasıl çalışıyor — altyapı, uygulama ve erişim düzeyinde. Pazarlama vaatleri değil, yalnızca gerçekten uygulanan şeyler.",
-      "s1Kicker": "01 · ŞİFRELEME",
-      "s1Title": "Veri şifreleme",
+      "s1Kicker": "01 · ŞİFRELEME VE PAROLALAR",
+      "s1Title": "Bağlantı ve parola koruması",
       "s1Items": [
         {
           "title": "Aktarım sırasında şifreleme",
-          "desc": "Platforma yapılan tüm bağlantılar TLS 1.3 kullanır."
+          "desc": "Platforma tüm bağlantılar yalnızca HTTPS (TLS) üzerinden yapılır."
         },
         {
-          "title": "Depolanan verilerde şifreleme",
-          "desc": "Veritabanındaki veriler AES-256 ile şifrelenir."
+          "title": "İki faktörlü doğrulama",
+          "desc": "Giriş, kimlik doğrulayıcı uygulamadaki kodla korunabilir; yedek kodlar mevcuttur."
         },
         {
           "title": "Şifre saklama",
@@ -21182,8 +22583,8 @@
           "desc": "Helmet aracılığıyla uygulanır — clickjacking, MIME-sniffing ve diğer yaygın başlık düzeyi saldırılarına karşı koruma."
         },
         {
-          "title": "Zorunlu token secret'ı",
-          "desc": "JWT_SECRET ortamda zorunludur ve varsayılan bir yedek değeri yoktur — bu, tahmin edilebilir bir secret'tan kaynaklanan tüm bir güvenlik açığı sınıfını ortadan kaldırır."
+          "title": "Kısa ömürlü erişim anahtarları",
+          "desc": "Oturumlar sınırlı ömürlü imzalı anahtarlarla çalışır; imza sırrı zorunludur ve varsayılan değeri yoktur."
         },
         {
           "title": "Yapılandırılabilir CORS",
@@ -21192,7 +22593,7 @@
       ],
       "s4Kicker": "04 · DEĞİŞİKLİK TAKİBİ",
       "s4Title": "Değişiklik günlükleri",
-      "s4Text": "Ürünler modülü tam bir değişiklik günlüğü tutar — fiyat, maliyet, durum, SKU, barkod — her değişikliğin yazarı ve zamanıyla birlikte. Diğer CRM modülleri (Müşteri Adayları, Fırsatlar, Projeler) için eşdeğer günlükleme henüz aynı kapsamda uygulanmadı — bu bir yol haritası maddesidir, teslim edilmiş bir özellik değil.",
+      "s4Text": "İşlem günlüğü, CRM'de kimin neyi değiştirdiğini tarih ve saatle kaydeder. Ürünler için ayrıca fiyat, maliyet, durum, stok kodu ve barkodun ayrıntılı geçmişi tutulur.",
       "s5Kicker": "05 · VERİ GİZLİLİĞİ",
       "s5Title": "Verileriniz üzerinde gizlilik ve kontrol",
       "s5Items": [
@@ -21201,8 +22602,8 @@
           "desc": "Verilerinizin dışa aktarılmasını veya silinmesini talep edebilirsiniz — süreler ve süreç Gizlilik Politikası'nda açıklanmıştır."
         },
         {
-          "title": "Depolama bölgesi seçimi",
-          "desc": "Veriler Rusya ve/veya AB'deki güvenli veri merkezlerinde saklanır."
+          "title": "Veriler nerede saklanır",
+          "desc": "Sunucular Avrupa Birliği'nde (Litvanya) bulunur. Veritabanının her gece yedeği alınır."
         }
       ],
       "s5PrivacyLink": "Ayrıntılar için Gizlilik Politikası'na bakın",
@@ -21232,11 +22633,11 @@
         },
         {
           "title": "Şeffaf fiyatlandırma",
-          "desc": "9 modülün tamamı her planda mevcuttur — fark limit ve destek düzeyindedir, gizli özellik kilitlerinde değil."
+          "desc": "Fiyatlar sitede yayınlanır ve plan tablosunda her plana hangi modüllerin ve limitlerin dahil olduğu görünür — gizli ücret yok."
         },
         {
           "title": "Rozetlerle değil, gerçeklerle güvenlik",
-          "desc": "TLS 1.3, AES-256, rol tabanlı erişim, veritabanı düzeyinde çoklu kiracı izolasyonu — doğrulayabileceğiniz somut teknik önlemler."
+          "desc": "Şirket bazında veri ayrımı, rol bazlı erişim, iki faktörlü giriş, HTTPS ve günlük yedekler — doğrulanabilir somut önlemler."
         }
       ],
       "pricingLink": "Fiyatlara bakın",
@@ -21377,5 +22778,748 @@
     "ru": "RU",
     "en": "EN",
     "tr": "TR"
+  },
+  "aiOffice": {
+    "prog": {
+      "debts": "Ödeme hatırlatmaları: {{days}} gün",
+      "debtsHint": "Yerleşik program. Ödenmemiş satışlar — müşteriye ödeme bağlantılı kibar bir e-posta (iyzico / PayTR / YooKassa). Her e-posta onayınızdan sonra.",
+      "finWeek": "Pazartesi finans özeti",
+      "finWeekHint": "Yerleşik program. Haftadan haftaya: ödenen, ödeme bekleyen, iadeler, kim borçlu — rakamları sistem hesaplar, departman sonuçları yazar.",
+      "watch": "Reklam bekçisi",
+      "watchHint": "Yerleşik program. Her sabah: {{days}} gündür dönüşümsüz harcayan kampanyalar — size anında bildirim ve departmandan duraklatma/kısma önerili inceleme. Bilinirlik kampanyalarına dokunmaz.",
+      "budget": "Pazartesi bütçe incelemesi",
+      "budgetHint": "Yerleşik program. 14 günlük kampanya bazında ROAS ve dönüşüm başı maliyet → öneri: neyi kısmalı, neyi büyütmeli. Reklam hesabındaki her değişiklik yalnızca onayınızdan sonra.",
+      "followup": "Yanıtsız takip: {{days}} gün",
+      "followupHint": "Yerleşik program. Müşteri mesajımızdan sonra sessizse — bu günlerde kısa, faydalı takipler; yanıt gelince durur. {{lose}} gün sessizlikten sonra — durum “kayıp”.",
+      "react": "Kayıp lead’leri geri kazanma",
+      "reactHint": "Yerleşik program. Haftada en fazla {{n}} lead (≥{{days}} gün önce kaybedilen) tek bir sıcak mesaj alır. Altı ay içinde tekrar edilmez.",
+      "stock": "Azalan ürünlerin yeniden siparişi",
+      "stockHint": "Yerleşik program. Sistem her sabah stoku ve 30 günlük tüketimi hesaplar; tükenen, eşiğin altındaki veya 14 gün içinde bitecek ürünler tek görev olur: tedarikçiye göre grupla ve siparişleri hazırla. Her tedarikçi siparişi onayınızdan sonra gider.",
+      "pr": "Her pull request’i incele",
+      "prHint": "Yerleşik program. Departman her saat depoyu kontrol eder: yeni PR veya içinde yeni commit → diff’i ve CI durumunu okur, satır yorumlarıyla inceleme bırakır. Asla onaylamaz veya merge etmez — karar sizin.",
+      "sla": "Yanıt kontrolü: {{h}} sa",
+      "slaHint": "Yerleşik program. Her saat: müşterinin {{h}} saatten uzun yanıt beklediği talepler hemen departmana görev olur. Senaryo kapalıysa veya yanıt reddedildiyse de çalışır.",
+      "remind": "Bir gün önce hatırlatma",
+      "remindHint": "Yerleşik program. Ziyareti veya girişi yarın olan misafirlere tarih, saat, adres ve yol tarifiyle (Beyin’den) e-posta. Departmanın gündüz saatlerinde.",
+      "confirm": "Onaylanmamış rezervasyonlar",
+      "confirmHint": "Yerleşik program. Rezervasyon 2 saatten fazla onay bekliyor — departman Beyin kurallarına göre onaylar veya neyin engellediğini bildirir.",
+      "noshow": "Gelmeyenler",
+      "noshowHint": "Yerleşik program. Rezervasyon saati geçti, misafir giriş yapmadı — departman “gelmedi” olarak işaretler ve kibarca yeni saat önerir.",
+      "review": "Yorum isteği",
+      "reviewHint": "Yerleşik program. Ziyaret veya çıkıştan sonra — teşekkür ve Beyin’deki yorum bağlantısı. Bağlantı yoksa gönderilmez.",
+      "reconcile": "Ödeme–satış mutabakatı",
+      "reconcileHint": "Yerleşik program. Her gün: ödendi ama satış işaretlenmedi; ödeme tutarı farklı; müşteri ödeyemedi — departman her satırı ele alır. “Ödendi” işareti onayınızdan sonra."
+    },
+    "curator": {
+      "curates": "“{{name}}” departmanını yönetiyor",
+      "label": "Departman küratörü",
+      "none": "Küratör yok — siz karar verirsiniz",
+      "paused": "duraklatıldı",
+      "hintOn": "Küratör ajanların normal işlemlerini kendisi onaylar, zayıf olanları düzeltmeye gönderir. Size para ve sözleşmeler, toplu gönderimler ve şüpheleri kalır. Talimatları departman kuralı olur.",
+      "hintOff": "Bir YZ çalışanı seçin — departmanı yönetecek ve sizin yerinize karar verecek.",
+      "hintNoEmployees": "Küratör bir YZ çalışanıdır. “YZ çalışanları” bölümünde oluşturun.",
+      "title": "Departman küratörü",
+      "pausedLong": "duraklatıldı — kararlar sizi bekliyor",
+      "decides": "Ajanların normal işlemlerinde sizin yerinize karar verir. Para, sözleşmeler ve şüpheler size gelir.",
+      "approved": "onaylandı · 7 g",
+      "revised": "düzeltmeye",
+      "escalated": "size iletildi",
+      "approvedBy": "✓ Küratör {{name}} tarafından onaylandı"
+    },
+    "safety": {
+      "ads": "YZ departmanlarının reklam hesaplarında değişiklik yapmasına izin ver",
+      "adsHint": "Google Ads / Meta kampanyalarında duraklatma, etkinleştirme ve günlük bütçe — her değişiklik yine onayınızı bekler. Kapalı: departman yalnızca raporunda öneri yazar, eski önerileri onaylamak hiçbir şeyi değiştirmez.",
+      "hint": "Her e-posta, WhatsApp, Telegram ve toplu gönderimden önce kontrol edilir. Kural ihlal edilirse gönderilmez, neden görevde görünür.",
+      "daily": "Günde en fazla mesaj",
+      "dailyHint": "Tüm departman için. Toplu gönderim alıcı sayısıyla sayılır. 0 — sınırsız.",
+      "freq": "Bir müşteriye en sık her (saat)",
+      "freqHint": "Müşterinin kendi yazdığı mesaja yanıt her zaman serbesttir. 0 — sınırsız.",
+      "stop": "Engel listesi",
+      "stopPh": "client@mail.com\ncompetitor.com",
+      "stopHint": "Departmanın asla yazmadığı adresler veya alan adları — satır başına bir tane.",
+      "autoOrders": "Tedarikçilerden otomatik sipariş",
+      "autoOrdersHint": "Tedarikçi siparişi onayınız olmadan gider: ürünler ve miktarlar sistemin hesabından, tedarikçi adresi yalnızca Beyin’den veya CRM kişilerinden.",
+      "autoKb": "Bilgi tabanından kendisi yanıtlasın",
+      "autoKbHint": "Yanıt yalnızca Beyin’deki bir .md dosyasından birebir parçaya dayanıyorsa kendiliğinden gider. Dosyalarda yanıt yoksa, iade veya şikâyetse — talep bir insana gider. Çalışan yanıtlarını departman “Destek bilgi tabanı”na ekler.",
+      "autoBooking": "Misafir e-postaları kendiliğinden",
+      "autoBookingHint": "Onay, hatırlatma, gelmeme ve yorum e-postaları “E-posta şablonları”ndaki şablonlarla kendiliğinden gider (düzenleyebilirsiniz); rezervasyon verilerini sistem doldurur. Serbest metinli e-postalar yalnızca onayla.",
+      "autoPosting": "Otomatik paylaşım",
+      "autoPostingHint": "Departman içerik planı hazırlar, siz onaylarsınız — sonra gönderiler Telegram kanalına plana göre kendiliğinden çıkar. Yalnızca Beyin’deki departman klasöründe .md içerik talimatı varsa çalışır."
+    },
+    "common": {
+      "kicker": "YZ departmanları",
+      "light": "Oda ışığı",
+      "mode_auto": "Otomatik",
+      "mode_day": "Gündüz",
+      "mode_night": "Gece",
+      "now": "şimdi",
+      "minAgo": "{{n}} dk",
+      "hAgo": "{{n}} sa",
+      "dAgo": "{{n}} gün",
+      "add": "Ekle",
+      "approve": "Onayla",
+      "reject": "Reddet",
+      "cancel": "İptal",
+      "empty": "Boş",
+      "loading": "Yükleniyor…",
+      "open": "aç",
+      "pick": "Seçin…",
+      "save": "Kaydet",
+      "saved": "Kaydedildi",
+      "saving": "Kaydediliyor…",
+      "close": "Kapat"
+    },
+    "nav": {
+      "connect": "Bağlantılar"
+    },
+    "plans": {
+      "free_locked": "Plan yok",
+      "standard": "Standard",
+      "professional": "Pro",
+      "enterprise": "Enterprise",
+      "ultimate": "Ultimate"
+    },
+    "lock": {
+      "title": "YZ departmanları Enterprise ve Ultimate planlarında",
+      "text": "YZ ajanlarından oluşan departmanlar kendi başına çalışır: otomasyonlardan ve departman hedefinden görev alır, önemli konularda onayınızı ister ve bulguları Beyin’e yazar. Enterprise 3, Ultimate 5 departman içerir.",
+      "cta": "Planı değiştir"
+    },
+    "office": {
+      "title": "Ofis",
+      "sub": "Departmanlar şu anda çalışıyor. Görevlerini görmek için bir odaya tıklayın.",
+      "agents": "ajan",
+      "doing": "işte",
+      "next": "sırada",
+      "done": "bitti",
+      "roomColor": "Departman rengi",
+      "openDept": "Departmanı aç",
+      "newDept": "Yeni departman",
+      "freeSlots": "{{count}} boş slot",
+      "slotPrice": "planda {{included}} · {{extra}} ek · bir tane daha {{price}} €/ay",
+      "waitingApproval": "Onay bekliyor: {{count}}",
+      "department": "Departman",
+      "taskFor": "“{{name}}” için görev…",
+      "noDepts": "Önce bir departman oluşturun",
+      "needHelp": "Yardımınız gerekiyor",
+      "taskStatus": "Görev durumu",
+      "wholeOffice": "tüm ofis",
+      "connected": "Bağlı",
+      "runsOn": "Çalıştığı motor",
+      "enginesMixed": "Lumiva AI + kendi anahtar ({{n}})",
+      "legendDepts": "departman",
+      "legendInWork": "görev işte",
+      "cards": "Kartlar",
+      "zoomIn": "Yakınlaştır",
+      "zoomOut": "Uzaklaştır",
+      "zoomFit": "Tüm ofis",
+      "seeWhat": "tam olarak neyi görün"
+    },
+    "status": {
+      "all": "Tümü",
+      "backlog": "Sıra",
+      "progress": "İşte",
+      "waiting": "Bekleyen",
+      "done": "Bitti"
+    },
+    "step": {
+      "queued": "Sırada",
+      "context": "Veri topluyor",
+      "brain": "Beyin’e bakıyor",
+      "thinking": "Düşünüyor",
+      "acting": "Uyguluyor",
+      "reviewing": "Sonucu kontrol ediyor",
+      "done": "Bitti"
+    },
+    "agentState": {
+      "idle": "boşta",
+      "paused": "duraklatıldı",
+      "waiting": "karar bekliyor",
+      "queued": "sırada",
+      "context": "veri okuyor",
+      "brain": "Beyin’i okuyor",
+      "thinking": "düşünüyor",
+      "acting": "yazıyor",
+      "reviewing": "kontrol ediyor",
+      "done": "teslim etti"
+    },
+    "source": {
+      "program": "departman programı",
+      "manual": "sizden",
+      "automation": "otomasyon",
+      "event": "CRM olayı",
+      "proactive": "departman hedefinden",
+      "handoff": "başka departmandan"
+    },
+    "paused": {
+      "manual": "Duraklatıldı",
+      "budget": "Harcama limiti doldu",
+      "daily_budget": "Günlük limit",
+      "plan": "Ödenmiş slotları aşıyor",
+      "quota": "YZ kotası bitti"
+    },
+    "issueKind": {
+      "trust": "Öneri",
+      "error": "Hata",
+      "data": "Veri yok",
+      "access": "Erişim yok"
+    },
+    "fix": {
+      "autonomy": "Kendisi göndersin",
+      "autonomyDone": "Tamam: departman normal mesajları kendisi gönderir, fiyat ve ödemeler sizden geçer",
+      "grant": "Erişim ver",
+      "connect": "Bağla",
+      "granted": "Erişim verildi — görevler devam edecek",
+      "grantFailed": "Önce Entegrasyonlar’da bir reklam hesabı bağlayın",
+      "upload": "Yükle",
+      "access": "Erişim ver",
+      "reconnect": "Bağla",
+      "billing": "Kota yükle",
+      "settings": "Ayarla"
+    },
+    "engine": {
+      "platform": "Lumiva AI",
+      "platformHint": "Platform anahtarı, kullanım şirketin YZ kotasından düşülür",
+      "byok": "Kendi API anahtarı",
+      "byokOnRequest": "Kendi OpenAI veya Anthropic anahtarınız — talep üzerine bağlanır"
+    },
+    "connStatus": {
+      "ok": "bağlı",
+      "expired": "token süresi doldu",
+      "error": "hata",
+      "off": "bağlı değil"
+    },
+    "kpi": {
+      "tasks_done_today": "Bugün biten",
+      "tasks_waiting": "Karar bekleyen",
+      "leads_new_7d": "7 günde yeni lead",
+      "leads_open": "İşteki lead",
+      "meetings_upcoming": "Yaklaşan toplantı",
+      "sales_won_30d": "30 günde ödenen",
+      "tasks_overdue": "Geciken görev",
+      "tickets_open": "Açık talep",
+      "bookings_upcoming": "Yaklaşan rezervasyon",
+      "brain_files": "Beyin dosyası",
+      "spend_month": "Bu ay harcama"
+    },
+    "brain": {
+      "title": "Beyin",
+      "files": "dosya",
+      "hint": "Departmanların ortak hafızası: promptlar, prosedürler, veriler",
+      "mapLabel": "Beyin · {{count}} dosya",
+      "sub": "Departmanların ortak deposu: promptlar, prosedürler, veriler, dosyalar ve erişimler. Ajanlar her görevden önce buradan okur ve bulguları buraya yazar.",
+      "upload": "Dosya yükle",
+      "newDoc": ".md belgesi",
+      "newDocName": "Yeni belge",
+      "newDocTitle": "Başlık",
+      "requests": "Departmanların istekleri",
+      "requestsHint": "bunlar olmadan görevler bekliyor",
+      "dropFor": "Dosyayı sürükleyin veya seçin → {{folder}}",
+      "tabFiles": "Dosyalar ve promptlar · {{count}}",
+      "tabAccess": "Erişimler",
+      "allFiles": "Tüm dosyalar",
+      "common": "Ortak",
+      "dropHere": "Bırakın — dosyalar “{{folder}}” klasörüne gider",
+      "colFile": "Dosya",
+      "colWho": "Kim okur",
+      "colRead": "Son okuma",
+      "colChanged": "Değişti",
+      "indexFailed": "indeksleme hatası",
+      "indexing": "indeksleniyor {{p}}%",
+      "readsNow": "{{who}} okuyor",
+      "dropHint": ".md, PDF, DOCX, tablo veya görselleri buraya bırakın — ajanlar indekslendikten sonra kullanır",
+      "edit": "Düzenle",
+      "binMeta": "{{size}} · arama için {{n}} parçaya bölündü",
+      "whoCanRead": "Kimler erişebilir",
+      "all": "Tümü",
+      "allDepts": "tüm departmanlar",
+      "byAgent": "{{who}} yazdı",
+      "download": "İndir",
+      "renameBtn": "Yeniden adlandır",
+      "rename": "Yeni dosya adı",
+      "delete": "Sil",
+      "deleteConfirm": "“{{name}}” silinsin mi? Ajanlar artık okumayacak.",
+      "pickFile": "Soldan bir dosya seçin",
+      "accessHint": "tokenlar CRM bağlantılarında saklanır; ajan yalnızca departmanının erişebildiğini görür",
+      "scopeAllHint": "Şu an bu bağlayıcıyı kullanan tüm departmanlara açık — kısıtlamak için tıklayın",
+      "until": "{{date}} tarihine kadar",
+      "grantTitle": "Departmana erişim ver",
+      "byRequest": "İstek: {{title}}",
+      "service": "Servis",
+      "grantOthers": "E-posta, mesajlaşma, reklam ve diğer servisler Bağlantılar bölümünde bağlanır.",
+      "whichDepts": "Hangi departmanlar",
+      "saveAccess": "Erişimi kaydet"
+    },
+    "connect": {
+      "title": "Bağlantılar",
+      "sub": "Ajanların çalıştığı motor ve departmanların erişebildiği servisler. Tokenlar CRM bağlantılarında, erişim kapsamı Beyin → Erişimler’de.",
+      "engines": "Motorlar",
+      "works": "çalışıyor",
+      "spendMonth": "Bu ay harcama",
+      "noDeptsYet": "henüz departman yok",
+      "byokBilling": "Kullanımı anahtarın sağlayıcısı faturalar",
+      "byokHow": "Kendi OpenAI veya Anthropic anahtarınız talep üzerine bağlanır: Entegrasyon Merkezi’nde (OpenAI kartı) ekleyin, burada ve departman ayarlarında görünür.",
+      "openHub": "Entegrasyon Merkezi",
+      "connectedN": "{{count}} bağlı",
+      "attentionN": "{{count}} dikkat gerektiriyor",
+      "accessInBrain": "Beyin’deki erişimler",
+      "needsSettings": "bağlı — nereye yazılacağını seçin",
+      "instancesN": "{{count}} bağlantı",
+      "expired": "token süresi doldu — görevler bekliyor",
+      "settings": "Ayarla",
+      "connect": "Bağla",
+      "reconnect": "Yeniden bağla",
+      "byToken": "Token ile",
+      "appNotConfigured": "uygulama yapılandırılmadı",
+      "repo": "Depo",
+      "repoHint": "Departman ajanları burada issue açar ve yorum yazar.",
+      "notionPage": "Notion sayfası",
+      "notionPageHint": "Ajanlar yeni sayfaları bu sayfanın altında oluşturur. Notion’da sayfayı entegrasyonla paylaşın.",
+      "githubTokenHelp": "GitHub → Settings → Developer settings’te depoya erişimli fine-grained token oluşturun (Issues: read & write).",
+      "notionTokenHelp": "notion.so/my-integrations adresinde dahili entegrasyon oluşturun, tokenı kopyalayın ve sayfayı entegrasyonla paylaşın.",
+      "token": "Token, anahtar veya şifre",
+      "checking": "Kontrol ediliyor…",
+      "connected": "{{name}}: bağlandı",
+      "oauthFailed": "{{name}}: bağlanamadı — tekrar deneyin",
+      "foot": "CRM’in zaten bağlayabildiği servisler (e-posta, Telegram, WhatsApp, reklam, Slack, Jira vb.) kendi bölümlerinde bağlanır — departmanlar hemen kullanır."
+    },
+    "dept": {
+      "notFound": "Departman bulunamadı",
+      "toOffice": "Ofise",
+      "sub": "Ajan: {{count}} · {{engine}}. Departmanın şu an ne yaptığı, kararınızı bekleyenler ve teslim edilenler.",
+      "pauseHint": "Departmanı duraklat",
+      "working": "Çalışıyor",
+      "configure": "Ayarla",
+      "addDept": "Departman",
+      "resolved": "Çözüldü",
+      "live": "canlı",
+      "pausedShort": "duraklatıldı",
+      "kInWork": "İşte",
+      "kWaiting": "Sizi bekliyor",
+      "kDoneToday": "Bugün biten",
+      "kSpend": "Bu ay harcama · limit {{limit}}",
+      "mission": "Departman hedefi",
+      "noMission": "Hedef yok — ayarları açın.",
+      "staff": "Çalışanlar",
+      "agent": "Ajan",
+      "free": "Boşta — sıradaki görevi alır",
+      "today": "bugün",
+      "colDoing": "Yapılıyor",
+      "colWaiting": "Karar bekliyor",
+      "colDone": "Yapıldı",
+      "unassigned": "henüz atanmadı",
+      "cancel": "Kaldır",
+      "nothingDoing": "Şu an yapılan bir şey yok",
+      "blocked": "Bekliyor: departman veri veya erişim bekliyor",
+      "retry": "Tekrar dene",
+      "allApproved": "Hepsi onaylandı",
+      "rejectedByYou": "sizin tarafınızdan reddedildi",
+      "failed": "başarısız",
+      "journal": "İşlem günlüğü",
+      "realtime": "gerçek zamanlı",
+      "pausedJournal": "departman duraklatıldı",
+      "askTitle": "Departmana görev ver",
+      "askPh": "Ne yapılsın? Örneğin: bu haftanın lead’lerini analiz et ve 3 iyileştirme öner",
+      "askBtn": "Görev ver",
+      "askHint": "Departman yöneticisi yapacak kişiyi seçer. İlerleme, sorular ve sonuç görev kartında görünür.",
+      "planTitle": "Yöneticinin planı",
+      "planOnDemand": "Kendi görev planlamaz — verilen görevlerle çalışır",
+      "planNoGoal": "Yöneticinin kendisi planlaması için departman hedefi girin",
+      "planNext": "Sonraki planlama {{when}} sonra",
+      "planSoon": "İlk planlama bir dakika içinde",
+      "planLast": "Son kez: {{ago}} önce",
+      "planNever": "Henüz planlamadı",
+      "planNow": "Şimdi planla",
+      "planning": "Planlıyor…",
+      "planned": "Planlanan görev: {{count}}",
+      "plannedNone": "Yeni görev yok — mevcutlar yeterli veya yapılacak bir şey yok",
+      "review": "İncele",
+      "inMoment": "bir dakika",
+      "inHM": "{{h}} sa {{m}} dk",
+      "inM": "{{m}} dk"
+    },
+    "edit": {
+      "newTitle": "Yeni departman",
+      "editTitle": "Ayarlar · {{name}}",
+      "newSub": "Departmanın ne yaptığını tanımlayın, çalışan ekleyin, servisleri bağlayın ve yetki verin. Departman oluşturulur oluşturulmaz ofiste görünür.",
+      "editSub": "Promptlar, çalışanlar, bağlayıcılar ve yetkiler. Değişiklikler yeni görevlere uygulanır; süren görevler eski kurallarla biter.",
+      "defaultLead": "Yönetici",
+      "toDept": "Departmana",
+      "create": "Departman oluştur",
+      "nameRequired": "Departman adını girin",
+      "created": "Departman oluşturuldu — çalışanlar odaya giriyor",
+      "saved": "Kaydedildi. Yeni görevler yeni kurallarla ilerler",
+      "deleteConfirm": "“{{name}}” departmanı silinsin mi? Ajanları, görevleri ve Beyin klasörü silinecek.",
+      "delete": "Departmanı sil",
+      "deleteHint": "Departmanı silmek bir plan slotunu boşaltır.",
+      "sec": {
+        "safety": "Müşteri koruması",
+        "base": "Temel",
+        "prompt": "Hedef ve prompt",
+        "agents": "Çalışanlar",
+        "conns": "Bağlayıcılar",
+        "brain": "Bilgi",
+        "perms": "Yetkiler",
+        "auto": "Otomasyonlar",
+        "engine": "Motor ve bütçe"
+      },
+      "template": "Şablondan başla",
+      "emptyDept": "Boş departman",
+      "templateHint": "Hedefi, çalışanları, bağlayıcıları ve yetkileri doldurur — sonra değiştirebilirsiniz.",
+      "name": "Ad",
+      "namePh": "Örneğin Satış",
+      "color": "Oda rengi",
+      "ownColor": "Özel renk",
+      "colorHint": "Oda zemini, çalışan kıyafetleri ve ofis haritasındaki çizgiler.",
+      "mission": "Departman hedefi",
+      "missionPh": "Departman neyi başarmalı ve sonuç nasıl ölçülür",
+      "missionHint": "Departman yöneticisi görevleri bu hedeften planlar.",
+      "systemPrompt": "Departman sistem promptu",
+      "systemPromptPh": "Nasıl çalışılır: ton, adımların sırası, şirket için önemli olanlar…",
+      "systemPromptHint": "Tüm departman ajanları için ortaktır. Her ajanın kendi promptu buna eklenir.",
+      "rules": "Kurallar",
+      "newAgent": "Yeni ajan",
+      "lead": "Departman yöneticisi",
+      "prompt": "Prompt",
+      "removeAgent": "Kaldır",
+      "agentPromptPh": "“{{role}}” ne yapar, neye önem verir, neyi yapamaz",
+      "connectNew": "Yeni bağla",
+      "openBrain": "Beyin’i aç",
+      "afterCreate": "oluşturduktan sonra",
+      "noFiles": "Henüz dosya yok",
+      "dropFiles": ".md, PDF, DOCX, tabloları sürükleyin veya seçin — departman klasörüne gider",
+      "brainHint": "Bir ajanın bir şeyi eksikse bildirir — istek ofiste ve Beyin’de görünür.",
+      "permsHint": "ajanların kendi başına yapabilecekleri",
+      "levelUnavailable": "Bu kategori için henüz böyle işlem yok",
+      "budget": "Aylık harcama limiti · {{v}}",
+      "budgetHint": "Limit dolunca departman duraklar ve size yazar.",
+      "parallel": "Paralel görev",
+      "hours": "Çalışma saatleri",
+      "planEvery": "Hedeften her N saatte görev planla",
+      "timezone": "Saat dilimi",
+      "kpis": "Kart metrikleri",
+      "kpisHint": "Ofisteki departman kartında görünen iki metrik.",
+      "room": "Oda",
+      "preview": "önizleme",
+      "limit": "Limit",
+      "payment": "Ödeme",
+      "slotText": "Bu {{n}}. departman. {{plan}} planı {{included}} departman içerir, {{extra}} tanesi ek olarak ödendi.",
+      "officeFull": "Ofiste boş oda yok.",
+      "perMonth": "aylık · kartla",
+      "buySlot": "Slot öde",
+      "freeSlot": "boş ödenmiş slot var",
+      "planLink": "Plan ve tüm departmanlar",
+      "connWarn": "Bağlı değil",
+      "language": "Departman dili",
+      "languageHint": "Ajanlar görevleri, sonuçları, günlüğü ve müşteri mesajlarını bu dilde yazar."
+    },
+    "rules": {
+      "approve_sensitive": "Fiyat, indirim, ödeme ve sözleşmeler — yalnızca benim üzerimden",
+      "approve_sensitive_hint": "Departman kendisi gönderdiğinde bile bu mesajlar onayınızı bekler.",
+      "no_client_send_without_approval": "Onaysız müşteriye hiçbir şey gönderme",
+      "no_client_send_without_approval_hint": "Müşterilere e-posta ve mesajlar “Kendisi” seviyesinde bile onayınızı bekler.",
+      "respect_daily_budget": "Günlük limiti aşma",
+      "respect_daily_budget_hint": "Günlük limit = aylık / 30. Aşınca yarın devam eder.",
+      "write_brain_notes": "Bulguları Beyin’e yaz",
+      "write_brain_notes_hint": "Her görevin sonucu departman bulgu günlüğüne eklenir.",
+      "notify_slack_on_done": "Teslim edilen her görevi Slack’e yaz",
+      "notify_slack_on_done_hint": "Bağlı Slack gerekir.",
+      "no_pii_outside_crm": "Kişisel verileri CRM dışına çıkarma",
+      "no_pii_outside_crm_hint": "E-posta ve telefonlar Notion, Canva ve GitHub’a gitmez."
+    },
+    "perm": {
+      "crm": "Lead ve kişiler",
+      "crm_hint": "kayıtlar, notlar, durumlar, atama, talepler",
+      "finance": "Anlaşmalar ve ödemeler",
+      "finance_hint": "anlaşmalar, ödemeler, alacaklar; mutabakatla ödeme işareti",
+      "tasks": "Görevler ve projeler",
+      "tasks_hint": "görevler, toplantılar, projeler, tablolar, Jira, Slack",
+      "msg": "E-posta ve mesajlaşma",
+      "msg_hint": "taslaklar, müşterilere gönderim, talep yanıtları",
+      "ads": "Reklam ve analitik",
+      "ads_hint": "pazarlama verileri ve raporlar",
+      "content": "İçerik ve tasarım",
+      "content_hint": "Notion, Canva; Telegram kanal gönderileri",
+      "stock": "Stok ve rezervasyonlar",
+      "stock_hint": "stok ve rezervasyonlar; tedarikçi siparişleri, rezervasyon durumları",
+      "code": "Kod ve depolar",
+      "code_hint": "kod, PR ve CI; issue, yorum, inceleme"
+    },
+    "level": {
+      "off": "Yok",
+      "read": "Oku",
+      "draft": "Taslak",
+      "appr": "Onaylı",
+      "auto": "Kendisi",
+      "off_hint": "Erişim yok",
+      "read_hint": "Yalnızca veri okur",
+      "draft_hint": "Taslak hazırlar, hiçbir şey göndermez",
+      "appr_hint": "Her işlem onayınızı bekler",
+      "auto_hint": "Kendi başına yapar (kurallar dahilinde)"
+    },
+    "hours": {
+      "always": "7/24",
+      "weekdays": "Hafta içi 9–19",
+      "on_demand": "Talep üzerine",
+      "always_hint": "Departman gece gündüz çalışır.",
+      "weekdays_hint": "Mesai dışı görevler sabahı bekler (departman saat dilimine göre).",
+      "on_demand_hint": "Yalnızca sizden ve otomasyonlardan gelen görevler, kendi planlaması yok."
+    },
+    "auto": {
+      "builder": "Oluşturucu",
+      "afterCreate": "Önerilen otomasyonlar departman oluşturulduktan sonra görünür.",
+      "when": "Ne zaman",
+      "off": "kapalı",
+      "recommended": "önerilen",
+      "none": "Bu departman için henüz otomasyon yok — oluşturucuda “YZ departmanına görev” işlemiyle oluşturun.",
+      "added": "Otomasyon eklendi",
+      "createdFrom": "YZ departmanı ayarlarından oluşturuldu",
+      "qualifyTitle": "Yeni lead’i nitelendir: [[lead.name]]",
+      "qualifyDetails": "CRM’de yeni lead. 5 dakika içinde yanıt ver, Beyin’deki senaryoyla nitelendir ve bir yöneticiye aktar.",
+      "followupTitle": "Bekleyen lead’i takip et: [[lead.name]]",
+      "followupDetails": "Lead bir süredir hareketsiz. Kısa ve öz bir hatırlatma gönder, onay üzerinden.",
+      "paymentTitle": "Anlaşma ödemesini kontrol et",
+      "paymentDetails": "Anlaşmanın durumu değişti. Ödemeyi kontrol et, gecikme varsa kibar bir hatırlatma hazırla.",
+      "stockTitle": "Ürün azalıyor — yeniden sipariş hazırla",
+      "stockDetails": "Stok eşiğin altında. Satışları kontrol et ve yeniden sipariş görevi aç.",
+      "failedTitle": "“[[departmentName]]” hatasını incele",
+      "failedDetails": "“[[title]]” görevi başarısız: [[error]]. Nedenini bul ve çözüm öner.",
+      "sourceTitle": "Yeni lead’in kaynağını kontrol et",
+      "sourceDetails": "Yeni lead’in kaynağını ve UTM’ini reklam kampanyalarıyla karşılaştır.",
+      "helpTitle": "Yardım isteğini ele al: [[title]]",
+      "helpDetails": "Bir departmanın verisi veya erişimi eksik: [[detail]]. Sahibinden ne istenmesi gerektiğini hazırla.",
+      "contentTitle": "“[[title]]” görevinden içerik",
+      "contentDetails": "Başka bir departman teslim etti: [[summary]]. Bunun için gönderi veya materyal gerekip gerekmediğine karar ver."
+    },
+    "plan": {
+      "title": "Plan ve departmanlar",
+      "sub": "YZ departmanları {{plan}} ve üzeri planlarda. Plana {{included}} departman dahil, her ek departman ayda {{price}} €.",
+      "billing": "CRM planı",
+      "slots": "Departman slotları",
+      "usedOf": "{{total}} slotun {{used}} tanesi dolu",
+      "inPlan": "planda",
+      "paidSlot": "ödendi",
+      "unpaid": "ödenmedi",
+      "free": "Boş",
+      "afterPay": "ödemeden sonra",
+      "extraDepts": "Ek departmanlar",
+      "planLine": "{{plan}}, departman: {{count}}",
+      "extraLine": "Ek departmanlar · {{n}} × {{price}} €",
+      "total": "YZ departmanları toplamı",
+      "mo": "ay",
+      "rate": "Bugünkü kur: 1 € = {{rate}} {{sign}}",
+      "activeUntil": "Ödenmiş ek slot: {{n}}, {{date}} tarihine kadar.",
+      "redirecting": "Ödemeye yönlendiriliyor…",
+      "nothingToPay": "Ek slot gerekmiyor",
+      "renew": "Bir ay uzat · {{amount}} €",
+      "payN": "Slot öde: {{count}} · {{amount}} €",
+      "note": "Bir aylık kartla ödeme, elle yenileme — CRM planı gibi. Ruble ve lira ödeme günündeki kurla.",
+      "proPrice": "YZ çalışanlar",
+      "includedN": "Dahil departman: {{count}}",
+      "perMonth": "{{price}} € / ay",
+      "yourPlan": "planınız",
+      "extraCard": "Ek departman",
+      "proF1": "Tek tek YZ çalışanlar",
+      "proF2": "Departman ve ofis yok",
+      "proF3": "Yetkiler ve onaylar",
+      "entF1": "Planda 3 departman",
+      "entF2": "Departman başına 8 ajana kadar",
+      "entF3": "Ofis, Beyin, işlem günlüğü",
+      "entF4": "Lumiva AI anahtarı veya kendi anahtarınız",
+      "ultF1": "Planda 5 departman",
+      "extraF1": "Ofiste bir oda daha",
+      "extraF2": "Kendi promptları, yetkileri, bütçesi",
+      "extraF3": "Bir dakikada kurulur",
+      "extraF4": "Aylık kartla ödeme",
+      "deptsInSub": "Abonelikteki departmanlar",
+      "agentsCol": "Ajan",
+      "engineCol": "Motor",
+      "spendCol": "Bu ay YZ harcaması",
+      "slotCol": "Slot",
+      "byokSpend": "kendi anahtarınızla",
+      "noDepts": "Henüz departman yok",
+      "foot": "Lumiva AI kullanımı şirketin YZ kotasından düşülür ve departman bazında görünür. Kendi anahtarınızın kullanımını sağlayıcı doğrudan faturalar.",
+      "paid": "Ödeme alındı — slotlar eklendi",
+      "notPaid": "Ödeme onaylanmadı. Ücret çekildiyse destekle iletişime geçin."
+    },
+    "lang": {
+      "ru": "Русский",
+      "en": "English",
+      "tr": "Türkçe"
+    },
+    "taskStatus": {
+      "foreign": "başka departman",
+      "backlog": "sırada",
+      "progress": "işte",
+      "waiting": "sizi bekliyor",
+      "blocked": "bekliyor",
+      "done": "bitti",
+      "rejected": "reddedildi",
+      "failed": "başarısız"
+    },
+    "actStatus": {
+      "pending": "onay bekliyor",
+      "executed": "yapıldı",
+      "rejected": "reddedildi",
+      "failed": "hata",
+      "approved": "onaylandı"
+    },
+    "actType": {
+      "handoff_to_colleague": "Meslektaşa devir",
+      "workspace_add_field": "Tabloya yeni alan",
+      "workspace_bulk_add_records": "Tabloya kayıtlar",
+      "workspace_enable_views": "Tablo görünümleri",
+      "send_payment_link": "Müşteriye ödeme bağlantısı",
+      "ads_campaign_control": "Reklam hesabında değişiklik",
+      "create_quote": "Fiyat teklifi",
+      "create_task": "Görev",
+      "update_task": "Görev güncelleme",
+      "create_note": "Not",
+      "add_comment": "Yorum",
+      "assign_lead": "Lead ataması",
+      "assign_self": "Üstlen",
+      "update_lead_status": "Lead durumu",
+      "send_email": "Müşteriye e-posta",
+      "draft_email": "E-posta taslağı",
+      "send_bulk_email": "Toplu e-posta",
+      "send_telegram": "Telegram mesajı",
+      "send_whatsapp": "WhatsApp mesajı",
+      "draft_whatsapp": "WhatsApp taslağı",
+      "create_meeting": "Toplantı",
+      "create_report": "Rapor",
+      "create_project": "Proje",
+      "escalate_to_human": "İnsan çağır",
+      "office_handoff": "Başka departmana devir",
+      "office_request_help": "Yardım isteği",
+      "brain_write": "Beyin kaydı",
+      "notion_create_page": "Notion sayfası",
+      "notion_append": "Notion ekleme",
+      "canva_create_design": "Canva tasarımı",
+      "github_create_issue": "GitHub issue",
+      "github_comment": "GitHub yorumu",
+      "create_workspace_table": "Tablo",
+      "workspace_add_record": "Tablo satırı",
+      "workspace_update_record": "Satır güncelleme",
+      "stock_purchase_order": "Tedarikçiye sipariş",
+      "github_review": "Pull request incelemesi",
+      "helpdesk_reply": "Talep yanıtı",
+      "helpdesk_update": "Talep güncellemesi",
+      "send_booking_message": "Misafire rezervasyon e-postası",
+      "booking_update": "Rezervasyon değişikliği",
+      "publish_telegram_post": "Telegram kanal gönderisi",
+      "jira_create_issue": "Jira görevi",
+      "slack_post": "Slack mesajı",
+      "sale_confirm_payment": "Satışı ödendi olarak işaretle",
+      "content_plan": "İçerik planı (otomatik paylaşım)"
+    },
+    "field": {
+      "to": "Kime",
+      "subject": "Konu",
+      "textBody": "E-posta metni",
+      "bodyText": "Metin",
+      "text": "Metin",
+      "title": "Başlık",
+      "description": "Açıklama",
+      "content": "İçerik",
+      "contentMd": "İçerik",
+      "body": "Metin",
+      "status": "Durum",
+      "dueDate": "Bitiş",
+      "priority": "Öncelik",
+      "startsAt": "Başlangıç",
+      "labels": "Etiketler"
+    },
+    "drawer": {
+      "preview": "Müşteri nasıl görecek",
+      "sendNow": "Gönder",
+      "sendConfirmTitle": "Müşteriye gönderilsin mi?",
+      "sendConfirmText": "Mesaj gerçekten gönderilecek: {{to}}",
+      "sentOk": "Gönderildi",
+      "sentByYou": "✉️ Bu taslağı müşteriye gönderdiniz",
+      "willSend": "⚠ Bu gerçek bir gönderim: onaydan sonra mesaj alıcılara gider",
+      "upTo": "(en fazla {{n}} alıcı)",
+      "sentResult": "✉️ Gönderildi: {{sent}} / {{total}}",
+      "notDelivered": "teslim edilemedi: {{n}}",
+      "report": "Rapor",
+      "copy": "Kopyala",
+      "copied": "Rapor kopyalandı",
+      "data": "Kullanılan veriler",
+      "dataSales": "CRM satışları",
+      "dataAds": "Reklam",
+      "foreign": "Bu görev başka bir departmana ait",
+      "assigned": "Verilen görev",
+      "waitingYou": "Kararınızı bekliyor: {{count}}",
+      "waitingHint": "Tam olarak neyin gideceğini kontrol edin. Onaylamadan önce metni düzenleyebilirsiniz — ajanlar ret nedenini hatırlar.",
+      "approveAll": "Onayla ve yap",
+      "rejectAll": "Reddet",
+      "rejectTitle": "Reddet",
+      "rejectLabel": "Neden? Ajanlar sonraki görevlerde dikkate alır",
+      "rejectPh": "Örneğin: indirim vaat etme, önce bütçeyi sor",
+      "rejectReason": "Ret nedeni",
+      "result": "Sonuç",
+      "actions": "Yapılanlar",
+      "timeline": "İlerleme",
+      "noSteps": "Henüz adım yok — görev sırada",
+      "openResult": "Aç",
+      "saveEdits": "Düzenlemeyi kaydet",
+      "editSaved": "Düzenleme kaydedildi — göndermek için onaylayın"
+    },
+    "life": {
+      "waitingYou": "Kararınızı bekliyorum",
+      "leadIdle": "Sırayı izliyorum",
+      "idle": "Boştayım",
+      "ready": "Görev almaya hazırım"
+    },
+    "impact": {
+      "title": "Departmanın faydası",
+      "realOnly": "yalnızca gerçekten yapılanlar",
+      "days": "{{n}} gün",
+      "leads": "İşlenen lead",
+      "firstResponse": "Yeni lead’lere ilk yanıt",
+      "lt1min": "< 1 dk",
+      "minutes": "{{n}} dk",
+      "firstResponseSub": "medyan · {{total}} lead’in {{answered}} tanesine yanıt, 5 dk içinde — {{within5}}",
+      "noNewLeads": "yeni lead yoktu",
+      "messages": "Müşterilere mesaj",
+      "bulk": "ve toplu e-posta: {{n}}",
+      "meetings": "Ayarlanan toplantı",
+      "won": "Kazanılan anlaşma",
+      "wonSub": "departmanın yürüttüğü lead’ler arasında",
+      "managerTasks": "Yöneticilere görev",
+      "docs": "Rapor ve belge",
+      "tasksDone": "Teslim edilen görev",
+      "failed": "başarısız: {{n}}",
+      "saved": "Tasarruf edilen iş",
+      "hours": "≈ {{n}} sa",
+      "how": "nasıl hesaplıyoruz",
+      "cost": "YZ iş maliyeti",
+      "perHour": "≈ saatlik iş {{v}}",
+      "formula": "Tahmin: tamamlanan işlemler × bir insanın bu işlem için tipik süresi —",
+      "min": "dk"
+    },
+    "scen": {
+      "title": "Otomatik çalışır",
+      "add": "+ Senaryo",
+      "runs": "{{n}} kez çalıştı",
+      "edit": "Düzenle",
+      "on": "Aç",
+      "off": "Kapat",
+      "none": "Senaryo yok — departman yalnızca verilen görevlerle ve kendi planıyla çalışır."
+    },
+    "posts": {
+      "title": "Gönderiler",
+      "none": "Henüz planlanmış gönderi yok",
+      "off": "Otomatik paylaşım kapalı — planlanan gönderiler yayınlanmaz (departman ayarları → Koruma’dan açın).",
+      "cancel": "İptal et",
+      "cancelConfirm": "Gönderi yayınlanmayacak.",
+      "open": "Aç",
+      "item": "Gönderi {{n}}",
+      "st": {
+        "scheduled": "planlandı",
+        "published": "yayınlandı",
+        "failed": "hata",
+        "cancelled": "iptal",
+        "expired": "süresi geçti"
+      }
+    }
   }
 }

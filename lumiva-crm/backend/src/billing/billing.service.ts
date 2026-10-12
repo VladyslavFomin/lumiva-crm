@@ -10,6 +10,7 @@ import { PaymentProviderResolverService } from './providers/payment-provider-res
 import { YookassaBillingProvider } from './providers/yookassa-billing.provider';
 import { IyzicoBillingProvider } from './providers/iyzico-billing.provider';
 import { BillingAlertsService } from './billing-alerts.service';
+import { CurrencyRatesService } from '../currency/currency-rates.service';
 
 type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
 type BillingPeriod = 'month' | 'year';
@@ -42,6 +43,7 @@ export class BillingService {
     private readonly yookassaProvider: YookassaBillingProvider,
     private readonly iyzicoProvider: IyzicoBillingProvider,
     private readonly billingAlerts: BillingAlertsService,
+    private readonly currencyRates: CurrencyRatesService,
   ) {}
 
   private getStripeClient(secretKey: string) {
@@ -95,8 +97,10 @@ export class BillingService {
   /** Тонкий Stripe-адаптер над провайдер-независимым ядром активации тарифа (см.
    * providers/tenant-plan-activation.service.ts) — раньше вся эта логика жила прямо здесь. */
   private async applyPaidSession(session: Stripe.Checkout.Session): Promise<{ applied: boolean }> {
+    // любая покупка с purchaseType — не тариф (раньше telephony_addon проходил сюда и ставил
+    // тенанту plan='standard' по умолчанию из metadata.plan)
     const pt = session.metadata?.purchaseType;
-    if (pt === 'ai_prepaid' || pt === 'storage_pack') return { applied: false };
+    if (pt) return { applied: false };
 
     const tenantId = session.metadata?.tenantId;
     const plan = (session.metadata?.plan || 'standard') as PlanCode;
@@ -116,6 +120,9 @@ export class BillingService {
     const meta = session.metadata || {};
     const purchaseType = meta.purchaseType;
     const tenantId = meta.tenantId;
+    if (tenantId && purchaseType === 'ai_office_slots') {
+      return this.planActivation.activateAiOfficeSlots({ tenantId, extraSlots: Number(meta.extraSlots) || 0, provider: 'stripe', externalRef: session.id });
+    }
     if (
       !tenantId ||
       (purchaseType !== 'ai_prepaid' && purchaseType !== 'storage_pack' && purchaseType !== 'telephony_addon')
@@ -336,7 +343,7 @@ export class BillingService {
     await this.yookassaProvider.verifyAndActivate(paymentId);
   }
 
-  async handleIyzicoCallback(token: string): Promise<{ status: 'paid' | 'failed' }> {
+  async handleIyzicoCallback(token: string): Promise<{ status: 'paid' | 'failed'; purchaseType?: string | null }> {
     return this.iyzicoProvider.handleCallback(token);
   }
 
@@ -577,6 +584,62 @@ export class BillingService {
       customer: customerId,
     });
     return { id: session.id, url: session.url };
+  }
+
+  /**
+   * Доп. слоты ИИ-отделов: extraSlots × 200 € за месяц (ручное продление, как тариф). Провайдер —
+   * тот же, что закреплён за тенантом для тарифа; RUB/TRY — по курсу на день оплаты.
+   */
+  async createAiOfficeSlotsCheckout(input: {
+    tenantId?: string | null;
+    extraSlots: number;
+    successUrl: string;
+    cancelUrl: string;
+    ip?: string;
+  }): Promise<{ id: string; url: string | null; provider: BillingProviderCode; ref?: string }> {
+    const tenant = await this.getTenantOrFail(input.tenantId);
+    const plan = normalizeTenantPlan(tenant.plan);
+    if (plan !== 'enterprise' && plan !== 'ultimate') {
+      throw new BadRequestException({ code: 'AI_OFFICE_PLAN', message: 'AI departments are available on Enterprise and Ultimate plans' });
+    }
+    const included = plan === 'ultimate' ? 5 : 3;
+    const n = Math.round(Number(input.extraSlots));
+    if (!Number.isFinite(n) || n < 1 || n > 8 - included) throw new BadRequestException(`extraSlots must be 1..${8 - included}`);
+    const eur = n * 200;
+    const lineName = `AI departments · +${n} × 200 € · 1 month`;
+    const provider = await this.providerResolver.resolveForTenant(tenant);
+    const purchase = { type: 'ai_office_slots' as const, extraSlots: n };
+
+    if (provider === 'yookassa' || provider === 'iyzico') {
+      const rates = await this.currencyRates.getRates();
+      if (provider === 'yookassa') {
+        const rate = Number(rates.RUB);
+        if (!rate) throw new BadRequestException('RUB rate is unavailable, try again later');
+        const r = await this.yookassaProvider.createCheckout({ tenant, plan: 'enterprise', period: 'month', amountRub: Math.ceil(eur * rate), lineName, returnUrl: input.successUrl, purchase });
+        return { id: r.ref, url: r.url, provider: 'yookassa', ref: r.ref };
+      }
+      const rate = Number(rates.TRY);
+      if (!rate) throw new BadRequestException('TRY rate is unavailable, try again later');
+      const r = await this.iyzicoProvider.createCheckout({
+        tenant, plan: 'enterprise', period: 'month', amountTry: Math.ceil(eur * rate), lineName, ip: input.ip || '0.0.0.0', locale: tenant.uiLanguage === 'tr' ? 'tr' : 'en', purchase,
+      });
+      return { id: '', url: r.url, provider: 'iyzico' };
+    }
+
+    const cfg = await this.settings.getSettings();
+    const secretKey = cfg?.stripeSecretKey?.trim() || process.env.STRIPE_SECRET_KEY?.trim();
+    if (!secretKey) throw new BadRequestException('Stripe is not configured');
+    const stripe = this.getStripeClient(secretKey);
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{ quantity: n, price_data: { currency: 'eur', unit_amount: 20000, product_data: { name: 'AI department slot · 1 month' } } }],
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      metadata: { tenantId: tenant.id, purchaseType: 'ai_office_slots', extraSlots: String(n) },
+      payment_intent_data: { metadata: { tenantId: tenant.id } },
+      customer: await this.getOrCreateStripeCustomerId(tenant, stripe),
+    });
+    return { id: session.id, url: session.url, provider: 'stripe' };
   }
 
   /** Сессия Stripe Customer Portal — просмотр/смена/удаление способов оплаты, история счетов. */

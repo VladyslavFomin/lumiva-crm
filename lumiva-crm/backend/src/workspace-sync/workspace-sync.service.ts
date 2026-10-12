@@ -609,9 +609,9 @@ export class WorkspaceSyncService {
     return `${names[Number(m) - 1] || m} ${y}`;
   }
 
-  monthlyBreakdownColumns(months: string[], groupBy: 'dataSource' | 'market') {
+  monthlyBreakdownColumns(months: string[], groupBy: 'dataSource' | 'market' | 'client') {
     return [
-      { key: 'account', label: groupBy === 'market' ? 'Страна / рынок' : 'Источник / аккаунт', type: 'text' as CustomObjectFieldType, order: 0 },
+      { key: 'account', label: groupBy === 'market' ? 'Страна / рынок' : groupBy === 'client' ? 'Клиент' : 'Источник / аккаунт', type: 'text' as CustomObjectFieldType, order: 0 },
       ...months.map((mo, i) => ({ key: this.monthFieldKey(mo), label: this.monthLabelRu(mo), type: 'number' as CustomObjectFieldType, order: i + 1 })),
       { key: 'total_cost', label: 'Итого', type: 'number' as CustomObjectFieldType, order: months.length + 1 },
       { key: 'currency', label: 'Валюта', type: 'text' as CustomObjectFieldType, order: months.length + 2 },
@@ -658,7 +658,9 @@ export class WorkspaceSyncService {
       };
     }
 
-    const groupBy: 'dataSource' | 'market' = String(args.groupBy || '').trim().toLowerCase() === 'market' ? 'market' : 'dataSource';
+    const gRaw = String(args.groupBy || '').trim().toLowerCase();
+    const groupBy: 'dataSource' | 'market' | 'client' = gRaw === 'market' ? 'market' : gRaw === 'client' ? 'client' : 'dataSource';
+    if (groupBy === 'client') return this.buildClientMonthlyData(tenantId, args, { from, to, dataSourceFilter });
     const { months, rows } = await this.marketing.getTrafficMonthlyBreakdown(tenantId, from, to, dataSourceFilter, marketCode, groupBy);
 
     const dRaw = args.displayCurrency ? String(args.displayCurrency).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) : '';
@@ -698,6 +700,64 @@ export class WorkspaceSyncService {
       };
     }
     return { ok: true as const, from, to, dataSourceFilter, marketCode, groupBy, months, convertedRows: paidRows, fx, fxError, displayOpt };
+  }
+
+  /**
+   * «Расходы по месяцам» по клиентам: клиент → кабинеты из привязок «ROI по клиентам», суммы
+   * считает MarketingRoiService.getAdsReport (тот же расчёт, что в отчётах ИИ). Без периода —
+   * последние 12 месяцев (у отчёта нужен явный период).
+   */
+  private async buildClientMonthlyData(
+    tenantId: string,
+    args: Record<string, unknown>,
+    p: { from?: string; to?: string; dataSourceFilter?: string },
+  ) {
+    const today = new Date();
+    const from = p.from || new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 11, 1)).toISOString().slice(0, 10);
+    const to = p.to || today.toISOString().slice(0, 10);
+    const clients = Array.isArray(args.clients) ? (args.clients as unknown[]).map(String) : [];
+    const dRaw = args.displayCurrency ? String(args.displayCurrency).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) : '';
+    const displayOpt = /^[A-Z]{3}$/.test(dRaw) ? dRaw : null;
+    const report = await this.roi.getAdsReport(tenantId, {
+      from,
+      to,
+      platform: p.dataSourceFilter ?? null,
+      groupBy: 'client',
+      clients,
+      displayCurrency: displayOpt,
+    });
+    if (!report.ok) return { ok: false as const, payload: report as unknown as Record<string, unknown> };
+    const rows = report.rows
+      .filter((r) => r.total.cost > 0)
+      .map((r) => ({
+        dataSource: r.group,
+        label: r.group,
+        currency: r.currency,
+        totalCost: r.total.cost,
+        monthly: Object.fromEntries(Object.entries(r.months).map(([m, v]) => [m, v.cost])),
+      }));
+    if (!report.months.length || !rows.length) {
+      return {
+        ok: false as const,
+        payload: { ok: false, error: 'no_marketing_traffic_rows', hint: 'За период нет рекламных расходов у выбранных клиентов.', period: { from, to }, unmatchedClients: report.unmatchedClients } as Record<string, unknown>,
+      };
+    }
+    return {
+      ok: true as const,
+      from: p.from,
+      to: p.to,
+      dataSourceFilter: p.dataSourceFilter,
+      marketCode: undefined,
+      groupBy: 'client' as const,
+      months: report.months,
+      convertedRows: rows,
+      fx: report.fx ? { multiplyToDisplay: {}, ...report.fx } : null,
+      fxError: null as string | null,
+      displayOpt,
+      clients,
+      unmatchedClients: report.unmatchedClients,
+      notIncluded: report.notIncluded,
+    };
   }
 
   private async runMonthly(tenantId: string, objectId: string, source: SyncSource): Promise<RefreshOutcome> {

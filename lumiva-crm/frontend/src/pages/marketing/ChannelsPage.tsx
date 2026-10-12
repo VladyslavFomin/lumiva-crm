@@ -197,13 +197,13 @@ export const ChannelsPage: React.FC = () => {
     return sum;
   }, [providerBreakdown, curPrefs]);
 
-  const spendSummary = useMemo(() => {
+  /** Расход по валютам (native) или одной суммой в валюте отчёта (converted). */
+  const spendParts = useMemo(() => {
     if (totalCost <= 0) return null;
     if (curPrefs.currencyMode === 'native') {
       return providerBreakdown
         .filter((p) => p.cost > 0)
-        .map((p) => `${formatMoney(p.cost)} ${p.currency}`)
-        .join(' · ');
+        .map((p) => ({ v: p.cost, c: p.currency, miss: false }));
     }
     let sum = 0;
     let miss = false;
@@ -218,8 +218,16 @@ export const ChannelsPage: React.FC = () => {
       if (c.missingRate) miss = true;
       sum += c.value;
     }
-    return `${formatMoney(sum)} ${curPrefs.displayCurrency}${miss ? '*' : ''}`;
-  }, [totalCost, providerBreakdown, curPrefs, formatMoney]);
+    return [{ v: sum, c: curPrefs.displayCurrency, miss }];
+  }, [totalCost, providerBreakdown, curPrefs]);
+
+  const spendSummary = useMemo(
+    () =>
+      spendParts
+        ? spendParts.map((p) => `${formatMoney(p.v)} ${p.c}${p.miss ? '*' : ''}`).join(' · ')
+        : null,
+    [spendParts, formatMoney],
+  );
 
   const { topSources, topMediums, topCampaigns } = useMemo(() => {
     const srcMap = new Map<string, number>();
@@ -258,6 +266,10 @@ export const ChannelsPage: React.FC = () => {
   const LINE = '#e7e7e7';
   const FG3 = '#888';
   const BG = '#fafafa';
+
+  /** Один кегль на все KPI: тянется с шириной экрана, чтобы суммы с копейками влезали в узкую ячейку. */
+  const kpiValue = `${marketingKpiValue} !text-[clamp(18px,1.25vw,24px)] leading-[1.15]`;
+  const kpiCur = 'ml-1 text-[11px] font-medium text-[#888] tracking-normal';
 
   const btnIconStyle: React.CSSProperties = {
     display: 'inline-flex',
@@ -318,14 +330,15 @@ export const ChannelsPage: React.FC = () => {
           <select
             value={dataSource}
             onChange={(e) => setDataSource(e.target.value)}
-            style={{ fontSize: 12, border: `1px solid ${LINE}`, borderRadius: 8, padding: '7px 10px', background: '#fff', color: INK, fontFamily: 'inherit', cursor: 'pointer' }}
+            className="max-sm:flex-1 max-sm:min-w-0"
+            style={{ maxWidth: '100%', fontSize: 12, border: `1px solid ${LINE}`, borderRadius: 8, padding: '7px 10px', background: '#fff', color: INK, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             <option value="">{t('crm.marketingTraffic.dataSourceAll')}</option>
             {dataSourceOptions.map((ds) => (
               <option key={ds} value={ds}>{marketingDataSourceLabel(t, ds, view.dataSourceLabels)}</option>
             ))}
           </select>
-          <div style={{ flex: 1 }} />
+          <div className="hidden sm:block" style={{ flex: 1 }} />
           {!loading && (
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, letterSpacing: '0.04em' }}>
               {dataSourceOptions.length} {t('crm.marketingChannels.channelsCount', { defaultValue: 'КАНАЛА' })}
@@ -352,44 +365,57 @@ export const ChannelsPage: React.FC = () => {
             />
 
             {/* ── KPI strip (6-col hairline) ──────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', border: `1px solid ${LINE}`, borderRadius: 12, background: '#fff', overflow: 'hidden' }}
-              className="[&>*:nth-child(6n)]:border-r-0 max-xl:[grid-template-columns:repeat(3,1fr)] max-sm:[grid-template-columns:repeat(2,1fr)]"
+            {/* Рамки — через gap-px на фоне цвета линии: колонки 2 → 3 → 6 без ручной чистки бордеров. */}
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-6 gap-px overflow-hidden rounded-xl"
+              style={{ border: `1px solid ${LINE}`, background: LINE }}
             >
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}</div>
-                <div className={marketingKpiValue}>{formatNumber(totalImpressions)}</div>
+                <div className={kpiValue}>{formatNumber(totalImpressions)}</div>
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' })}</div>
-                <div className={marketingKpiValue}>{formatNumber(view.totalSessions || 0)}</div>
+                <div className={kpiValue}>{formatNumber(view.totalSessions || 0)}</div>
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' })}</div>
-                <div className={`${marketingKpiValue} text-[#5a45a8]`}>{formatNumber(totalClicks)}</div>
+                <div className={`${kpiValue} text-[#5a45a8]`}>{formatNumber(totalClicks)}</div>
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.leads')}</div>
-                <div className={`${marketingKpiValue} text-[#c08319]`}>{formatNumber(view.totalLeads || 0)}</div>
+                <div className={`${kpiValue} text-[#c08319]`}>{formatNumber(view.totalLeads || 0)}</div>
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingTraffic.spendLabel', { defaultValue: 'Расходы' })}</div>
-                <div className={marketingKpiValue}>
-                  {spendSummary ? spendSummary : '—'}
+                <div className={kpiValue}>
+                  {spendParts
+                    ? spendParts.map((p) => (
+                        <span key={p.c} className="block">
+                          <span className="whitespace-nowrap">{formatMoney(p.v)}</span>
+                          <span className={kpiCur}>
+                            {p.c}
+                            {p.miss ? '*' : ''}
+                          </span>
+                        </span>
+                      ))
+                    : '—'}
                 </div>
               </div>
-              <div className={marketingKpiCell} style={{ borderRight: 0 }}>
+              <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.revenue')}</div>
-                <div className={`${marketingKpiValue} !text-[16px] text-[#1f8a5e] leading-snug`}>
+                <div className={`${kpiValue} text-[#1f8a5e]`}>
                   {kpiRevenue.kind === 'split' ? (
                     kpiRevenue.parts.map((p) => (
                       <span key={p.c} className="block">
-                        {formatMoney(p.v)} <span style={{ fontSize: 11, color: FG3, fontWeight: 500 }}>{p.c}</span>
+                        <span className="whitespace-nowrap">{formatMoney(p.v)}</span>
+                        <span className={kpiCur}>{p.c}</span>
                       </span>
                     ))
                   ) : (
                     <>
-                      {formatMoney(kpiRevenue.sum)}
-                      <span style={{ fontSize: 11, color: FG3, fontWeight: 500, marginLeft: 4 }}>
+                      <span className="whitespace-nowrap">{formatMoney(kpiRevenue.sum)}</span>
+                      <span className={kpiCur}>
                         {kpiRevenue.cur}
                         {kpiRevenue.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}
                       </span>
@@ -436,21 +462,29 @@ export const ChannelsPage: React.FC = () => {
             </div>
 
             <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: `1px solid ${LINE}` }}>
+              <div
+                className="flex flex-col gap-1.5 px-3.5 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:px-[18px] sm:py-4"
+                style={{ borderBottom: `1px solid ${LINE}` }}
+              >
                 <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: INK }}>
                   {t('crm.marketingTraffic.summaryStripTitle', { defaultValue: 'Разбивка по источникам данных' })}
                 </div>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, letterSpacing: '0.04em' }}>
-                  {t('crm.marketingTraffic.rawRowsLabel', { defaultValue: 'Строк' })}:{' '}
-                  <span style={{ color: INK, fontWeight: 600 }}>{formatNumber(totalRows)}</span>
+                <div
+                  className="flex flex-wrap gap-x-3 gap-y-0.5"
+                  style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, letterSpacing: '0.04em' }}
+                >
+                  <span>
+                    {t('crm.marketingTraffic.rawRowsLabel', { defaultValue: 'Строк' })}:{' '}
+                    <span style={{ color: INK, fontWeight: 600 }}>{formatNumber(totalRows)}</span>
+                  </span>
                   {totalImpressions > 0 && (
-                    <span style={{ marginLeft: 12 }}>
+                    <span>
                       {t('crm.marketingTraffic.impressionsLabel', { defaultValue: 'Показы' })}:{' '}
                       <span style={{ color: INK, fontWeight: 600 }}>{formatNumber(totalImpressions)}</span>
                     </span>
                   )}
                   {spendSummary && (
-                    <span style={{ marginLeft: 12 }}>
+                    <span>
                       {t('crm.marketingTraffic.spendLabel', { defaultValue: 'Расход' })}:{' '}
                       <span style={{ color: INK, fontWeight: 600 }}>{spendSummary}</span>
                     </span>
@@ -480,9 +514,9 @@ export const ChannelsPage: React.FC = () => {
                 <div className={`${marketingSectionTitle} mb-3`}>{t('crm.marketingChannels.topSources')}</div>
                 <div className="space-y-2 text-[11px]">
                   {topSources.map(([name, value]) => (
-                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
-                      <span style={{ color: INK }}>{labelSanitizedDimension(t, name, 'source')}</span>
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: INK }}>{formatNumber(value)}</span>
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
+                      <span style={{ color: INK, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelSanitizedDimension(t, name, 'source')}</span>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: INK, flexShrink: 0 }}>{formatNumber(value)}</span>
                     </div>
                   ))}
                   {topSources.length === 0 && <div style={{ color: FG3 }}>{t('crm.marketingChannels.common.noData')}</div>}
@@ -493,9 +527,9 @@ export const ChannelsPage: React.FC = () => {
                 <div className={`${marketingSectionTitle} mb-3`}>{t('crm.marketingChannels.topMediums')}</div>
                 <div className="space-y-2 text-[11px]">
                   {topMediums.map(([name, value]) => (
-                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
-                      <span style={{ color: INK }}>{labelSanitizedDimension(t, name, 'medium')}</span>
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: INK }}>{formatNumber(value)}</span>
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
+                      <span style={{ color: INK, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelSanitizedDimension(t, name, 'medium')}</span>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: INK, flexShrink: 0 }}>{formatNumber(value)}</span>
                     </div>
                   ))}
                   {topMediums.length === 0 && <div style={{ color: FG3 }}>{t('crm.marketingChannels.common.noData')}</div>}

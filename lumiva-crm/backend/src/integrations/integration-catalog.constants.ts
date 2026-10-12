@@ -33,6 +33,10 @@ export const THIRD_PARTY_CATALOG_IDS = [
   'paytr',
   /** ЮKassa — приём онлайн-платежей (Россия) */
   'yookassa',
+  /** ИИ-офис: коннекторы отделов (OAuth — ai-office-oauth.service.ts; Notion/GitHub — ещё и по токену) */
+  'notion',
+  'canva',
+  'github',
 ] as const;
 
 export type ThirdPartyCatalogId = (typeof THIRD_PARTY_CATALOG_IDS)[number];
@@ -58,6 +62,9 @@ export const CATALOG_ID_TO_ENV_SUFFIX: Record<string, string> = {
   openai: 'OPENAI',
   wordpress_cf7: 'WORDPRESS_CF7',
   google_sheets: 'GOOGLE_SHEETS',
+  notion: 'NOTION',
+  canva: 'CANVA',
+  github: 'GITHUB',
   lumiva_client_cabinet: 'LUMIVA_CLIENT_CABINET',
   lumiva_online_chat: 'LUMIVA_ONLINE_CHAT',
   iyzico: 'IYZICO',

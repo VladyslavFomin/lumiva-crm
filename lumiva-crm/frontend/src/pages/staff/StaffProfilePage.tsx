@@ -24,6 +24,7 @@ import { getStoredUser } from '../../auth/session';
 import { adminProvisionUser } from '../../api/users';
 import { getLocale } from '../../i18n/utils';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+import { usePermission } from '../../hooks/usePermission';
 
 type TabId = 'overview' | 'leads' | 'projects' | 'tasks';
 
@@ -63,6 +64,13 @@ export const StaffProfilePage: React.FC = () => {
 
   const currentUser = getStoredUser();
   const isOwner = currentUser?.role === 'owner';
+  // Владелец или право «Сотрудники»; не-владелец не трогает владельца и не меняет себе
+  // роль/статус (то же на бэкенде — backend/src/staff/staff-manage-access.ts).
+  const canManage = usePermission('staff');
+  const isSelf =
+    !!staff && !!currentUser?.email && (staff.email || '').toLowerCase() === String(currentUser.email).toLowerCase();
+  const canEditStaff = !!staff && (isOwner || (canManage && staff.role !== 'owner'));
+  const canEditAccess = canEditStaff && (isOwner || !isSelf);
   const locale = getLocale();
   const roleLabels = useMemo(
     () => ({
@@ -220,8 +228,6 @@ export const StaffProfilePage: React.FC = () => {
     );
   }
 
-  const isSelf =
-    !!(currentUser && staff && currentUser.email === staff.email);
 
   // ====== Смена роли ======
   const handleChangeRole = async (newRole: StaffRole) => {
@@ -289,7 +295,7 @@ export const StaffProfilePage: React.FC = () => {
   };
 
   const handleDeleteStaff = async () => {
-  if (!staff || !isOwner) return;
+  if (!staff || !canEditAccess) return;
   const ok = await showConfirm(t('crm.staff.profile.deleteConfirm'), {
     title: 'Удаление',
     confirmLabel: 'Удалить',
@@ -517,14 +523,14 @@ export const StaffProfilePage: React.FC = () => {
                       {t('crm.staff.profile.roleAndDepartment')}
                     </div>
                     <div className="mb-3">
-                      {isOwner ? (
+                      {canEditAccess ? (
                         <select
                           value={staff.role}
                           disabled={savingRole}
                           onChange={(e) => handleChangeRole(e.target.value as StaffRole)}
                           className="base-select text-xs py-1.5"
                         >
-                          {Object.entries(roleLabels).map(([k, v]) => (
+                          {Object.entries(roleLabels).filter(([k]) => isOwner || k !== 'owner').map(([k, v]) => (
                             <option key={k} value={k}>
                               {v}
                             </option>
@@ -538,7 +544,7 @@ export const StaffProfilePage: React.FC = () => {
                     <div className="mb-1 text-[11px] font-medium text-neutral-600">
                       {t('crm.staff.profile.department')}
                     </div>
-                    {isOwner ? (
+                    {canEditStaff ? (
                       <div className="space-y-2">
                         <select
                           value={departmentDraft}
@@ -597,7 +603,7 @@ export const StaffProfilePage: React.FC = () => {
                         </span>
                       )}
 
-                      {isOwner && (
+                      {canEditAccess && (
                         <>
                           <button
                             type="button"

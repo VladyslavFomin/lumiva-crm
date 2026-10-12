@@ -39,9 +39,10 @@ export class ProjectTablesController {
     });
   }
 
-  /** Приватные (не основные) таблицы видны/управляемы только явным участникам — без
-   * tenant-owner bypass, по решению пользователя. Основная таблица ("Таблица") доступна
-   * всем с базовым правом 'projects', как и раньше. */
+  /** Приватные (не основные) таблицы видны/управляемы только явным участникам; владелец
+   * компании видит и управляет всеми (решение пользователя 2026-10-01: «владелец может всё»,
+   * иначе ИИ-сотрудники, работающие от его роли, теряют смысл). Основная таблица доступна
+   * всем с базовым правом 'projects'. */
   private async assertTableRole(
     tenantId: string,
     tableId: string,
@@ -50,6 +51,7 @@ export class ProjectTablesController {
   ): Promise<void> {
     const table = await this.service.getOne(tenantId, tableId);
     if (table.slug === 'main') return;
+    if ((user.role || '').toLowerCase() === 'owner') return;
 
     const staffId = await this.currentStaffId(user);
     if (!staffId) {
@@ -64,7 +66,7 @@ export class ProjectTablesController {
   @Get()
   async list(@CurrentUser() user: CurrentUserPayload) {
     const staffId = await this.currentStaffId(user);
-    return this.service.listForStaff(user.tenantId, staffId);
+    return this.service.listForStaff(user.tenantId, staffId, (user.role || '').toLowerCase() === 'owner');
   }
 
   @Get(':id')

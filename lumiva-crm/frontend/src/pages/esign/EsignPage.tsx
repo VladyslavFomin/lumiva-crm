@@ -1,6 +1,7 @@
 // src/pages/esign/EsignPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
@@ -21,6 +22,7 @@ import {
   deleteEsignTemplate,
   fetchEsignNextContractNo,
   fetchEsignAmountSuggestions,
+  fetchEsignLeadOptions,
   type EsignDocumentRow,
   type EsignDocumentDetail,
   type EsignTemplate,
@@ -28,6 +30,7 @@ import {
   type EsignStatus,
   type EsignItemPick,
   type EsignAmountSuggestion,
+  type EsignLeadOption,
 } from '../../api/esign';
 import { fetchContacts } from '../../api/contacts';
 import type { Contact } from '../../api/contacts';
@@ -38,6 +41,7 @@ import type { BookingServiceItem, BookingStaffProfile } from '../../api/bookings
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { Ic, ESN_ICON } from './EsignIcons';
 import { EsignUploadDialog } from './EsignUploadDialog';
+import { EsignTextWithTables } from './EsignTextWithTables';
 import './esign-design.css';
 
 const cx = (...a: Array<string | false | undefined>) => a.filter(Boolean).join(' ');
@@ -94,11 +98,54 @@ interface PickedItem {
   durationMinutes?: number | null;
   masterId?: string | null;
   masterName?: string | null;
+  /** Defaults to 1. */
+  quantity?: number;
+  /** Per-line discount, 0–100. */
+  discountPercent?: number;
 }
+
+/** Commercial-offer parameters kept in extraFields (not template placeholders). */
+const QUOTE_PARAM_KEYS = ['DISCOUNT_PERCENT', 'TAX_PERCENT', 'VALID_UNTIL'] as const;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const itemQty = (i: PickedItem) => (i.quantity && i.quantity > 0 ? i.quantity : 1);
+const itemDiscount = (i: PickedItem) => (i.discountPercent && i.discountPercent > 0 ? Math.min(i.discountPercent, 100) : 0);
+const itemLineTotal = (i: PickedItem) => round2(parseFloat(i.price) * itemQty(i) * (1 - itemDiscount(i) / 100));
+function parsePercentFE(raw: unknown): number {
+  const n = parseFloat(String(raw ?? '').replace(',', '.').replace('%', '').trim());
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, 100);
+}
+/** "1 200 EUR + 300 USD" — line totals summed per currency, never across currencies. */
+function totalsByCurrencyFE(items: PickedItem[]): string {
+  const byCur = new Map<string, number>();
+  for (const i of items) byCur.set(i.currency, (byCur.get(i.currency) || 0) + itemLineTotal(i));
+  return [...byCur.entries()].map(([cur, sum]) => `${money(round2(sum))} ${cur}`).join(' + ');
+}
+function lineLabelFE(i: PickedItem): string {
+  const qty = itemQty(i);
+  const disc = itemDiscount(i);
+  const unit = `${money(parseFloat(i.price))} ${i.currency}`;
+  if (qty === 1 && !disc) return unit;
+  return `${qty} × ${unit}${disc ? ` −${disc}%` : ''} = ${money(itemLineTotal(i))} ${i.currency}`;
+}
+const QUOTE_HEADERS: Record<string, string[]> = {
+  ru: ['№', 'Наименование', 'Кол-во', 'Цена', 'Скидка', 'Сумма'],
+  en: ['#', 'Item', 'Qty', 'Price', 'Discount', 'Amount'],
+  tr: ['No', 'Ürün / Hizmet', 'Miktar', 'Fiyat', 'İndirim', 'Tutar'],
+};
+const DOC_LOCALES: Record<string, string> = { ru: 'ru-RU', en: 'en-US', tr: 'tr-TR' };
+const docLang = (lang?: string | null) => {
+  const l = (lang || 'ru').slice(0, 2).toLowerCase();
+  return l === 'en' || l === 'tr' ? l : 'ru';
+};
 
 /** Mirrors backend `computeItemValues` (esign-items.ts) so the wizard's live preview matches
  * exactly what the server will render once the document is actually issued. */
-function computeItemValuesFE(items: PickedItem[]): Record<string, string> {
+function computeItemValuesFE(
+  items: PickedItem[],
+  params: { discountPercent?: number; taxPercent?: number; validUntil?: string | null; lang?: string | null } = {},
+): { values: Record<string, string>; quoteError: 'mixed_currency' | null } {
   const values: Record<string, string> = {};
   const products = items.filter((i) => i.kind === 'product');
   const services = items.filter((i) => i.kind === 'service');
@@ -109,8 +156,8 @@ function computeItemValuesFE(items: PickedItem[]): Record<string, string> {
     values.PRODUCT_PRICE = `${money(parseFloat(products[0].price))} ${products[0].currency}`;
   }
   if (products.length) {
-    values.PRODUCTS_LIST = products.map((p) => `${p.name}${p.sku ? ` (${p.sku})` : ''} — ${money(parseFloat(p.price))} ${p.currency}`).join('\n');
-    values.PRODUCTS_TOTAL = `${money(products.reduce((s, p) => s + parseFloat(p.price), 0))} ${products[0].currency}`;
+    values.PRODUCTS_LIST = products.map((p) => `${p.name}${p.sku ? ` (${p.sku})` : ''} — ${lineLabelFE(p)}`).join('\n');
+    values.PRODUCTS_TOTAL = totalsByCurrencyFE(products);
   }
 
   if (services[0]) {
@@ -120,13 +167,43 @@ function computeItemValuesFE(items: PickedItem[]): Record<string, string> {
     values.BOOKING_SERVICE_MASTER = services[0].masterName || '';
   }
   if (services.length) {
-    values.BOOKING_SERVICES_LIST = services
-      .map((s) => `${s.name}${s.masterName ? ` (${s.masterName})` : ''} — ${money(parseFloat(s.price))} ${s.currency}`)
-      .join('\n');
-    values.BOOKING_SERVICES_TOTAL = `${money(services.reduce((s, x) => s + parseFloat(x.price), 0))} ${services[0].currency}`;
+    values.BOOKING_SERVICES_LIST = services.map((s) => `${s.name}${s.masterName ? ` (${s.masterName})` : ''} — ${lineLabelFE(s)}`).join('\n');
+    values.BOOKING_SERVICES_TOTAL = totalsByCurrencyFE(services);
   }
 
-  return values;
+  const lang = docLang(params.lang);
+  if (params.validUntil && /^\d{4}-\d{2}-\d{2}$/.test(params.validUntil)) {
+    const [y, m, d] = params.validUntil.split('-');
+    values.VALID_UNTIL = lang === 'en' ? `${m}/${d}/${y}` : `${d}.${m}.${y}`;
+  }
+
+  let quoteError: 'mixed_currency' | null = null;
+  const all = [...products, ...services];
+  if (all.length) {
+    if (new Set(all.map((i) => i.currency)).size > 1) {
+      quoteError = 'mixed_currency';
+    } else {
+      const cur = all[0].currency;
+      const fmt = (n: number) => `${n.toLocaleString(DOC_LOCALES[lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+      const subtotal = round2(all.reduce((s, i) => s + itemLineTotal(i), 0));
+      const dp = params.discountPercent || 0;
+      const discount = round2((subtotal * dp) / 100);
+      const net = round2(subtotal - discount);
+      const tp = params.taxPercent || 0;
+      const tax = round2((net * tp) / 100);
+      const rows = all.map((i, idx) => {
+        const name = i.kind === 'service' && i.masterName ? `${i.name} (${i.masterName})` : `${i.name}${i.sku ? ` (${i.sku})` : ''}`;
+        const disc = itemDiscount(i);
+        return [String(idx + 1), name, String(itemQty(i)), fmt(parseFloat(i.price)), disc ? `${disc}%` : '—', fmt(itemLineTotal(i))].join('\t');
+      });
+      values.QUOTE_ITEMS = [QUOTE_HEADERS[lang].join('\t'), ...rows].join('\n');
+      values.QUOTE_SUBTOTAL = fmt(subtotal);
+      values.QUOTE_DISCOUNT = dp ? `${dp}% — ${fmt(discount)}` : '—';
+      values.QUOTE_TAX = tp ? `${tp}% — ${fmt(tax)}` : '—';
+      values.QUOTE_TOTAL = fmt(round2(net + tax));
+    }
+  }
+  return { values, quoteError };
 }
 
 const RenderedBody: React.FC<{ body: string; values?: Record<string, string> }> = ({ body, values }) => {
@@ -134,7 +211,7 @@ const RenderedBody: React.FC<{ body: string; values?: Record<string, string> }> 
   return (
     <div className="md-paper">
       {parts.map((p, i) => {
-        if (!/^\{[A-Z][A-Z0-9_]*\}$/.test(p)) return <React.Fragment key={i}>{p}</React.Fragment>;
+        if (!/^\{[A-Z][A-Z0-9_]*\}$/.test(p)) return p.includes('\t') ? <EsignTextWithTables key={i} text={p} /> : <React.Fragment key={i}>{p}</React.Fragment>;
         if (!values) return (
           <span key={i} className="md-tok">
             {p}
@@ -142,6 +219,7 @@ const RenderedBody: React.FC<{ body: string; values?: Record<string, string> }> 
         );
         const key = p.slice(1, -1);
         const v = values[key];
+        if (v && v.includes('\t')) return <EsignTextWithTables key={i} text={v} />;
         return v ? (
           <span key={i} className="md-tok filled">
             {v}
@@ -182,7 +260,13 @@ const EditDocumentPanel: React.FC<{
         setBody(d.bodyText);
         const auto = await fetchEsignAutoValues(d.contactId).catch(() => ({}));
         if (cancelled) return;
-        const itemValues = computeItemValuesFE((d.items || []) as PickedItem[]);
+        const ef = d.extraFields || {};
+        const { values: itemValues } = computeItemValuesFE((d.items || []) as PickedItem[], {
+          discountPercent: parsePercentFE(ef.DISCOUNT_PERCENT),
+          taxPercent: parsePercentFE(ef.TAX_PERCENT),
+          validUntil: ef.VALID_UNTIL || null,
+          lang: i18n.language,
+        });
         setValues({ ...auto, ...itemValues, ...(d.extraFields || {}) });
       })
       .catch((e: any) => showAlert(e?.message || t('crm.esign.errors.loadDocs'), { variant: 'error' }))
@@ -389,7 +473,7 @@ export const EsignPage: React.FC = () => {
   const itemKeySet = useMemo(() => {
     const s = new Set<string>();
     keyGroups
-      .filter((g) => g.group === 'product' || g.group === 'service')
+      .filter((g) => g.group === 'product' || g.group === 'service' || g.group === 'quote')
       .forEach((g) => g.keys.forEach((k) => s.add(k.key)));
     return s;
   }, [keyGroups]);
@@ -409,6 +493,7 @@ export const EsignPage: React.FC = () => {
     org: t('crm.esign.keys.groupOrg'),
     product: t('crm.esign.keys.groupProduct'),
     service: t('crm.esign.keys.groupService'),
+    quote: t('crm.esign.keys.groupQuote'),
   };
 
   const TABS = [
@@ -1072,9 +1157,29 @@ const IssueTab: React.FC<{
   const tpl = templates.find((x) => x.id === tplId) || null;
   const needed = useMemo(() => (tpl ? extractKeysFE(tpl.bodyTemplate) : []), [tpl]);
   const manualKeys = needed.filter((k) => !autoKeySet.has(k) && !itemKeySet.has(k) && !SEQUENCE_KEYS.has(k));
-  const usesProductKeys = needed.some((k) => productKeySet.has(k));
-  const usesServiceKeys = needed.some((k) => serviceKeySet.has(k));
+  const quoteKeySet = useMemo(() => new Set((keyGroups.find((g) => g.group === 'quote')?.keys || []).map((k) => k.key)), [keyGroups]);
+  // A КП template (any {QUOTE_*} key) offers both catalogs — its table takes products and services.
+  const usesQuoteKeys = needed.some((k) => quoteKeySet.has(k));
+  const usesProductKeys = usesQuoteKeys || needed.some((k) => productKeySet.has(k));
+  const usesServiceKeys = usesQuoteKeys || needed.some((k) => serviceKeySet.has(k));
   const usesContractNo = needed.includes('CONTRACT_NO');
+
+  const [leadOptions, setLeadOptions] = useState<EsignLeadOption[]>([]);
+  const [leadId, setLeadId] = useState<string>('');
+  useEffect(() => {
+    if (!usesQuoteKeys || !contact) {
+      setLeadOptions([]);
+      setLeadId('');
+      return;
+    }
+    fetchEsignLeadOptions(contact.id)
+      .then((opts) => {
+        setLeadOptions(opts);
+        // a single open lead is almost always the one the offer is for
+        setLeadId(opts.length === 1 ? opts[0].id : '');
+      })
+      .catch(() => setLeadOptions([]));
+  }, [usesQuoteKeys, contact?.id]);
 
   const [nextContractNo, setNextContractNo] = useState('');
   useEffect(() => {
@@ -1098,12 +1203,26 @@ const IssueTab: React.FC<{
     setExtraFields((f) => ({ ...f, AMOUNT: money(parseFloat(s.amount)), ...(s.currency ? { CURRENCY: s.currency } : {}) }));
   };
 
-  const itemValues = useMemo(() => computeItemValuesFE([...productItems, ...serviceItems]), [productItems, serviceItems]);
-  const values: Record<string, string> = { ...autoValues, ...itemValues, ...extraFields, ...(usesContractNo && nextContractNo ? { CONTRACT_NO: nextContractNo } : {}) };
+  const { values: itemValues, quoteError } = useMemo(
+    () =>
+      computeItemValuesFE([...productItems, ...serviceItems], {
+        discountPercent: parsePercentFE(extraFields.DISCOUNT_PERCENT),
+        taxPercent: parsePercentFE(extraFields.TAX_PERCENT),
+        validUntil: extraFields.VALID_UNTIL || null,
+        lang: i18n.language,
+      }),
+    [productItems, serviceItems, extraFields.DISCOUNT_PERCENT, extraFields.TAX_PERCENT, extraFields.VALID_UNTIL],
+  );
+  const values: Record<string, string> = {
+    ...autoValues,
+    ...extraFields,
+    ...itemValues,
+    ...(usesContractNo && nextContractNo ? { CONTRACT_NO: nextContractNo } : {}),
+  };
   const missing = needed.filter((k) => !values[k] || !values[k].trim());
   const filledManual = manualKeys.filter((k) => extraFields[k] && extraFields[k].trim()).length;
 
-  const itemsTotal = [...productItems, ...serviceItems].reduce((s, i) => s + parseFloat(i.price), 0);
+  const itemsTotal = [...productItems, ...serviceItems].reduce((s, i) => s + itemLineTotal(i), 0);
   const itemsCurrencies = new Set([...productItems, ...serviceItems].map((i) => i.currency));
   const useItemsTotalAsAmount = () => {
     setExtraFields((f) => ({
@@ -1137,10 +1256,17 @@ const IssueTab: React.FC<{
     if (!tpl) throw new Error(t('crm.esign.issueTab.errNoTemplate'));
     if (!contact) throw new Error(t('crm.esign.issueTab.errNoClient'));
     const items: EsignItemPick[] = [
-      ...productItems.map((i) => ({ kind: 'product' as const, refId: i.refId })),
-      ...serviceItems.map((i) => ({ kind: 'service' as const, refId: i.refId, masterId: i.masterId || undefined })),
+      ...productItems.map((i) => ({ kind: 'product' as const, refId: i.refId, quantity: itemQty(i), discountPercent: itemDiscount(i) })),
+      ...serviceItems.map((i) => ({
+        kind: 'service' as const,
+        refId: i.refId,
+        masterId: i.masterId || undefined,
+        quantity: itemQty(i),
+        discountPercent: itemDiscount(i),
+      })),
     ];
-    const doc = await issueEsignDocument({ templateId: tpl.id, contactId: contact.id, extraFields, items });
+    if (usesQuoteKeys && quoteError === 'mixed_currency') throw new Error(t('crm.esign.issueTab.quoteMixedCurrency'));
+    const doc = await issueEsignDocument({ templateId: tpl.id, contactId: contact.id, extraFields, items, leadId: usesQuoteKeys && leadId ? leadId : null });
     setIssuedDoc(doc);
     onIssued();
     return doc;
@@ -1336,6 +1462,51 @@ const IssueTab: React.FC<{
             )}
           </Card>
 
+          {usesQuoteKeys && (
+            <Card icon={<Ic d={ESN_ICON.doc} size={15} />} title={t('crm.esign.issueTab.quoteTitle')} sub={t('crm.esign.issueTab.quoteHint')}>
+              <div className="md-body">
+                <div className="md-fields2">
+                  <div className="md-f">
+                    <label>{t('crm.esign.issueTab.quoteDiscount')}</label>
+                    <input className="md-in" inputMode="decimal" placeholder="0" value={extraFields.DISCOUNT_PERCENT || ''}
+                      onChange={(e) => setExtraFields({ ...extraFields, DISCOUNT_PERCENT: e.target.value })} />
+                  </div>
+                  <div className="md-f">
+                    <label>{t('crm.esign.issueTab.quoteTax')}</label>
+                    <input className="md-in" inputMode="decimal" placeholder="0" value={extraFields.TAX_PERCENT || ''}
+                      onChange={(e) => setExtraFields({ ...extraFields, TAX_PERCENT: e.target.value })} />
+                  </div>
+                  <div className="md-f">
+                    <label>{t('crm.esign.issueTab.quoteValidUntil')}</label>
+                    <input className="md-in" type="date" value={extraFields.VALID_UNTIL || ''}
+                      onChange={(e) => setExtraFields({ ...extraFields, VALID_UNTIL: e.target.value })} />
+                  </div>
+                </div>
+                {contact && (
+                  <div className="md-f" style={{ marginTop: 12 }}>
+                    <label>{t('crm.esign.issueTab.quoteLead')}</label>
+                    <select className="md-in" value={leadId} onChange={(e) => setLeadId(e.target.value)} disabled={leadOptions.length === 0}>
+                      <option value="">{leadOptions.length ? t('crm.esign.issueTab.quoteLeadNone') : t('crm.esign.issueTab.quoteLeadEmpty')}</option>
+                      {leadOptions.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                          {Number(l.amount) > 0 ? ` — ${money(parseFloat(l.amount))} ${l.currency}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {leadId && <div className="hint" style={{ marginTop: 6 }}>{t('crm.esign.issueTab.quoteLeadHint')}</div>}
+                  </div>
+                )}
+                {quoteError === 'mixed_currency' && <div className="md-warn">{t('crm.esign.issueTab.quoteMixedCurrency')}</div>}
+              </div>
+              {itemValues.QUOTE_TOTAL && (
+                <div className="md-foot">
+                  <span>{t('crm.esign.issueTab.quoteTotal')}</span>
+                  <span className="v mono">{itemValues.QUOTE_TOTAL}</span>
+                </div>
+              )}
+            </Card>
+          )}
           {usesProductKeys && <ProductPicker t={t} items={productItems} onChange={setProductItems} />}
           {usesServiceKeys && <ServicePicker t={t} items={serviceItems} onChange={setServiceItems} />}
         </div>
@@ -1426,6 +1597,35 @@ const IssueTab: React.FC<{
 
 /* ─────────────────────────── Товары / Услуги ─────────────────────────── */
 
+/** Quantity + per-line discount inputs and the resulting line total for a picked item. */
+const ItemQtyControls: React.FC<{
+  t: (k: string, o?: any) => string;
+  item: PickedItem;
+  onChange: (patch: Partial<PickedItem>) => void;
+}> = ({ t, item, onChange }) => {
+  const num = (v: string) => {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : undefined;
+  };
+  return (
+    <>
+      <label className="md-item-num" title={t('crm.esign.issueTab.qty')}>
+        <span>{t('crm.esign.issueTab.qtyShort')}</span>
+        <input type="number" min={1} step="any" value={item.quantity ?? 1}
+          onChange={(e) => onChange({ quantity: Math.max(num(e.target.value) ?? 1, 0.001) })} />
+      </label>
+      <label className="md-item-num" title={t('crm.esign.issueTab.lineDiscount')}>
+        <span>%</span>
+        <input type="number" min={0} max={100} step="any" value={item.discountPercent ?? 0}
+          onChange={(e) => onChange({ discountPercent: Math.min(Math.max(num(e.target.value) ?? 0, 0), 100) })} />
+      </label>
+      <div className="price">
+        {money(itemLineTotal(item))} {item.currency}
+      </div>
+    </>
+  );
+};
+
 const ProductPicker: React.FC<{
   t: (k: string, o?: any) => string;
   items: PickedItem[];
@@ -1446,7 +1646,7 @@ const ProductPicker: React.FC<{
     setQ('');
   };
   const remove = (refId: string) => onChange(items.filter((i) => i.refId !== refId));
-  const total = items.reduce((s, i) => s + parseFloat(i.price), 0);
+  const update = (refId: string, patch: Partial<PickedItem>) => onChange(items.map((i) => (i.refId === refId ? { ...i, ...patch } : i)));
 
   return (
     <Card icon={<Ic d={ESN_ICON.box} size={15} />} title={t('crm.esign.issueTab.productsTitle')} sub={t('crm.esign.issueTab.productsHint')}>
@@ -1483,9 +1683,7 @@ const ProductPicker: React.FC<{
                 {i.name}
                 {i.sku && <span className="meta"> ({i.sku})</span>}
               </div>
-              <div className="price">
-                {money(parseFloat(i.price))} {i.currency}
-              </div>
+              <ItemQtyControls t={t} item={i} onChange={(patch) => update(i.refId, patch)} />
               <button type="button" className="rm" onClick={() => remove(i.refId)} title={t('crm.esign.issueTab.removeItem')}>
                 <Ic d={ESN_ICON.x} size={11} />
               </button>
@@ -1496,9 +1694,7 @@ const ProductPicker: React.FC<{
       {items.length > 0 && (
         <div className="md-foot">
           <span>{t('crm.esign.issueTab.itemsCount', { count: items.length })}</span>
-          <span className="v mono">
-            {money(total)} {items[0]?.currency}
-          </span>
+          <span className="v mono">{totalsByCurrencyFE(items)}</span>
         </div>
       )}
     </Card>
@@ -1546,7 +1742,7 @@ const ServicePicker: React.FC<{
   };
   const remove = (refId: string) => onChange(items.filter((i) => i.refId !== refId));
   const setMaster = (refId: string, masterId: string) => onChange(items.map((i) => (i.refId === refId ? { ...i, masterId, masterName: staffName(masterId) } : i)));
-  const total = items.reduce((s, i) => s + parseFloat(i.price), 0);
+  const update = (refId: string, patch: Partial<PickedItem>) => onChange(items.map((i) => (i.refId === refId ? { ...i, ...patch } : i)));
 
   return (
     <Card icon={<Ic d={ESN_ICON.clock} size={15} />} title={t('crm.esign.issueTab.servicesTitle')} sub={t('crm.esign.issueTab.servicesHint')}>
@@ -1596,9 +1792,7 @@ const ServicePicker: React.FC<{
                 ) : i.masterName ? (
                   <div className="meta">{i.masterName}</div>
                 ) : null}
-                <div className="price">
-                  {money(parseFloat(i.price))} {i.currency}
-                </div>
+                <ItemQtyControls t={t} item={i} onChange={(patch) => update(i.refId, patch)} />
                 <button type="button" className="rm" onClick={() => remove(i.refId)} title={t('crm.esign.issueTab.removeItem')}>
                   <Ic d={ESN_ICON.x} size={11} />
                 </button>
@@ -1610,9 +1804,7 @@ const ServicePicker: React.FC<{
       {items.length > 0 && (
         <div className="md-foot">
           <span>{t('crm.esign.issueTab.itemsCount', { count: items.length })}</span>
-          <span className="v mono">
-            {money(total)} {items[0]?.currency}
-          </span>
+          <span className="v mono">{totalsByCurrencyFE(items)}</span>
         </div>
       )}
     </Card>

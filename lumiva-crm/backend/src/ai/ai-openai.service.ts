@@ -76,6 +76,8 @@ export class AiOpenAiService {
       temperatureOverride?: number | null;
       /** Long prompts on slower (reasoning) models need more than the default 120s. */
       timeoutMs?: number;
+      /** Строгий JSON-ответ (response_format json_object) — промпт обязан упоминать JSON. */
+      jsonMode?: boolean;
     },
     overrideConfig?: { apiKey: string; baseUrl?: string; model?: string; provider?: 'openai' | 'anthropic' },
   ): Promise<{
@@ -105,6 +107,7 @@ export class AiOpenAiService {
       messages: input.messages,
     };
     if (input.temperatureOverride !== null) body.temperature = input.temperatureOverride ?? 0.6;
+    if (input.jsonMode && !input.tools?.length) body.response_format = { type: 'json_object' };
     if (input.tools?.length) {
       body.tools = input.tools;
       body.tool_choice = input.toolChoice ?? 'auto';
@@ -210,6 +213,53 @@ export class AiOpenAiService {
     }
   }
 
+  /**
+   * Эмбеддинги платформенным ключом (поиск по смыслу в «Мозге» ИИ-офиса). Размерность урезана
+   * (dimensions) — векторы хранятся в real[] без pgvector и сравниваются в Node, короткие дешевле.
+   */
+  async embed(
+    texts: string[],
+    dimensions = 256,
+  ): Promise<{ vectors: number[][]; tokens: number; costCents: number }> {
+    if (!texts.length) return { vectors: [], tokens: 0, costCents: 0 };
+    const { apiKey, base } = await this.resolveConfig();
+    try {
+      const res = await axios.post(
+        `${base}/embeddings`,
+        { model: 'text-embedding-3-small', input: texts.map((t) => t.slice(0, 8000)), dimensions },
+        { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 60_000 },
+      );
+      const rows = (res.data?.data ?? []) as Array<{ index: number; embedding: number[] }>;
+      const vectors = rows.sort((a, b) => a.index - b.index).map((r) => r.embedding);
+      if (vectors.length !== texts.length) throw new Error('Embedding count mismatch');
+      const tokens = Number(res.data?.usage?.total_tokens ?? 0);
+      // text-embedding-3-small: $0.02 / 1M токенов
+      return { vectors, tokens, costCents: this.estimateCostCents(tokens, 0, 0.02, 0) };
+    } catch (e) {
+      const ax = e as AxiosError;
+      const data = ax.response?.data as any;
+      this.log.warn(`Embeddings error: ${ax.response?.status} ${JSON.stringify(data?.error?.message || ax.message)}`);
+      throw new BadRequestException({ code: 'AI_PROVIDER_ERROR', message: data?.error?.message || 'Embeddings failed' });
+    }
+  }
+
+  /** Описание изображения (vision) — чтобы картинки в «Мозге» тоже находились поиском. */
+  async describeImage(dataUrl: string, hint: string): Promise<{ text: string; promptTokens: number; completionTokens: number }> {
+    const { message, usage } = await this.chatCompletionWithConfig({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: `Describe this image for a company knowledge base: all visible text verbatim, then what it shows. Context: ${hint}` },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ] as any,
+        },
+      ],
+      temperatureOverride: 0.2,
+    });
+    return { text: message.content || '', promptTokens: usage.prompt_tokens || 0, completionTokens: usage.completion_tokens || 0 };
+  }
+
   /** Transcribe audio buffer via Whisper */
   async transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
     const { apiKey, base } = await this.resolveConfig();
@@ -235,6 +285,56 @@ export class AiOpenAiService {
         maxContentLength: Infinity,
       });
       return String(res.data?.text || '').trim();
+    } catch (e) {
+      const ax = e as AxiosError;
+      const data = ax.response?.data as any;
+      throw new BadRequestException(data?.error?.message || 'Whisper transcription failed');
+    }
+  }
+
+  /**
+   * Whisper с автоопределением языка и длительностью (verbose_json). `override` — свой ключ
+   * OpenAI тенанта; у Anthropic нет распознавания речи, поэтому для него — платформенный ключ.
+   */
+  async transcribeAudioVerbose(
+    audioBuffer: Buffer,
+    filename: string,
+    override?: { apiKey: string; baseUrl?: string; provider?: 'openai' | 'anthropic' },
+  ): Promise<{ text: string; language: string | null; durationSec: number | null }> {
+    let apiKey: string;
+    let base: string;
+    if (override?.apiKey && override.provider !== 'anthropic') {
+      apiKey = override.apiKey;
+      base = (override.baseUrl?.trim() || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    } else {
+      ({ apiKey, base } = await this.resolveConfig());
+    }
+    const safeName = filename.replace(/["\r\n]/g, '_') || 'audio.mp3';
+    const boundary = `----lumivaaudio${Date.now()}`;
+    const crlf = '\r\n';
+    const field = (name: string, value: string) =>
+      Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="${name}"${crlf}${crlf}${value}${crlf}`, 'utf8');
+    const body = Buffer.concat([
+      field('model', 'whisper-1'),
+      field('response_format', 'verbose_json'),
+      Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="file"; filename="${safeName}"${crlf}Content-Type: application/octet-stream${crlf}${crlf}`, 'utf8'),
+      audioBuffer,
+      Buffer.from(`${crlf}--${boundary}--${crlf}`, 'utf8'),
+    ]);
+    try {
+      const res = await axios.post(`${base}/audio/transcriptions`, body, {
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+        timeout: 180_000,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+      const d = res.data || {};
+      const duration = Number(d.duration);
+      return {
+        text: String(d.text || '').trim(),
+        language: d.language ? String(d.language).toLowerCase() : null,
+        durationSec: Number.isFinite(duration) ? Math.round(duration) : null,
+      };
     } catch (e) {
       const ax = e as AxiosError;
       const data = ax.response?.data as any;

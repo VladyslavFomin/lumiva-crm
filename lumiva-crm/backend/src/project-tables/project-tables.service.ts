@@ -48,15 +48,20 @@ export class ProjectTablesService {
     const existing = await this.tableRepo.findOne({ where: { tenantId, slug: 'main' } });
     if (existing) return existing;
 
-    const main = await this.tableRepo.save(
-      this.tableRepo.create({
-        tenantId,
-        name: 'Таблица',
-        slug: 'main',
-        createdByStaffId: null,
-        sortOrder: 0,
-      }),
-    );
+    // Атомарно (ON CONFLICT по tenantId+slug): параллельные первые запросы не падают на
+    // duplicate key — проигравший берёт таблицу, созданную выигравшим.
+    const inserted = await this.tableRepo
+      .createQueryBuilder()
+      .insert()
+      .into(ProjectTable)
+      .values({ tenantId, name: 'Таблица', slug: 'main', createdByStaffId: null, sortOrder: 0 })
+      .orIgnore()
+      .returning(['id'])
+      .execute();
+    const insertedId = (inserted.raw as Array<{ id: string }>)[0]?.id;
+    const main = await this.tableRepo.findOne({ where: { tenantId, slug: 'main' } });
+    if (!main) throw new Error('Default project table was not created');
+    if (!insertedId) return main;
 
     await this.projectRepo
       .createQueryBuilder()
@@ -70,9 +75,14 @@ export class ProjectTablesService {
   }
 
   /** Таблицы, видимые сотруднику: основная (видна всем) + те, где он явный участник.
-   * staffUserId === null (напр. владелец без staff-профиля) видит только основную. */
-  async listForStaff(tenantId: string, staffUserId: string | null): Promise<ProjectTable[]> {
+   * Владелец компании — все таблицы. */
+  async listForStaff(tenantId: string, staffUserId: string | null, isTenantOwner = false): Promise<ProjectTable[]> {
     const main = await this.ensureDefaultTable(tenantId);
+    if (isTenantOwner) {
+      // владелец компании видит все таблицы, включая приватные без приглашения
+      const all = await this.tableRepo.find({ where: { tenantId } });
+      return all.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime());
+    }
     if (!staffUserId) return [main];
 
     const memberships = await this.memberRepo.find({ where: { tenantId, staffUserId } });

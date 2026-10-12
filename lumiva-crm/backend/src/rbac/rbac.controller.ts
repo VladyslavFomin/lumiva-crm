@@ -1,28 +1,32 @@
 // src/rbac/rbac.controller.ts
-import { Body, Controller, ForbiddenException, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { RbacService } from './rbac.service';
 import type { RoleMatrix, UserPermissionMatrix } from './permission.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { StaffUser } from '../staff/staff-user.entity';
+import {
+  assertCanManageStaff,
+  assertRoleMatrixChangeAllowed,
+  assertUserMatrixChangeAllowed,
+} from '../staff/staff-manage-access';
 
-// Матрицу прав менять может только владелец аккаунта — раньше POST-эндпоинты были защищены
-// только JwtAuthGuard (любой авторизованный сотрудник, включая роль viewer, мог переписать
-// матрицу прав всех ролей, то есть выдать самому себе полный доступ). Тот же принцип, что и
-// assertOwnerForInvites() в staff-users.service.ts. GET остаётся открытым для всех
-// авторизованных сотрудников — MainLayout читает его для любой роли, чтобы посчитать видимость
-// пунктов меню (см. usages в MainLayout.tsx), а сама матрица не более чувствительна, чем то,
-// что она уже определяет.
-function assertOwner(user: CurrentUserPayload): void {
-  if ((user.role || '').toLowerCase() !== 'owner') {
-    throw new ForbiddenException('Права доступа может изменять только владелец компании');
-  }
-}
-
+// Матрицу прав менять может владелец или сотрудник с правом «Сотрудники» — с ограничениями
+// (не свою роль/права, не владельца, не выдавать того, чего нет у себя), см.
+// staff/staff-manage-access.ts. Раньше POST был открыт любому авторизованному (viewer мог выдать
+// себе полный доступ), потом стал owner-only. GET открыт всем авторизованным — MainLayout читает
+// его для любой роли, чтобы посчитать видимость пунктов меню.
 @Controller('rbac')
 @UseGuards(JwtAuthGuard)
 export class RbacController {
-  constructor(private readonly rbacService: RbacService) {}
+  constructor(
+    private readonly rbacService: RbacService,
+    @InjectRepository(StaffUser)
+    private readonly staffRepo: Repository<StaffUser>,
+  ) {}
 
   @Get('staff-permissions')
   async getStaffPermissions(
@@ -36,7 +40,9 @@ export class RbacController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() matrix: RoleMatrix,
   ): Promise<RoleMatrix> {
-    assertOwner(user);
+    await assertCanManageStaff(this.rbacService, user);
+    const before = await this.rbacService.getRoleMatrixForTenant(user.tenantId);
+    await assertRoleMatrixChangeAllowed(this.rbacService, user, before, matrix);
     return this.rbacService.saveRolePermissions(user.tenantId, matrix, {
       actorUserId: user.userId ?? null,
       actorName: user.email ?? null,
@@ -56,7 +62,12 @@ export class RbacController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() matrix: UserPermissionMatrix,
   ): Promise<UserPermissionMatrix> {
-    assertOwner(user);
+    await assertCanManageStaff(this.rbacService, user);
+    const before = await this.rbacService.getUserMatrixForTenant(user.tenantId);
+    await assertUserMatrixChangeAllowed(this.rbacService, user, before, matrix, async (id) => {
+      const row = await this.staffRepo.findOne({ where: { tenantId: user.tenantId, id } });
+      return row?.role ?? null;
+    });
     return this.rbacService.saveUserPermissions(user.tenantId, matrix, {
       actorUserId: user.userId ?? null,
       actorName: user.email ?? null,

@@ -54,9 +54,9 @@
       greeting: 'Здравствуйте! 👋 Задайте вопрос — мы ответим прямо здесь.',
       placeholder: 'Напишите сообщение…', send: 'Отправить', open: 'Открыть чат', close: 'Закрыть',
       you: 'Вы', manager: 'Менеджер',
-      leadTitle: 'Как с вами связаться, если вы уйдёте со страницы?',
+      leadTitle: 'Оставьте имя и e-mail или телефон — и мы сразу ответим.',
       name: 'Имя', contact: 'E-mail или телефон', save: 'Сохранить', skip: 'Пропустить',
-      leadThanks: 'Спасибо! Мы свяжемся с вами.',
+      leadThanks: 'Спасибо! Сейчас ответим.',
       err: 'Не удалось отправить. Попробуйте ещё раз.', tooLong: 'Сообщение слишком длинное (макс. 1000 символов).'
     },
     en: {
@@ -64,9 +64,9 @@
       greeting: 'Hi there! 👋 Ask us anything — we will reply right here.',
       placeholder: 'Type a message…', send: 'Send', open: 'Open chat', close: 'Close',
       you: 'You', manager: 'Manager',
-      leadTitle: 'How can we reach you if you leave the page?',
+      leadTitle: 'Leave your name and e-mail or phone — and we will reply right away.',
       name: 'Name', contact: 'E-mail or phone', save: 'Save', skip: 'Skip',
-      leadThanks: 'Thank you! We will get back to you.',
+      leadThanks: 'Thank you! Replying now.',
       err: 'Could not send. Please try again.', tooLong: 'Message is too long (max 1000 characters).'
     },
     tr: {
@@ -74,9 +74,9 @@
       greeting: 'Merhaba! 👋 Sorunuzu yazın — buradan yanıtlayacağız.',
       placeholder: 'Mesajınızı yazın…', send: 'Gönder', open: 'Sohbeti aç', close: 'Kapat',
       you: 'Siz', manager: 'Yönetici',
-      leadTitle: 'Sayfadan ayrılırsanız size nasıl ulaşabiliriz?',
+      leadTitle: 'Adınızı ve e-posta ya da telefonunuzu bırakın — hemen yanıtlayalım.',
       name: 'Adınız', contact: 'E-posta veya telefon', save: 'Kaydet', skip: 'Geç',
-      leadThanks: 'Teşekkürler! Sizinle iletişime geçeceğiz.',
+      leadThanks: 'Teşekkürler! Hemen yanıtlıyoruz.',
       err: 'Gönderilemedi. Lütfen tekrar deneyin.', tooLong: 'Mesaj çok uzun (en fazla 1000 karakter).'
     }
   };
@@ -267,30 +267,33 @@
   /* ---------------- lead form ---------------- */
   var leadShown = false;
   function maybeAskLead() {
-    if (leadShown || lsGet(LEAD_KEY)) return;
+    // Ответ (ИИ или менеджер) приходит только после контактов — форму не пропустить.
+    // LEAD_KEY = id сессии, для которой данные уже оставлены ('1' — старый формат).
+    var saved = lsGet(LEAD_KEY);
+    if (leadShown || saved === '1' || (saved && saved === sessionId)) return;
     leadShown = true;
     var f = document.createElement('form');
     f.className = 'lead';
     f.innerHTML = '<b>' + esc(T.leadTitle) + '</b>' +
-      '<input name="name" autocomplete="name" placeholder="' + esc(T.name) + '">' +
-      '<input name="contact" autocomplete="email" placeholder="' + esc(T.contact) + '">' +
-      '<div class="row"><button type="button" class="btn g" data-skip>' + esc(T.skip) + '</button>' +
-      '<button type="submit" class="btn p">' + esc(T.save) + '</button></div>';
-    f.querySelector('[data-skip]').addEventListener('click', function () { lsSet(LEAD_KEY, 'skip'); f.remove(); });
+      '<input name="name" autocomplete="name" required placeholder="' + esc(T.name) + '">' +
+      '<input name="contact" autocomplete="email" required placeholder="' + esc(T.contact) + '">' +
+      '<div class="row"><button type="submit" class="btn p">' + esc(T.save) + '</button></div>';
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       var name = f.elements.name.value.trim();
       var contact = f.elements.contact.value.trim();
-      if (!name && !contact) { f.elements.name.focus(); return; }
+      if (!name) { f.elements.name.focus(); return; }
+      if (!contact) { f.elements.contact.focus(); return; }
       var isEmail = /@/.test(contact);
       request('POST', '/lead', {
         tenantKey: tenantKey, sessionId: sessionId, name: name || undefined,
         email: isEmail ? contact : undefined, phone: !isEmail && contact ? contact : undefined,
         pageUrl: location.href, referrer: document.referrer || undefined
       }).then(function () {
-        lsSet(LEAD_KEY, '1');
+        lsSet(LEAD_KEY, sessionId);
         f.remove();
         var s = document.createElement('div'); s.className = 'sys'; s.textContent = T.leadThanks; body.appendChild(s); scrollDown();
+        schedule(1500);
       }).catch(function () {});
     });
     body.appendChild(f);
@@ -342,6 +345,8 @@
         var list = (r && r.messages) || [];
         list.forEach(function (m) { renderServer(m, true); });
         if (r && typeof r.last === 'number' && r.last > cursor) cursor = r.last;
+        // писал, но контактов не оставил (перезагрузка страницы) — снова показать форму
+        if (list.some(function (m) { return m && m.from === 'client'; })) maybeAskLead();
       })
       .catch(function (e) { if (e && e.status === 404) resetSession(); });
   }

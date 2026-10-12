@@ -49,6 +49,14 @@ export class AiEmployeesSchemaService implements OnModuleInit {
     await this.dataSource.query(
       `CREATE INDEX IF NOT EXISTS "IDX_ai_agents_tenant_role" ON "ai_agents" ("tenant_id", "role")`,
     );
+    // ИИ-офис: агент отдела (FK на ai_departments добавляет ai-office-schema.service.ts)
+    await this.dataSource.query(`ALTER TABLE "ai_agents" ADD COLUMN IF NOT EXISTS "department_id" uuid`);
+    await this.dataSource.query(`ALTER TABLE "ai_agents" ADD COLUMN IF NOT EXISTS "is_lead" boolean NOT NULL DEFAULT false`);
+    await this.dataSource.query(`ALTER TABLE "ai_agents" ADD COLUMN IF NOT EXISTS "office_prompt" text NOT NULL DEFAULT ''`);
+    await this.dataSource.query(`ALTER TABLE "ai_agents" ADD COLUMN IF NOT EXISTS "office_sort" int NOT NULL DEFAULT 0`);
+    // ИИ-офис: расход по отделам (ai_usage_logs создаётся миграцией; AiUsageLog уже знает эти колонки)
+    await this.dataSource.query(`ALTER TABLE "ai_usage_logs" ADD COLUMN IF NOT EXISTS "department_id" uuid`);
+    await this.dataSource.query(`ALTER TABLE "ai_usage_logs" ADD COLUMN IF NOT EXISTS "office_task_id" uuid`);
 
     await this.dataSource.query(`
       CREATE TABLE IF NOT EXISTS "ai_agent_permissions" (

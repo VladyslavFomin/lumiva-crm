@@ -72,7 +72,7 @@ export class HelpdeskController {
   @Post('tickets/:id/messages')
   @RequirePermission('helpdesk', 'write')
   reply(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: { text: string }) {
-    return this.helpdesk.addStaffMessage(user.tenantId, id, user.name || user.email || 'Сотрудник', body.text);
+    return this.helpdesk.addStaffMessage(user.tenantId, id, user.name || user.email || 'Сотрудник', body.text, { byHuman: true });
   }
 }
 

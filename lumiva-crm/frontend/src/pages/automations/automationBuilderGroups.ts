@@ -117,6 +117,24 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
         { id: 'product.stock_low', label: getTriggerLabel('product.stock_low', t), icon: 'bell' },
       ],
     },
+    {
+      group: t('crm.automations.form.library.groups.helpdesk'),
+      items: [
+        { id: 'helpdesk.ticket_created', label: getTriggerLabel('helpdesk.ticket_created', t), icon: 'bell' },
+        { id: 'helpdesk.message_received', label: getTriggerLabel('helpdesk.message_received', t), icon: 'bell' },
+      ],
+    },
+    {
+      group: t('crm.automations.form.library.groups.aiOffice'),
+      items: [
+        { id: 'ai_office.task_done', label: getTriggerLabel('ai_office.task_done', t), icon: 'task', desc: t('crm.automations.form.library.triggerDesc.aiOffice') },
+        { id: 'ai_office.task_failed', label: getTriggerLabel('ai_office.task_failed', t), icon: 'bell' },
+        { id: 'ai_office.task_rejected', label: getTriggerLabel('ai_office.task_rejected', t), icon: 'bell' },
+        { id: 'ai_office.approval_needed', label: getTriggerLabel('ai_office.approval_needed', t), icon: 'user' },
+        { id: 'ai_office.help_needed', label: getTriggerLabel('ai_office.help_needed', t), icon: 'bell' },
+        { id: 'ai_office.budget_exhausted', label: getTriggerLabel('ai_office.budget_exhausted', t), icon: 'sale' },
+      ],
+    },
   ];
 }
 
@@ -154,6 +172,17 @@ export function buildAutomationActionGroups(t: TFunction): AutomationLibGroup[] 
           id: 'create_custom_object_record',
           label: getActionLabel('create_custom_object_record', t),
           icon: 'custom',
+        },
+      ],
+    },
+    {
+      group: t('crm.automations.form.library.groups.aiOffice'),
+      items: [
+        {
+          id: 'ai_office_task',
+          label: getActionLabel('ai_office_task', t),
+          icon: 'task',
+          desc: t('crm.automations.form.library.actionDesc.ai_office_task'),
         },
       ],
     },

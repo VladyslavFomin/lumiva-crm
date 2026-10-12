@@ -156,7 +156,7 @@ export function AiActivityFab() {
                 const st = (agent?.settings || {}) as Record<string, unknown>;
                 const accent = ((st.avatarAccent as AiAvatarAccent) || deriveAvatarAccent(agent?.id || activeGroup.id)) as AiAvatarAccent;
                 const avStyle = ((st.avatarStyle as AiAvatarStyle) || deriveAvatarStyle(agent?.id || activeGroup.id)) as AiAvatarStyle;
-                return <AiAvatar name={agent?.name || t('crm.aiEmployees.activity.unknownAgent')} accent={accent} avStyle={avStyle} size="sm" />;
+                return <AiAvatar name={agent?.name || t('crm.aiEmployees.activity.unknownAgent')} accent={accent} avStyle={avStyle} size="sm" role={agent?.role} />;
               })()
             ) : null}
             <div>
@@ -187,7 +187,7 @@ export function AiActivityFab() {
                     className="ai-fab-item ai-fab-folder"
                     onClick={() => setSelectedAgentId(g.id)}
                   >
-                    <AiAvatar name={agent?.name || t('crm.aiEmployees.activity.unknownAgent')} accent={accent} avStyle={avStyle} size="sm" />
+                    <AiAvatar name={agent?.name || t('crm.aiEmployees.activity.unknownAgent')} accent={accent} avStyle={avStyle} size="sm" role={agent?.role} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="who">
                         {agent?.name || t('crm.aiEmployees.activity.unknownAgent')}
@@ -217,7 +217,7 @@ export function AiActivityFab() {
                       navigate(targetPath(it));
                     }}
                   >
-                    <AiAvatar name={agent?.name || 'AI'} accent={accent} avStyle={avStyle} size="sm" />
+                    <AiAvatar name={agent?.name || 'AI'} accent={accent} avStyle={avStyle} size="sm" role={agent?.role} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="who">
                         {agent?.name || 'AI'}

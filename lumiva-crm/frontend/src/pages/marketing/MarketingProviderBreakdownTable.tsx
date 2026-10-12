@@ -65,7 +65,8 @@ export const MarketingProviderBreakdownTable: React.FC<MarketingProviderBreakdow
       <table className="w-full text-left border-separate border-spacing-0 min-w-[640px]">
         <thead className={`${marketingThead} sticky top-0 z-[1]`}>
           <tr>
-            <th className={marketingTh}>
+            {/* Первая колонка липкая: на телефоне таблица скроллится вбок, а канал остаётся виден. */}
+            <th className={`${marketingTh} sticky left-0 z-[2] bg-[#fafafa]`}>
               {t('crm.marketingTraffic.summaryBreakdownChannel', { defaultValue: 'Канал (источник данных)' })}
             </th>
             <th className={marketingThNumeric}>
@@ -82,7 +83,7 @@ export const MarketingProviderBreakdownTable: React.FC<MarketingProviderBreakdow
         <tbody>
           {sorted.map((p) => (
             <tr key={p.dataSource} className={marketingTr}>
-              <td className={`${marketingTd} font-medium max-w-[200px]`}>
+              <td className={`${marketingTd} font-medium max-w-[140px] sm:max-w-[200px] sticky left-0 z-[1] bg-white shadow-[1px_0_0_#f0f0f0]`}>
                 <span className="block truncate" title={p.dataSource}>
                   {marketingDataSourceLabel(t, p.dataSource, dataSourceLabels)}
                 </span>

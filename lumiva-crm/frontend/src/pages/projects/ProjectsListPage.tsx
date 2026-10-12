@@ -41,6 +41,7 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 import { postAiGenerateProjectTasks, type AiGeneratedTask, type AiGeneratedField } from '../../api/ai';
 import { LottieIcon } from '../../components/LottieIcon';
 import { useProjectStatuses, pillStyleFromHex } from './useProjectStatuses';
+import { useProjectTagDefinitions } from './useProjectTagDefinitions';
 import { useProjectCurrencyDefinitions } from './useProjectCurrencyDefinitions';
 import {
   assigneeEntryDisplayLabel,
@@ -547,6 +548,14 @@ export const ProjectsListPage: React.FC = () => {
     [statusDefs],
   );
   const statusPillStyle = (status: string) => pillStyleFromHex(statusColorFor(status));
+  // Цвет метки из справочника (Настройки → Метки); метки вне справочника остаются нейтральными.
+  const { tags: tagDefs } = useProjectTagDefinitions();
+  const tagPillStyle = (tag: string): React.CSSProperties | undefined => {
+    const def = tagDefs.find((d) => d.value === tag);
+    if (!def) return undefined;
+    const p = pillStyleFromHex(def.color);
+    return { background: p.background, color: p.color, borderColor: p.borderColor };
+  };
   const taskStatusLabels = useMemo<Record<ProjectTask['status'], string>>(
     () => ({
       'К выполнению': t('crm.projects.detail.tasks.status.todo'),
@@ -2512,7 +2521,7 @@ export const ProjectsListPage: React.FC = () => {
             {(project.tags || []).length > 0 && (
               <span className="lv-cell-tags">
                 {(project.tags || []).map((tag) => (
-                  <span key={tag} className="lv-cell-tag">#{tag}</span>
+                  <span key={tag} className="lv-cell-tag" style={tagPillStyle(tag)}>#{tag}</span>
                 ))}
               </span>
             )}
