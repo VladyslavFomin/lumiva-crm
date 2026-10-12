@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #0f0f0f;
+  --paper: #f5f3ee;
+  --cream-border: #e8e5db;
+  --orange: #ff4d14;
+}
+
+html, body, #root {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--paper);
+}
+
+.font-serif-italic {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+}
+
+.font-mono-brand {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Lumiva Agency">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f1117"/>
+      <stop offset="100%" stop-color="#1f3a2f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="#f4efe5">
+    <text x="96" y="250" font-family="Georgia, 'Times New Roman', serif" font-size="92" font-weight="400" letter-spacing="-1">
+      Lumiva Agency
+    </text>
+    <text x="96" y="326" font-family="Arial, Helvetica, sans-serif" font-size="34" opacity="0.9">
+      Brand, Performance, Development, SEO
+    </text>
+    <text x="96" y="388" font-family="Arial, Helvetica, sans-serif" font-size="30" opacity="0.8">
+      Antalya � Turkey � International
+    </text>
+  </g>
+  <g stroke="#f4efe5" stroke-width="10" fill="none" opacity="0.9">
+    <path d="M948 470V180l156 290V180"/>
+    <line x1="900" y1="516" x2="1148" y2="516"/>
+  </g>
+</svg>

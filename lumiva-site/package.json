@@ -1,0 +1,36 @@
+{
+  "name": "lumiva-site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:client": "tsc -b && vite build",
+    "build:server": "vite build --config vite.config.ssr.ts",
+    "generate-sitemap": "node scripts/generate-sitemap.mjs",
+    "prerender": "node scripts/prerender.mjs",
+    "submit-indexnow": "node scripts/submit-indexnow.mjs",
+    "validate-routes": "node scripts/validate-routes.mjs",
+    "build": "npm run validate-routes && npm run generate-sitemap && npm run build:client && npm run build:server && npm run prerender",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "i18next": "^26.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-helmet-async": "^3.0.0",
+    "react-i18next": "^17.0.7",
+    "react-router-dom": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5"
+  }
+}
