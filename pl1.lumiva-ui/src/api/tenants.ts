@@ -91,6 +91,10 @@ export interface DemoRequest {
   phone?: string | null;
   ordersPerMonth?: string | null;
   contactMethod: string;
+  topic?: string | null;
+  company?: string | null;
+  teamSize?: string | null;
+  message?: string | null;
   status: string;
   createdAt: string;
   updatedAt: string;

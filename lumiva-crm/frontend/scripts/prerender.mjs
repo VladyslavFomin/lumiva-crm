@@ -47,7 +47,7 @@ const SEO_META = {
   },
   '/security': {
     title: 'Безопасность и защита данных — Lumiva CRM',
-    description: 'Шифрование, изоляция тенантов, RBAC и защита приложения — на уровне инфраструктуры и кода.',
+    description: 'Изоляция данных компаний, роли и права, двухфакторный вход, HTTPS и ежедневные резервные копии.',
   },
   '/compare': {
     title: 'Почему выбирают Lumiva CRM',
@@ -61,9 +61,13 @@ const SEO_META = {
     title: 'Список изменений — Lumiva CRM',
     description: 'История обновлений и новых функций платформы.',
   },
+  '/api-integration/docs': {
+    title: 'Справочник API — Lumiva CRM',
+    description: 'REST API Lumiva CRM: аутентификация по токену, приём лидов, товары, бронирования и пользовательские объекты.',
+  },
   '/integrations': {
     title: 'Интеграции — Lumiva CRM',
-    description: 'Подключите Lumiva CRM к сервисам: Telegram, WhatsApp, Google Sheets и другим.',
+    description: '30+ интеграций: WhatsApp, Telegram, Google Ads, Meta, amoCRM, Bitrix24, HubSpot, iyzico, PayTR, ЮKassa и другие.',
   },
   '/solutions': {
     title: 'Решения по отрасли — Lumiva CRM',
@@ -113,47 +117,32 @@ const SEO_META = {
     title: 'API и интеграции — Lumiva CRM',
     description: 'Открытый API для синхронизации лидов, сделок, статусов, задач и отчётности с внешними системами.',
   },
-  '/blog/deal-cycle-optimization': {
-    title: 'Как сократить цикл сделки без потери маржинальности — Lumiva CRM',
-    description: 'Методика приоритизации лидов, контроль касаний и внедрение SLA для менеджеров.',
-  },
-  '/blog/utm-architecture': {
-    title: 'UTM-архитектура для прозрачной аналитики CRM — Lumiva CRM',
-    description: 'Практика построения структуры меток и отчётов для маркетинга и отдела продаж.',
-  },
-  '/blog/crm-adoption': {
-    title: 'Как внедрять CRM, чтобы команда реально работала в системе — Lumiva CRM',
-    description: 'Подход к запуску, регламентам и адаптации сотрудников без сопротивления. Чек-лист из 12 пунктов.',
-  },
-  '/blog/automation-triggers': {
-    title: 'Триггерные автоматизации: 8 сценариев для отдела продаж — Lumiva CRM',
-    description: 'Как настроить автоматические задачи, уведомления и статусы без программирования.',
-  },
-  '/blog/integrations-guide': {
-    title: 'Руководство по интеграциям: от Telegram до 1С — Lumiva CRM',
-    description: 'Как выбрать нужные интеграции, настроить синхронизацию и избежать дублирования данных.',
-  },
-  '/blog/analytics-dashboards': {
-    title: 'Дашборды для руководителя: что смотреть каждый день — Lumiva CRM',
-    description: 'Набор метрик, которые дают реальную картину здоровья бизнеса. Как настроить CRM-аналитику за 30 минут.',
-  },
 };
 
 const BASE_URL = process.env.VITE_APP_URL || 'https://crm.lumiva.agency';
 
+const attr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 function buildMetaTags(route, meta) {
   const ogUrl = `${BASE_URL}${route === '/' ? '' : route}`;
+  const title = attr(meta.title);
+  const description = attr(meta.description);
+  const image = attr(meta.image || `${BASE_URL}/og-image.png`);
   return `
-    <title>${meta.title}</title>
-    <meta name="description" content="${meta.description}" />
-    <meta property="og:title" content="${meta.title}" />
-    <meta property="og:description" content="${meta.description}" />
+    <title>${title}</title>
+    <meta name="description" content="${description}" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
     <meta property="og:url" content="${ogUrl}" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content="${meta.type || 'website'}" />
     <meta property="og:site_name" content="Lumiva CRM" />
+    <meta property="og:image" content="${image}" />${meta.image ? '' : `
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />`}
+    <meta name="twitter:image" content="${image}" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${meta.title}" />
-    <meta name="twitter:description" content="${meta.description}" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${description}" />
     <link rel="canonical" href="${ogUrl}" />`.trim();
 }
 
@@ -167,6 +156,33 @@ function stripExistingSeoTags(html) {
     .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, '')
     .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, '');
 }
+
+/* Статьи блога живут в CMS pl2 (lumiva-agency-backend) — мета и sitemap собираем из API на момент сборки.
+ * Новая статья, опубликованная позже, открывается сразу (SPA), а её мета обновит scripts/prerender-blog.mjs. */
+const BLOG_API = process.env.BLOG_API || 'http://127.0.0.1:3010/blog';
+export async function loadBlogMeta() {
+  try {
+    const r = await fetch(`${BLOG_API}?site=crm&status=published&limit=200`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    return (d.items || []).map((p) => ({
+      route: '/blog/' + p.slug,
+      meta: {
+        title: `${p.seoTitle || p.title} — Lumiva CRM`,
+        description: p.seoDescription || p.excerpt || '',
+        image: p.coverUrl || undefined,
+        type: 'article',
+      },
+      lastmod: (p.updatedAt || p.publishedAt || '').slice(0, 10),
+    }));
+  } catch (e) {
+    console.warn('⚠ blog posts not loaded for prerender:', e.message);
+    return null;
+  }
+}
+
+const blogMeta = await loadBlogMeta();
+for (const b of blogMeta || []) SEO_META[b.route] = b.meta;
 
 const rawBaseHtml = readFileSync(join(distDir, 'index.html'), 'utf-8');
 const baseHtml = stripExistingSeoTags(rawBaseHtml);
@@ -188,6 +204,22 @@ for (const [route, meta] of Object.entries(SEO_META)) {
 
   generated++;
   console.log(`✓ ${route}`);
+}
+
+// sitemap: статьи блога из CMS вместо прежнего статичного списка
+if (blogMeta) {
+  const smPath = join(distDir, 'sitemap.xml');
+  try {
+    let sm = readFileSync(smPath, 'utf-8').replace(/\s*<url><loc>[^<]*\/blog\/[^<]+<\/loc>.*?<\/url>/g, '');
+    const urls = blogMeta
+      .map((b) => `  <url><loc>${BASE_URL}${b.route}</loc>${b.lastmod ? `<lastmod>${b.lastmod}</lastmod>` : ''}<changefreq>monthly</changefreq><priority>0.5</priority></url>`)
+      .join('\n');
+    sm = sm.replace(/(<url><loc>[^<]*\/blog<\/loc>.*?<\/url>)/, `$1\n${urls}`);
+    writeFileSync(smPath, sm, 'utf-8');
+    console.log(`✓ sitemap.xml (${blogMeta.length} blog posts)`);
+  } catch (e) {
+    console.warn('⚠ sitemap not updated:', e.message);
+  }
 }
 
 console.log(`\n✅ Prerender complete: ${generated} pages`);

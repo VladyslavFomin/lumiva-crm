@@ -1,12 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import './public-header.css';
 
 export const PublicFooter: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const year = new Date().getFullYear();
+  const lang = (i18n.language || 'ru').slice(0, 2);
+  // ИИ-пункты из макета (lh-sections.jsx LhFooter) ведут на блоки главной; хранение — реальный факт (сервер в ЕС)
+  const FT = {
+    ru: { tagline: 'CRM с ИИ-командой для продаж, склада, бронирований и сервиса.', aura: 'Aura', crew: 'ИИ-сотрудники', depts: 'ИИ-отделы', login: 'Вход', data: 'Серверы в ЕС · ежедневные резервные копии' },
+    en: { tagline: 'A CRM with an AI team for sales, stock, bookings and service.', aura: 'Aura', crew: 'AI employees', depts: 'AI departments', login: 'Log in', data: 'EU servers · daily backups' },
+    tr: { tagline: 'Satış, depo, rezervasyon ve hizmet için YZ ekipli CRM.', aura: 'Aura', crew: 'YZ çalışanları', depts: 'YZ departmanları', login: 'Giriş', data: 'AB sunucuları · günlük yedekler' },
+  }[lang === 'en' || lang === 'tr' ? lang : 'ru'];
 
   const productLinks = [
+    { to: '/#aura', label: FT.aura },
+    { to: '/#crew', label: FT.crew },
+    { to: '/#depts', label: FT.depts },
     { to: '/features',    label: t('publicPages.nav.features') },
     { to: '/pricing',     label: t('publicPages.nav.pricing') },
     { to: '/integrations',label: t('publicPages.nav.integrations') },
@@ -31,112 +42,61 @@ export const PublicFooter: React.FC = () => {
     { to: '/blog',    label: t('publicPages.nav.blog') },
     { to: '/faq',     label: t('publicPages.nav.faq') },
     { to: '/compare', label: t('publicPages.nav.compare') },
+    { to: '/?mode=login', label: FT.login },
   ];
 
+  const col = (h: string, links: Array<{ to: string; label: string }>) => (
+    <div className="lhh-ft-c">
+      <h5>{h}</h5>
+      {links.map((l) =>
+        l.to.includes('#') ? (
+          <a key={l.to} href={l.to}>
+            {l.label}
+          </a>
+        ) : (
+          <Link key={l.to} to={l.to}>
+            {l.label}
+          </Link>
+        ),
+      )}
+    </div>
+  );
+
   return (
-    <footer className="mt-24 bg-black text-white">
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:py-14">
-        <div className="mb-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
-          {/* Brand */}
-          <div>
-            <Link to="/" className="mb-4 inline-flex items-center gap-2 group">
-              <div className="w-7 h-7 rounded-xl border border-white/20 flex items-center justify-center transition-transform duration-200 group-hover:scale-95">
-                <div className="w-3 h-3 rounded-full bg-white" />
-              </div>
-              <span className="text-xs font-semibold tracking-[0.16em] uppercase text-white">Lumiva CRM</span>
-            </Link>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
-              {t('publicPages.footer.tagline', { defaultValue: 'Умная CRM для роста вашего бизнеса' })}
-            </p>
-            <div className="mt-4 flex flex-col gap-1.5 text-[11px] text-neutral-400">
-              <a href="mailto:hello@lumiva.agency" className="hover:text-white transition-colors w-fit">hello@lumiva.agency</a>
-              <a href="tel:+74996537883" className="hover:text-white transition-colors w-fit">+7 499 653 78 83</a>
-            </div>
-            <div className="mt-4 flex items-center gap-2">
-              <a
-                href="https://t.me/lumiva_crm"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Telegram"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-400 hover:border-white/30 hover:text-white transition-colors"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.028 5.014 12.16c-.64-.203-.653-.64.135-.954l11.566-4.46c.537-.194 1.006.131.83.948l-.65-.473z" />
-                </svg>
-              </a>
-              <a
-                href="https://github.com/lumiva-crm"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="GitHub"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-400 hover:border-white/30 hover:text-white transition-colors"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z" />
-                </svg>
-              </a>
-            </div>
-          </div>
-
-          {/* Product */}
-          <div>
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-              {t('publicPages.footer.product', { defaultValue: 'Продукт' })}
-            </div>
-            <div className="flex flex-col gap-2">
-              {productLinks.map((l) => (
-                <Link key={l.to} to={l.to} className="text-xs text-neutral-300 hover:text-white transition-colors">
-                  {l.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Solutions */}
-          <div>
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-              {t('publicPages.nav.solutions')}
-            </div>
-            <div className="flex flex-col gap-2">
-              {solutionLinks.map((l) => (
-                <Link key={l.to} to={l.to} className="text-xs text-neutral-300 hover:text-white transition-colors">
-                  {l.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Company */}
-          <div>
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-              {t('publicPages.footer.company', { defaultValue: 'Компания' })}
-            </div>
-            <div className="flex flex-col gap-2">
-              {companyLinks.map((l) => (
-                <Link key={l.to} to={l.to} className="text-xs text-neutral-300 hover:text-white transition-colors">
-                  {l.label}
-                </Link>
-              ))}
-            </div>
+    <footer className="lhh lhh-ft">
+      <div className="lhh-ft-in">
+        <div className="lhh-ft-brand">
+          <Link to="/" className="lhh-logo" aria-label="Lumiva CRM">
+            <span className="lhh-logo-m">
+              <i />
+            </span>
+            Lumiva<span className="lhh-logo-s">CRM</span>
+          </Link>
+          <p>{FT.tagline}</p>
+          <div className="lhh-ft-ct">
+            <a href="mailto:hello@lumiva.agency">hello@lumiva.agency</a>
+            <a href="https://t.me/lumiva_crm" target="_blank" rel="noopener noreferrer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
+                <path d="M21 4L3 11l6 2 2 6 3-4 5 4z" />
+              </svg>
+              @lumiva_crm
+            </a>
           </div>
         </div>
-
-        <div className="border-t border-white/10 pt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[10px] text-neutral-400">
-            © {year} Lumiva CRM. {t('publicPages.footer.rights', { defaultValue: 'Все права защищены.' })}
-          </div>
-          <div className="flex items-center gap-4 text-[10px] text-neutral-400">
-            <Link to="/privacy" className="hover:text-white transition-colors">
-              {t('publicPages.footer.privacy', { defaultValue: 'Конфиденциальность' })}
-            </Link>
-            <Link to="/terms" className="hover:text-white transition-colors">
-              {t('publicPages.footer.terms', { defaultValue: 'Условия использования' })}
-            </Link>
-            <Link to="/security" className="hover:text-white transition-colors">
-              {t('publicPages.footer.security', { defaultValue: 'Безопасность' })}
-            </Link>
-          </div>
-        </div>
+        {col(t('publicPages.footer.product', { defaultValue: 'Продукт' }), productLinks)}
+        {col(t('publicPages.nav.solutions'), solutionLinks)}
+        {col(t('publicPages.footer.company', { defaultValue: 'Компания' }), companyLinks)}
+      </div>
+      <div className="lhh-ft-b">
+        <span>
+          © {year} Lumiva CRM. {t('publicPages.footer.rights', { defaultValue: 'Все права защищены.' })}
+        </span>
+        <span className="lhh-ft-legal">
+          <Link to="/privacy">{t('publicPages.footer.privacy', { defaultValue: 'Конфиденциальность' })}</Link>
+          <Link to="/terms">{t('publicPages.footer.terms', { defaultValue: 'Условия использования' })}</Link>
+          <Link to="/security">{t('publicPages.footer.security', { defaultValue: 'Безопасность' })}</Link>
+        </span>
+        <span>{FT.data}</span>
       </div>
     </footer>
   );

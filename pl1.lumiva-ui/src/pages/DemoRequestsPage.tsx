@@ -117,7 +117,13 @@ const DemoRequestsPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-[12px] text-slate-400">
-                <div>Заказов/мес: {r.ordersPerMonth || "—"}</div>
+                {r.topic && <div>Тема: {r.topic}</div>}
+                {r.company && <div>Компания: {r.company}</div>}
+                {r.teamSize && <div>Команда: {r.teamSize}</div>}
+                {r.ordersPerMonth && <div>Заказов/мес: {r.ordersPerMonth}</div>}
+                {r.message && (
+                  <div className="mt-1 whitespace-pre-wrap text-slate-300">{r.message}</div>
+                )}
                 <div>Создано: {new Date(r.createdAt).toLocaleString()}</div>
               </div>
               <div className="text-[12px] text-slate-400">

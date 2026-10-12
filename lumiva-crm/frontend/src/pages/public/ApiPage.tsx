@@ -13,9 +13,9 @@ export default function ApiPage() {
             'Lumiva API is designed for operational growth: launch integrations quickly, adapt process logic without platform rebuilds, and keep analytics consistent while channels and teams expand.',
           heroTags: ['Fast launch', 'Flexible process changes', 'Scale-ready architecture'],
           topStats: [
-            { value: 'x2.1', label: 'Faster channel scaling' },
-            { value: '99.2%', label: 'Cross-system data consistency' },
-            { value: '-43%', label: 'Lead response cycle' },
+            { value: 'REST', label: 'API with access tokens' },
+            { value: 'Webhooks', label: 'incoming and outgoing' },
+            { value: 'Zapier · Make · n8n', label: 'no-code connection' },
           ],
           pillars: [
             {
@@ -31,12 +31,12 @@ export default function ApiPage() {
               text: 'Isolated tenant model, controlled access and verified callbacks support stable enterprise-grade operation.',
             },
           ],
-          kpiTitle: 'Performance dashboard after stabilization',
+          kpiTitle: 'Key API facts',
           kpiCards: [
-            { label: 'Lead response time', value: '-43%', note: 'average handling cycle' },
-            { label: 'Manual operations', value: '-38%', note: 'after process automation' },
-            { label: 'Data consistency', value: '99.2%', note: 'cross-system match rate' },
-            { label: 'Time to scale new channel', value: 'x2.1 faster', note: 'compared to typical CRM setup' },
+            { label: 'Authentication', value: 'X-Api-Token', note: 'token per integration, revocable any time' },
+            { label: 'Lead intake', value: 'POST', note: '/v1/public/inbound-lead from any site or bot' },
+            { label: 'Objects', value: '5+', note: 'leads, products, bookings, custom objects, company info' },
+            { label: 'Rate limit', value: '20 req/s', note: 'protects the API from overload' },
           ],
           speedTitle: 'Operational capabilities comparison',
           speedMetrics: [
@@ -119,9 +119,9 @@ export default function ApiPage() {
               'Lumiva API, entegrasyonları hızlı yayına almak, süreçleri kesinti olmadan güncellemek ve kanal büyümesini mimariyi bozmadan yönetmek için tasarlanmıştır. Lead toplama, yönlendirme, durum kontrolü, faturalama olayları ve analitik sürekliliği tek modelde ilerler.',
             heroTags: ['Hızlı canlıya geçiş', 'Esnek süreç uyumu', 'Ölçeklenebilir mimari'],
             topStats: [
-              { value: 'x2.1', label: 'Daha hızlı kanal ölçekleme' },
-              { value: '99.2%', label: 'Sistemler arası veri tutarlılığı' },
-              { value: '-43%', label: 'Lead yanıt döngüsü' },
+              { value: 'REST', label: 'erişim anahtarlı API' },
+              { value: 'Webhook', label: 'gelen ve giden' },
+              { value: 'Zapier · Make · n8n', label: 'kodsuz bağlantı' },
             ],
             pillars: [
               {
@@ -137,12 +137,12 @@ export default function ApiPage() {
                 text: 'Tenant izolasyonu, kontrollü erişim ve doğrulanan callback akışı ile kurumsal güvence sağlanır.',
               },
             ],
-            kpiTitle: 'Stabilizasyon sonrası performans paneli',
+            kpiTitle: 'API hakkında temel bilgiler',
             kpiCards: [
-              { label: 'Lead yanıt süresi', value: '-43%', note: 'ortalama işlem döngüsü' },
-              { label: 'Manuel işlem yükü', value: '-38%', note: 'otomasyon sonrası' },
-              { label: 'Veri tutarlılığı', value: '99.2%', note: 'sistemler arası eşleşme oranı' },
-              { label: 'Yeni kanal ölçekleme süresi', value: 'x2.1 hızlı', note: 'tipik CRM yaklaşımına göre' },
+              { label: 'Kimlik doğrulama', value: 'X-Api-Token', note: 'entegrasyon başına anahtar, istediğiniz an iptal edilebilir' },
+              { label: 'Lead alımı', value: 'POST', note: 'herhangi bir site veya bottan /v1/public/inbound-lead' },
+              { label: 'Nesneler', value: '5+', note: 'lead, ürün, rezervasyon, özel nesneler, şirket bilgisi' },
+              { label: 'İstek sınırı', value: '20 istek/sn', note: 'API\'yi aşırı yükten korur' },
             ],
             speedTitle: 'Operasyonel kabiliyet karşılaştırması',
             speedMetrics: [
@@ -224,9 +224,9 @@ export default function ApiPage() {
               'API Lumiva помогает быстро запускать интеграции, менять бизнес-процессы без остановки работы и масштабировать каналы без пересборки CRM. Мы ориентируемся на практику: прием лидов, маршрутизацию, контроль этапов, биллинг-события и цельную аналитику.',
             heroTags: ['Быстрый запуск', 'Гибкая адаптация процессов', 'Масштаб без пересборки'],
             topStats: [
-              { value: 'x2.1', label: 'Быстрее масштабирование каналов' },
-              { value: '99.2%', label: 'Согласованность данных между системами' },
-              { value: '-43%', label: 'Цикл реакции на лид' },
+              { value: 'REST', label: 'API с токенами доступа' },
+              { value: 'Webhooks', label: 'входящие и исходящие' },
+              { value: 'Zapier · Make · n8n', label: 'no-code подключение' },
             ],
             pillars: [
               {
@@ -242,12 +242,12 @@ export default function ApiPage() {
                 text: 'Изолированная tenant-модель, контроль доступа и верификация callback-событий обеспечивают стабильность.',
               },
             ],
-            kpiTitle: 'Панель бизнес-метрик после стабилизации',
+            kpiTitle: 'Ключевое об API',
             kpiCards: [
-              { label: 'Скорость реакции на лид', value: '-43%', note: 'средний цикл обработки' },
-              { label: 'Ручные операции', value: '-38%', note: 'после автоматизации процессов' },
-              { label: 'Согласованность данных', value: '99.2%', note: 'совпадение между системами' },
-              { label: 'Срок масштабирования нового канала', value: 'x2.1 быстрее', note: 'по сравнению с типовой CRM' },
+              { label: 'Аутентификация', value: 'X-Api-Token', note: 'отдельный токен на интеграцию, отзывается в любой момент' },
+              { label: 'Приём лидов', value: 'POST', note: '/v1/public/inbound-lead с любого сайта или бота' },
+              { label: 'Объекты', value: '5+', note: 'лиды, товары, бронирования, пользовательские объекты, данные компании' },
+              { label: 'Лимит запросов', value: '20 запр/с', note: 'защищает API от перегрузки' },
             ],
             speedTitle: 'Сравнение операционных возможностей',
             speedMetrics: [
@@ -373,7 +373,7 @@ export default function ApiPage() {
             ))}
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
+          <section className="grid gap-4">
             <article className="rounded-2xl border border-slate-200 bg-white p-5">
               <h3 className="text-sm font-semibold text-slate-900">{text.kpiTitle}</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -389,73 +389,8 @@ export default function ApiPage() {
               </div>
             </article>
 
-            <article className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900">{text.speedTitle}</h3>
-              <div className="mt-3 space-y-3">
-                {text.speedMetrics.map((m) => (
-                  <div key={m.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-xs font-semibold text-slate-700">{m.label}</div>
-                    <div className="mt-2 text-[11px] text-slate-500">Lumiva</div>
-                    <div className="mt-1 h-2 rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-indigo-600" style={{ width: `${m.lumiva}%` }} />
-                    </div>
-                    <div className="mt-2 text-[11px] text-slate-500">Typical CRM</div>
-                    <div className="mt-1 h-2 rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-slate-500" style={{ width: `${m.typical}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-slate-900">{text.trendTitle}</h3>
-            <p className="mt-1 text-xs text-slate-500">{text.trendHint}</p>
-            <div className="mt-3 overflow-x-auto">
-              <div className="min-w-[640px] space-y-3">
-                {text.trendData.map((point) => (
-                  <div key={point.period} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                        {point.period}
-                      </div>
-                      <div className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
-                        +{point.lumiva - point.typical} pp
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-600">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-indigo-600" />
-                            {text.trendLegendLumiva}
-                          </span>
-                          <span className="font-semibold">{point.lumiva}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-slate-200">
-                          <div className="h-full rounded-full bg-indigo-600" style={{ width: `${point.lumiva}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-600">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-500" />
-                            {text.trendLegendTypical}
-                          </span>
-                          <span className="font-semibold">{point.typical}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-slate-200">
-                          <div className="h-full rounded-full bg-slate-500" style={{ width: `${point.typical}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div className="text-[11px] text-slate-500">{text.ppHint}</div>
-              </div>
-            </div>
-          </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-slate-900">{text.journeyTitle}</h3>

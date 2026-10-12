@@ -17,9 +17,9 @@ export default function SolutionsPage() {
             'Lumiva solutions are configured by your business reality: sales cycle length, team structure, channel mix and operating priorities. The goal is to keep execution clear today and scalable tomorrow.',
           heroTags: ['Industry-fit modules', 'Role-based control', 'Scalable by design'],
           topStats: [
-            { value: 'x1.8', label: 'Faster cross-team alignment' },
-            { value: '94%', label: 'Process transparency for leadership' },
-            { value: '+22%', label: 'Retention visibility after rollout' },
+            { value: '12', label: 'modules on one customer base' },
+            { value: '30+', label: 'ready-made integrations' },
+            { value: 'RU · EN · TR', label: 'interface languages' },
           ],
           introTitle: 'Solution architecture by revenue model',
           introBody:
@@ -97,9 +97,9 @@ export default function SolutionsPage() {
               'Lumiva çözümleri iş gerçekliğinize göre yapılandırılır: satış döngüsü, ekip yapısı, kanal dağılımı ve operasyon öncelikleri. Amaç bugün net çalışma, yarın kontrollü ölçeklenmedir.',
             heroTags: ['Sektöre uygun modüller', 'Rol bazlı kontrol', 'Ölçek odaklı tasarım'],
             topStats: [
-              { value: 'x1.8', label: 'Ekipler arası daha hızlı hizalama' },
-              { value: '94%', label: 'Yönetim için süreç görünürlüğü' },
-              { value: '+22%', label: 'Yayından sonra retention görünürlüğü' },
+              { value: '12', label: 'tek müşteri tabanında modül' },
+              { value: '30+', label: 'hazır entegrasyon' },
+              { value: 'RU · EN · TR', label: 'arayüz dilleri' },
             ],
             introTitle: 'Gelir modeline göre çözüm mimarisi',
             introBody:
@@ -176,9 +176,9 @@ export default function SolutionsPage() {
               'Решения Lumiva собираются под вашу реальность: длительность цикла продаж, структуру команды, каналы и операционные приоритеты. Цель — понятное выполнение сегодня и масштабируемость завтра.',
             heroTags: ['Отраслевые модули', 'Ролевой контроль', 'Масштабируемая архитектура'],
             topStats: [
-              { value: 'x1.8', label: 'Быстрее согласование между отделами' },
-              { value: '94%', label: 'Прозрачность процессов для руководства' },
-              { value: '+22%', label: 'Видимость retention после запуска' },
+              { value: '12', label: 'модулей на одной базе клиентов' },
+              { value: '30+', label: 'готовых интеграций' },
+              { value: 'RU · EN · TR', label: 'языки интерфейса' },
             ],
             introTitle: 'Архитектура решений под модель выручки',
             introBody:
@@ -298,24 +298,6 @@ export default function SolutionsPage() {
           <p className="mt-2 text-sm leading-relaxed text-slate-700">{text.introBody}</p>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">{text.metricsTitle}</h3>
-          <div className="mt-3 space-y-3">
-            {text.metrics.map((m) => (
-              <div key={m.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs font-semibold text-slate-700">{m.label}</div>
-                <div className="mt-2 text-[11px] text-slate-500">Lumiva</div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-indigo-600" style={{ width: `${m.lumiva}%` }} />
-                </div>
-                <div className="mt-2 text-[11px] text-slate-500">Typical CRM</div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-slate-500" style={{ width: `${m.typical}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">{text.frameworkTitle}</h3>

@@ -74,77 +74,69 @@ export const PublicPageLayout: React.FC<Props> = ({ pageKey, title, subtitle, ch
     });
   }
 
-  return (
-    <div className="relative min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 text-slate-900">
-      {/* Background blobs */}
-      <div className="pointer-events-none fixed -left-32 top-20 h-80 w-80 rounded-full bg-slate-200/30 blur-3xl" />
-      <div className="pointer-events-none fixed -right-32 top-60 h-96 w-96 rounded-full bg-slate-300/20 blur-3xl" />
+  const FF = "'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  const FM = "'JetBrains Mono', ui-monospace, monospace";
 
+  return (
+    <div className="relative min-h-screen bg-white text-slate-900">
       <PublicHeader activeKey={pageKey} />
 
-      <main className="mx-auto w-full max-w-7xl px-3 pb-16 sm:px-4">
+      <main className="mx-auto w-full px-5 pb-20 md:px-8" style={{ maxWidth: 1280 }}>
         {/* Breadcrumbs */}
         {crumbs.length > 1 && (
-          <nav aria-label="breadcrumb" className="mb-6 flex items-center gap-1.5 text-[11px] text-slate-500">
+          <nav aria-label="breadcrumb" className="mt-6 flex items-center gap-1.5 text-[11px] text-slate-500" style={{ fontFamily: FM }}>
             {crumbs.map((c, i) => (
               <React.Fragment key={c.key}>
-                {i > 0 && (
-                  <svg className="w-3 h-3 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
-                  </svg>
-                )}
+                {i > 0 && <span className="text-slate-300">/</span>}
                 {i < crumbs.length - 1 ? (
-                  <Link to={c.to} className="hover:text-slate-800 transition-colors">{c.label}</Link>
+                  <Link to={c.to} className="hover:text-slate-900 transition-colors">{c.label}</Link>
                 ) : (
-                  <span className="text-slate-800 font-medium">{c.label}</span>
+                  <span className="text-slate-900">{c.label}</span>
                 )}
               </React.Fragment>
             ))}
           </nav>
         )}
 
-        {/* Page hero */}
+        {/* Page hero — same visual language as the landing / pricing pages */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)] sm:p-8 md:p-12 mb-8"
+          className="mb-12 border-b border-[#e7e7e7] pb-12 pt-10 md:pt-14"
         >
-          <div className="pointer-events-none absolute -right-8 -top-6 h-40 w-40 rounded-full bg-slate-100/60 blur-2xl" />
-          <div className="pointer-events-none absolute right-16 top-8 h-24 w-24 rounded-full bg-slate-200/40 blur-xl" />
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 240 80"
-            className="pointer-events-none absolute -right-8 -top-3 h-24 w-64 opacity-[0.07]"
-          >
-            <path d="M0 60 C 40 20, 80 20, 120 45 S 200 70, 240 25" fill="none" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          <div className="relative">
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-              {t('publicPages.common.kicker', { defaultValue: 'Lumiva CRM' })}
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl md:text-4xl leading-tight">{title}</h1>
-            {subtitle && (
-              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">{subtitle}</p>
-            )}
-            <div className="mt-6 flex flex-wrap gap-2.5">
-              <Link
-                to="/?mode=signup"
-                className="inline-flex items-center gap-1.5 rounded-full bg-black px-5 py-2 text-xs font-semibold text-white hover:bg-neutral-800 transition-colors"
-              >
-                {t('publicPages.common.primaryCta', { defaultValue: 'Попробовать бесплатно' })}
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
-              <Link
-                to="/contact"
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-medium text-slate-700 hover:border-slate-300 transition-colors"
-              >
-                {t('publicPages.common.secondaryCta', { defaultValue: 'Записаться на демо' })}
-              </Link>
-            </div>
+          <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[#888]" style={{ fontFamily: FM }}>
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#222]" />
+            {crumbs[crumbs.length - 1]?.label ?? t('publicPages.common.kicker', { defaultValue: 'Lumiva CRM' })}
           </div>
+          <h1
+            className="mt-6 max-w-4xl text-[#222]"
+            style={{ fontFamily: FF, fontSize: 'clamp(34px, 5vw, 64px)', lineHeight: 1.02, letterSpacing: '-0.04em', fontWeight: 500 }}
+          >
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#555] sm:text-[17px]">{subtitle}</p>
+          )}
+          {pageKey !== 'contact' && (
+          <div className="mt-8 flex flex-wrap gap-2.5">
+            <Link
+              to="/?mode=signup"
+              className="inline-flex items-center gap-2 rounded-full border border-[#222] bg-[#222] px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-black"
+            >
+              {t('publicPages.common.tryFree', { defaultValue: 'Попробовать бесплатно' })}
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </Link>
+            <Link
+              to="/contact"
+              className="inline-flex items-center rounded-full border border-[#e7e7e7] bg-white px-5 py-3 text-sm font-medium text-[#222] transition-colors hover:border-[#222]"
+            >
+              {t('publicPages.common.requestDemo', { defaultValue: 'Запросить демо' })}
+            </Link>
+          </div>
+          )}
         </motion.section>
 
         <section>{children}</section>

@@ -1,144 +1,206 @@
-import React from 'react';
+// Статья блога — дизайн Claude Design blog-v2.html (lh-blog.jsx BlPost). Данные — из CMS pl2 (blogApi.ts),
+// блоки рендерит BlogBlocks (тот же формат, что на lumiva.agency).
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { PublicPageLayout } from './PublicPageLayout';
-import { BLOG_POSTS, type BlogPost } from './blogPosts.data';
-
-type Lang = 'ru' | 'en' | 'tr';
-
-const T = {
-  ru: {
-    notFoundTitle: 'Статья не найдена',
-    notFoundSubtitle: 'Похоже, эта статья была перемещена или удалена.',
-    backToBlog: 'Ко всем статьям',
-    minRead: 'мин. чтения',
-    moreArticles: 'Другие статьи',
-  },
-  en: {
-    notFoundTitle: 'Article not found',
-    notFoundSubtitle: 'This article may have been moved or removed.',
-    backToBlog: 'Back to all articles',
-    minRead: 'min read',
-    moreArticles: 'More articles',
-  },
-  tr: {
-    notFoundTitle: 'Makale bulunamadı',
-    notFoundSubtitle: 'Bu makale taşınmış veya kaldırılmış olabilir.',
-    backToBlog: 'Tüm makalelere dön',
-    minRead: 'dk okuma',
-    moreArticles: 'Diğer makaleler',
-  },
-};
-
-const CATEGORIES: Record<string, { ru: string; en: string; tr: string }> = {
-  sales: { ru: 'Продажи', en: 'Sales', tr: 'Satış' },
-  analytics: { ru: 'Аналитика', en: 'Analytics', tr: 'Analitik' },
-  automation: { ru: 'Автоматизация', en: 'Automation', tr: 'Otomasyon' },
-  implementation: { ru: 'Внедрение', en: 'Implementation', tr: 'Uygulama' },
-  integrations: { ru: 'Интеграции', en: 'Integrations', tr: 'Entegrasyonlar' },
-};
-
-function formatDate(iso: string, lang: Lang) {
-  const d = new Date(iso);
-  if (lang === 'ru') return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-  if (lang === 'tr') return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-function getTitle(p: BlogPost, lang: Lang) {
-  return lang === 'en' ? p.titleEn : lang === 'tr' ? p.titleTr : p.titleRu;
-}
-function getExcerpt(p: BlogPost, lang: Lang) {
-  return lang === 'en' ? p.excerptEn : lang === 'tr' ? p.excerptTr : p.excerptRu;
-}
-function getBody(p: BlogPost, lang: Lang) {
-  return lang === 'en' ? p.bodyEn : lang === 'tr' ? p.bodyTr : p.bodyRu;
-}
+import { Icon } from '../landing/LandingSections';
+import { BLOG_UI, catLabel, fetchBlogPost, fetchBlogPosts, fmtDate, postBlocks, postDate, readMinutes, type BlogPostT } from './blogApi';
+import { BlogBlocks, blogToc } from './BlogBlocks';
+import { BlCard, BlCover, BlSideBoxes, useBlogLang } from './BlogPage';
+import { SolutionShell } from './solutionKit';
 
 export default function BlogPostPage() {
-  const { i18n } = useTranslation();
-  const lang = (i18n.language || 'ru').slice(0, 2) as Lang;
-  const t = T[lang] ?? T.ru;
-  const { slug } = useParams<{ slug: string }>();
+  const { slug = '' } = useParams();
+  const lang = useBlogLang();
+  const ui = BLOG_UI[lang];
+  const [post, setPost] = useState<BlogPostT | null | undefined>(undefined);
+  const [all, setAll] = useState<BlogPostT[]>([]);
+  const [err, setErr] = useState(false);
+  const [pr, setPr] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const art = useRef<HTMLElement>(null);
 
-  const post = BLOG_POSTS.find((p) => p.slug === slug);
+  useEffect(() => {
+    const ac = new AbortController();
+    setPost(undefined);
+    setErr(false);
+    fetchBlogPost(slug, lang, ac.signal)
+      .then(setPost)
+      .catch((e) => {
+        if (e?.name !== 'AbortError') setErr(true);
+      });
+    fetchBlogPosts(lang, ac.signal)
+      .then(setAll)
+      .catch(() => {});
+    window.scrollTo(0, 0);
+    return () => ac.abort();
+  }, [slug, lang]);
 
-  if (!post) {
+  useEffect(() => {
+    if (post) document.title = (post.seoTitle || post.title) + ' — Lumiva CRM';
+  }, [post]);
+
+  useEffect(() => {
+    const f = () => {
+      const el = art.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setPr(Math.min(1, Math.max(0, -r.top / Math.max(1, r.height - window.innerHeight * 0.6))));
+    };
+    f();
+    window.addEventListener('scroll', f, { passive: true });
+    window.addEventListener('resize', f);
+    return () => {
+      window.removeEventListener('scroll', f);
+      window.removeEventListener('resize', f);
+    };
+  }, [post]);
+
+  const blocks = useMemo(() => (post ? postBlocks(post) : []), [post]);
+  const toc = useMemo(() => blogToc(blocks), [blocks]);
+  const rt = post ? readMinutes(post) : 1;
+  const others = all.filter((x) => x.slug !== slug);
+  const idx = all.findIndex((x) => x.slug === slug);
+  const next = all.length > 1 ? all[(idx + 1) % all.length] : undefined;
+  const rel = post
+    ? others
+        .filter((x) => x.category && x.category === post.category)
+        .concat(others.filter((x) => !x.category || x.category !== post.category))
+        .filter((x) => x.slug !== next?.slug)
+        .slice(0, 3)
+    : [];
+
+  const share = () => {
+    navigator.clipboard?.writeText(window.location.href).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  if (post === null || err) {
     return (
-      <PublicPageLayout pageKey="blog" title={t.notFoundTitle} subtitle={t.notFoundSubtitle}>
-        <div className="flex justify-center py-10">
-          <Link
-            to="/blog"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-black text-white text-xs font-semibold hover:bg-neutral-800 transition-colors"
-          >
-            {t.backToBlog}
-          </Link>
-        </div>
-      </PublicPageLayout>
+      <SolutionShell activeKey="blog">
+        <section className="in-hero pg-hero bl-phero">
+          <div className="lh-glow" />
+          <div className="in-hero-c bl-phero-c">
+            <h1 className="bl-h1">{err ? ui.error : ui.notFound}</h1>
+            <p className="in-sub">
+              <Link className="lh-btn" to="/blog">
+                {ui.toBlog}
+                <Icon name="arrow" size={14} stroke={2} />
+              </Link>
+            </p>
+          </div>
+        </section>
+      </SolutionShell>
     );
   }
 
-  const body = getBody(post, lang);
-  const related = BLOG_POSTS.filter((p) => p.slug !== post.slug && p.category === post.category).slice(0, 3);
-  const relatedFallback = related.length > 0 ? related : BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
-
   return (
-    <PublicPageLayout pageKey="blog" title={getTitle(post, lang)} subtitle={getExcerpt(post, lang)}>
-      <div className="grid lg:grid-cols-[1fr_300px] gap-8 items-start">
-        <motion.article
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
-        >
-          <div className="flex items-center gap-2 mb-6 flex-wrap">
-            <span className="px-2.5 py-1 rounded-full bg-slate-50 border border-slate-100 text-[10px] font-medium text-slate-500 uppercase tracking-[0.14em]">
-              {CATEGORIES[post.category]?.[lang] ?? post.category}
-            </span>
-            <span className="text-[10px] text-slate-400">{formatDate(post.date, lang)}</span>
-            <span className="text-[10px] text-slate-400">·</span>
-            <span className="text-[10px] text-slate-400">{post.readTime} {t.minRead}</span>
-          </div>
-
-          <div className="prose prose-slate max-w-none">
-            {body.map((paragraph, i) => (
-              <p key={i} className="text-sm sm:text-[15px] text-slate-600 leading-relaxed mb-4 last:mb-0">
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
-            <span className="text-[10px] text-slate-400 uppercase tracking-[0.14em]">{post.tag}</span>
-            <Link
-              to="/blog"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-              </svg>
-              {t.backToBlog}
-            </Link>
-          </div>
-        </motion.article>
-
-        {/* Sidebar */}
-        <div className="flex flex-col gap-4 lg:sticky lg:top-28">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-            <h4 className="text-sm font-semibold text-slate-900 mb-3">{t.moreArticles}</h4>
-            <div className="flex flex-col gap-3">
-              {relatedFallback.map((p) => (
-                <Link key={p.slug} to={`/blog/${p.slug}`} className="flex items-start gap-2.5 group">
-                  <span className="text-xs text-slate-600 leading-snug group-hover:text-slate-900 transition-colors">
-                    {getTitle(p, lang)}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
+    <SolutionShell activeKey="blog">
+      <div className="bl-prog">
+        <span style={{ transform: `scaleX(${pr})` }} />
       </div>
-    </PublicPageLayout>
+      <section className="in-hero pg-hero bl-phero">
+        <div className="lh-glow" />
+        <div className="in-hero-c bl-phero-c">
+          <Link to="/blog" className="bl-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+            {ui.back}
+          </Link>
+          {post ? (
+            <>
+              <div className="bl-meta">
+                {post.category && <span className="bl-cat">{catLabel(post.category, lang)}</span>}
+                <span>{fmtDate(postDate(post), lang)}</span>
+                <span>·</span>
+                <span>
+                  {rt} {ui.min}
+                </span>
+              </div>
+              <h1 className="bl-h1">{post.title}</h1>
+              {post.excerpt && <p className="in-sub">{post.excerpt}</p>}
+            </>
+          ) : (
+            <div className="bl-state">{ui.loading}</div>
+          )}
+        </div>
+      </section>
+
+      {post && (
+        <section className="lp-sec bl-art-w">
+          <article className="bl-art" ref={art}>
+            <BlCover p={post} big lang={lang} />
+            <div className="bl-body">
+              <BlogBlocks blocks={blocks} />
+            </div>
+            <div className="bl-share">
+              <span>{ui.share}</span>
+              <a className="lh-btn gh sm" href={'https://t.me/share/url?url=' + encodeURIComponent(window.location.href)} target="_blank" rel="noopener noreferrer">
+                Telegram
+              </a>
+              <a className="lh-btn gh sm" href={'https://wa.me/?text=' + encodeURIComponent(post.title + ' ' + window.location.href)} target="_blank" rel="noopener noreferrer">
+                WhatsApp
+              </a>
+              <button type="button" className="lh-btn gh sm" onClick={share}>
+                {copied ? ui.copied : ui.copy}
+              </button>
+            </div>
+          </article>
+          <aside className="bl-side bl-art-side">
+            <BlSideBoxes lang={lang} />
+            <div className="bl-stick">
+              <div className="bl-box bl-toc">
+                <h4>{ui.progress}</h4>
+                <div className="bl-toc-r">
+                  <svg viewBox="0 0 36 36" aria-hidden>
+                    <circle cx="18" cy="18" r="15.9" className="bg" pathLength={100} />
+                    <circle cx="18" cy="18" r="15.9" className="fg" pathLength={100} style={{ strokeDasharray: `${pr * 100} 100` }} />
+                  </svg>
+                  <b>{Math.round(pr * 100)}%</b>
+                </div>
+                <span>{ui.left(Math.max(0, Math.ceil(rt * (1 - pr))))}</span>
+              </div>
+              {toc.length > 1 && (
+                <div className="bl-box bl-toc-l">
+                  <h4>{ui.toc}</h4>
+                  {toc.map((h) => (
+                    <a key={h.id} href={'#' + h.id}>
+                      {h.text}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        </section>
+      )}
+
+      {post && next && (
+        <section className="lp-sec">
+          <Link to={'/blog/' + next.slug} className="bl-next">
+            <span className="lp-kick">
+              <span className="lp-dot" />
+              {ui.next}
+            </span>
+            <b>{next.title}</b>
+            <Icon name="arrow" size={18} />
+          </Link>
+          {rel.length > 0 && (
+            <>
+              <div className="lp-kick bl-rel-h">
+                <span className="lp-dot" />
+                {ui.also}
+              </div>
+              <div className="bl-posts bl-rel">
+                {rel.map((x, k) => (
+                  <BlCard key={x.slug} p={x} lang={lang} i={k} short />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+    </SolutionShell>
   );
 }

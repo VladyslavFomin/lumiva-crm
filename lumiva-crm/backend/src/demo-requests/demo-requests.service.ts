@@ -1,12 +1,12 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { DemoRequest } from './demo-request.entity';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { TenantsService } from '../tenants/tenants.service';
 
 @Injectable()
-export class DemoRequestsService {
+export class DemoRequestsService implements OnModuleInit {
   private readonly logger = new Logger(DemoRequestsService.name);
 
   constructor(
@@ -14,15 +14,32 @@ export class DemoRequestsService {
     private readonly repo: Repository<DemoRequest>,
     private readonly platformSettings: PlatformSettingsService,
     private readonly tenants: TenantsService,
+    private readonly ds: DataSource,
   ) {}
 
+  // synchronize выключен — колонки формы /contact добавляем идемпотентно при старте.
+  async onModuleInit(): Promise<void> {
+    await this.ds.query(`
+      ALTER TABLE "demo_requests"
+        ADD COLUMN IF NOT EXISTS "topic" varchar(32),
+        ADD COLUMN IF NOT EXISTS "company" varchar(200),
+        ADD COLUMN IF NOT EXISTS "teamSize" varchar(32),
+        ADD COLUMN IF NOT EXISTS "message" text
+    `);
+  }
+
   async create(data: {
-    firstName: string;
-    lastName: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    name?: string | null;
     email: string;
     phone?: string | null;
     ordersPerMonth?: string | null;
-    contactMethod: string;
+    contactMethod?: string | null;
+    topic?: string | null;
+    company?: string | null;
+    teamSize?: string | null;
+    message?: string | null;
     botField?: string | null;
     utm?: any;
     utmSource?: string | null;
@@ -44,13 +61,31 @@ export class DemoRequestsService {
     const utmTerm =
       data.utmTerm ?? utm.utmTerm ?? utm.utm_term ?? null;
 
+    // Форма /contact шлёт одно поле name, лендинг — firstName/lastName.
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    let firstName = str(data.firstName, 120);
+    let lastName = str(data.lastName, 120);
+    if (!firstName && !lastName) {
+      const parts = str(data.name, 240).split(/\s+/).filter(Boolean);
+      firstName = (parts.shift() || '').slice(0, 120);
+      lastName = parts.join(' ').slice(0, 120);
+    }
+    const email = str(data.email, 180).toLowerCase();
+    if (!firstName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException('name and valid email are required');
+    }
+
     const entity = this.repo.create({
-      firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
-      email: data.email.trim().toLowerCase(),
-      phone: data.phone?.trim() || null,
-      ordersPerMonth: data.ordersPerMonth?.trim() || null,
-      contactMethod: data.contactMethod?.trim() || 'unknown',
+      firstName,
+      lastName,
+      email,
+      phone: str(data.phone, 40) || null,
+      ordersPerMonth: str(data.ordersPerMonth, 64) || null,
+      contactMethod: str(data.contactMethod, 32) || 'email',
+      topic: str(data.topic, 32) || null,
+      company: str(data.company, 200) || null,
+      teamSize: str(data.teamSize, 32) || null,
+      message: str(data.message, 4000) || null,
       utmSource,
       utmMedium,
       utmCampaign,
@@ -62,6 +97,7 @@ export class DemoRequestsService {
     });
 
     const saved = await this.repo.save(entity);
+    if (isBot) return saved;
     this.notifyTelegram(saved).catch((err) => {
       this.logger.warn(
         `Failed to notify Telegram for demo request ${saved.id}: ${String(err)}`,
@@ -165,14 +201,24 @@ export class DemoRequestsService {
       req.utmTerm ? `utm_term=${req.utmTerm}` : null,
     ].filter(Boolean);
 
+    const topicMap: Record<string, string> = {
+      demo: 'Демо',
+      pricing: 'Тарифы',
+      integration: 'Интеграция',
+      support: 'Поддержка',
+    };
+
     const text = [
-      '🟣 Новый запрос на демо',
+      req.topic ? `🟣 Заявка с сайта · ${topicMap[req.topic] || req.topic}` : '🟣 Новый запрос на демо',
       `Имя: ${req.firstName} ${req.lastName}`,
       `Почта: ${req.email}`,
       `Телефон: ${req.phone || '—'}`,
-      `Заказов/мес: ${req.ordersPerMonth || '—'}`,
+      req.company ? `Компания: ${req.company}` : null,
+      req.teamSize ? `Команда: ${req.teamSize}` : null,
+      req.ordersPerMonth ? `Заказов/мес: ${req.ordersPerMonth}` : null,
       `Связь: ${contactMap[req.contactMethod] || req.contactMethod}`,
       utmParts.length ? `UTM: ${utmParts.join(' | ')}` : null,
+      req.message ? `Сообщение: ${req.message.slice(0, 1500)}` : null,
       `Статус: ${req.status}`,
     ]
       .filter(Boolean)

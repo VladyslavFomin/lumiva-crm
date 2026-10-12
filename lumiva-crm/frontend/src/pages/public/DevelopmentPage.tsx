@@ -17,9 +17,9 @@ export default function DevelopmentPage() {
             'We design and implement CRM architecture around your real business flow. The model is built for fast launch, transparent governance, and long-term scalability without repeated platform rebuilds.',
           heroTags: ['Process-first architecture', 'Predictable delivery', 'Scale-ready model'],
           topStats: [
-            { value: 'x1.9', label: 'Faster rollout versus typical implementation' },
-            { value: '96%', label: 'Feature adoption in active teams' },
-            { value: '-31%', label: 'Time spent on manual coordination' },
+            { value: '14 days', label: 'of Enterprise for free to run a pilot' },
+            { value: 'API', label: 'and webhooks to connect your systems' },
+            { value: 'No-code', label: 'workspaces you set up without a developer' },
           ],
           deliveryTitle: 'How implementation is delivered',
           deliveryBody:
@@ -88,9 +88,9 @@ export default function DevelopmentPage() {
               'CRM mimarisini gerçek iş akışınıza göre tasarlayıp devreye alıyoruz. Model; hızlı başlangıç, yönetilebilir operasyon ve tekrar kurulum gerektirmeyen ölçeklenme için hazırlanır.',
             heroTags: ['Süreç odaklı mimari', 'Öngörülebilir teslimat', 'Ölçeklenebilir model'],
             topStats: [
-              { value: 'x1.9', label: 'Tipik kurulumlara göre daha hızlı yayına alma' },
-              { value: '96%', label: 'Aktif ekiplerde özellik benimseme oranı' },
-              { value: '-31%', label: 'Manuel koordinasyon süresi' },
+              { value: '14 gün', label: 'pilot için ücretsiz Enterprise' },
+              { value: 'API', label: 've sistemlerinizi bağlamak için webhook' },
+              { value: 'No-code', label: 'geliştirici olmadan kurulan çalışma alanları' },
             ],
             deliveryTitle: 'Uygulama nasıl teslim edilir',
             deliveryBody:
@@ -158,9 +158,9 @@ export default function DevelopmentPage() {
             'Мы проектируем и внедряем CRM-архитектуру под реальный рабочий цикл вашей команды. Подход рассчитан на быстрый запуск, прозрачное управление и масштабирование без постоянной переделки системы.',
           heroTags: ['Процессная архитектура', 'Предсказуемый rollout', 'Масштабируемая модель'],
           topStats: [
-            { value: 'x1.9', label: 'Быстрее запуск по сравнению с типичным внедрением' },
-            { value: '96%', label: 'Уровень принятия функций активными командами' },
-            { value: '-31%', label: 'Снижение ручной координации' },
+            { value: '14 дней', label: 'тарифа Enterprise бесплатно для пилота' },
+            { value: 'API', label: 'и webhooks для связки с вашими системами' },
+            { value: 'No-code', label: 'рабочие области без программиста' },
           ],
             deliveryTitle: 'Как проходит внедрение',
             deliveryBody:
@@ -273,24 +273,6 @@ export default function DevelopmentPage() {
           <p className="mt-2 text-sm leading-relaxed text-slate-700">{text.deliveryBody}</p>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">{text.metricsTitle}</h3>
-          <div className="mt-3 space-y-3">
-            {text.metrics.map((m) => (
-              <div key={m.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs font-semibold text-slate-700">{m.label}</div>
-                <div className="mt-2 text-[11px] text-slate-500">Lumiva</div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-indigo-600" style={{ width: `${m.lumiva}%` }} />
-                </div>
-                <div className="mt-2 text-[11px] text-slate-500">Typical CRM</div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-slate-500" style={{ width: `${m.typical}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">{t('publicPages.development.timelineTitle')}</h3>

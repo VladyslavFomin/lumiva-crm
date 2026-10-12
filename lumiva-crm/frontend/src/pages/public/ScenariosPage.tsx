@@ -17,9 +17,9 @@ export default function ScenariosPage() {
             'Lumiva scenarios turn CRM from a static database into an active execution system. You can orchestrate inbound routing, SLA control, reactivation and channel analytics inside one coherent workflow model.',
           heroTags: ['Scenario orchestration', 'SLA discipline', 'Predictable conversions'],
           topStats: [
-            { value: '+27%', label: 'Faster lead-to-deal progression' },
-            { value: '-34%', label: 'Missed follow-ups after automation' },
-            { value: '92%', label: 'Scenario completion consistency' },
+            { value: '25+', label: 'action types in automation scenarios' },
+            { value: 'AI', label: 'employees act with human approval' },
+            { value: 'Delay', label: 'and approval steps inside scenarios' },
           ],
           modelTitle: 'Scenario design in one operational model',
           modelBody:
@@ -95,9 +95,9 @@ export default function ScenariosPage() {
               'Lumiva senaryoları CRM’i pasif veri deposundan aktif bir operasyon motoruna dönüştürür. Gelen lead yönlendirme, SLA kontrolü, reaktivasyon ve kanal analitiği tek modelde yönetilir.',
             heroTags: ['Senaryo orkestrasyonu', 'SLA disiplini', 'Öngörülebilir dönüşüm'],
             topStats: [
-              { value: '+27%', label: 'Lead’den satışa geçiş hızı' },
-              { value: '-34%', label: 'Otomasyon sonrası kaçan takipler' },
-              { value: '92%', label: 'Senaryo tamamlama tutarlılığı' },
+              { value: '25+', label: 'otomasyon senaryolarında eylem türü' },
+              { value: 'AI', label: 'çalışanlar insan onayıyla hareket eder' },
+              { value: 'Gecikme', label: 've onay adımları senaryo içinde' },
             ],
             modelTitle: 'Tek operasyon modelinde senaryo tasarımı',
             modelBody:
@@ -172,9 +172,9 @@ export default function ScenariosPage() {
               'Сценарии Lumiva превращают CRM из пассивной базы в активную операционную систему. Входящий роутинг, SLA-контроль, реактивация и аналитика каналов работают в единой логике.',
             heroTags: ['Сценарная оркестрация', 'SLA-дисциплина', 'Предсказуемая конверсия'],
             topStats: [
-              { value: '+27%', label: 'Ускорение перехода лидов в сделки' },
-              { value: '-34%', label: 'Пропущенные follow-up после автоматизации' },
-              { value: '92%', label: 'Согласованность выполнения сценариев' },
+              { value: '25+', label: 'типов действий в сценариях автоматизации' },
+              { value: 'AI', label: 'сотрудники действуют с согласованием' },
+              { value: 'Задержки', label: 'и шаги согласования внутри сценария' },
             ],
             modelTitle: 'Проектирование сценариев в единой модели операций',
             modelBody:
@@ -292,24 +292,6 @@ export default function ScenariosPage() {
           <p className="mt-2 text-sm leading-relaxed text-slate-700">{text.modelBody}</p>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">{text.metricsTitle}</h3>
-          <div className="mt-3 space-y-3">
-            {text.metrics.map((m) => (
-              <div key={m.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs font-semibold text-slate-700">{m.label}</div>
-                <div className="mt-2 text-[11px] text-slate-500">Lumiva</div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-indigo-600" style={{ width: `${m.lumiva}%` }} />
-                </div>
-                <div className="mt-2 text-[11px] text-slate-500">Typical CRM</div>
-                <div className="mt-1 h-2 rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-slate-500" style={{ width: `${m.typical}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">{text.lifecycleTitle}</h3>

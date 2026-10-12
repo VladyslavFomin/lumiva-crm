@@ -16,30 +16,25 @@ const ArrowIcon = () => (
     <path d="M17 8l4 4m0 0l-4 4m4-4H3" />
   </svg>
 );
-const ChevronIcon = () => (
-  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M19 9l-7 7-7-7" />
-  </svg>
-);
 
 /* ─── Translations ─── */
 const T = {
   ru: {
-    kicker: 'ТАРИФЫ · ОБНОВЛЕНО АПРЕЛЬ 2026',
+    kicker: 'ТАРИФЫ · ОБНОВЛЕНО ОКТЯБРЬ 2026',
     title1: 'Платите за команду,',
     title2: 'а не за функции.',
-    sub: 'Все 9 модулей доступны на всех тарифах. Разница — в лимитах, каналах и уровне поддержки. Никаких скрытых блокировок.',
+    sub: 'Начните с 14 дней Enterprise бесплатно — без карты. Дальше выберите тариф: они различаются модулями, объёмом хранилища и уровнем поддержки.',
     monthly: 'Ежемесячно',
     yearly: 'Ежегодно',
-    save: '−20%',
+    save: 'до −20%',
     perMonth: '/ мес',
     perMonthYearly: '/ мес, при годовой',
     onRequest: 'По запросу',
     tryFree: '14 дней бесплатно',
     startFree: 'Начать бесплатно',
     contactUs: 'Связаться',
-    calcTitle: 'Подберите тариф под вашу команду.',
-    calcSub: 'Двигайте слайдеры — увидите итоговую сумму и подходящий тариф.',
+    calcTitle: 'Посчитайте стоимость для вашей команды.',
+    calcSub: 'Укажите число пользователей — увидите подходящий тариф и итоговую сумму.',
     calcKicker: 'КАЛЬКУЛЯТОР',
     calcUsers: 'Активных пользователей',
     calcLeads: 'Лидов в месяц',
@@ -55,40 +50,38 @@ const T = {
     calcExtraModules: 'Доп. модули',
     cmpKicker: 'СРАВНЕНИЕ',
     cmpTitle: 'Всё в одной таблице.',
-    cmpSub: 'Полное сравнение по 40+ параметрам. Что включено — без мелкого шрифта.',
+    cmpSub: 'Что входит в каждый тариф — без мелкого шрифта.',
     faqKicker: 'ВОПРОСЫ',
     faqTitle: 'Частые вопросы.',
     faqSub: 'Если чего-то не хватает — ',
     faqLink: 'полный FAQ',
     faqOr: ' или напишите нам.',
     ctaKicker: 'ГОТОВЫ ПОПРОБОВАТЬ?',
-    ctaTitle: '14 дней на Enterprise. Без карты. Без звонков.',
+    ctaTitle: '14 дней на Enterprise. Без карты.',
     ctaCreate: 'Создать аккаунт',
     ctaDemo: 'Демо',
-    fromYear: 'от €624/год',
+    fromYear: 'от €151/год',
     currency: '€',
     planAddons: [
-      { k: 'wa',    l: 'WhatsApp Business API',  p: '+€9/мес на Standard' },
-      { k: 'calls', l: 'IP-телефония и звонки',  p: '+€14/мес' },
-      { k: 'bi',    l: 'Расширенный BI',         p: '+€19/мес на Standard' },
+      { k: 'calls', l: 'IP-телефония и звонки', p: '+€14/мес · в Ultimate включено' },
     ],
   },
   en: {
-    kicker: 'PRICING · UPDATED APRIL 2026',
+    kicker: 'PRICING · UPDATED OCTOBER 2026',
     title1: 'Pay for your team,',
     title2: 'not for features.',
-    sub: 'All 9 modules are available on every plan. The difference is in limits, channels and support level. No hidden feature locks.',
+    sub: 'Start with 14 days of Enterprise for free — no card required. Then pick a plan: they differ by modules, storage and support level.',
     monthly: 'Monthly',
     yearly: 'Yearly',
-    save: '−20%',
+    save: 'up to −20%',
     perMonth: '/ mo',
     perMonthYearly: '/ mo, billed yearly',
     onRequest: 'On request',
     tryFree: '14 days free',
     startFree: 'Start free',
     contactUs: 'Contact us',
-    calcTitle: 'Find the right plan for your team.',
-    calcSub: 'Move the sliders — see the total and the recommended plan.',
+    calcTitle: 'Estimate the cost for your team.',
+    calcSub: 'Set the number of users — see the matching plan and the total.',
     calcKicker: 'CALCULATOR',
     calcUsers: 'Active users',
     calcLeads: 'Leads per month',
@@ -101,43 +94,41 @@ const T = {
     calcBaseCost: 'Base plan',
     calcExtraUsers: 'Extra users',
     calcExtraLeads: 'Leads overage',
-    calcExtraModules: 'Add-on modules',
+    calcExtraModules: 'Add-ons',
     cmpKicker: 'COMPARISON',
     cmpTitle: 'Everything in one table.',
-    cmpSub: 'Full comparison across 40+ parameters. No small print.',
+    cmpSub: 'What each plan includes — no small print.',
     faqKicker: 'FAQ',
     faqTitle: 'Common questions.',
     faqSub: "If something's missing — ",
     faqLink: 'full FAQ',
     faqOr: ' or write to us.',
     ctaKicker: 'READY TO START?',
-    ctaTitle: '14 days on Enterprise. No card. No calls.',
+    ctaTitle: '14 days on Enterprise. No card required.',
     ctaCreate: 'Create account',
     ctaDemo: 'Book a demo',
-    fromYear: 'from €624/yr',
+    fromYear: 'from €151/yr',
     currency: '€',
     planAddons: [
-      { k: 'wa',    l: 'WhatsApp Business API',  p: '+€9/mo on Standard' },
-      { k: 'calls', l: 'IP telephony & calls',   p: '+€14/mo' },
-      { k: 'bi',    l: 'Advanced BI',            p: '+€19/mo on Standard' },
+      { k: 'calls', l: 'IP telephony & calls', p: '+€14/mo · included in Ultimate' },
     ],
   },
   tr: {
-    kicker: 'FİYATLANDIRMA · NİSAN 2026',
+    kicker: 'FİYATLANDIRMA · EKİM 2026',
     title1: 'Ekibiniz için ödeyin,',
     title2: 'özellikler için değil.',
-    sub: 'Tüm 9 modül her planda mevcuttur. Fark limit, kanal ve destek düzeyindedir. Gizli kilitler yok.',
+    sub: '14 gün boyunca Enterprise planını ücretsiz deneyin — kart gerekmez. Ardından bir plan seçin: planlar modüller, depolama alanı ve destek düzeyiyle ayrılır.',
     monthly: 'Aylık',
     yearly: 'Yıllık',
-    save: '−20%',
+    save: '−20%\'ye kadar',
     perMonth: '/ ay',
     perMonthYearly: '/ ay, yıllık ödeme',
     onRequest: 'Teklif alın',
     tryFree: '14 gün ücretsiz',
     startFree: 'Ücretsiz başla',
     contactUs: 'İletişime geç',
-    calcTitle: 'Ekibinize uygun planı bulun.',
-    calcSub: 'Kaydırıcıları hareket ettirin — toplam tutarı ve önerilen planı görün.',
+    calcTitle: 'Ekibiniz için maliyeti hesaplayın.',
+    calcSub: 'Kullanıcı sayısını seçin — uygun planı ve toplam tutarı görün.',
     calcKicker: 'HESAP MAKİNESİ',
     calcUsers: 'Aktif kullanıcı',
     calcLeads: 'Aylık lead',
@@ -150,115 +141,122 @@ const T = {
     calcBaseCost: 'Temel plan',
     calcExtraUsers: 'Ekstra kullanıcılar',
     calcExtraLeads: 'Lead aşımı',
-    calcExtraModules: 'Ek modüller',
+    calcExtraModules: 'Eklentiler',
     cmpKicker: 'KARŞILAŞTIRMA',
     cmpTitle: 'Her şey tek tabloda.',
-    cmpSub: '40+ parametreyle tam karşılaştırma. Küçük punto yok.',
+    cmpSub: 'Her plana neler dahil — küçük punto yok.',
     faqKicker: 'SORULAR',
     faqTitle: 'Sık sorulan sorular.',
     faqSub: 'Bir şey eksikse — ',
     faqLink: 'tam SSS',
     faqOr: ' veya bize yazın.',
     ctaKicker: 'BAŞLAMAYA HAZIR MISINIZ?',
-    ctaTitle: "Enterprise'da 14 gün. Kart yok. Arama yok.",
+    ctaTitle: "Enterprise'da 14 gün. Kart gerekmez.",
     ctaCreate: 'Hesap oluştur',
     ctaDemo: 'Demo ayarla',
-    fromYear: '€624/yıldan',
+    fromYear: '€151/yıldan',
     currency: '€',
     planAddons: [
-      { k: 'wa',    l: 'WhatsApp Business API',  p: 'Standard\'da +€9/ay' },
-      { k: 'calls', l: 'IP telefon ve aramalar', p: '+€14/ay' },
-      { k: 'bi',    l: 'Gelişmiş BI',            p: 'Standard\'da +€19/ay' },
+      { k: 'calls', l: 'IP telefon ve aramalar', p: '+€14/ay · Ultimate\'ta dahil' },
     ],
   },
 };
 
 type Lang = 'ru' | 'en' | 'tr';
 
+/* Годовая цена = месячная × (1 − скидка); скидки совпадают с BillingService.getYearlyDiscount
+   (Standard 10%, Professional 12%, Enterprise 15%, Ultimate 20%). */
+const PRICES = {
+  standard: { m: 14, y: 12.6 },
+  professional: { m: 23, y: 20.24 },
+  enterprise: { m: 40, y: 34 },
+  ultimate: { m: 52, y: 41.6 },
+};
+
 /* ─── Plan data ─── */
 function getPlans(lang: Lang) {
   if (lang === 'en') return [
     { id: 'standard', name: 'Standard', badge: null,
-      sub: 'For quick team launch. Core CRM for daily sales and marketing.',
-      prices: { m: 14, y: 11 }, cta: { label: 'Start free', primary: false },
+      sub: 'Core CRM for daily sales and marketing work.',
+      prices: PRICES.standard, cta: { label: 'Start free', primary: false },
       feats: [
-        { b: 'Leads, contacts, companies, deals' }, { b: 'Pipeline & basic analytics' },
-        { b: 'Marketing + UTM tags' }, { b: 'Email templates & campaigns' },
-        { b: 'Projects and tasks' }, { b: 'CF7 / WooCommerce integrations' },
+        { b: 'Leads, contacts, companies, deals' }, { b: 'Projects, tasks and no-code workspaces' },
+        { b: 'Marketing, UTM and email campaigns' }, { b: 'Bookings, hotels, products, warehouse' },
+        { b: 'Automations and AI assistant' }, { b: 'File storage', s: '3 GB' },
       ],
       addons: '+ €5/mo per additional user',
     },
     { id: 'professional', name: 'Professional', badge: null,
-      sub: 'For growth and automation. Scale your process and control.',
-      prices: { m: 23, y: 18 }, cta: { label: 'Start free', primary: false },
+      sub: 'For teams that talk to customers in messengers.',
+      prices: PRICES.professional, cta: { label: 'Start free', primary: false },
       feats: [
-        { b: 'Everything in Standard' }, { b: 'Automation & trigger scenarios' },
-        { b: 'Telegram and chat module' }, { b: 'SMM and advanced integrations' },
-        { b: 'Sales pipeline + KPI analytics' }, { b: 'Advanced roles and team workflows' },
+        { b: 'Everything in Standard' }, { b: 'Telegram, WhatsApp and website chat' },
+        { b: 'SMM and Google reviews monitoring' }, { b: 'AI employees: analyst and SEO' },
+        { b: 'Branded email' }, { b: 'File storage', s: '5 GB' },
       ],
       addons: '+ €5/mo per additional user',
     },
     { id: 'enterprise', name: 'Enterprise', badge: 'POPULAR', featured: true,
-      sub: 'Maximum control, security, and deep analytics for leadership teams.',
-      prices: { m: 40, y: 32 }, cta: { label: '14 days free', primary: true, white: true },
+      sub: 'Client finances, portals and help with implementation.',
+      prices: PRICES.enterprise, cta: { label: '14 days free', primary: true, white: true },
       feats: [
-        { b: 'Everything in Professional' }, { b: 'Client Accounts & portals' },
-        { b: 'Deep BI analytics', s: 'by departments' }, { b: 'Implementation planning', s: 'for your process' },
-        { b: 'Sales optimization consulting' }, { b: '24/7 support with SLA' },
+        { b: 'Everything in Professional' }, { b: 'Client Accounts & client portals' },
+        { b: 'Implementation planning', s: 'for your process' }, { b: 'Priority support' },
+        { b: 'File storage', s: '10 GB' },
       ],
       addons: '+ €5/mo per additional user',
     },
     { id: 'ultimate', name: 'Ultimate', badge: null,
-      sub: 'Premium package with consulting and custom implementation support.',
-      prices: { m: 52, y: 42 }, cta: { label: 'Contact us', primary: false },
+      sub: 'Premium package with telephony, custom domain and consulting.',
+      prices: PRICES.ultimate, cta: { label: 'Contact us', primary: false },
       feats: [
-        { b: 'Everything in Enterprise' }, { b: 'Business-tailored architecture' },
-        { b: 'Priority technical support 24/7' }, { b: 'Dedicated consulting & roadmap' },
-        { b: 'Migration and release support' }, { b: 'Expert support for complex integrations' },
-        { b: 'Custom domain', s: 'crm.yourcompany.com' },
+        { b: 'Everything in Enterprise' }, { b: 'IP telephony included' },
+        { b: 'Custom domain', s: 'crm.yourcompany.com' }, { b: 'Custom development for your business' },
+        { b: 'Dedicated manager and consulting' }, { b: 'Migration from another CRM' },
+        { b: 'File storage', s: 'by agreement' },
       ],
       addons: '+ €5/mo per additional user',
     },
   ];
   if (lang === 'tr') return [
     { id: 'standard', name: 'Standard', badge: null,
-      sub: 'Hızlı ekip başlangıcı için. Günlük satış ve pazarlama için CRM.',
-      prices: { m: 14, y: 11 }, cta: { label: 'Ücretsiz başla', primary: false },
+      sub: 'Günlük satış ve pazarlama işleri için temel CRM.',
+      prices: PRICES.standard, cta: { label: 'Ücretsiz başla', primary: false },
       feats: [
-        { b: 'Lead, kişi, şirket ve fırsat' }, { b: 'Pipeline ve temel analitik' },
-        { b: 'Pazarlama + UTM etiketleri' }, { b: 'Email şablonları ve gönderimler' },
-        { b: 'Projeler ve görevler' }, { b: 'CF7 / WooCommerce entegrasyonları' },
+        { b: 'Lead, kişi, şirket ve fırsatlar' }, { b: 'Projeler, görevler ve no-code çalışma alanları' },
+        { b: 'Pazarlama, UTM ve e-posta kampanyaları' }, { b: 'Rezervasyonlar, oteller, ürünler, depo' },
+        { b: 'Otomasyonlar ve AI asistan' }, { b: 'Dosya depolama', s: '3 GB' },
       ],
       addons: 'Her ek kullanıcı için + €5/ay',
     },
     { id: 'professional', name: 'Professional', badge: null,
-      sub: 'Büyüme ve otomasyon için. Süreç kontrolünü güçlendirin.',
-      prices: { m: 23, y: 18 }, cta: { label: 'Ücretsiz başla', primary: false },
+      sub: 'Müşterileriyle mesajlaşma uygulamalarında konuşan ekipler için.',
+      prices: PRICES.professional, cta: { label: 'Ücretsiz başla', primary: false },
       feats: [
-        { b: 'Standard içindeki her şey' }, { b: 'Otomasyon ve tetikleyici senaryolar' },
-        { b: 'Telegram ve sohbet modülü' }, { b: 'SMM ve gelişmiş entegrasyonlar' },
-        { b: 'Satış pipeline + KPI analitiği' }, { b: 'Gelişmiş rol ve ekip süreçleri' },
+        { b: 'Standard içindeki her şey' }, { b: 'Telegram, WhatsApp ve site sohbeti' },
+        { b: 'SMM ve Google yorum takibi' }, { b: 'AI çalışanlar: analist ve SEO' },
+        { b: 'Markalı e-posta' }, { b: 'Dosya depolama', s: '5 GB' },
       ],
       addons: 'Her ek kullanıcı için + €5/ay',
     },
     { id: 'enterprise', name: 'Enterprise', badge: 'POPÜLER', featured: true,
-      sub: 'Yönetim için maksimum kontrol, güvenlik ve derin analitik.',
-      prices: { m: 40, y: 32 }, cta: { label: '14 gün ücretsiz', primary: true, white: true },
+      sub: 'Müşteri finansları, portallar ve kurulum desteği.',
+      prices: PRICES.enterprise, cta: { label: '14 gün ücretsiz', primary: true, white: true },
       feats: [
         { b: 'Professional içindeki her şey' }, { b: 'Client Accounts ve müşteri portalları' },
-        { b: 'Departman bazlı derin BI analitiği' }, { b: 'Özel kurulum planı' },
-        { b: 'Satış optimizasyon danışmanlığı' }, { b: 'SLA ile 7/24 destek' },
+        { b: 'Sürecinize özel kurulum planı' }, { b: 'Öncelikli destek' },
+        { b: 'Dosya depolama', s: '10 GB' },
       ],
       addons: 'Her ek kullanıcı için + €5/ay',
     },
     { id: 'ultimate', name: 'Ultimate', badge: null,
-      sub: 'Danışmanlık ve özelleştirme desteği içeren premium paket.',
-      prices: { m: 52, y: 42 }, cta: { label: 'İletişime geç', primary: false },
+      sub: 'Telefon, özel domain ve danışmanlık içeren premium paket.',
+      prices: PRICES.ultimate, cta: { label: 'İletişime geç', primary: false },
       feats: [
-        { b: 'Enterprise içindeki her şey' }, { b: 'İşinize özel mimari' },
-        { b: 'Öncelikli teknik destek 7/24' }, { b: 'Özel danışmanlık ve roadmap' },
-        { b: 'Migrasyon ve release desteği' }, { b: 'Karmaşık entegrasyonlar için uzman destek' },
-        { b: 'Özel domain', s: 'crm.sirketiniz.com' },
+        { b: 'Enterprise içindeki her şey' }, { b: 'IP telefon dahil' },
+        { b: 'Özel domain', s: 'crm.sirketiniz.com' }, { b: 'İşinize özel geliştirme' },
+        { b: 'Kişisel yönetici ve danışmanlık' }, { b: 'Başka CRM\'den taşıma' },
+        { b: 'Dosya depolama', s: 'anlaşmaya göre' },
       ],
       addons: 'Her ek kullanıcı için + €5/ay',
     },
@@ -266,136 +264,122 @@ function getPlans(lang: Lang) {
   // ru default
   return [
     { id: 'standard', name: 'Standard', badge: null,
-      sub: 'Для быстрого запуска команды. Базовый CRM для ежедневной работы.',
-      prices: { m: 14, y: 11 }, cta: { label: 'Начать бесплатно', primary: false },
+      sub: 'Базовый CRM для ежедневной работы продаж и маркетинга.',
+      prices: PRICES.standard, cta: { label: 'Начать бесплатно', primary: false },
       feats: [
-        { b: 'Лиды, контакты, компании, сделки' }, { b: 'Воронка продаж и базовая аналитика' },
-        { b: 'Маркетинг и UTM-метки' }, { b: 'Email шаблоны и отправки' },
-        { b: 'Проекты и задачи' }, { b: 'Интеграции CF7 / WooCommerce' },
+        { b: 'Лиды, контакты, компании, сделки' }, { b: 'Проекты, задачи и no-code рабочие области' },
+        { b: 'Маркетинг, UTM и email-рассылки' }, { b: 'Бронирования, отели, товары, склад' },
+        { b: 'Автоматизации и AI-ассистент' }, { b: 'Хранилище файлов', s: '3 ГБ' },
       ],
       addons: '+ €5/мес за каждого дополнительного пользователя',
     },
     { id: 'professional', name: 'Professional', badge: null,
-      sub: 'Для роста и автоматизации. Масштабируйте и усиливайте управляемость.',
-      prices: { m: 23, y: 18 }, cta: { label: 'Начать бесплатно', primary: false },
+      sub: 'Для команд, которые общаются с клиентами в мессенджерах.',
+      prices: PRICES.professional, cta: { label: 'Начать бесплатно', primary: false },
       feats: [
-        { b: 'Всё из Standard' }, { b: 'Автоматизации и триггерные сценарии' },
-        { b: 'Telegram и чат-модуль' }, { b: 'SMM и расширенные интеграции' },
-        { b: 'Sales pipeline + KPI аналитика' }, { b: 'Расширенные права и процессы команд' },
+        { b: 'Всё из Standard' }, { b: 'Telegram, WhatsApp и онлайн-чат на сайте' },
+        { b: 'SMM и мониторинг отзывов Google' }, { b: 'AI-сотрудники: аналитик и SEO' },
+        { b: 'Брендированные письма' }, { b: 'Хранилище файлов', s: '5 ГБ' },
       ],
       addons: '+ €5/мес за каждого дополнительного пользователя',
     },
     { id: 'enterprise', name: 'Enterprise', badge: 'ПОПУЛЯРНЫЙ', featured: true,
-      sub: 'Максимум контроля, безопасности и глубокой аналитики для руководителей.',
-      prices: { m: 40, y: 32 }, cta: { label: '14 дней бесплатно', primary: true, white: true },
+      sub: 'Финансы клиентов, клиентские порталы и помощь с внедрением.',
+      prices: PRICES.enterprise, cta: { label: '14 дней бесплатно', primary: true, white: true },
       feats: [
         { b: 'Всё из Professional' }, { b: 'Client Accounts и клиентские порталы' },
-        { b: 'Глубокая BI/аналитика', s: 'по отделам' }, { b: 'Планирование внедрения', s: 'под ваш процесс' },
-        { b: 'Консалтинг по оптимизации продаж' }, { b: 'Поддержка 24/7 с SLA' },
+        { b: 'Планирование внедрения', s: 'под ваш процесс' }, { b: 'Приоритетная поддержка' },
+        { b: 'Хранилище файлов', s: '10 ГБ' },
       ],
       addons: '+ €5/мес за каждого дополнительного пользователя',
     },
     { id: 'ultimate', name: 'Ultimate', badge: null,
-      sub: 'Премиальный пакет с сопровождением, консалтингом и кастомизацией.',
-      prices: { m: 52, y: 42 }, cta: { label: 'Связаться', primary: false },
+      sub: 'Премиальный пакет: телефония, свой домен и консалтинг.',
+      prices: PRICES.ultimate, cta: { label: 'Связаться', primary: false },
       feats: [
-        { b: 'Всё из Enterprise' }, { b: 'Индивидуальная архитектура под бизнес' },
-        { b: 'Приоритетная техническая линия 24/7' }, { b: 'Выделенный консалтинг и roadmap' },
-        { b: 'Миграция и сопровождение релизов' }, { b: 'Экспертная поддержка сложных интеграций' },
-        { b: 'Личный домен', s: 'crm.вашакомпания.рф' },
+        { b: 'Всё из Enterprise' }, { b: 'IP-телефония включена' },
+        { b: 'Личный домен', s: 'crm.вашакомпания.com' }, { b: 'Доработки под ваш бизнес' },
+        { b: 'Персональный менеджер и консалтинг' }, { b: 'Миграция из другой CRM' },
+        { b: 'Хранилище файлов', s: 'по договорённости' },
       ],
       addons: '+ €5/мес за каждого дополнительного пользователя',
     },
   ];
 }
 
+/* Строки сравнения отражают реальные ограничения тарифов — backend/src/tenants/plan-entitlements.ts
+   (COMPONENT_MIN_PLAN / MODULE_MIN_PLAN) и tenants/storage-quota.util.ts. */
 function getCmpSections(lang: Lang) {
   const e = lang === 'en', tr = lang === 'tr';
-  const U = e ? 'Unlimited' : tr ? 'Limitsiz' : 'Без лимита';
-  const C = e ? 'Custom' : tr ? 'Özel' : 'Кастомные';
+  const Y = '✓', N = '—';
   return [
-    { name: e ? 'Data & Sources' : tr ? 'Veri ve Kaynaklar' : 'Данные и источники', rows: [
-      { f: e ? 'Leads/mo' : tr ? 'Aylık lead' : 'Лиды в месяц', d: e ? 'included' : tr ? 'dahil' : 'включено', vals: [e ? '5,000' : tr ? '5.000' : '5 000', e ? '25,000' : tr ? '25.000' : '25 000', U, U] },
-      { f: e ? 'Integrations' : tr ? 'Entegrasyonlar' : 'Интеграции', d: e ? 'connectors' : tr ? 'bağlayıcılar' : 'коннекторов', vals: ['10', '50+', '80+', '80+ + ' + C] },
-      { f: e ? 'Deduplication' : tr ? 'Yineleme kaldırma' : 'Дедупликация', vals: ['✓', '✓', '✓', '✓'] },
-      { f: e ? 'Scoring' : tr ? 'Skorlama' : 'Скоринг', d: e ? 'rules + ML' : tr ? 'kurallar + ML' : 'правила + ML', vals: [e ? 'Basic' : tr ? 'Temel' : 'Базовый', '✓', e ? 'Advanced' : tr ? 'Gelişmiş' : 'Advanced', e ? 'Advanced + custom' : tr ? 'Gelişmiş + özel' : 'Advanced + кастом'] },
-      { f: e ? 'Enrichment' : tr ? 'Zenginleştirme' : 'Обогащение', vals: ['—', '—', '✓', '✓'] },
-    ]},
-    { name: e ? 'Sales' : tr ? 'Satış' : 'Продажи', rows: [
-      { f: e ? 'Pipelines' : tr ? 'Pipeline sayısı' : 'Воронок', vals: ['1', '3', '∞', '∞'] },
-      { f: e ? 'Pipeline stages' : tr ? 'Aşama sayısı' : 'Стадий в воронке', vals: [e ? 'Up to 7' : tr ? '7\'ye kadar' : 'До 7', e ? 'Up to 32' : tr ? '32\'ye kadar' : 'До 32', U, U] },
-      { f: e ? 'Forecasts' : tr ? 'Tahminler' : 'Форкасты', vals: ['—', '✓', '✓ + ML', '✓ + ML'] },
-      { f: e ? 'Auto-tasks' : tr ? 'Otomatik görevler' : 'Авто-задачи', vals: [e ? 'Basic' : tr ? 'Temel' : 'Базовые', '✓', '✓', '✓'] },
-      { f: e ? 'Mobile app' : tr ? 'Mobil uygulama' : 'Мобильное приложение', vals: ['✓', '✓', '✓', '✓ + MDM'] },
+    { name: e ? 'CRM & modules' : tr ? 'CRM ve modüller' : 'CRM и модули', rows: [
+      { f: e ? 'Leads, contacts, companies, deals' : tr ? 'Lead, kişi, şirket, fırsat' : 'Лиды, контакты, компании, сделки', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Projects, tasks, Kanban, calendar' : tr ? 'Projeler, görevler, Kanban, takvim' : 'Проекты, задачи, Kanban, календарь', vals: [Y, Y, Y, Y] },
+      { f: e ? 'No-code workspaces' : tr ? 'No-code çalışma alanları' : 'No-code рабочие области', d: e ? 'tables, Kanban, Gantt' : tr ? 'tablolar, Kanban, Gantt' : 'таблицы, Kanban, Gantt', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Bookings and hotels (PMS)' : tr ? 'Rezervasyonlar ve oteller (PMS)' : 'Бронирования и отели (PMS)', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Products and warehouse' : tr ? 'Ürünler ve depo' : 'Товары и склад', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Duplicate merge' : tr ? 'Mükerrer kayıt birleştirme' : 'Поиск и слияние дублей', vals: [Y, Y, Y, Y] },
+      { f: 'Client Accounts', d: e ? 'client finances and portals' : tr ? 'müşteri finansları ve portallar' : 'финансы клиентов и порталы', vals: [N, N, Y, Y] },
     ]},
     { name: e ? 'Communications' : tr ? 'İletişim' : 'Коммуникации', rows: [
-      { f: 'Email / SMS / Telegram', vals: ['✓', '✓', '✓', '✓'] },
-      { f: 'WhatsApp Business', vals: ['—', '✓', '✓', '✓'] },
-      { f: e ? 'IP telephony' : tr ? 'IP telefon' : 'Звонки (IP-телефония)', vals: ['—', '✓', '✓', e ? '✓ + 3yr rec.' : tr ? '✓ + 3 yıl kayıt' : '✓ + запись 3 года'] },
-      { f: e ? 'Push (web + mobile)' : tr ? 'Push (web + mobil)' : 'Push (web + mobile)', vals: ['—', '✓', '✓', '✓'] },
-      { f: e ? 'Templates' : tr ? 'Şablonlar' : 'Шаблоны', vals: ['20', U, U, U] },
+      { f: e ? 'Email and SMS' : tr ? 'E-posta ve SMS' : 'Email и SMS', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Telegram and WhatsApp' : tr ? 'Telegram ve WhatsApp' : 'Telegram и WhatsApp', vals: [N, Y, Y, Y] },
+      { f: e ? 'Website chat with AI operator' : tr ? 'AI operatörlü site sohbeti' : 'Онлайн-чат на сайте с AI-оператором', vals: [N, Y, Y, Y] },
+      { f: e ? 'IP telephony' : tr ? 'IP telefon' : 'IP-телефония', d: e ? 'calls, recording, transcription' : tr ? 'arama, kayıt, transkripsiyon' : 'звонки, запись, расшифровка', vals: ['+€14', '+€14', '+€14', Y] },
     ]},
-    { name: e ? 'Automation' : tr ? 'Otomasyon' : 'Автоматизация', rows: [
-      { f: e ? 'Scenarios' : tr ? 'Senaryo sayısı' : 'Сценарии', vals: ['5', '∞', '∞', '∞'] },
-      { f: e ? 'Triggers' : tr ? 'Tetikleyiciler' : 'Триггеры', vals: ['12', '80+', '80+', '80+ + ' + C] },
-      { f: e ? 'A/B tests' : tr ? 'A/B testler' : 'A/B тесты', vals: ['—', '✓', '✓', '✓'] },
-      { f: 'Webhooks', vals: [e ? '10/mo' : tr ? '10/ay' : '10/мес', U, U, U] },
-      { f: e ? 'Playbooks library' : tr ? 'Hazır oyun kitapları' : 'Готовые плейбуки', vals: ['12', '120+', '120+', e ? '120+ + custom' : tr ? '120+ + özel' : '120+ + кастом'] },
+    { name: e ? 'Automation & AI' : tr ? 'Otomasyon ve AI' : 'Автоматизация и AI', rows: [
+      { f: e ? 'Automations' : tr ? 'Otomasyonlar' : 'Автоматизации', d: e ? 'triggers, conditions, delays, approval' : tr ? 'tetikleyici, koşul, gecikme, onay' : 'триггеры, условия, задержки, согласование', vals: [Y, Y, Y, Y] },
+      { f: e ? 'AI assistant in chat' : tr ? 'Sohbette AI asistan' : 'AI-ассистент в чате', vals: [Y, Y, Y, Y] },
+      { f: e ? 'AI employees' : tr ? 'AI çalışanlar' : 'AI-сотрудники', vals: [e ? 'Basic roles' : tr ? 'Temel roller' : 'Базовые роли', e ? 'All roles' : tr ? 'Tüm roller' : 'Все роли', e ? 'All roles' : tr ? 'Tüm roller' : 'Все роли', e ? 'All roles' : tr ? 'Tüm roller' : 'Все роли'] },
+      { f: e ? 'Your own OpenAI / Anthropic key' : tr ? 'Kendi OpenAI / Anthropic anahtarınız' : 'Свой ключ OpenAI / Anthropic', vals: [Y, Y, Y, Y] },
     ]},
-    { name: e ? 'Analytics' : tr ? 'Analitik' : 'Аналитика', rows: [
-      { f: e ? 'Dashboards' : tr ? 'Dashboard sayısı' : 'Готовых дашбордов', vals: ['5', '80+', '80+', '80+ + ' + C] },
-      { f: e ? 'Report builder' : tr ? 'Rapor oluşturucu' : 'Конструктор отчётов', vals: ['—', '✓', '✓', '✓ + SQL'] },
-      { f: e ? 'Attribution' : tr ? 'Atıf' : 'Атрибуция', vals: [e ? 'Last-click' : tr ? 'Son tıklama' : 'Last-click', e ? 'All models' : tr ? 'Tüm modeller' : 'Все модели', e ? 'All + MMM' : tr ? 'Tümü + MMM' : 'Все + MMM', e ? 'All + custom' : tr ? 'Tümü + özel' : 'Все + кастом'] },
-      { f: e ? 'PDF/CSV export' : tr ? 'PDF/CSV dışa aktarma' : 'Экспорт PDF/CSV', vals: ['✓', '✓', '✓', '✓'] },
-      { f: e ? 'Scheduled reports' : tr ? 'Zamanlanmış raporlar' : 'Отчёты по расписанию', vals: ['—', '✓', '✓', '✓'] },
-    ]},
-    { name: e ? 'Security & Access' : tr ? 'Güvenlik ve Erişim' : 'Безопасность и доступы', rows: [
-      { f: '2FA', vals: ['✓', '✓', '✓', '✓'] },
-      { f: 'SSO / SAML', vals: ['—', '—', '✓', '✓'] },
-      { f: 'RBAC', d: e ? 'flexible roles' : tr ? 'esnek roller' : 'гибкие роли', vals: [e ? '3 roles' : tr ? '3 rol' : '3 роли', C, e ? C + ' + hier.' : tr ? C + ' + hiyerarşi' : C + ' + иерархия', e ? C + ' + hier.' : tr ? C + ' + hiyerarşi' : C + ' + иерархия'] },
-      { f: e ? 'Audit log' : tr ? 'Denetim günlüğü' : 'Журнал аудита', vals: [e ? '30 days' : tr ? '30 gün' : '30 дней', e ? '1 year' : tr ? '1 yıl' : '1 год', e ? '7 years' : tr ? '7 yıl' : '7 лет', e ? '7 years' : tr ? '7 yıl' : '7 лет'] },
-      { f: 'SOC 2 Type II', vals: ['✓', '✓', '✓', '✓'] },
-      { f: e ? 'Client portals' : tr ? 'Müşteri portalları' : 'Клиентские порталы', vals: ['—', '—', '✓', '✓'] },
+    { name: e ? 'Data & security' : tr ? 'Veri ve güvenlik' : 'Данные и безопасность', rows: [
+      { f: e ? 'File storage' : tr ? 'Dosya depolama' : 'Хранилище файлов', vals: [e ? '3 GB' : tr ? '3 GB' : '3 ГБ', e ? '5 GB' : tr ? '5 GB' : '5 ГБ', e ? '10 GB' : tr ? '10 GB' : '10 ГБ', e ? 'By agreement' : tr ? 'Anlaşmaya göre' : 'По договорённости'] },
+      { f: e ? 'Roles and access rights' : tr ? 'Roller ve erişim hakları' : 'Роли и права доступа', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Two-factor authentication' : tr ? 'İki faktörlü doğrulama' : 'Двухфакторная аутентификация', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Action audit log' : tr ? 'İşlem denetim günlüğü' : 'Журнал действий', vals: [Y, Y, Y, Y] },
+      { f: e ? 'API tokens and webhooks' : tr ? 'API anahtarları ve webhook' : 'API-токены и webhooks', vals: [Y, Y, Y, Y] },
+      { f: e ? 'Custom domain' : tr ? 'Özel domain' : 'Свой домен', vals: [N, N, N, Y] },
     ]},
     { name: e ? 'Support' : tr ? 'Destek' : 'Поддержка', rows: [
-      { f: e ? 'Channel' : tr ? 'Kanal' : 'Канал', vals: ['Email', e ? 'Chat' : tr ? 'Sohbet' : 'Чат', e ? 'Chat 24/7' : tr ? '7/24 sohbet' : 'Чат 24/7', e ? 'Dedicated CSM' : tr ? 'Özel CSM' : 'Выделенный CSM'] },
-      { f: 'SLA', vals: [e ? '48h' : tr ? '48s' : '48ч', e ? '8h' : tr ? '8s' : '8ч', e ? '4h' : tr ? '4s' : '4ч', e ? '1h' : tr ? '1s' : '1ч'] },
-      { f: e ? 'Training' : tr ? 'Eğitim' : 'Обучение', vals: [e ? 'Docs' : tr ? 'Dökümantasyon' : 'Документация', e ? 'Webinars' : tr ? 'Web seminerler' : 'Вебинары', e ? 'Webinars + Academy' : tr ? 'Akademi' : 'Академия', e ? 'Onsite + workshops' : tr ? 'Yerinde + atölyeler' : 'Онсайт + воркшопы'] },
-      { f: e ? 'Consulting' : tr ? 'Danışmanlık' : 'Консалтинг', vals: ['—', '—', '✓', e ? '✓ dedicated' : tr ? '✓ özel' : '✓ выделенный'] },
+      { f: e ? 'Channel' : tr ? 'Kanal' : 'Канал', vals: ['Email', e ? 'Email + chat' : tr ? 'E-posta + sohbet' : 'Email + чат', e ? 'Priority' : tr ? 'Öncelikli' : 'Приоритетная', e ? 'Dedicated manager' : tr ? 'Kişisel yönetici' : 'Персональный менеджер'] },
+      { f: e ? 'Implementation help' : tr ? 'Kurulum desteği' : 'Помощь с внедрением', vals: [N, N, Y, Y] },
+      { f: e ? 'Migration from another CRM' : tr ? 'Başka CRM\'den taşıma' : 'Миграция из другой CRM', vals: [N, N, N, Y] },
     ]},
   ];
 }
 
 function getFaqs(lang: Lang) {
   if (lang === 'en') return [
-    { q: 'Can I change my plan?', a: 'Yes, at any time. Upgrade takes effect immediately with prorated billing. Downgrade takes effect at the start of the next billing period, no penalties.' },
-    { q: 'How are leads counted?', a: 'A lead is a unique contact that enters the system in a month. If the same contact comes in again in the same month, it does not increment the counter. The counter resets on the 1st.' },
-    { q: 'What happens if I exceed the lead limit?', a: "We don't shut anything down. Overages are billed at plan rate: €5 per 1,000 additional leads. You can set a hard limit in settings." },
-    { q: 'Is there a free trial?', a: 'Standard and Professional start free — the account runs in a limited mode until you pick a plan. Enterprise includes a 14-day trial with full access, no card required.' },
-    { q: 'Does the price include VAT?', a: 'Prices shown are exclusive of VAT/taxes. Applicable taxes will be added at checkout based on your location.' },
-    { q: 'What payment methods are accepted?', a: 'Card, bank transfer, SEPA, crypto (USDT, USDC), Stripe for international clients.' },
-    { q: 'Where is data stored?', a: 'Your choice: Moscow (152-FZ), Frankfurt (GDPR) or Istanbul. Enterprise — any cloud or on-prem.' },
-    { q: 'Are there discounts?', a: 'Annual billing — 20% off. Startups under 2 years — 40%. Non-profits — 50%. Team training — free.' },
+    { q: 'Is there a free trial?', a: 'Yes. Every new account gets 14 days of the Enterprise plan with full access. No card required. When the trial ends, pick a plan — your data stays in place.' },
+    { q: 'What happens after the trial?', a: 'If you don\'t pay, access to the CRM is paused until you choose a plan. Nothing is deleted.' },
+    { q: 'Can I change my plan?', a: 'Yes, at any time from the Billing section inside the CRM. The new plan applies right after payment.' },
+    { q: 'What payment methods are accepted?', a: 'Bank card. In Turkey payments go through iyzico or PayTR, in Russia through YooKassa, elsewhere through Stripe. The provider is chosen automatically by your account language.' },
+    { q: 'How much does yearly billing save?', a: 'Standard −10%, Professional −12%, Enterprise −15%, Ultimate −20% compared with monthly billing.' },
+    { q: 'Where is data stored?', a: 'On servers in the European Union (Lithuania). The database is backed up every night.' },
+    { q: 'Can I import data from spreadsheets or another CRM?', a: 'Yes. Leads, products and workspace tables can be imported from Excel and CSV; AI helps to parse messy spreadsheets. On Ultimate we migrate your data for you.' },
+    { q: 'Do prices include taxes?', a: 'The final amount, including any applicable taxes, is shown on the payment page before you pay.' },
   ];
   if (lang === 'tr') return [
-    { q: 'Planımı değiştirebilir miyim?', a: 'Evet, istediğiniz zaman. Yükseltme hemen geçerli olur, orantılı faturalandırma ile. Düşürme bir sonraki dönemin başında geçerli olur, ceza yok.' },
-    { q: 'Leadler nasıl sayılır?', a: 'Bir lead, bir ayda sisteme giren benzersiz bir kişidir. Aynı kişi aynı ay tekrar gelirse sayaç artmaz. Sayaç 1\'inde sıfırlanır.' },
-    { q: 'Lead limitini aşarsam ne olur?', a: 'Hiçbir şeyi kapatmıyoruz. Aşımlar plan fiyatıyla faturalandırılır: her ek 1.000 lead için €5. Ayarlarda sert limit belirleyebilirsiniz.' },
-    { q: 'Ücretsiz deneme var mı?', a: 'Standard ve Professional ücretsiz başlar — bir plan seçene kadar hesap sınırlı modda çalışır. Enterprise, kart gerektirmeyen 14 günlük tam erişimli bir deneme içerir.' },
-    { q: 'Fiyata KDV dahil mi?', a: 'Gösterilen fiyatlar KDV hariçtir. Ödeme sırasında konumunuza göre geçerli vergiler eklenir.' },
-    { q: 'Hangi ödeme yöntemleri kabul ediliyor?', a: 'Kart, banka havalesi, kripto (USDT, USDC), uluslararası müşteriler için Stripe.' },
-    { q: 'Veriler nerede saklanır?', a: 'Seçiminize göre: Moskova (152-FZ), Frankfurt (GDPR) veya İstanbul. Enterprise — herhangi bir bulut veya şirket içi.' },
-    { q: 'İndirim var mı?', a: 'Yıllık ödeme — %20 indirim. 2 yıldan genç girişimler — %40. Sivil toplum kuruluşları — %50. Ekip eğitimi — ücretsiz.' },
+    { q: 'Ücretsiz deneme var mı?', a: 'Evet. Her yeni hesap 14 gün boyunca Enterprise planına tam erişim alır. Kart gerekmez. Deneme bitince bir plan seçin — verileriniz yerinde kalır.' },
+    { q: 'Deneme süresi bitince ne olur?', a: 'Ödeme yapılmazsa CRM erişimi bir plan seçene kadar duraklatılır. Hiçbir veri silinmez.' },
+    { q: 'Planımı değiştirebilir miyim?', a: 'Evet, istediğiniz zaman CRM içindeki Ödeme bölümünden. Yeni plan ödemeden hemen sonra geçerli olur.' },
+    { q: 'Hangi ödeme yöntemleri kabul ediliyor?', a: 'Banka kartı. Türkiye\'de ödemeler iyzico veya PayTR, Rusya\'da YooKassa, diğer ülkelerde Stripe üzerinden alınır. Sağlayıcı hesap dilinize göre otomatik seçilir.' },
+    { q: 'Yıllık ödemede ne kadar tasarruf ederim?', a: 'Aylık ödemeye göre Standard −%10, Professional −%12, Enterprise −%15, Ultimate −%20.' },
+    { q: 'Veriler nerede saklanır?', a: 'Avrupa Birliği\'ndeki (Litvanya) sunucularda. Veritabanının her gece yedeği alınır.' },
+    { q: 'Tablolardan veya başka bir CRM\'den veri aktarabilir miyim?', a: 'Evet. Lead\'ler, ürünler ve çalışma alanı tabloları Excel ve CSV\'den aktarılabilir; AI dağınık tabloları ayrıştırmaya yardım eder. Ultimate planında taşımayı biz yaparız.' },
+    { q: 'Fiyatlara vergi dahil mi?', a: 'Varsa vergiler dahil nihai tutar, ödemeden önce ödeme sayfasında gösterilir.' },
   ];
   return [
-    { q: 'Могу ли я сменить тариф?', a: 'Да, в любой момент. Повышение — сразу, с пропорциональной оплатой разницы. Понижение — с начала следующего периода, без штрафов.' },
-    { q: 'Как считаются лиды?', a: 'Лид — это уникальный контакт, пришедший в систему за месяц. Если один контакт приходит повторно в том же месяце, он не увеличивает счётчик. Счётчик обнуляется 1-го числа.' },
-    { q: 'Что, если я превысил лимит лидов?', a: 'Мы не отключаем ничего. Превышение оплачивается по тарифу: €5 за каждые следующие 1 000 лидов. Вы можете поставить жёсткий лимит в настройках.' },
-    { q: 'Есть ли бесплатный период?', a: 'Standard и Professional можно начать бесплатно — аккаунт работает в ограниченном режиме, пока вы не выберете тариф. Для Enterprise доступен 14-дневный пробный период с полным доступом, без привязки карты.' },
-    { q: 'Включён ли НДС?', a: 'Цены указаны без НДС. Для юрлиц РФ выставляем счёт с НДС 20%. Для международных клиентов — без НДС.' },
-    { q: 'Какие способы оплаты?', a: 'Карта, безналичный расчёт по счёту, СБП, криптовалюта (USDT, USDC), Stripe для международных клиентов.' },
-    { q: 'Где хранятся данные?', a: 'По выбору: Москва (152-ФЗ), Франкфурт (GDPR) или Стамбул. Enterprise — любое собственное облако или on-prem.' },
-    { q: 'Есть ли скидки?', a: 'Годовая оплата — 20% скидка. Стартапы до 2 лет — 40%. Некоммерческие организации — 50%. Обучение команды — бесплатно.' },
+    { q: 'Есть ли бесплатный период?', a: 'Да. Каждый новый аккаунт получает 14 дней тарифа Enterprise с полным доступом. Карта не нужна. Когда пробный период закончится, выберите тариф — данные останутся на месте.' },
+    { q: 'Что будет после пробного периода?', a: 'Если не оплатить тариф, доступ к CRM приостанавливается до выбора тарифа. Данные не удаляются.' },
+    { q: 'Могу ли я сменить тариф?', a: 'Да, в любой момент в разделе «Оплата» внутри CRM. Новый тариф начинает действовать сразу после оплаты.' },
+    { q: 'Какие способы оплаты?', a: 'Банковская карта. В Турции оплата проходит через iyzico или PayTR, в России — через ЮKassa, в остальных странах — через Stripe. Платёжная система выбирается автоматически по языку аккаунта.' },
+    { q: 'Сколько экономит годовая оплата?', a: 'По сравнению с помесячной: Standard −10%, Professional −12%, Enterprise −15%, Ultimate −20%.' },
+    { q: 'Где хранятся данные?', a: 'На серверах в Евросоюзе (Литва). Каждую ночь делается резервная копия базы данных.' },
+    { q: 'Можно ли перенести данные из таблиц или другой CRM?', a: 'Да. Лиды, товары и таблицы рабочих областей импортируются из Excel и CSV, а AI помогает разобрать «грязные» таблицы. На тарифе Ultimate перенос делаем мы.' },
+    { q: 'Включены ли налоги в цену?', a: 'Итоговая сумма с учётом применимых налогов показывается на странице оплаты до того, как вы платите.' },
   ];
 }
 
@@ -403,12 +387,11 @@ function getFaqs(lang: Lang) {
 function Calculator({ period, lang }: { period: 'm' | 'y'; lang: Lang }) {
   const tx = T[lang];
   const [users, setUsers] = useState(8);
-  const [leads, setLeads] = useState(20000);
-  const [addons, setAddons] = useState({ wa: true, calls: false, bi: true });
+  const [addons, setAddons] = useState({ calls: false });
 
   // All plans in EUR, +€5 per extra user
   const EXTRA_USER_RATE = period === 'y' ? 4 : 5; // €5/mo monthly, €4/mo yearly
-  const { basePlan, baseCost, userCost, leadsCost, addonsCost, total } = useMemo(() => {
+  const { basePlan, baseCost, userCost, addonsCost, total } = useMemo(() => {
     const plans = getPlans(lang);
     // Plan selection: Standard→Professional→Enterprise→Ultimate by user count
     let planIdx = 0;
@@ -421,20 +404,12 @@ function Calculator({ period, lang }: { period: 'm' | 'y'; lang: Lang }) {
     // Extra users above plan included count
     const includedUsers = planIdx === 0 ? 3 : planIdx === 1 ? 10 : planIdx === 2 ? 20 : 30;
     const userCost = users > includedUsers ? (users - includedUsers) * EXTRA_USER_RATE : 0;
-    // Lead overage (€5 per 1000 over limit)
-    const leadLimits = [5000, 25000, 100000, 200000];
-    const leadLim = leadLimits[planIdx];
-    const leadsCost = leads > leadLim ? Math.ceil((leads - leadLim) / 1000) * 5 : 0;
-    // Add-ons (EUR prices)
-    const addonPrices = { wa: 9, calls: 14, bi: 19 };
-    let addonsCost = 0;
-    if (addons.wa) addonsCost += addonPrices.wa;
-    if (addons.calls) addonsCost += addonPrices.calls;
-    if (addons.bi && planIdx === 0) addonsCost += addonPrices.bi;
-    return { basePlan, baseCost, userCost, leadsCost, addonsCost, total: baseCost + userCost + leadsCost + addonsCost };
-  }, [users, leads, addons, period, lang, EXTRA_USER_RATE]);
+    // Телефония — платное дополнение (€14/мес), в Ultimate включена бесплатно
+    const addonsCost = addons.calls && planIdx !== 3 ? 14 : 0;
+    return { basePlan, baseCost, userCost, addonsCost, total: baseCost + userCost + addonsCost };
+  }, [users, addons, period, lang, EXTRA_USER_RATE]);
 
-  const fmt = (n: number) => '€' + n.toLocaleString('en-US');
+  const fmt = (n: number) => '€' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid #e7e7e7', borderRadius: 12, overflow: 'hidden' }}
@@ -454,13 +429,6 @@ function Calculator({ period, lang }: { period: 'm' | 'y'; lang: Lang }) {
           <input type="range" min="1" max="60" step="1" value={users} onChange={e => setUsers(+e.target.value)} className="lv-range" />
         </div>
 
-        <div style={{ marginTop: 28 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, color: '#555', marginBottom: 8 }}>
-            <span>{tx.calcLeads}</span>
-            <span style={{ fontFamily: "'Inter Tight', sans-serif", fontSize: 22, fontWeight: 500, color: '#222' }}>{leads.toLocaleString()}</span>
-          </div>
-          <input type="range" min="500" max="200000" step="500" value={leads} onChange={e => setLeads(+e.target.value)} className="lv-range" />
-        </div>
 
         <div style={{ marginTop: 32 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#888', letterSpacing: '0.1em', marginBottom: 12 }}>{tx.calcAddons}</div>
@@ -491,7 +459,6 @@ function Calculator({ period, lang }: { period: 'm' | 'y'; lang: Lang }) {
           {[
             { label: tx.calcBaseCost, val: fmt(baseCost) },
             userCost > 0 ? { label: tx.calcExtraUsers, val: '+' + fmt(userCost) } : null,
-            leadsCost > 0 ? { label: tx.calcExtraLeads, val: '+' + fmt(leadsCost) } : null,
             addonsCost > 0 ? { label: tx.calcExtraModules, val: '+' + fmt(addonsCost) } : null,
           ].filter(Boolean).map((row, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', paddingBottom: 14, borderBottom: '1px dashed #e7e7e7' }}>
@@ -536,7 +503,7 @@ export default function PricingPage() {
 
   const fmt = (n: number | null) => {
     if (n === null) return null;
-    return n.toLocaleString('en-US');
+    return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -568,7 +535,7 @@ export default function PricingPage() {
         .calc-grid { }
         @media (max-width: 1100px) { .plans-grid { grid-template-columns: repeat(2, 1fr) !important; } }
         .cmp-table-wrap { overflow: hidden; }
-        @media (max-width: 800px) { .calc-grid { grid-template-columns: 1fr !important; } .plans-grid { grid-template-columns: 1fr !important; } .cmp-table-wrap { overflow-x: auto !important; overflow-y: visible !important; } .faq-grid { grid-template-columns: 1fr !important; } .cta-strip { flex-direction: column !important; padding: 36px 24px !important; } .hero-kicker-row { flex-wrap: wrap; gap: 8px; } }
+        @media (max-width: 800px) { .calc-grid { grid-template-columns: 1fr !important; } .plans-grid { grid-template-columns: 1fr !important; } .cmp-table-wrap { overflow-x: auto !important; overflow-y: visible !important; } .cmp-table { min-width: 620px; } .cmp-table th, .cmp-table td { padding: 12px 10px; font-size: 12.5px; } .cmp-table td.feat-col, .cmp-table thead th:first-child { position: sticky; left: 0; z-index: 1; background: #fff; box-shadow: 1px 0 0 #e7e7e7; } .cmp-table thead th:first-child { background: #fafafa; } .cmp-table tr.section-row td { position: static; } .faq-grid { grid-template-columns: 1fr !important; } .cta-strip { flex-direction: column !important; padding: 36px 24px !important; } .hero-kicker-row { flex-wrap: wrap; gap: 8px; } }
         .plans-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #e7e7e7; border-radius: 12px; overflow: visible; }
         .plans-grid-inner { border: 1px solid #e7e7e7; border-radius: 12px; overflow: hidden; display: contents; }
         .plan { padding: 36px 32px; border-right: 1px solid #e7e7e7; display: flex; flex-direction: column; position: relative; }
@@ -665,7 +632,7 @@ export default function PricingPage() {
                 </div>
 
                 <Link
-                  to={p.id === 'enterprise' ? '/contact' : '/?mode=signup'}
+                  to={p.id === 'ultimate' ? '/contact' : '/?mode=signup'}
                   className={`lv-btn lv-btn-lg${!p.featured ? ' lv-btn-primary' : ' lv-btn-white'}`}
                   style={{ marginTop: 24 }}
                 >

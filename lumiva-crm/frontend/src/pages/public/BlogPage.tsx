@@ -1,303 +1,253 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+// Блог — дизайн Claude Design blog-v2.html (lh-blog.jsx BlList, lh-blog.css → .bl-* в lp-kit.css).
+// Статьи — из CMS pl2 (blogApi.ts): всё, что там отмечено «Блог CRM». Подписка из макета заменена
+// ссылкой на Telegram (рассылки по блогу нет), «популярные» — по реальным просмотрам.
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PublicPageLayout } from './PublicPageLayout';
-import { BLOG_POSTS, type BlogPost } from './blogPosts.data';
+import { Icon } from '../landing/LandingSections';
+import { AiCharacter, AI_ROLE_PALETTE } from '../ai-employees/AiCharacter';
+import { BLOG_UI, catLabel, catRole, fetchBlogPosts, fmtDate, postDate, readMinutes, type BlogLang, type BlogPostT } from './blogApi';
+import { SolutionShell } from './solutionKit';
 
-type Lang = 'ru' | 'en' | 'tr';
-
-const T = {
-  ru: {
-    title: 'Блог Lumiva CRM',
-    subtitle: 'Практические материалы по CRM, аналитике, автоматизациям и росту бизнеса.',
-    allCategories: 'Все',
-    readMore: 'Читать',
-    minRead: 'мин. чтения',
-    featured: 'Избранное',
-    subscribe: 'Подписаться на обновления',
-    subscribeDesc: 'Новые статьи о CRM, продажах и автоматизации — раз в неделю.',
-    emailPlaceholder: 'Ваш email',
-    subscribeBtn: 'Подписаться',
-    popularPosts: 'Популярные материалы',
-    categories: 'Категории',
-  },
-  en: {
-    title: 'Lumiva CRM Blog',
-    subtitle: 'Practical guides on CRM, analytics, automations, and business growth.',
-    allCategories: 'All',
-    readMore: 'Read',
-    minRead: 'min read',
-    featured: 'Featured',
-    subscribe: 'Subscribe to updates',
-    subscribeDesc: 'Weekly articles on CRM, sales, and automation delivered to your inbox.',
-    emailPlaceholder: 'Your email',
-    subscribeBtn: 'Subscribe',
-    popularPosts: 'Popular posts',
-    categories: 'Categories',
-  },
-  tr: {
-    title: 'Lumiva CRM Blog',
-    subtitle: 'CRM, analitik, otomasyon ve iş büyümesi üzerine pratik rehberler.',
-    allCategories: 'Tümü',
-    readMore: 'Oku',
-    minRead: 'dk okuma',
-    featured: 'Öne Çıkan',
-    subscribe: 'Güncellemelere abone ol',
-    subscribeDesc: 'CRM, satış ve otomasyon hakkında haftalık makaleler.',
-    emailPlaceholder: 'E-posta adresiniz',
-    subscribeBtn: 'Abone ol',
-    popularPosts: 'Popüler yazılar',
-    categories: 'Kategoriler',
-  },
-};
-
-const POSTS: BlogPost[] = BLOG_POSTS;
-
-const CATEGORIES = [
-  { key: 'sales', ru: 'Продажи', en: 'Sales', tr: 'Satış' },
-  { key: 'analytics', ru: 'Аналитика', en: 'Analytics', tr: 'Analitik' },
-  { key: 'automation', ru: 'Автоматизация', en: 'Automation', tr: 'Otomasyon' },
-  { key: 'implementation', ru: 'Внедрение', en: 'Implementation', tr: 'Uygulama' },
-  { key: 'integrations', ru: 'Интеграции', en: 'Integrations', tr: 'Entegrasyonlar' },
-];
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const stagger: any = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.07 } },
-};
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const fadeUp: any = {
-  hidden: { opacity: 0, y: 18 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: 'easeOut' } },
-};
-
-function formatDate(iso: string, lang: Lang) {
-  const d = new Date(iso);
-  if (lang === 'ru') return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-  if (lang === 'tr') return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+export function useBlogLang(): BlogLang {
+  const { i18n } = useTranslation();
+  const c = (i18n.language || 'ru').slice(0, 2);
+  return c === 'en' || c === 'tr' ? c : 'ru';
 }
 
-function getPostTitle(p: BlogPost, lang: Lang) {
-  return lang === 'en' ? p.titleEn : lang === 'tr' ? p.titleTr : p.titleRu;
+/** Обложка: картинка из pl2 или сгенерированная (персонаж ИИ-сотрудника по рубрике). */
+export function BlCover({ p, big, lang }: { p: BlogPostT; big?: boolean; lang: BlogLang }) {
+  if (p.coverUrl) {
+    return (
+      <div className={'bl-cov img' + (big ? ' big' : '')}>
+        <img src={p.coverUrl} alt="" loading={big ? 'eager' : 'lazy'} />
+      </div>
+    );
+  }
+  const role = catRole(p.category);
+  const pal = AI_ROLE_PALETTE[role] || AI_ROLE_PALETTE.crm_analyst;
+  const tags = (p.tags || []).filter(Boolean).slice(0, 3);
+  return (
+    <div className={'bl-cov' + (big ? ' big' : '')} style={{ '--pbg': pal.bg, '--pd': pal.d } as React.CSSProperties}>
+      <div className="bl-cov-bars">
+        {[65, 40, 80, 55].map((w, i) => (
+          <span key={i} style={{ width: w + '%', animationDelay: 0.3 + i * 0.1 + 's' }} />
+        ))}
+      </div>
+      <div className="bl-cov-tags">
+        {(tags.length ? tags : [catLabel(p.category, lang)].filter(Boolean)).map((t) => (
+          <span key={t}>{t}</span>
+        ))}
+      </div>
+      <div className="bl-cov-fig">
+        <AiCharacter role={role} mood="on" />
+      </div>
+    </div>
+  );
 }
-function getPostExcerpt(p: BlogPost, lang: Lang) {
-  return lang === 'en' ? p.excerptEn : lang === 'tr' ? p.excerptTr : p.excerptRu;
+
+export function BlCard({ p, lang, i, short }: { p: BlogPostT; lang: BlogLang; i: number; short?: boolean }) {
+  const ui = BLOG_UI[lang];
+  return (
+    <Link to={'/blog/' + p.slug} className="bl-card" style={{ animationDelay: i * 0.07 + 's' }}>
+      <BlCover p={p} lang={lang} />
+      <div className="bl-card-b">
+        <div className="bl-card-m">
+          {p.category ? <span className="bl-cat">{catLabel(p.category, lang)}</span> : <span />}
+          <span>
+            {readMinutes(p)} {ui.min}
+          </span>
+        </div>
+        <h3>{p.title}</h3>
+        {!short && p.excerpt && <p>{p.excerpt}</p>}
+        {!short && (
+          <div className="bl-card-f">
+            <span>{fmtDate(postDate(p), lang)}</span>
+            <span className="bl-read">
+              {ui.read}
+              <Icon name="arrow" size={12} stroke={2} />
+            </span>
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+export function BlSideBoxes({ lang }: { lang: BlogLang }) {
+  const ui = BLOG_UI[lang];
+  const navigate = useNavigate();
+  return (
+    <>
+      <div className="bl-box bl-sub">
+        <h4>{ui.tryT}</h4>
+        <p>{ui.tryD}</p>
+        <button type="button" className="lh-btn block" onClick={() => navigate('/?mode=signup')}>
+          {ui.tryBtn}
+          <Icon name="arrow" size={14} stroke={2} />
+        </button>
+      </div>
+      <div className="bl-box bl-sub">
+        <h4>{ui.tgT}</h4>
+        <p>{ui.tgD}</p>
+        <a className="lh-btn gh block" href="https://t.me/lumiva_crm" target="_blank" rel="noopener noreferrer">
+          {ui.tgBtn}
+        </a>
+      </div>
+    </>
+  );
+}
+
+function Chips({ cats, cat, setCat, lang }: { cats: string[]; cat: string | null; setCat: (c: string | null) => void; lang: BlogLang }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [ind, setInd] = useState({ l: 0, t: 0, w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    const m = () => {
+      const el = box.querySelector<HTMLElement>('button.on');
+      if (el) setInd({ l: el.offsetLeft, t: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight });
+    };
+    m();
+    const ro = new ResizeObserver(m);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [cat, cats.length, lang]);
+  return (
+    <div className="in-chips bl-chips" ref={ref}>
+      <span className="in-chips-ind" style={{ transform: `translate(${ind.l}px,${ind.t}px)`, width: ind.w, height: ind.h }} />
+      <button type="button" className={!cat ? 'on' : ''} onClick={() => setCat(null)}>
+        {BLOG_UI[lang].all}
+      </button>
+      {cats.map((k) => (
+        <button type="button" key={k} className={cat === k ? 'on' : ''} onClick={() => setCat(cat === k ? null : k)}>
+          {catLabel(k, lang)}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export default function BlogPage() {
-  const { i18n } = useTranslation();
-  const lang = (i18n.language || 'ru').slice(0, 2) as Lang;
-  const t = T[lang] ?? T.ru;
+  const lang = useBlogLang();
+  const ui = BLOG_UI[lang];
+  const [posts, setPosts] = useState<BlogPostT[] | null>(null);
+  const [err, setErr] = useState(false);
+  const [cat, setCat] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  useEffect(() => {
+    const ac = new AbortController();
+    setErr(false);
+    fetchBlogPosts(lang, ac.signal)
+      .then(setPosts)
+      .catch((e) => {
+        if (e?.name !== 'AbortError') setErr(true);
+      });
+    return () => ac.abort();
+  }, [lang, tick]);
 
-  const featured = POSTS.find((p) => p.featured);
-  const filtered = POSTS.filter(
-    (p) => !p.featured && (activeCategory === null || p.category === activeCategory),
-  );
+  useEffect(() => {
+    document.title = `${ui.h1a} — Lumiva CRM`;
+  }, [ui.h1a]);
+
+  const list = posts || [];
+  const cats = useMemo(() => Array.from(new Set(list.map((p) => p.category).filter((c): c is string => !!c))), [list]);
+  const feat = list[0];
+  const rest = list.slice(1).filter((p) => !cat || p.category === cat);
+  const popular = [...list].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0)).slice(0, 3);
 
   return (
-    <PublicPageLayout pageKey="blog" title={t.title} subtitle={t.subtitle}>
-      {/* Featured post */}
-      {featured && (
-        <motion.div
-          id={featured ? `post-${featured.slug}` : undefined}
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-10 rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.06)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.10)] transition-shadow group"
-        >
-          <div className="grid lg:grid-cols-[1fr_360px]">
-            <div className="p-8 sm:p-10">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black text-white text-[10px] font-semibold uppercase tracking-[0.16em]">
-                  {t.featured}
+    <SolutionShell activeKey="blog">
+      <section className="in-hero pg-hero bl-hero">
+        <div className="lh-glow" />
+        <div className="in-hero-c">
+          <div className="in-kick">
+            <span className="lh-live">
+              <i />
+            </span>
+            {posts ? ui.kick(list.length) : 'Blog'}
+          </div>
+          <h1 className="in-h1">
+            {ui.h1a}
+            <br />
+            <em>{ui.h1b}</em>
+          </h1>
+          <p className="in-sub">{ui.sub}</p>
+        </div>
+      </section>
+
+      <section className="lp-sec bl">
+        {!posts && !err && <div className="bl-state">{ui.loading}</div>}
+        {err && (
+          <div className="bl-state">
+            {ui.error}{' '}
+            <button type="button" className="lh-btn gh sm" onClick={() => setTick((x) => x + 1)}>
+              {ui.retry}
+            </button>
+          </div>
+        )}
+        {posts && !list.length && <div className="bl-state">{ui.none}</div>}
+
+        {feat && (
+          <Link to={'/blog/' + feat.slug} className="bl-feat">
+            <div className="bl-feat-t">
+              <div className="bl-meta">
+                <span className="bl-badge">{ui.featured}</span>
+                <span>{fmtDate(postDate(feat), lang)}</span>
+                <span>·</span>
+                <span>
+                  {readMinutes(feat)} {ui.min}
                 </span>
-                <span className="text-[10px] text-slate-400">{formatDate(featured.date, lang)}</span>
-                <span className="text-[10px] text-slate-400">·</span>
-                <span className="text-[10px] text-slate-400">{featured.readTime} {t.minRead}</span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-snug mb-3 group-hover:text-black transition-colors">
-                {getPostTitle(featured, lang)}
-              </h2>
-              <p className="text-sm text-slate-500 leading-relaxed mb-6 max-w-prose">
-                {getPostExcerpt(featured, lang)}
-              </p>
-              <Link
-                to={`/blog/${featured.slug}`}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-black text-white text-xs font-semibold hover:bg-neutral-800 transition-colors"
-              >
-                {t.readMore}
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
+              <h2>{feat.title}</h2>
+              {feat.excerpt && <p>{feat.excerpt}</p>}
+              <span className="lh-btn">
+                {ui.read}
+                <Icon name="arrow" size={14} stroke={2} />
+              </span>
             </div>
-            <div className="hidden lg:flex items-center justify-center bg-slate-50 border-l border-slate-100 p-8">
-              <div className="space-y-3 w-full">
-                {[65, 40, 80, 55].map((w, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ delay: 0.3 + i * 0.1, duration: 0.5, ease: 'easeOut' }}
-                    style={{ transformOrigin: 'left', width: `${w}%` }}
-                    className="h-2.5 rounded-full bg-slate-200"
-                  />
+            <BlCover p={feat} big lang={lang} />
+          </Link>
+        )}
+
+        {list.length > 1 && (
+          <div className="bl-g">
+            <div>
+              {cats.length > 1 && <Chips cats={cats} cat={cat} setCat={setCat} lang={lang} />}
+              <div className="bl-posts" key={cat || 'all'}>
+                {rest.map((p, i) => (
+                  <BlCard key={p.slug} p={p} lang={lang} i={i} />
                 ))}
-                <div className="pt-4 flex gap-2">
-                  {['SLA', 'Funnel', 'KPI'].map((tag) => (
-                    <span key={tag} className="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-[10px] font-medium text-slate-500">{tag}</span>
+                {!rest.length && <div className="in-empty">{ui.emptyCat}</div>}
+              </div>
+            </div>
+            <aside className="bl-side">
+              <BlSideBoxes lang={lang} />
+              {cats.length > 1 && (
+                <div className="bl-box">
+                  <h4>{ui.cats}</h4>
+                  {cats.map((k) => (
+                    <button type="button" key={k} className={'bl-cat-r' + (cat === k ? ' on' : '')} onClick={() => setCat(cat === k ? null : k)}>
+                      <span>{catLabel(k, lang)}</span>
+                      <em>{list.filter((p) => p.category === k).length}</em>
+                    </button>
                   ))}
                 </div>
+              )}
+              <div className="bl-box">
+                <h4>{ui.popular}</h4>
+                {popular.map((p, i) => (
+                  <Link key={p.slug} to={'/blog/' + p.slug} className="bl-pop">
+                    <b>{'0' + (i + 1)}</b>
+                    <span>{p.title}</span>
+                  </Link>
+                ))}
               </div>
-            </div>
+            </aside>
           </div>
-        </motion.div>
-      )}
-
-      <div className="grid lg:grid-cols-[1fr_300px] gap-8 items-start">
-        <div>
-          {/* Category filter */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                activeCategory === null
-                  ? 'bg-black text-white shadow-[0_4px_14px_rgba(0,0,0,0.2)]'
-                  : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
-              }`}
-            >
-              {t.allCategories}
-            </button>
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.key}
-                onClick={() => setActiveCategory(activeCategory === cat.key ? null : cat.key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  activeCategory === cat.key
-                    ? 'bg-black text-white shadow-[0_4px_14px_rgba(0,0,0,0.2)]'
-                    : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
-                }`}
-              >
-                {lang === 'en' ? cat.en : lang === 'tr' ? cat.tr : cat.ru}
-              </button>
-            ))}
-          </div>
-
-          {/* Posts grid */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeCategory ?? 'all'}
-              variants={stagger}
-              initial="hidden"
-              animate="visible"
-              className="grid sm:grid-cols-2 gap-4"
-            >
-              {filtered.map((post) => (
-                <motion.article
-                  id={`post-${post.slug}`}
-                  key={post.slug}
-                  variants={fadeUp}
-                  whileHover={{ y: -4, boxShadow: '0 16px 40px rgba(0,0,0,0.10)' }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex flex-col scroll-mt-24"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="px-2.5 py-1 rounded-full bg-slate-50 border border-slate-100 text-[10px] font-medium text-slate-500 uppercase tracking-[0.14em]">
-                      {CATEGORIES.find((c) => c.key === post.category)?.[lang] ?? post.category}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{post.readTime} {t.minRead}</span>
-                  </div>
-                  <h3 className="text-sm font-semibold text-slate-900 leading-snug mb-2 group-hover:text-black transition-colors flex-1">
-                    {getPostTitle(post, lang)}
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                    {getPostExcerpt(post, lang)}
-                  </p>
-                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
-                    <span className="text-[10px] text-slate-400">{formatDate(post.date, lang)}</span>
-                    <Link
-                      to={`/blog/${post.slug}`}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 hover:text-slate-900 transition-colors"
-                    >
-                      {t.readMore}
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                      </svg>
-                    </Link>
-                  </div>
-                </motion.article>
-              ))}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Sidebar */}
-        <div className="flex flex-col gap-4 lg:sticky lg:top-28">
-          {/* Newsletter */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-            <h4 className="text-sm font-semibold text-slate-900 mb-2">{t.subscribe}</h4>
-            <p className="text-xs text-slate-500 mb-4 leading-relaxed">{t.subscribeDesc}</p>
-            <div className="flex flex-col gap-2">
-              <input
-                type="email"
-                placeholder={t.emailPlaceholder}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-slate-400 transition-colors"
-              />
-              <button className="w-full py-2.5 rounded-xl bg-black text-white text-xs font-semibold hover:bg-neutral-800 transition-colors">
-                {t.subscribeBtn}
-              </button>
-            </div>
-          </div>
-
-          {/* Categories list */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-            <h4 className="text-sm font-semibold text-slate-900 mb-3">{t.categories}</h4>
-            <div className="flex flex-col gap-1">
-              {CATEGORIES.map((cat) => {
-                const count = POSTS.filter((p) => p.category === cat.key).length;
-                return (
-                  <button
-                    key={cat.key}
-                    onClick={() => setActiveCategory(activeCategory === cat.key ? null : cat.key)}
-                    className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all ${
-                      activeCategory === cat.key
-                        ? 'bg-black text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{lang === 'en' ? cat.en : lang === 'tr' ? cat.tr : cat.ru}</span>
-                    <span className={`text-[10px] ${activeCategory === cat.key ? 'opacity-60' : 'text-slate-400'}`}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Popular */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-            <h4 className="text-sm font-semibold text-slate-900 mb-3">{t.popularPosts}</h4>
-            <div className="flex flex-col gap-3">
-              {POSTS.slice(0, 3).map((post, i) => (
-                <Link
-                  key={post.slug}
-                  to={`/blog/${post.slug}`}
-                  className="flex items-start gap-2.5 group"
-                >
-                  <span className="shrink-0 text-[10px] font-bold text-slate-300 mt-0.5 w-4">0{i + 1}</span>
-                  <span className="text-xs text-slate-600 leading-snug group-hover:text-slate-900 transition-colors">
-                    {getPostTitle(post, lang)}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </PublicPageLayout>
+        )}
+      </section>
+    </SolutionShell>
   );
 }

@@ -1,217 +1,271 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+// «Контакты» — дизайн Claude Design contact-v2.html (lh-pages.jsx ContactPage, lh-pages.css .ct-*).
+// Форма реально сохраняет заявку (POST /v1/public/demo-requests → pl1 + Telegram команды). Выдуманное в макете
+// («ответим в течение часа», «47 минут», 9–20 МСК) заменено реальным графиком; карточка ИИ открывает живой чат сайта.
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PublicPageLayout } from './PublicPageLayout';
+import { Icon } from '../landing/LandingSections';
+import { AiCharacter, AI_ROLE_PALETTE } from '../ai-employees/AiCharacter';
+import { CONTACT_T, type ContactText, type ContactTopic } from './contactText';
+import { CtaBox, FaqSection, SolutionShell, StepsSection } from './solutionKit';
 
-type FormState = 'idle' | 'loading' | 'success' | 'error';
+const TOPICS: ContactTopic[] = ['demo', 'pricing', 'integration', 'support'];
+const EMPTY = { name: '', email: '', company: '', phone: '', team: '', msg: '' };
 
-export default function ContactPage() {
-  const { t } = useTranslation();
-  const [form, setForm] = useState({ name: '', email: '', company: '', phone: '', message: '', teamSize: '' });
-  const [state, setState] = useState<FormState>('idle');
+/* открыто ли сейчас: Пн–Пт 9:00–18:00 по Москве (UTC+3, без перехода на летнее время) */
+function useOpenNow() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const msk = new Date(now.getTime() + 3 * 3600000);
+  const d = msk.getUTCDay();
+  const h = msk.getUTCHours();
+  return d > 0 && d < 6 && h >= 9 && h < 18;
+}
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+function utmFromUrl() {
+  const p = new URLSearchParams(window.location.search);
+  const u: Record<string, string> = {};
+  ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach((k) => {
+    const v = p.get(k);
+    if (v) u[k] = v;
+  });
+  return u;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
+function Hero({ tx }: { tx: ContactText }) {
+  return (
+    <section className="in-hero pg-hero">
+      <div className="lh-glow" />
+      <div className="in-hero-c">
+        <div className="in-kick">
+          <span className="lh-live">
+            <i />
+          </span>
+          {tx.kick}
+        </div>
+        <h1 className="in-h1">
+          {tx.t1}
+          <br />
+          <em>{tx.t2}</em>
+        </h1>
+        <p className="in-sub">{tx.sub}</p>
+      </div>
+    </section>
+  );
+}
+
+function ContactForm({ tx }: { tx: ContactText }) {
+  const [f, setF] = useState(EMPTY);
+  const [topic, setTopic] = useState<ContactTopic>('demo');
+  const [st, setSt] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
+  const bot = useRef<HTMLInputElement>(null);
+  const ch = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email) return;
-    setState('loading');
+    if (st === 'loading' || !f.name.trim() || !f.email.trim()) return;
+    setSt('loading');
     try {
       const res = await fetch('/v1/public/demo-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: f.name,
+          email: f.email,
+          company: f.company,
+          phone: f.phone,
+          teamSize: f.team,
+          message: f.msg,
+          topic,
+          contactMethod: 'email',
+          botField: bot.current?.value || '',
+          utm: utmFromUrl(),
+        }),
       });
-      setState(res.ok ? 'success' : 'error');
+      setSt(res.ok ? 'ok' : 'err');
     } catch {
-      setState('error');
+      setSt('err');
     }
   };
 
-  return (
-    <PublicPageLayout
-      pageKey="contact"
-      title={t('publicPages.contact.title')}
-      subtitle={t('publicPages.contact.subtitle')}
-    >
-      <div className="mt-10 grid lg:grid-cols-5 gap-8 items-start">
-
-        {/* Form */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="lg:col-span-3"
-        >
-          {state === 'success' ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-card">
-              <div className="text-5xl mb-4">🎉</div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">{t('publicPages.contact.successTitle')}</h3>
-              <p className="text-sm text-slate-500 mb-6">{t('publicPages.contact.successText')}</p>
-              <button
-                onClick={() => { setState('idle'); setForm({ name: '', email: '', company: '', phone: '', message: '', teamSize: '' }); }}
-                className="px-5 py-2.5 rounded-xl bg-black text-white text-xs font-semibold"
-              >
-                {t('publicPages.contact.sendAnother')}
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-card flex flex-col gap-4">
-              <h3 className="text-base font-semibold text-slate-900 mb-2">{t('publicPages.contact.formTitle')}</h3>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="form-label">{t('publicPages.contact.fieldName')} <span className="text-status-error">*</span></label>
-                  <input
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    placeholder={t('publicPages.contact.namePlaceholder')}
-                    required
-                    className="base-input"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="form-label">{t('publicPages.contact.fieldEmail')} <span className="text-status-error">*</span></label>
-                  <input
-                    name="email"
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder={t('publicPages.contact.emailPlaceholder')}
-                    required
-                    className="base-input"
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="form-label">{t('publicPages.contact.fieldCompany')}</label>
-                  <input
-                    name="company"
-                    value={form.company}
-                    onChange={handleChange}
-                    placeholder={t('publicPages.contact.companyPlaceholder')}
-                    className="base-input"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="form-label">{t('publicPages.contact.fieldPhone')}</label>
-                  <input
-                    name="phone"
-                    type="tel"
-                    value={form.phone}
-                    onChange={handleChange}
-                    placeholder={t('publicPages.contact.phonePlaceholder')}
-                    className="base-input"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="form-label">{t('publicPages.contact.fieldTeamSize')}</label>
-                <select name="teamSize" value={form.teamSize} onChange={handleChange} className="base-select">
-                  <option value="">{t('publicPages.contact.fieldTeamSizePlaceholder')}</option>
-                  <option value="1-5">{t('publicPages.contact.teamSizeOpt1')}</option>
-                  <option value="6-20">{t('publicPages.contact.teamSizeOpt2')}</option>
-                  <option value="21-50">{t('publicPages.contact.teamSizeOpt3')}</option>
-                  <option value="50+">{t('publicPages.contact.teamSizeOpt4')}</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="form-label">{t('publicPages.contact.fieldMessage')}</label>
-                <textarea
-                  name="message"
-                  value={form.message}
-                  onChange={handleChange}
-                  rows={4}
-                  placeholder={t('publicPages.contact.messagePlaceholder')}
-                  className="base-textarea"
-                />
-              </div>
-
-              {state === 'error' && (
-                <div className="rounded-xl bg-status-error-bg border border-red-200 px-3 py-2 text-xs text-status-error">
-                  {t('publicPages.contact.errorText')}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={state === 'loading'}
-                className="w-full py-3 rounded-xl bg-black text-white text-xs font-semibold shadow-[0_4px_14px_rgba(0,0,0,0.25)] hover:bg-black-hover disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-              >
-                {state === 'loading' ? t('publicPages.contact.submitting') : t('publicPages.contact.submitBtn')}
-              </button>
-
-              <p className="text-[10px] text-slate-400 text-center">
-                {t('publicPages.contact.consentPrefix')}{' '}
-                <Link to="/privacy" className="underline hover:text-slate-900">{t('publicPages.contact.consentLink')}</Link>
-              </p>
-            </form>
-          )}
-        </motion.div>
-
-        {/* Info sidebar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="lg:col-span-2 flex flex-col gap-4"
-        >
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5">
-            <h4 className="text-sm font-semibold text-slate-900 mb-4">{t('publicPages.contact.sidebarTitle')}</h4>
-            <div className="flex flex-col gap-3">
-              {[
-                t('publicPages.contact.benefit1'),
-                t('publicPages.contact.benefit2'),
-                t('publicPages.contact.benefit3'),
-                t('publicPages.contact.benefit4'),
-                t('publicPages.contact.benefit5'),
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-2 text-xs text-slate-500">
-                  <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[10px] shrink-0 mt-0.5">✓</span>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5">
-            <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('publicPages.contact.otherWaysTitle')}</h4>
-            <div className="flex flex-col gap-3">
-              <a href="mailto:hello@lumiva.agency" className="flex items-center gap-2.5 text-xs text-slate-500 hover:text-slate-900 transition-colors">
-                <span className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-500">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                </span>
-                <div>
-                  <div className="font-medium text-slate-900">{t('publicPages.contact.emailLabel')}</div>
-                  <div>hello@lumiva.agency</div>
-                </div>
-              </a>
-              <a href="https://t.me/lumiva_crm" className="flex items-center gap-2.5 text-xs text-slate-500 hover:text-slate-900 transition-colors">
-                <span className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-500">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                </span>
-                <div>
-                  <div className="font-medium text-slate-900">{t('publicPages.contact.telegramLabel')}</div>
-                  <div>@lumiva_crm</div>
-                </div>
-              </a>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-black text-white p-5">
-            <div className="text-xs font-semibold mb-1">{t('publicPages.contact.responseTime')}</div>
-            <div className="text-[11px] opacity-70">{t('publicPages.contact.responseHours')}</div>
-          </div>
-        </motion.div>
+  if (st === 'ok') {
+    return (
+      <div className="ct-form lh-rv">
+        <div className="ct-ok">
+          <span className="ct-ok-ic">
+            <Icon name="check" size={28} stroke={2.4} />
+          </span>
+          <h3>{tx.okT}</h3>
+          <p>{tx.okD(f.name.trim().split(/\s+/)[0], f.email.trim())}</p>
+          <button
+            type="button"
+            className="lh-btn gh"
+            onClick={() => {
+              setSt('idle');
+              setF(EMPTY);
+            }}
+          >
+            {tx.again}
+          </button>
+        </div>
       </div>
-    </PublicPageLayout>
+    );
+  }
+
+  return (
+    <div className="ct-form lh-rv">
+      <form onSubmit={submit}>
+        <h3>{tx.formT}</h3>
+        <div className="ct-topics" role="radiogroup">
+          {TOPICS.map((k) => (
+            <button type="button" key={k} role="radio" aria-checked={topic === k} className={topic === k ? 'on' : ''} onClick={() => setTopic(k)}>
+              {tx.topics[k]}
+            </button>
+          ))}
+        </div>
+        <div className="ct-row">
+          <label className="ct-f">
+            <span>{tx.name} *</span>
+            <input name="name" required maxLength={120} autoComplete="name" value={f.name} onChange={ch} placeholder={tx.namePh} />
+          </label>
+          <label className="ct-f">
+            <span>{tx.email} *</span>
+            <input name="email" type="email" required maxLength={180} autoComplete="email" value={f.email} onChange={ch} placeholder={tx.emailPh} />
+          </label>
+        </div>
+        <div className="ct-row">
+          <label className="ct-f">
+            <span>{tx.company}</span>
+            <input name="company" maxLength={200} autoComplete="organization" value={f.company} onChange={ch} placeholder={tx.companyPh} />
+          </label>
+          <label className="ct-f">
+            <span>{tx.phone}</span>
+            <input name="phone" type="tel" maxLength={40} autoComplete="tel" value={f.phone} onChange={ch} placeholder={tx.phonePh} />
+          </label>
+        </div>
+        <div className="ct-f">
+          <span>{tx.team}</span>
+          <div className="ct-seg" role="radiogroup">
+            {tx.teamOpts.map((o) => (
+              <button type="button" key={o} role="radio" aria-checked={f.team === o} className={f.team === o ? 'on' : ''} onClick={() => setF((p) => ({ ...p, team: p.team === o ? '' : o }))}>
+                {o}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="ct-f">
+          <span>{tx.msg}</span>
+          <textarea name="msg" rows={4} maxLength={4000} value={f.msg} onChange={ch} placeholder={tx.msgPh} />
+        </label>
+        {/* ловушка для ботов: человек это поле не видит */}
+        <input ref={bot} name="website" tabIndex={-1} autoComplete="off" aria-hidden className="ct-hp" />
+        {st === 'err' && <p className="ct-err">{tx.err}</p>}
+        <button className={'lh-btn lg block' + (st === 'loading' ? ' busy' : '')} type="submit" disabled={st === 'loading'}>
+          {st === 'loading' ? (
+            <span className="ct-spin" />
+          ) : (
+            <>
+              {tx.send}
+              <Icon name="arrow" size={15} stroke={2} />
+            </>
+          )}
+        </button>
+        <p className="ct-cons">
+          {tx.cons1} <Link to="/privacy">{tx.cons2}</Link>
+        </p>
+      </form>
+    </div>
+  );
+}
+
+function Side({ tx }: { tx: ContactText }) {
+  const open = useOpenNow();
+  const pal = AI_ROLE_PALETTE.chat_operator;
+  const openChat = () => (window as unknown as { LumivaChat?: { open: () => void } }).LumivaChat?.open();
+  return (
+    <aside className="ct-side">
+      <div className="ct-card lh-rv">
+        <h4>{tx.benT}</h4>
+        {tx.ben.map((b, i) => (
+          <div key={b} className="ct-ben" style={{ animationDelay: 0.3 + i * 0.08 + 's' }}>
+            <i>
+              <Icon name="check" size={11} stroke={2.6} />
+            </i>
+            {b}
+          </div>
+        ))}
+      </div>
+      <div className="ct-card lh-rv">
+        <h4>{tx.waysT}</h4>
+        <a className="ct-way" href="mailto:hello@lumiva.agency">
+          <span>
+            <Icon name="mail" size={16} />
+          </span>
+          <div>
+            <b>Email</b>
+            <em>hello@lumiva.agency</em>
+          </div>
+          <Icon name="arrow" size={13} />
+        </a>
+        <a className="ct-way" href="https://t.me/lumiva_crm" target="_blank" rel="noopener noreferrer">
+          <span className="tg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
+              <path d="M21 4L3 11l6 2 2 6 3-4 5 4z" />
+            </svg>
+          </span>
+          <div>
+            <b>Telegram</b>
+            <em>@lumiva_crm</em>
+          </div>
+          <Icon name="arrow" size={13} />
+        </a>
+      </div>
+      <div className="ct-time lh-rv">
+        <div>
+          <b>{tx.hoursT}</b>
+          <span>{tx.hoursD}</span>
+        </div>
+        <span className={'ct-open' + (open ? ' on' : '')}>
+          <i />
+          {open ? tx.openOn : tx.openOff}
+        </span>
+      </div>
+      <div className="ct-ai lh-rv">
+        <span className="lh-fl-av" style={{ background: pal.bg }}>
+          <AiCharacter role="chat_operator" mood="on" />
+        </span>
+        <div>
+          <b>{tx.aiT}</b>
+          <span>{tx.aiD}</span>
+          <button type="button" className="ct-ai-b" onClick={openChat}>
+            {tx.aiBtn}
+            <Icon name="arrow" size={12} stroke={2} />
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+export default function ContactPage() {
+  const { i18n } = useTranslation();
+  const code = (i18n.language || 'ru').slice(0, 2);
+  const tx = CONTACT_T[code === 'en' || code === 'tr' ? code : 'ru'];
+  return (
+    <SolutionShell activeKey="contact">
+      <Hero tx={tx} />
+      <section className="lp-sec ct" id="contact-form">
+        <div className="ct-g">
+          <ContactForm tx={tx} />
+          <Side tx={tx} />
+        </div>
+      </section>
+      <StepsSection {...tx.next} />
+      <FaqSection {...tx.faq} writeHref="#contact-form" />
+      <CtaBox k={tx.cta.k} t={tx.cta.t} demo={tx.cta.demo} tryFree={tx.cta.tryFree} demoTo="/features" />
+    </SolutionShell>
   );
 }

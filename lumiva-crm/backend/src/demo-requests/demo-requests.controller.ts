@@ -10,12 +10,17 @@ export class DemoRequestsPublicController {
   async create(
     @Body()
     body: {
-      firstName: string;
-      lastName: string;
+      firstName?: string;
+      lastName?: string;
+      name?: string;
       email: string;
       phone?: string;
       ordersPerMonth?: string;
-      contactMethod: string;
+      contactMethod?: string;
+      topic?: string;
+      company?: string;
+      teamSize?: string;
+      message?: string;
       botField?: string;
       utm?: any;
       utmSource?: string;

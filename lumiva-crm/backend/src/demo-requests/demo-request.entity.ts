@@ -29,6 +29,19 @@ export class DemoRequest {
   @Column({ length: 32 })
   contactMethod: string;
 
+  // Поля формы /contact (тема, компания, размер команды, сообщение) — добавлены 2026-10-12.
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  topic: string | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  company: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  teamSize: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  message: string | null;
+
   @Column({ type: 'varchar', length: 160, nullable: true })
   utmSource: string | null;
 

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import './public-header.css';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../../i18n';
 import {
@@ -28,20 +29,106 @@ interface PublicHeaderProps {
   activeKey?: PageKey;
 }
 
-const ChevronDown: React.FC<{ open: boolean }> = ({ open }) => (
-  <svg
-    className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-    fill="none" stroke="currentColor" viewBox="0 0 24 24"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+/* Шапка публичного сайта — Claude Design lh-nav.jsx (LhHeader/LhDrawer) + lh.css. Стили — public-header.css (.lhh). */
+const Ic: React.FC<{ d: React.ReactNode; size?: number; sw?: number }> = ({ d, size = 16, sw = 1.6 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d}
   </svg>
 );
+const I = {
+  chev: <path d="M6 9l6 6 6-6" />,
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
+    </>
+  ),
+  out: (
+    <>
+      <path d="M15 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4" />
+      <path d="M10 17l5-5-5-5M15 12H3" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+    </>
+  ),
+  app: (
+    <>
+      <rect x="3" y="3" width="7" height="7" />
+      <rect x="14" y="3" width="7" height="7" />
+      <rect x="3" y="14" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" />
+    </>
+  ),
+  cog: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+    </>
+  ),
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  check: <path d="M5 12l5 5 9-10" />,
+  x: <path d="M6 6l12 12M18 6L6 18" />,
+  spark: (
+    <>
+      <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+    </>
+  ),
+  chat: <path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z" />,
+  box: (
+    <>
+      <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
+      <path d="M3 8l9 5 9-5M12 13v8" />
+    </>
+  ),
+};
 
-const ArrowRight: React.FC = () => (
-  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-  </svg>
-);
+type Lang = 'ru' | 'en' | 'tr';
+const LANGS: Array<[Lang, string, string]> = [
+  ['ru', 'RU', 'Русский'],
+  ['en', 'EN', 'English'],
+  ['tr', 'TR', 'Türkçe'],
+];
+const HT: Record<Lang, Record<string, string>> = {
+  ru: {
+    ai: 'ИИ', aura: 'Дашборды по одному запросу', crew: 'Роли, доступы, журнал действий', depts: 'Команды ИИ-агентов',
+    auraN: 'Aura', crewN: 'ИИ-сотрудники', deptsN: 'ИИ-отделы', platform: 'ИИ-платформа', product: 'Продукт',
+    login: 'Войти', start: 'Начать бесплатно', openCrm: 'Открыть CRM', profile: 'Личный кабинет', settings: 'Настройки компании',
+    logout: 'Выйти', logoutFull: 'Выйти из аккаунта', menu: 'Меню', close: 'Закрыть', lang: 'Язык',
+  },
+  en: {
+    ai: 'AI', aura: 'Dashboards from one request', crew: 'Roles, access, action log', depts: 'Teams of AI agents',
+    auraN: 'Aura', crewN: 'AI employees', deptsN: 'AI departments', platform: 'AI platform', product: 'Product',
+    login: 'Log in', start: 'Start for free', openCrm: 'Open CRM', profile: 'My profile', settings: 'Company settings',
+    logout: 'Log out', logoutFull: 'Log out of account', menu: 'Menu', close: 'Close', lang: 'Language',
+  },
+  tr: {
+    ai: 'YZ', aura: 'Tek istekle panolar', crew: 'Roller, erişim, işlem günlüğü', depts: 'YZ ajan ekipleri',
+    auraN: 'Aura', crewN: 'YZ çalışanları', deptsN: 'YZ departmanları', platform: 'YZ platformu', product: 'Ürün',
+    login: 'Giriş yap', start: 'Ücretsiz başla', openCrm: 'CRM’i aç', profile: 'Profilim', settings: 'Şirket ayarları',
+    logout: 'Çıkış', logoutFull: 'Hesaptan çıkış', menu: 'Menü', close: 'Kapat', lang: 'Dil',
+  },
+};
+
+const initials = (n: string) => (n || '?').replace(/[«»"]/g, '').trim().slice(0, 2).toUpperCase();
+
+/** Закрытие выпадашки по клику снаружи. */
+function useOutside(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const f = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    document.addEventListener('mousedown', f);
+    return () => document.removeEventListener('mousedown', f);
+  }, [open, close]);
+  return ref;
+}
 
 type TenantSessionChip = {
   companyName: string;
@@ -106,6 +193,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -129,275 +217,319 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
     };
   }, [refreshTenantSession]);
 
+  const lang: Lang = currentLang === 'en' || currentLang === 'tr' ? currentLang : 'ru';
+  const ht = HT[lang];
   const isActive = (key: PageKey) => activeKey === key;
-  const isSolutionActive = ['solutions', 'analytics', 'marketing', 'sales', 'warehouse', 'client-accounts', 'products', 'booking', 'hotels'].includes(activeKey ?? '');
+  const [langOpen, setLangOpen] = useState(false);
+  const [acctOpen, setAcctOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const langRef = useOutside(langOpen, useCallback(() => setLangOpen(false), []));
+  const acctRef = useOutside(acctOpen, useCallback(() => setAcctOpen(false), []));
 
-  const primaryItems = [
-    { key: 'features' as PageKey, to: '/features' },
-    { key: 'integrations' as PageKey, to: '/integrations' },
-    { key: 'pricing' as PageKey, to: '/pricing' },
+  const mainItems: Array<{ key: PageKey; to: string }> = [
+    { key: 'features', to: '/features' },
+    { key: 'integrations', to: '/integrations' },
+    { key: 'pricing', to: '/pricing' },
   ];
-  const solutionItems = [
-    { key: 'analytics' as PageKey, to: '/solutions/analytics' },
-    { key: 'marketing' as PageKey, to: '/solutions/marketing' },
-    { key: 'sales' as PageKey, to: '/solutions/sales' },
-    { key: 'client-accounts' as PageKey, to: '/solutions/client-accounts' },
-    { key: 'products' as PageKey, to: '/solutions/products' },
-    { key: 'warehouse' as PageKey, to: '/solutions/warehouse' },
-    { key: 'booking' as PageKey, to: '/solutions/booking' },
-    { key: 'hotels' as PageKey, to: '/solutions/hotels' },
+  const solutionItems: Array<{ key: PageKey; to: string }> = [
+    { key: 'analytics', to: '/solutions/analytics' },
+    { key: 'marketing', to: '/solutions/marketing' },
+    { key: 'sales', to: '/solutions/sales' },
+    { key: 'client-accounts', to: '/solutions/client-accounts' },
+    { key: 'products', to: '/solutions/products' },
+    { key: 'warehouse', to: '/solutions/warehouse' },
+    { key: 'booking', to: '/solutions/booking' },
+    { key: 'hotels', to: '/solutions/hotels' },
   ];
-  const tailItems = [
-    { key: 'about' as PageKey, to: '/about' },
-    { key: 'blog' as PageKey, to: '/blog' },
-    { key: 'contact' as PageKey, to: '/contact' },
+  const tailItems: Array<{ key: PageKey; to: string }> = [
+    { key: 'about', to: '/about' },
+    { key: 'blog', to: '/blog' },
+    { key: 'contact', to: '/contact' },
   ];
+  const aiItems = [
+    { to: '/#aura', n: ht.auraN, d: ht.aura, ic: I.spark },
+    { to: '/#crew', n: ht.crewN, d: ht.crew, ic: I.chat },
+    { to: '/#depts', n: ht.deptsN, d: ht.depts, ic: I.box },
+  ];
+  const isSolutionActive = solutionItems.some((x) => x.key === activeKey) || activeKey === 'solutions';
 
-  const navLinkClass = (key: PageKey) =>
-    isActive(key)
-      ? 'rounded-full border border-black bg-black px-3 py-1.5 text-white'
-      : 'rounded-full border border-transparent px-3 py-1.5 hover:border-neutral-200 hover:bg-white/80 hover:text-black transition-all duration-150';
+  const logout = () => {
+    clearSession();
+    setTenantSession(null);
+    setAcctOpen(false);
+  };
+  const closeDrawer = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      setMobileOpen(false);
+      setClosing(false);
+    }, 260);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && closeDrawer();
+    window.addEventListener('keydown', k);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', k);
+    };
+  }, [mobileOpen, closeDrawer]);
+
+  const Logo = (
+    <Link to="/" className="lhh-logo" aria-label="Lumiva CRM">
+      <span className="lhh-logo-m">
+        <i />
+      </span>
+      Lumiva<span className="lhh-logo-s">CRM</span>
+    </Link>
+  );
+
+  const AcctLogo = ({ size }: { size: 'sm' | 'md' | 'lg' }) =>
+    tenantSession?.logoSrc ? (
+      <span className={'lhh-acct-lg img ' + size}>
+        <img src={tenantSession.logoSrc} alt="" />
+        <i />
+      </span>
+    ) : (
+      <span className={'lhh-acct-lg ' + size}>
+        {initials(tenantSession?.companyName || '')}
+        <i />
+      </span>
+    );
+
+  let n = 0;
+  const st = () => ({ animationDelay: 0.06 + n++ * 0.03 + 's' });
+
+  const drawer =
+    mobileOpen &&
+    createPortal(
+      <div className={'lhh lhh-dr' + (closing ? ' out' : '')}>
+        <button type="button" className="lhh-dr-bg" onClick={closeDrawer} aria-label={ht.close} />
+        <aside className="lhh-dr-p">
+          <div className="lhh-dr-h">
+            {Logo}
+            <button type="button" className="lhh-x" onClick={closeDrawer} aria-label={ht.close}>
+              <Ic d={I.x} size={16} />
+            </button>
+          </div>
+          <div className="lhh-dr-b">
+            {tenantSession && (
+              <Link to="/app" className="lhh-dr-acct" style={st()}>
+                <AcctLogo size="lg" />
+                <span className="lhh-acct-t">
+                  <b>{tenantSession.companyName}</b>
+                  <em>{tenantSession.userLabel}</em>
+                  <u>{ht.openCrm}</u>
+                </span>
+                <Ic d={I.arrow} size={15} />
+              </Link>
+            )}
+            <div className="lhh-dr-k" style={st()}>
+              {ht.platform}
+            </div>
+            <div className="lhh-dr-ai">
+              {aiItems.map((x) => (
+                <a key={x.to} href={x.to} style={st()} onClick={closeDrawer}>
+                  <span className="lhh-ic">
+                    <Ic d={x.ic} size={16} />
+                  </span>
+                  <span>
+                    <b>{x.n}</b>
+                    <em>{x.d}</em>
+                  </span>
+                </a>
+              ))}
+            </div>
+            <div className="lhh-dr-k" style={st()}>
+              {ht.product}
+            </div>
+            <div className="lhh-dr-l">
+              {[...mainItems, ...tailItems].map((x) => (
+                <Link key={x.key} to={x.to} style={st()} className={isActive(x.key) ? 'on' : ''}>
+                  {t(`publicPages.nav.${x.key}`)}
+                  <Ic d={I.arrow} size={13} />
+                </Link>
+              ))}
+            </div>
+            <div className="lhh-dr-k" style={st()}>
+              {t('publicPages.nav.solutions')}
+            </div>
+            <div className="lhh-dr-chips" style={st()}>
+              {solutionItems.map((x) => (
+                <Link key={x.key} to={x.to} className={isActive(x.key) ? 'on' : ''}>
+                  {t(`publicPages.nav.${x.key}`)}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="lhh-dr-f">
+            <div className="lhh-dr-lang" role="radiogroup" aria-label={ht.lang}>
+              <span className="lhh-dr-lang-i" style={{ transform: `translateX(${LANGS.findIndex((x) => x[0] === lang) * 100}%)` }} />
+              {LANGS.map(([k, , nm]) => (
+                <button key={k} type="button" role="radio" aria-checked={lang === k} className={lang === k ? 'on' : ''} onClick={() => setAppLanguage(k)}>
+                  {nm}
+                </button>
+              ))}
+            </div>
+            {tenantSession ? (
+              <button type="button" className="lhh-btn gh block" onClick={logout}>
+                <Ic d={I.out} size={14} />
+                {ht.logoutFull}
+              </button>
+            ) : (
+              <div className="lhh-dr-cta">
+                <Link className="lhh-btn gh" to="/?mode=login">
+                  {ht.login}
+                </Link>
+                <Link className="lhh-btn" to="/?mode=signup">
+                  {ht.start}
+                </Link>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>,
+      document.body,
+    );
 
   return (
     <>
-      <header className={`sticky top-0 z-40 transition-all duration-300 ${scrolled ? 'pt-0' : 'pt-2 sm:pt-3'}`}>
-        <div className={`mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 sm:py-3 transition-all duration-300 ${
-          scrolled
-            ? 'bg-white/95 backdrop-blur-xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] border-b border-black/5'
-            : 'rounded-3xl border border-black/5 bg-white/70 shadow-[0_10px_40px_rgba(0,0,0,0.06)] backdrop-blur-xl'
-        }`}>
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 shrink-0 group">
-            <div className="w-7 h-7 rounded-xl bg-black flex items-center justify-center transition-transform duration-200 group-hover:scale-95">
-              <div className="w-3 h-3 rounded-full bg-white" />
-            </div>
-            <span className="text-sm font-semibold uppercase tracking-[0.14em] text-black">Lumiva CRM</span>
-          </Link>
-
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 text-xs font-medium text-neutral-600">
-            {primaryItems.map((item) => (
-              <Link key={item.key} to={item.to} className={navLinkClass(item.key)}>
-                {t(`publicPages.nav.${item.key}`)}
-              </Link>
-            ))}
-
-            {/* Solutions dropdown */}
-            <div className="relative group">
-              <button
-                type="button"
-                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 transition-all duration-150 ${
-                  isSolutionActive
-                    ? 'border-black bg-black text-white'
-                    : 'border-transparent hover:border-neutral-200 hover:bg-white/80 hover:text-black'
-                }`}
-              >
-                {t('publicPages.nav.solutions')}
-                <ChevronDown open={false} />
+      <header className={'lhh lhh-hd' + (scrolled ? ' sc' : '')}>
+        <div className="lhh-hd-in">
+          {Logo}
+          <nav className="lhh-nav">
+            <div className="lhh-dd">
+              <button type="button" className="lhh-dd-b">
+                {ht.ai}
+                <Ic d={I.chev} size={12} />
               </button>
-              <div className="invisible absolute left-0 top-full z-50 mt-2 w-52 rounded-2xl border border-slate-100 bg-white p-2 opacity-0 shadow-[0_16px_40px_rgba(15,23,42,0.12)] transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                {solutionItems.map((item) => (
-                  <Link
-                    key={item.key}
-                    to={item.to}
-                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
-                      isActive(item.key)
-                        ? 'bg-black text-white'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {t(`publicPages.nav.${item.key}`)}
-                    {isActive(item.key) && <ArrowRight />}
-                  </Link>
+              <div className="lhh-pop lhh-dd-m wide">
+                {aiItems.map((x) => (
+                  <a key={x.to} href={x.to} className="lhh-dd-ai">
+                    <span className="lhh-ic">
+                      <Ic d={x.ic} size={16} />
+                    </span>
+                    <span>
+                      <b>{x.n}</b>
+                      <em>{x.d}</em>
+                    </span>
+                  </a>
                 ))}
               </div>
             </div>
-
-            {tailItems.map((item) => (
-              <Link key={item.key} to={item.to} className={navLinkClass(item.key)}>
-                {t(`publicPages.nav.${item.key}`)}
+            {mainItems.map((x) => (
+              <Link key={x.key} to={x.to} className={isActive(x.key) ? 'on' : ''}>
+                {t(`publicPages.nav.${x.key}`)}
+              </Link>
+            ))}
+            <div className="lhh-dd">
+              <button type="button" className={'lhh-dd-b' + (isSolutionActive ? ' on' : '')}>
+                {t('publicPages.nav.solutions')}
+                <Ic d={I.chev} size={12} />
+              </button>
+              <div className="lhh-pop lhh-dd-m">
+                <div className="lhh-dd-g">
+                  {solutionItems.map((x) => (
+                    <Link key={x.key} to={x.to} className={isActive(x.key) ? 'on' : ''}>
+                      {t(`publicPages.nav.${x.key}`)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {tailItems.map((x) => (
+              <Link key={x.key} to={x.to} className={isActive(x.key) ? 'on' : ''}>
+                {t(`publicPages.nav.${x.key}`)}
               </Link>
             ))}
           </nav>
-
-          {/* Right controls */}
-          <div className="flex items-center gap-2 shrink-0">
-            <select
-              value={currentLang}
-              onChange={(e) => setAppLanguage(e.target.value as 'ru' | 'en' | 'tr')}
-              className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600 outline-none cursor-pointer hover:border-slate-300 transition-colors"
-              aria-label="Language"
-            >
-              <option value="ru">RU</option>
-              <option value="en">EN</option>
-              <option value="tr">TR</option>
-            </select>
+          <div className="lhh-hd-r">
+            <div className={'lhh-lang' + (langOpen ? ' o' : '')} ref={langRef}>
+              <button type="button" className="lhh-lang-b" onClick={() => setLangOpen((o) => !o)} aria-label={ht.lang} aria-expanded={langOpen}>
+                <Ic d={I.globe} size={14} />
+                {lang.toUpperCase()}
+                <Ic d={I.chev} size={12} />
+              </button>
+              <div className="lhh-pop lhh-lang-m">
+                {LANGS.map(([k, s, nm]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={lang === k ? 'on' : ''}
+                    onClick={() => {
+                      setAppLanguage(k);
+                      setLangOpen(false);
+                    }}
+                  >
+                    <b>{s}</b>
+                    {nm}
+                    {lang === k && <Ic d={I.check} size={13} sw={2} />}
+                  </button>
+                ))}
+              </div>
+            </div>
             {tenantSession ? (
-              <Link
-                to="/app"
-                title={t('publicPages.nav.openCrmHint')}
-                className="hidden md:flex max-w-[min(280px,34vw)] items-center gap-2 rounded-full border border-slate-200/90 bg-white pl-1.5 pr-3 py-1 shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-colors hover:border-slate-300 hover:bg-slate-50/90"
-              >
-                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-                  {tenantSession.logoSrc ? (
-                    <img
-                      src={tenantSession.logoSrc}
-                      alt=""
-                      className="h-full w-full object-contain p-0.5"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-black text-[10px] font-bold uppercase tracking-tight text-white">
-                      {(tenantSession.companyName || '?').slice(0, 2)}
+              <div className={'lhh-acct' + (acctOpen ? ' o' : '')} ref={acctRef}>
+                <button type="button" className="lhh-acct-b" onClick={() => setAcctOpen((o) => !o)} aria-expanded={acctOpen} title={t('publicPages.nav.openCrmHint')}>
+                  <AcctLogo size="md" />
+                  <span className="lhh-acct-t">
+                    <b>{tenantSession.companyName}</b>
+                    <em>{tenantSession.userLabel}</em>
+                  </span>
+                  <Ic d={I.chev} size={12} />
+                </button>
+                <div className="lhh-pop lhh-acct-m">
+                  <div className="lhh-acct-h">
+                    <AcctLogo size="lg" />
+                    <div>
+                      <b>{tenantSession.companyName}</b>
+                      <em>{tenantSession.userLabel}</em>
                     </div>
-                  )}
+                  </div>
+                  <Link to="/app" className="lhh-acct-go">
+                    <Ic d={I.app} size={15} />
+                    {ht.openCrm}
+                    <Ic d={I.arrow} size={13} />
+                  </Link>
+                  <Link to="/profile">
+                    <Ic d={I.user} size={15} />
+                    {ht.profile}
+                  </Link>
+                  <Link to="/settings">
+                    <Ic d={I.cog} size={15} />
+                    {ht.settings}
+                  </Link>
+                  <button type="button" onClick={logout}>
+                    <Ic d={I.out} size={15} />
+                    {ht.logout}
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1 text-left leading-tight">
-                  <div className="truncate text-[11px] font-semibold text-slate-900">{tenantSession.companyName}</div>
-                  <div className="truncate text-[10px] font-medium text-slate-500">{tenantSession.userLabel}</div>
-                </div>
-                <ArrowRight />
-              </Link>
+              </div>
             ) : (
-              <Link
-                to="/login"
-                className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-4 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 transition-colors"
-              >
-                {t('landing.nav.login', { defaultValue: 'Войти' })}
-                <ArrowRight />
-              </Link>
+              <>
+                <Link className="lhh-btn gh sm lhh-in-b" to="/?mode=login">
+                  {ht.login}
+                </Link>
+                <Link className="lhh-btn sm lhh-st" to="/?mode=signup">
+                  {ht.start}
+                </Link>
+              </>
             )}
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 md:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M4 7H20M4 12H20M4 17H16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
+            <button type="button" className="lhh-burger" aria-label={ht.menu} onClick={() => setMobileOpen(true)}>
+              {tenantSession && <AcctLogo size="sm" />}
+              <span className="lhh-burger-i">
+                <i />
+                <i />
+                <i />
+              </span>
             </button>
           </div>
         </div>
       </header>
-
-      {/* Mobile drawer */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            className="fixed inset-0 z-[8500] md:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/40 backdrop-blur-md"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close menu"
-            />
-            <motion.aside
-              className="absolute right-0 top-0 h-full w-[85vw] max-w-sm bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)] flex flex-col"
-              initial={{ x: 60, opacity: 0.7 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 60, opacity: 0.7 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <Link to="/" className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-xl bg-black flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-white" />
-                  </div>
-                  <span className="text-sm font-semibold uppercase tracking-[0.14em]">Lumiva CRM</span>
-                </Link>
-                <button
-                  type="button"
-                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <nav className="flex flex-col gap-1 flex-1 overflow-y-auto">
-                {[...primaryItems, ...tailItems].map((item) => (
-                  <Link
-                    key={item.key}
-                    to={item.to}
-                    className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      isActive(item.key)
-                        ? 'bg-black text-white'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {t(`publicPages.nav.${item.key}`)}
-                  </Link>
-                ))}
-                <div className="px-3 pt-3 pb-1">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-semibold mb-1">
-                    {t('publicPages.nav.solutions')}
-                  </div>
-                </div>
-                {solutionItems.map((item) => (
-                  <Link
-                    key={item.key}
-                    to={item.to}
-                    className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      isActive(item.key) ? 'bg-black text-white' : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {t(`publicPages.nav.${item.key}`)}
-                  </Link>
-                ))}
-              </nav>
-
-              <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
-                <select
-                  value={currentLang}
-                  onChange={(e) => setAppLanguage(e.target.value as 'ru' | 'en' | 'tr')}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold"
-                >
-                  <option value="ru">Русский</option>
-                  <option value="en">English</option>
-                  <option value="tr">Türkçe</option>
-                </select>
-                {tenantSession ? (
-                  <Link
-                    to="/app"
-                    className="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-                      {tenantSession.logoSrc ? (
-                        <img src={tenantSession.logoSrc} alt="" className="h-full w-full object-contain p-0.5" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-black text-xs font-bold text-white">
-                          {(tenantSession.companyName || '?').slice(0, 2)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-semibold text-slate-900">{tenantSession.companyName}</div>
-                      <div className="truncate text-[11px] text-slate-500">{tenantSession.userLabel}</div>
-                      <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                        {t('publicPages.nav.openCrmCta')}
-                      </div>
-                    </div>
-                  </Link>
-                ) : (
-                  <Link
-                    to="/login"
-                    className="w-full text-center rounded-xl bg-black text-white px-4 py-2.5 text-xs font-semibold hover:bg-neutral-800 transition-colors"
-                  >
-                    {t('landing.nav.login', { defaultValue: 'Войти' })}
-                  </Link>
-                )}
-              </div>
-            </motion.aside>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {drawer}
     </>
   );
 };
