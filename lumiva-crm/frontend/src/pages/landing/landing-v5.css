@@ -292,7 +292,7 @@
 .lhv .lh-login-glow { position: absolute; left: -40%; top: -60%; width: 180%; height: 90%; background: radial-gradient(closest-side at 40% 60%, rgba(170,230,60,.22), transparent 70%), radial-gradient(closest-side at 65% 55%, rgba(110,160,255,.2), transparent 70%); filter: blur(10px); pointer-events: none; animation: lhBreath2 8s ease-in-out infinite; }
 @keyframes lhBreath2 { 50% { transform: scale(1.1) rotate(6deg); } }
 .lhv .lh-login > * { position: relative; }
-.lhv .lh-login > section { background: transparent; padding: 0; }
+.lhv .lh-login > section { background: transparent; padding: 0; overflow: visible; } /* иначе срезаются первая буква заголовка и кольцо фокуса полей */
 .lhv .lh-x { position: absolute !important; right: 14px; top: 14px; width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--bg-soft); color: var(--fg-2); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
 .lhv .lh-x:hover { color: var(--ink); }
 

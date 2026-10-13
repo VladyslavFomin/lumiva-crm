@@ -53,6 +53,6 @@ jobs:
             npm run build
 
             echo "==> Frontend: publish build to nginx webroot"
-            rsync -av --delete dist/ /var/www/crm.lumiva.agency/
+            bash scripts/deploy-live.sh  # keeps old assets 7 days so open tabs don't 404 into the error screen
 
             echo "==> CRM backend + frontend обновлены"
