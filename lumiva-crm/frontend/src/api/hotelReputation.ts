@@ -229,4 +229,13 @@ export interface RepHotelSummary {
   praises: RepTopicStat[];
   platforms: Array<{ platform: RepPlatform; url: string | null; platformRating: number | null; platformCount: number | null; lastSuccessAt: string | null; failing: boolean; total: number; n90: number; avg90: number | null; unansweredNegative: number }>;
 }
+export type RepHotelTasks = {
+  projectId: string | null;
+  open: { id: string; title: string; status: string; priority: string | null; deadline: string | null; byAi: boolean }[];
+  done: number;
+  total: number;
+  pending: { id: string; title: string; createdAt: string }[];
+  agentId: string | null;
+};
+export const fetchRepHotelTasks = (hotelId: string) => api.get<RepHotelTasks>(`/hotel-reputation/hotels/${hotelId}/tasks`);
 export const fetchRepHotelSummary = (hotelId: string) => api.get<RepHotelSummary>(`/hotel-reputation/hotels/${hotelId}/summary`);

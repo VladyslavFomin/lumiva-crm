@@ -19197,7 +19197,13 @@
           "latest": "Latest reviews",
           "lineHint": "Hotel reviews for 90 days — open the feed",
           "lineReviews": "{{n}} reviews in 90 d",
-          "lineOpen": "{{n}} unanswered negative"
+          "lineOpen": "{{n}} unanswered negative",
+          "tasksTitle": "Review tasks",
+          "tasksSub": "Open: {{open}} · done: {{done}} — this hotel’s “Reviews” project",
+          "tasksNone": "No tasks yet. The AI Reviews Manager files them here when a review waits too long or a complaint grows.",
+          "openProject": "Open project",
+          "tasksPending": "Waiting for your approval at the AI employee: {{n}}",
+          "reviewPending": "Approve"
         },
         "agentStrip": {
           "none": "No AI Reviews Manager hired: it sends a morning digest, reminds about unanswered reviews, prepares reply drafts and weekly recommendations.",

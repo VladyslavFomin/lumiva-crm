@@ -106,6 +106,11 @@ export class ReputationController {
     return this.analytics.hotelsSummary(u.tenantId);
   }
 
+  @Get('hotels/:hotelId/tasks')
+  hotelTasks(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
+    return this.agent.hotelTasks(u.tenantId, hotelId);
+  }
+
   @Get('hotels/:hotelId/summary')
   hotelSummary(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
     return this.analytics.hotelSummary(u.tenantId, hotelId);

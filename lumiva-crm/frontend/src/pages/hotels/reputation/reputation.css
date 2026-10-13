@@ -201,3 +201,12 @@ html .px-scope .bk-drawer.rp-drawer { width: min(640px, 100vw); }
 .px-scope .rp-agent-strip .av img { width: 100%; height: 100%; object-fit: cover; }
 .px-scope .rp-agent-strip .tx { flex: 1; min-width: 0; }
 .px-scope .rp-agent-strip .go { font-weight: 600; color: var(--ink); white-space: nowrap; }
+
+/* задачи по отзывам в карточке отеля */
+.rp-task-list { display: flex; flex-direction: column; gap: 6px; }
+.rp-task { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid var(--line, rgba(0,0,0,.08)); border-radius: 10px; cursor: pointer; font-size: 13px; transition: background-color .15s ease; }
+.rp-task:hover { background: var(--bg-2, rgba(0,0,0,.03)); }
+.rp-task-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-task-ai { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 5px; font-size: 10px; font-weight: 600; background: rgba(99,102,241,.12); color: #4f46e5; }
+.rp-task-meta { flex-shrink: 0; font-size: 12px; color: var(--fg-3); }
+.rp-task-more { font-size: 12px; color: var(--fg-3); padding: 2px 12px; }

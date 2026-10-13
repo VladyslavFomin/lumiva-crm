@@ -19179,7 +19179,13 @@
           "latest": "Son yorumlar",
           "lineHint": "Otelin 90 günlük yorumları — akışı aç",
           "lineReviews": "90 günde {{n}} yorum",
-          "lineOpen": "{{n}} yanıtsız olumsuz"
+          "lineOpen": "{{n}} yanıtsız olumsuz",
+          "tasksTitle": "Yorum görevleri",
+          "tasksSub": "Açık: {{open}} · tamamlanan: {{done}} — bu otelin “Yorumlar” projesi",
+          "tasksNone": "Henüz görev yok. YZ Yorum Yöneticisi bir yorum uzun süre yanıtsız kaldığında veya bir şikâyet arttığında buraya ekler.",
+          "openProject": "Projeyi aç",
+          "tasksPending": "YZ çalışanında onayınızı bekleyen: {{n}}",
+          "reviewPending": "Onayla"
         },
         "agentStrip": {
           "none": "YZ Yorum Yöneticisi işe alınmadı: sabah özeti gönderir, yanıtsız yorumları hatırlatır, yanıt taslakları ve haftalık öneriler hazırlar.",

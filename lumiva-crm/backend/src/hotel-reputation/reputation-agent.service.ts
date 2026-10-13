@@ -84,19 +84,19 @@ const L10N: Record<Lang, Record<string, string>> = {
   ru: {
     digest: 'Сводка по отзывам', insights: 'Инсайты по отзывам за неделю', main: 'Главное', recs: 'Рекомендации', hotels: 'Отели',
     open: 'Без ответа сейчас', complaints: 'Жалобы вчера', none: 'Новых отзывов за день нет.', openFeed: 'Открыть ленту отзывов',
-    remind: 'Отзывы ждут ответа', escalate: 'Ответить на отзыв', reviews: 'отз.', avg: 'средняя', neg: 'негатив', replied: 'отвечено',
+    allHotels: 'все отели', remind: 'Отзывы ждут ответа', escalate: 'Ответить на отзыв', reviews: 'отз.', avg: 'средняя', neg: 'негатив', replied: 'отвечено',
     issues: 'Проблемы сбора', week: 'Растущие жалобы', by: 'Подготовил(а)',
   },
   en: {
     digest: 'Reviews digest', insights: 'Weekly review insights', main: 'Highlights', recs: 'Recommendations', hotels: 'Hotels',
     open: 'Unanswered now', complaints: 'Complaints yesterday', none: 'No new reviews yesterday.', openFeed: 'Open the review feed',
-    remind: 'Reviews waiting for a reply', escalate: 'Reply to review', reviews: 'reviews', avg: 'avg', neg: 'negative', replied: 'replied',
+    allHotels: 'all hotels', remind: 'Reviews waiting for a reply', escalate: 'Reply to review', reviews: 'reviews', avg: 'avg', neg: 'negative', replied: 'replied',
     issues: 'Collection problems', week: 'Rising complaints', by: 'Prepared by',
   },
   tr: {
     digest: 'Yorum özeti', insights: 'Haftalık yorum içgörüleri', main: 'Öne çıkanlar', recs: 'Öneriler', hotels: 'Oteller',
     open: 'Şu an yanıtsız', complaints: 'Dünkü şikâyetler', none: 'Dün yeni yorum yok.', openFeed: 'Yorum akışını aç',
-    remind: 'Yanıt bekleyen yorumlar', escalate: 'Yoruma yanıt ver', reviews: 'yorum', avg: 'ort.', neg: 'olumsuz', replied: 'yanıtlandı',
+    allHotels: 'tüm oteller', remind: 'Yanıt bekleyen yorumlar', escalate: 'Yoruma yanıt ver', reviews: 'yorum', avg: 'ort.', neg: 'olumsuz', replied: 'yanıtlandı',
     issues: 'Toplama sorunları', week: 'Artan şikâyetler', by: 'Hazırlayan',
   },
 };
@@ -143,6 +143,8 @@ export class ReputationAgentService implements OnApplicationBootstrap {
         actions: [],
         dispatch: async () => undefined,
         snapshot: (tenantId, perms) => (perms.read_reviews ? this.snapshotBlock(tenantId) : Promise.resolve(null)),
+        taskRole: 'reviews_manager',
+        taskProject: (tenantId, payload, text) => this.taskProjectFor(tenantId, payload, text),
       });
     } catch (e: any) {
       this.log.warn(`reviews agent hooks not registered: ${e?.message || e}`);
@@ -479,12 +481,65 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
     return { reminded, escalated };
   }
 
+  /** Задачи по отзывам этого отеля (проект «Отзывы · <отель>») + предложения сотрудника, ждущие одобрения. */
+  async hotelTasks(tenantId: string, hotelId: string) {
+    const cfg = await this.settings.config(tenantId);
+    const projectId = ((cfg as any).taskProjects?.[hotelId] as string | undefined) || null;
+    const empty = { projectId: null as string | null, open: [] as any[], done: 0, total: 0, pending: [] as any[], agentId: null as string | null };
+    const agent = await this.agentFor(tenantId);
+    if (!projectId) return { ...empty, agentId: agent?.id ?? null };
+    const [proj] = await this.reviewsRepo
+      .query(`SELECT id, tasks FROM crm_projects WHERE id = $1 AND tenant_id = $2 AND NOT is_deleted`, [projectId, tenantId])
+      .catch(() => []);
+    if (!proj) return { ...empty, agentId: agent?.id ?? null };
+    let tasks: any[] = [];
+    try {
+      tasks = JSON.parse(proj.tasks || '[]');
+    } catch {
+      tasks = [];
+    }
+    const open = tasks
+      .filter((t) => t && t.status !== 'Готово')
+      .map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, deadline: t.deadline ?? null, byAi: !!t.createdByAi }))
+      .sort((a, b) => String(a.deadline || '9999').localeCompare(String(b.deadline || '9999')));
+    const pending = await this.reviewsRepo
+      .query(
+        `SELECT id, title, created_at AS "createdAt" FROM ai_agent_actions
+          WHERE tenant_id = $1 AND status = 'pending' AND action_type = 'create_task' AND payload->>'projectId' = $2
+          ORDER BY created_at DESC LIMIT 20`,
+        [tenantId, projectId],
+      )
+      .catch(() => []);
+    return { projectId, open: open.slice(0, 30), done: tasks.length - open.length, total: tasks.length, pending, agentId: agent?.id ?? null };
+  }
+
+  /**
+   * Куда положить задачу сотрудника (в т.ч. придуманную моделью): отель по отзыву → по hotelId → по названию
+   * отеля в тексте (самое длинное совпадение); не понять — общий проект «Отзывы · все отели».
+   */
+  async taskProjectFor(tenantId: string, payload: Record<string, any>, text: string): Promise<string | null> {
+    const reviewId = String(payload.reviewId || (payload.focusType === 'hotel_review' ? payload.focusId : '') || '');
+    let hotelId = String(payload.hotelId || (payload.focusType === 'hotel' ? payload.focusId : '') || '');
+    if (!hotelId && /^[0-9a-f-]{36}$/i.test(reviewId)) {
+      hotelId = (await this.reviewsRepo.findOne({ where: { id: reviewId, tenantId }, select: ['id', 'hotelId'] as any }))?.hotelId || '';
+    }
+    const hotels = await this.hotels.find({ where: { tenantId } as any, select: ['id', 'name'] as any });
+    let hotel = hotelId ? hotels.find((h) => h.id === hotelId) : undefined;
+    if (!hotel) {
+      const low = text.toLowerCase();
+      hotel = hotels
+        .filter((h) => h.name && low.includes(h.name.toLowerCase()))
+        .sort((a, b) => b.name.length - a.name.length)[0];
+    }
+    return hotel ? this.ensureProject(tenantId, hotel.id, hotel.name) : this.ensureProject(tenantId, '_all', L10N.ru.allHotels);
+  }
+
   /** Проект «Отзывы · <отель>» для задач по отзывам (создаётся один раз, id хранится в настройках модуля). */
   private async ensureProject(tenantId: string, hotelId: string, hotelName: string): Promise<string | null> {
     const cfg = await this.settings.config(tenantId);
     const known = (cfg as any).taskProjects?.[hotelId] as string | undefined;
     if (known) {
-      const [row] = await this.reviewsRepo.query(`SELECT id FROM projects WHERE id = $1 AND "tenantId" = $2 AND NOT COALESCE("isDeleted", false)`, [known, tenantId]).catch(() => []);
+      const [row] = await this.reviewsRepo.query(`SELECT id FROM crm_projects WHERE id = $1 AND tenant_id = $2 AND NOT is_deleted`, [known, tenantId]).catch(() => []);
       if (row?.id) return row.id;
     }
     try {

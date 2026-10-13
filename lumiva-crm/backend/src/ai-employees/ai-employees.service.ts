@@ -214,6 +214,9 @@ export type ModuleAgentHooks = {
   actions: string[];
   dispatch(tenantId: string, action: AiAgentAction): Promise<void>;
   snapshot?(tenantId: string, permissions: Record<string, boolean>): Promise<Record<string, unknown> | null>;
+  /** Роль, чьи задачи (create_task) модуль раскладывает по своим проектам — модель проект не выбирает. */
+  taskRole?: string;
+  taskProject?(tenantId: string, payload: Record<string, any>, text: string): Promise<string | null>;
 };
 
 const ACTION_PERMISSION: Record<string, string> = {
@@ -5973,7 +5976,28 @@ ${JSON.stringify(snapshot).slice(0, focus ? Math.floor(SNAPSHOT_PROMPT_LIMIT * 0
     // поднимает проект наверх, так что клиентский «TEST SELECTUM HOTELS» копил SEO-задачи про
     // Alivip.site и Lumiva Agency. Теперь: SEO-задачи — в проект «SEO · сайт» своего сайта (как у
     // еженедельного SEO-отчёта), а в чужой проект, за который сотрудник не отвечает, — нельзя.
-    if (!focus) {
+    // Роли модулей (ИИ-менеджер отзывов): задачи — в проект модуля («Отзывы · <отель>»), и в цикле, и по событию
+    const roleHook = this.moduleHooks.find((h) => h.taskRole === agent.role && h.taskProject);
+    if (roleHook) {
+      const kept: ActionDraft[] = [];
+      for (const draft of draftActions) {
+        if (String(draft.actionType) !== 'create_task') {
+          kept.push(draft);
+          continue;
+        }
+        const dp = { ...((draft.payload || {}) as Record<string, any>) };
+        const projectId = await roleHook
+          .taskProject!(tenantId, { ...dp, focusType: focus?.entityType, focusId: focus?.entityId }, `${dp.title ?? draft.title ?? ''} ${dp.description ?? ''} ${draft.reason ?? ''}`)
+          .catch(() => null);
+        if (!projectId) continue;
+        delete dp.leadId;
+        draft.payload = { ...dp, projectId };
+        draft.targetType = 'project';
+        draft.targetId = projectId;
+        kept.push(draft);
+      }
+      draftActions = kept;
+    } else if (!focus) {
       const kept: ActionDraft[] = [];
       for (const draft of draftActions) {
         if (String(draft.actionType) !== 'create_task') {

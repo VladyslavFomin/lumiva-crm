@@ -2595,7 +2595,10 @@ export function AiEmployeeProfilePage() {
   const [openaiConnectionId, setOpenaiConnectionId] = useState('');
   const [allConnections, setAllConnections] = useState<IntegrationConnectionDto[]>([]);
   const [assignments, setAssignments] = useState<AiAgentAssignmentItem[]>([]);
-  const [tab, setTab] = useState<'overview' | 'chat' | 'reviews' | 'access' | 'work' | 'journal'>('overview');
+  const [tab, setTab] = useState<'overview' | 'chat' | 'reviews' | 'access' | 'work' | 'journal'>(() => {
+    const q = new URLSearchParams(window.location.search).get('tab');
+    return q === 'journal' || q === 'reviews' || q === 'access' || q === 'work' || q === 'chat' ? q : 'overview';
+  });
   const [journalFilter, setJournalFilter] = useState<'all' | 'appr' | 'log' | 'rep' | 'err'>('all');
   const [accessOpen, setAccessOpen] = useState(true);
   const [cfg, setCfg] = useState<AiAgentConfig | null>(null);

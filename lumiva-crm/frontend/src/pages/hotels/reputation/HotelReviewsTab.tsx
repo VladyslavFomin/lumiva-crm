@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchRepFeed, fetchRepHotelSummary, type RepFeed, type RepHotelSummary } from '../../../api/hotelReputation';
+import { fetchRepFeed, fetchRepHotelSummary, fetchRepHotelTasks, type RepFeed, type RepHotelSummary, type RepHotelTasks } from '../../../api/hotelReputation';
 import { Delta, PlatformBadge, Score, fmtDate, fmtHours, topicLabel, useRepT } from './ReputationShared';
 import './reputation.css';
 
@@ -11,10 +11,12 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
   const [sum, setSum] = useState<RepHotelSummary | null>(null);
   const [feed, setFeed] = useState<RepFeed | null>(null);
   const [error, setError] = useState('');
+  const [tasks, setTasks] = useState<RepHotelTasks | null>(null);
 
   useEffect(() => {
     fetchRepHotelSummary(hotelId).then(setSum).catch((e) => setError(e?.message || 'error'));
     fetchRepFeed({ hotelId, limit: 8 }).then(setFeed).catch(() => undefined);
+    fetchRepHotelTasks(hotelId).then(setTasks).catch(() => undefined);
   }, [hotelId]);
 
   if (error) return <div className="rp-note err">{error}</div>;
@@ -108,6 +110,39 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
           ) : <div style={{ color: 'var(--fg-4)', fontSize: 12.5 }}>{r('dash.noTopics')}</div>}
         </div>
       </div>
+
+      {tasks && (
+        <div className="ha-section">
+          <div className="ha-section-head">
+            <div>
+              <h3>{r('hotelTab.tasksTitle')}</h3>
+              <div className="sub">{tasks.projectId ? r('hotelTab.tasksSub', { open: tasks.open.length, done: tasks.done }) : r('hotelTab.tasksNone')}</div>
+            </div>
+            {tasks.projectId && (
+              <button type="button" className="btn btn-sm" onClick={() => navigate(`/projects/${tasks.projectId}`)}>{r('hotelTab.openProject')}</button>
+            )}
+          </div>
+          {tasks.pending.length > 0 && (
+            <div className="rp-note warn" style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span>{r('hotelTab.tasksPending', { n: tasks.pending.length })}</span>
+              {tasks.agentId && (
+                <button type="button" className="btn btn-sm" onClick={() => navigate(`/ai-employees/${tasks.agentId}?tab=journal`)}>{r('hotelTab.reviewPending')}</button>
+              )}
+            </div>
+          )}
+          {tasks.open.length > 0 && (
+            <div className="rp-task-list">
+              {tasks.open.slice(0, 8).map((x) => (
+                <div key={x.id} className="rp-task" onClick={() => navigate(`/projects/${tasks.projectId}`)}>
+                  <span className="rp-task-title">{x.byAi && <span className="rp-task-ai">AI</span>}{x.title}</span>
+                  <span className="rp-task-meta">{x.status}{x.deadline ? ` · ${fmtDate(x.deadline, lang)}` : ''}</span>
+                </div>
+              ))}
+              {tasks.open.length > 8 && <div className="rp-task-more">+{tasks.open.length - 8}</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="ha-section">
         <div className="ha-section-head"><div><h3>{r('hotelTab.latest')}</h3></div></div>
