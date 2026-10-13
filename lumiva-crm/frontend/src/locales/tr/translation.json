@@ -2367,6 +2367,78 @@
             "body": "Bir çalışan beklendiği gibi davranmıyorsa, önce Genel bakış sekmesinden duraklatın, sonra neyin yanlış gittiğini görmek için Günlüğü kontrol edin."
           }
         ]
+      },
+      "hotelReviews": {
+        "title": "Yorumlar",
+        "tagline": "8 platformdaki tüm misafir yorumları tek akışta",
+        "sections": [
+          {
+            "heading": "Bu bölüm ne işe yarar",
+            "body": "Google, Booking.com, HolidayCheck, Tripadvisor, Yandex, Expedia, Check24 ve Otelpuan yorumları otomatik toplanır, tek bir 0–10 ölçeğine çevrilir ve YZ tarafından analiz edilir: konular, duygu, çeviri."
+          },
+          {
+            "heading": "Neler yapabilirsiniz",
+            "bullets": [
+              "Marka, otel, platform, dönem, puan, dil, konu ve yanıt durumuna göre filtreleyin",
+              "Güne “Yanıtsız olumsuz” ile başlayın",
+              "Kartı açın: orijinal ve çeviri, alıntılı konular, misafirin düzenleme geçmişi",
+              "Misafirin dilinde YZ yanıt taslağı alın; daha kısa, daha samimi veya daha resmi yapın",
+              "Yanıtı CRM’den gönderin (API bağlıysa Google, HolidayCheck) ya da kopyalayıp platformu açın"
+            ]
+          },
+          {
+            "heading": "İpucu",
+            "body": "Akışın üstündeki kırmızı uyarı YZ’nin veya toplamanın duraklatıldığını gösterir — ne yapılacağı orada yazar."
+          }
+        ]
+      },
+      "hotelReviewsDashboard": {
+        "title": "İtibar paneli",
+        "tagline": "Puanlar nasıl değişiyor ve misafirler tam olarak neden şikâyet ediyor",
+        "sections": [
+          {
+            "heading": "Ne gösterir",
+            "bullets": [
+              "Ortalama 0–10 puan ve itibar endeksi, önceki döneme göre değişimle",
+              "Olumsuz payı, yanıt oranı ve yanıt süresi — otel ve yönetici bazında",
+              "12 aylık puan ve yorum sayısı trendi",
+              "Alıntılarla en çok şikâyet ve övgü, konulara göre otel karşılaştırması",
+              "“Diğer” konular — konu sözlüğü için adaylar"
+            ]
+          },
+          {
+            "heading": "Marka raporu",
+            "body": "Ay özeti: puan trendi, ilk 5 şikâyet, geçen aya göre değişimler ve düşüş yaşayan oteller. Her ayın 1’inde marka pazarlamasına e-postayla gider."
+          },
+          {
+            "heading": "İpucu",
+            "body": "Bir şikâyet konusuna veya otel tablosundaki kırmızı sayıya tıklayın — tam olarak o yorumlar akışta açılır."
+          }
+        ]
+      },
+      "hotelReviewsSettings": {
+        "title": "Yorum ayarları",
+        "tagline": "Platformlar, bağlantılar, uyarılar ve YZ — geliştiriciye gerek yok",
+        "sections": [
+          {
+            "heading": "Nereden başlamalı",
+            "bullets": [
+              "Markalar oluşturup otellere atayın",
+              "Her platformdaki otel sayfası bağlantısını yapıştırın",
+              "Bağlantılar sekmesinde Apify tokenını girin",
+              "Bir otelde “Test” çalıştırıp yorum sayısını siteyle karşılaştırın",
+              "Bir Telegram botu ve uyarı alıcıları seçin"
+            ]
+          },
+          {
+            "heading": "Maliyet hakkında",
+            "body": "Apify toplanan her yorum için ücret alır ve platform fiyatları onlarca kat farklıdır. Sıklık, ilk yükleme ve çalışma başına limit her platform için ayrı ayarlanabilir."
+          },
+          {
+            "heading": "İpucu",
+            "body": "Yorumlar gelmeyi bırakırsa Günlük’e bakın — her çalışmanın hataları orada görünür."
+          }
+        ]
       }
     },
     "aiAssistant": {
@@ -3518,7 +3590,8 @@
       "aiOfficePlan": "Plan ve departmanlar",
       "auraCreate": "Oluştur",
       "auraTemplates": "Şablonlar",
-      "auraApps": "Uygulamalarım"
+      "auraApps": "Uygulamalarım",
+      "hotelsReviews": "Yorumlar"
     },
     "aiEmployees": {
       "badge": {
@@ -17534,7 +17607,8 @@
         "frontdesk": "Bugün",
         "pricing": "Fiyatlandırma ve pazarlar",
         "calendar": "Oda takvimi",
-        "analytics": "Analiz"
+        "analytics": "Analiz",
+        "reviews": "Yorumlar"
       },
       "status": {
         "active": "Aktif",
@@ -18456,6 +18530,522 @@
           "cancel": "İptal",
           "upload": "Yükle",
           "done": "Tamam"
+        }
+      },
+      "reputation": {
+        "kicker": "İtibar",
+        "tabs": {
+          "feed": "Akış",
+          "dashboard": "Panel",
+          "settings": "Ayarlar"
+        },
+        "units": {
+          "minutes": "{{n}} dk",
+          "hours": "{{n}} sa",
+          "days": "{{n}} gün",
+          "pp": "puan",
+          "h": "sa"
+        },
+        "status": {
+          "edited": "misafir düzenledi",
+          "deleted": "platform kaldırdı"
+        },
+        "reply": {
+          "none": "yanıt yok",
+          "replied": "yanıtlandı",
+          "notPublished": "yanıt yayınlanmaz"
+        },
+        "replyMode": {
+          "api": "CRM'den yanıt",
+          "external": "Platformda yanıt",
+          "none": "Platform yanıt yayınlamıyor"
+        },
+        "replySource": {
+          "crm": "CRM'den",
+          "platform": "Platformda",
+          "manual": "Elle işaretlendi"
+        },
+        "replyStatus": {
+          "queued": "sırada",
+          "sending": "gönderiliyor",
+          "sent": "gönderildi",
+          "failed": "hata",
+          "published": "yayında"
+        },
+        "sentiment": {
+          "positive": "olumlu",
+          "negative": "olumsuz",
+          "neutral": "nötr"
+        },
+        "tone": {
+          "short": {
+            "label": "Daha kısa",
+            "prompt": "shorter, 2-3 sentences"
+          },
+          "warm": {
+            "label": "Daha samimi",
+            "prompt": "warmer and more personal"
+          },
+          "formal": {
+            "label": "Daha resmi",
+            "prompt": "more formal and businesslike"
+          }
+        },
+        "topics": {
+          "cleanliness": "temizlik",
+          "room": "oda",
+          "bed_sleep": "yatak ve uyku",
+          "noise": "gürültü",
+          "breakfast": "kahvaltı",
+          "food": "restoran ve yemek",
+          "bar": "bar",
+          "all_inclusive": "her şey dahil",
+          "pool": "havuz",
+          "beach": "plaj",
+          "animation": "animasyon",
+          "staff": "personel",
+          "reception": "resepsiyon ve giriş",
+          "wifi": "Wi-Fi",
+          "air_conditioning": "klima",
+          "value": "fiyat ve değer",
+          "location": "konum",
+          "transfer": "transfer",
+          "spa": "spa",
+          "kids_club": "çocuk kulübü",
+          "other": "diğer"
+        },
+        "filters": {
+          "allBrands": "Tüm markalar",
+          "allHotels": "Tüm oteller",
+          "allPlatforms": "Tüm platformlar",
+          "from": "Başlangıç",
+          "to": "Bitiş",
+          "anyRating": "Tüm puanlar",
+          "negative": "Olumsuz (< {{n}})",
+          "middle": "Orta ({{a}}–{{b}})",
+          "positive": "Olumlu (8+)",
+          "allLanguages": "Tüm diller",
+          "allTopics": "Tüm konular",
+          "anyReply": "Tüm yanıt durumları",
+          "noReply": "Yanıt yok",
+          "replied": "Yanıtlandı",
+          "statusActive": "Yayında",
+          "statusDeleted": "Platform kaldırdı",
+          "statusAll": "Tümü, kaldırılanlar dahil",
+          "reset": "Sıfırla ({{n}})"
+        },
+        "sort": {
+          "new": "Önce yeniler",
+          "priority": "Önce yanıtsız olumsuzlar",
+          "ratingAsc": "Önce düşük puanlar",
+          "ratingDesc": "Önce yüksek puanlar"
+        },
+        "feed": {
+          "title": "Yorumlar",
+          "subtitle": "8 platformdan yorumlar tek akışta: Google, Booking.com, HolidayCheck, Tripadvisor, Yandex, Expedia, Check24, Otelpuan. Yanıtsız olumsuz yorumlar vurgulanır.",
+          "setup": "Ayarla",
+          "search": "Metin, çeviri veya yazar ara",
+          "quickUrgent": "Yanıtsız olumsuz",
+          "quickNoReply": "Tüm yanıtsızlar",
+          "quickDeleted": "Kaldırılanlar",
+          "count": "Bulunan: {{n}}",
+          "emptyTitle": "Yorum yok",
+          "emptyFiltered": "Bu filtrelere uyan yorum yok — filtreleri gevşetmeyi deneyin.",
+          "emptyText": "Platformlar senkronize olur olmaz yorumlar burada görünecek.",
+          "emptySetupTitle": "Henüz platform bağlanmadı",
+          "emptySetupText": "Otellerin platformlardaki sayfa bağlantılarını ekleyin, Google Business Profile ve Apify'ı bağlayın — yorumlar otomatik toplanmaya başlar.",
+          "more": "{{n}} tane daha göster"
+        },
+        "card": {
+          "review": "Yorum",
+          "anonymous": "Misafir",
+          "loading": "Yükleniyor…",
+          "close": "Kapat",
+          "error": "Bir şeyler ters gitti",
+          "travel": "Konaklama",
+          "text": "Yorum metni",
+          "original": "Orijinal",
+          "translation": "Çeviri",
+          "noText": "Metinsiz puan",
+          "viewOnPlatform": "Platformda gör",
+          "reanalyze": "Yeniden analiz et",
+          "analyzing": "Analiz ediliyor…",
+          "analysisError": "YZ analizi başarısız",
+          "subRatings": "Kategori puanları",
+          "topics": "Konular ve duygu",
+          "noTopics": "YZ belirli bir konu bulmadı",
+          "notAnalyzed": "YZ bu yorumu henüz analiz etmedi — genellikle birkaç dakika sürer",
+          "noTextNoTopics": "Metinsiz yorum — konu analizine girmez, yalnızca puan sayılır",
+          "sentiment": "Duygu",
+          "history": "Misafir düzenleme geçmişi",
+          "hotelReplies": "Otel yanıtları",
+          "retry": "Tekrar gönder",
+          "reply": "Yanıtla",
+          "replyAgain": "Yanıtı düzenle",
+          "aiDraft": "YZ yanıt taslağı",
+          "drafting": "Taslak yazılıyor…",
+          "writeManually": "Kendim yazayım",
+          "replyPlaceholder": "Misafire yanıt",
+          "rewrite": "Yeniden yaz",
+          "googleNotReady": "Google Business Profile bağlı değil veya otel bir Google konumuna bağlı değil — şimdilik yanıtı kopyalayıp elle yayınlayın.",
+          "hcNotReady": "HolidayCheck API ile yanıt için otel anahtarı ve uç nokta gerekli (Ayarlar → Bağlantılar). Şimdilik yanıtı kopyalayıp Business Center'da yayınlayın.",
+          "send": "{{platform}}'a gönder",
+          "sending": "Gönderiliyor…",
+          "replyQueued": "Yanıt gönderildi (veya platform limiti nedeniyle sıraya alındı)",
+          "copyOpen": "Kopyala ve platformu aç",
+          "copied": "Yanıt kopyalandı, platform yeni sekmede açıldı",
+          "externalHint": "Bu platform API ile yanıt kabul etmiyor: taslağı kopyalayın, otelci panelinde yayınlayın ve «Yanıtlandı» olarak işaretleyin. Platform yanıtları gösteriyorsa işaret bir sonraki toplamada kendiliğinden gelir.",
+          "markReplied": "«Yanıtlandı» işaretle",
+          "unmarkReplied": "«Yanıtlandı» işaretini kaldır",
+          "check24Hint": "Check24 otel yanıtlarını yayınlamaz, bu yüzden bu yoruma yanıt verilemez. Puan ve konularda yine de sayılır.",
+          "googleManualHint": "Google Business Profile API bağlı değil: taslağı kopyalayın, yoruma Google'da (otel profilinde, sahip hesabıyla) yanıt verin ve «Yanıtlandı» olarak işaretleyin. Yanıt Google'da görününce işaret bir sonraki toplamada kendiliğinden gelir.",
+          "hcManualHint": "HolidayCheck yanıt API'si ayarlı değil: taslağı kopyalayın, HolidayCheck Business Center'da yayınlayın ve «Yanıtlandı» olarak işaretleyin."
+        },
+        "dash": {
+          "title": "İtibar paneli",
+          "subtitle": "Puanların nasıl değiştiği ve misafirlerin tam olarak neden şikâyet ettiği — marka, otel ve platform bazında.",
+          "viewOverview": "Genel bakış",
+          "viewReport": "Marka raporu",
+          "lastDays": "Son {{n}} gün",
+          "customPeriod": "Özel dönem",
+          "kpi": {
+            "avg": "Ortalama puan",
+            "avgHint": "Dönemdeki tüm yorumların rating_10 ortalaması; tüm platformlar 0–10 ölçeğine çevrilir",
+            "index": "İtibar endeksi",
+            "indexHint": "Her platformun ortalaması, o platformdaki yorum sayısıyla ağırlıklandırılır (platform sayacı ile CRM'deki yorum sayısından büyük olanı)",
+            "count": "Yeni yorum",
+            "neg": "Olumsuz payı",
+            "negHint": "10 üzerinden {{n}}'nın altındaki yorumların payı",
+            "response": "Yanıt oranı",
+            "responseHint": "Otel yanıtı olan yorumların payı, Check24 hariç (yanıt yayınlamaz)",
+            "replyTime": "Yanıt süresi",
+            "replyTimeHint": "Yorumun yayınından otel yanıtına kadar medyan (elle işaretlemeler hariç)"
+          },
+          "noData": "Bu dönemde yorum yok.",
+          "trendTitle": "Aylara göre ortalama puan",
+          "trendSub": "Seçili döneme göre, adım — {{step}}; kesikli çizgi — olumsuz eşiği ({{n}})",
+          "countTitle": "Aylara göre yeni yorumlar",
+          "countSub": "Seçili döneme göre, adım — {{step}}. Sütunun üzerine gelin.",
+          "complaints": "En çok şikâyet",
+          "complaintsSub": "Olumsuz duygulu konular; yanında önceki döneme göre değişim",
+          "praises": "En çok övgü",
+          "praisesSub": "Misafirlerin övdüğü konular — alıntılar için üzerine gelin",
+          "noTopics": "Henüz analiz edilmiş konu yok",
+          "hotelsTitle": "Oteller",
+          "hotelsSub": "İtibar endeksine göre karşılaştırma; tıklayınca paneli otele göre filtreler",
+          "platformsTitle": "Platformlar",
+          "platformsSub": "Dönemdeki yorumlar ve platformdaki toplam sayaç",
+          "noReplies": "yanıt yok",
+          "failing": "hata",
+          "matrixTitle": "Konulara göre oteller",
+          "matrixSub": "Otelin yorumlarında konunun olumsuz geçme payı — ne kadar kırmızıysa o kadar şikâyet",
+          "managersTitle": "Yöneticilere göre yanıt süresi",
+          "managersSub": "CRM'den gönderilen yanıtlar",
+          "noManagers": "CRM'den henüz yanıt verilmedi",
+          "otherTitle": "Sözlük gözden geçirmesi için «diğer»",
+          "otherSub": "YZ'nin sözlüğe eşleyemediği konular. Sık olanları ayda bir ekleyin",
+          "noOther": "Sözlük dışı konu yok",
+          "extendDictionary": "Konu sözlüğünü genişlet",
+          "print": "Yazdır / PDF",
+          "reportLoading": "Rapor hazırlanıyor…",
+          "reportKicker": "Aylık rapor",
+          "reportEmpty": "Bu ay bu marka için yorum yok.",
+          "top5": "İlk 5 şikâyet",
+          "top5Sub": "Yanında önceki aya göre değişim",
+          "dropped": "Düşüş yaşayan oteller",
+          "droppedSub": "Ortalama puan önceki aydan düşük",
+          "noDropped": "Düşüş yok",
+          "compareTitle": "Marka içi oteller",
+          "compareSub": "İtibar endeksi ve ortalama puan, önceki aya göre",
+          "reportAutoSend": "Geçen ayın raporu her ayın 1'inde 08:00'de marka pazarlama e-postalarına gönderilir (Ayarlar → Uyarılar ve alıcılar).",
+          "col": {
+            "hotel": "Otel",
+            "index": "Endeks",
+            "avg": "Ortalama",
+            "count": "Yorum",
+            "neg": "Olumsuz",
+            "response": "Yanıt oranı",
+            "replyTime": "Yanıt süresi",
+            "open": "Yanıtsız olumsuz",
+            "topComplaint": "Ana şikâyet",
+            "platform": "Platform",
+            "onPlatform": "Platformda",
+            "inCrm": "CRM'de",
+            "manager": "Yönetici",
+            "replies": "Yanıt",
+            "periodCount": "Dönemde"
+          },
+          "tipReviews": "{{n}} yorum",
+          "tipNeg": "olumsuz %{{n}}",
+          "brandNoHotels": "Bu markada hiç otel yok, bu yüzden rapor boş.",
+          "assignBrand": "Otellere marka ata",
+          "trendTitleP": "Ortalama puan",
+          "countTitleP": "Yeni yorumlar",
+          "weekOf": "{{d}} haftası",
+          "step": {
+            "day": "gün",
+            "week": "hafta",
+            "month": "ay"
+          }
+        },
+        "settings": {
+          "title": "Yorum ayarları",
+          "subtitle": "Otel platformları, bağlantılar, uyarı eşikleri, alıcılar ve YZ analizi — hepsi burada, geliştiriciye gerek yok.",
+          "tabs": {
+            "hotels": "Oteller ve platformlar",
+            "connections": "Bağlantılar",
+            "alerts": "Uyarılar ve alıcılar",
+            "ai": "YZ ve konular",
+            "log": "Günlük"
+          },
+          "save": "Kaydet",
+          "saved": "Kaydedildi",
+          "brandsTitle": "Markalar",
+          "brandsSub": "The Norm, Selectum, Asteria — analiz, rapor ve uyarı alıcıları için. Yeniden adlandırmak için ada tıklayın.",
+          "brandPh": "Yeni marka",
+          "brandAdd": "Ekle",
+          "brandRename": "Marka adı",
+          "brandDelete": "«{{n}}» markası silinsin mi? Oteller kalır, markasız olur.",
+          "noBrand": "Marka yok",
+          "platformsCount": "Platform: {{n}} / {{t}}",
+          "noHotelsTitle": "Henüz otel yok",
+          "noHotelsText": "Önce «Oteller» bölümünde otelleri ekleyin, sonra burada platformlara bağlayın.",
+          "goHotels": "Otellere git",
+          "colPlatform": "Platform",
+          "colLink": "Otel sayfası bağlantısı",
+          "colStatus": "Senkronizasyon"
+        },
+        "src": {
+          "urlPh": {
+            "google": "Google Haritalar'daki otel bağlantısı",
+            "holidaycheck": "https://www.holidaycheck.de/hi/…",
+            "tripadvisor": "https://www.tripadvisor.com/Hotel_Review-…",
+            "yandex": "https://yandex.com.tr/harita/org/…",
+            "expedia": "https://www.expedia.com/…Hotel-Information",
+            "check24": "https://hotel.check24.de/…",
+            "otelpuan": "https://www.otelpuan.com/…",
+            "booking": "https://www.booking.com/hotel/tr/…"
+          },
+          "pickLocation": "Google Business Profile konumu…",
+          "googleConnectFirst": "Önce Google Business Profile'ı bağlayın",
+          "keyPh": "Business Center'dan otel API anahtarı",
+          "keySet": "Anahtar var ({{k}}) — değiştirmek için yenisini girin",
+          "error": "Hata",
+          "okAt": "OK · {{d}}",
+          "notSynced": "Henüz toplanmadı",
+          "onPlatform": "Platformda: {{n}} · ★ {{r}}",
+          "onFallback": "Yedek kazıyıcı kullanılıyor.",
+          "backToPrimary": "Ana kazıyıcıya dön",
+          "sync": "Topla",
+          "syncStarted": "Toplama başladı — sonuç günlükte görünecek",
+          "test": "Test",
+          "testHint": "Kaydetmeden 20 yorumluk test — sayıyı ve alanları platform sitesiyle karşılaştırın",
+          "testStarted": "Test başladı — birkaç dakika sonra Günlük'ü açın",
+          "confirmDelete": "Platformun otelle bağlantısı kaldırılsın mı? Toplanan yorumlar veritabanında kalır.",
+          "syncQueued": "Tüm Apify slotları dolu — toplama sıraya alındı, birkaç dakika içinde başlayacak"
+        },
+        "conn": {
+          "connectedAs": "Bağlı: {{e}}",
+          "notConnected": "Bağlı değil",
+          "googleAccessNote": "Google, Business Profile API erişimini başvuruyla verir; onay olmadan kota sıfırdır. Gerekenler: Google Cloud projesi, business.manage yetkili OAuth ve otel profillerinin sahibi olan hesap. Erişim gelene kadar Google geçici olarak Apify ile okunabilir (otelin Google Haritalar bağlantısı).",
+          "googleConnect": "Google'ı bağla",
+          "reconnect": "Yeniden bağla",
+          "disconnect": "Bağlantıyı kes",
+          "disconnectConfirm": "Google Business Profile bağlantısı kesilsin mi? CRM'den Google'a yanıtlar durur.",
+          "googleAccount": "Business Profile hesabı",
+          "accountsError": "Hesaplar alınamadı — API erişiminin onaylandığını kontrol edin",
+          "pubsubTopic": "Pub/Sub konusu",
+          "pubsubHint": "Biçim: projects/<proje>/topics/<konu>",
+          "step1": "Aynı Google Cloud projesinde bir Pub/Sub konusu oluşturun.",
+          "step2": "Google hizmet hesabına Pub/Sub Publisher rolünü verin:",
+          "step3": "Bu adrese bir push aboneliği oluşturun:",
+          "step4": "Konuyu kaydedip bildirimleri açın — yeni yorumlar anında gelir.",
+          "enableNotif": "Kaydet ve bildirimleri aç",
+          "notifOk": "NEW_REVIEW bildirimleri açıldı",
+          "notifOn": "Push bildirimleri açık",
+          "notifOff": "Bildirimler kapalı",
+          "googleNightly": "Güvence: CRM her gece son 30 günü ve totalReviewCount sayacını kontrol eder; eşiği aşan fark geliştiriciye uyarı gönderir.",
+          "googleConnected": "Google Business Profile bağlandı",
+          "googleError": "Google bağlanamadı: {{e}}",
+          "tokenSet": "Token var ({{k}})",
+          "tokenMissing": "Token yok",
+          "apifyText": "Booking.com, Tripadvisor, Yandex, Expedia, Check24, Otelpuan (ve okuma için HolidayCheck) hazır Apify kazıyıcılarıyla planlı toplanır. Sonuç başına ödenir, bu yüzden ilk yüklemeden sonra yalnızca yeni yorumlar alınır.",
+          "verify": "Doğrula",
+          "apifyOk": "Token çalışıyor, hesap: {{u}}",
+          "remove": "Kaldır",
+          "tokenRemoveConfirm": "Apify tokenı kaldırılsın mı? Platformlardan toplama durur.",
+          "scheduleTitle": "Genel",
+          "hcEvery": "HolidayCheck, N dakikada bir",
+          "apifyEvery": "Booking/Tripadvisor/Yandex/Expedia/Check24, N saatte bir",
+          "otelpuanEvery": "Otelpuan, N saatte bir",
+          "maxPerRun": "Çalışma başına otel başı yorum",
+          "offSeason": "Sezon dışı modu",
+          "offSeasonHint": "Apify platformları günde bir toplanır — bütçe tasarrufu",
+          "actorsTitle": "Kazıyıcılar",
+          "actorsHint": "Her platformun kendi kazıyıcısı, sıklığı ve limitleri var: Apify dönen her yorum için ücret alır ve fiyatlar onlarca kat farklıdır (Google ~1000 başına $0.5, Otelpuan ~$29). Planlı çalışmalar yalnızca yeni yorumları alır. Art arda iki hatadan sonra CRM yedek aktöre geçer. Girdi bir JSON şablonudur: {{u}}, {{m}}, {{s}} çalıştırırken doldurulur.",
+          "googleFallbackActor": "API onaylanana kadar geçici salt okunur Google toplama",
+          "hcReadActor": "yorumları okur; yanıtlar aşağıdaki API ile",
+          "primary": "Ana aktör",
+          "fallback": "Yedek aktör",
+          "fallbackPh": "user/actor-name",
+          "input": "Aktör girdisi (JSON)",
+          "hcReplies": "API ile yanıtlar",
+          "hcConfigured": "Ayarlandı",
+          "hcNeedDocs": "HolidayCheck dokümantasyonu gerekli",
+          "hcNote": "Anahtar HolidayCheck Business Center'da her otel için ayrı üretilir ve «Oteller ve platformlar» sekmesine girilir. Herkese açık API dokümantasyonu yok — HolidayCheck'ten isteyip yanıt uç noktasını ve biçimini buraya girin.",
+          "hcUrl": "Yorum yanıt adresi",
+          "hcUrlHint": "{reviewId} ve {hotelId} otomatik doldurulur",
+          "hcMethod": "Yöntem",
+          "hcBodyField": "Yanıt metni alanı",
+          "hcAuthHeader": "Yetki başlığı",
+          "hcAuthPrefix": "Anahtar öneki",
+          "firstLoadMax": "İlk yükleme: otel başı yorum",
+          "maxConcurrent": "Eşzamanlı Apify çalışması",
+          "maxConcurrentHint": "Apify Free plan — 5'e kadar, Starter — 32'ye kadar.",
+          "lim": {
+            "everyHours": "Toplama sıklığı, sa",
+            "firstLoadMax": "İlk yükleme, otel başı yorum",
+            "maxPerRun": "Çalışma başına en fazla"
+          }
+        },
+        "alerts": {
+          "rulesTitle": "Olaylar",
+          "rulesSub": "Yönetici olumsuz yorumu bir saat içinde öğrenir, CRM'e bir sonraki girişinde değil. Eşikler geliştiricisiz değiştirilebilir.",
+          "kind": {
+            "negative": {
+              "title": "Yeni olumsuz yorum",
+              "who": "Otel yöneticisi + marka pazarlaması · Telegram + e-posta"
+            },
+            "no_reply": {
+              "title": "Yorum çok uzun süre yanıtsız (Check24 hariç)",
+              "who": "Otel yöneticisi · Telegram"
+            },
+            "rating_lowered": {
+              "title": "Misafir düzenlerken puanı düşürdü",
+              "who": "Otel yöneticisi · Telegram"
+            },
+            "avg_drop": {
+              "title": "Otelin 30 günlük ortalaması düştü",
+              "who": "Marka pazarlaması · e-posta"
+            },
+            "topic_spike": {
+              "title": "Aynı şikâyet tekrarlanıyor",
+              "who": "Otel yöneticisi + pazarlama · Telegram"
+            },
+            "sync_problem": {
+              "title": "Senkronizasyon hatası veya sayaç farkı",
+              "who": "Geliştirici · Telegram"
+            }
+          },
+          "below": "puan altında",
+          "hours": "saat",
+          "by": "en az",
+          "timesIn": "kez veya daha fazla,",
+          "days": "gün içinde",
+          "stale": "yeni yorum yok:",
+          "drift": "sayaç farkı şundan büyük:",
+          "tgTitle": "Telegram uyarıları için bot",
+          "tgSub": "Uyarılar bu botun alıcılarına gider (Telegram → bot → Alıcılar)",
+          "noBot": "Seçilmedi (yalnızca e-posta ve CRM bildirimleri)",
+          "recipientsN": "alıcı: {{n}}",
+          "noBots": "Telegram botu bağlı değil — uyarılar e-postaya ve CRM zil simgesine gider.",
+          "openTelegram": "Bot bağla",
+          "recipientsTitle": "Alıcılar",
+          "recipientsSub": "Kime ne gider — yukarıdaki olay tablosuna göre. Telegram ayarlı değilse yerine e-posta gönderilir.",
+          "developer": "Geliştirici",
+          "brandMarketing": "Marka pazarlaması",
+          "hotelManager": "Otel yöneticisi",
+          "noTgRecipients": "Alıcıları seçmek için yukarıdan bir bot seçin"
+        },
+        "ai": {
+          "translateTitle": "Çeviri dili",
+          "translateSub": "Almanca, Türkçe, İngilizce vb. yorumlar kart için çevrilir; konular orijinal dilde analiz edilir ama tek dilde saklanır.",
+          "lang": {
+            "ru": "Русский",
+            "en": "English"
+          },
+          "topicsTitle": "Konu sözlüğü",
+          "topicsSub": "YZ her bahsi sözlükteki bir konuya eşler; diğerleri etiketle «diğer»e gider.",
+          "topicPh": "Yeni konu, örn. «otopark»",
+          "addTopic": "Ekle",
+          "topicsNote": "Panelde «diğer»i ayda bir gözden geçirip sık konuları buraya ekleyin. Yeni konular yeni ve düzenlenen yorumlara uygulanır.",
+          "signTitle": "Yanıt imzası",
+          "signSub": "YZ taslağına son satır olarak eklenir",
+          "signPh": "Varsayılan: {{n}}",
+          "monthly": "Aylık marka raporu",
+          "monthlySub": "Her ayın 1'inde marka pazarlama e-postalarına: puan trendi, ilk 5 şikâyet, değişimler, düşüş yaşayan oteller",
+          "status": {
+            "failedTitle": "YZ {{n}} yorumu analiz edemedi: konular, çeviriler ve duygu şimdilik boş.",
+            "noCredits": "Platformun OpenAI anahtarında kredi kalmadı. Kendi OpenAI veya Anthropic anahtarınızı bağlayın — analiz 30 dakika içinde kendiliğinden devam eder.",
+            "error": "Hata: {{e}}",
+            "connectKey": "Entegrasyonlar → OpenAI / LLM",
+            "pending": "YZ yorumları analiz ediyor: {{n}} kaldı. Konular ve çeviriler birkaç dakika içinde görünecek."
+          }
+        },
+        "log": {
+          "runsTitle": "Senkronizasyon günlüğü",
+          "runsSub": "Her toplama çalışması: alınan, yeni, hatalar. Asıl risk sessizce bozulan kazıyıcı — buraya bakın.",
+          "all": "Tümü",
+          "running": "Çalışıyor",
+          "errors": "Hatalar",
+          "error": "Hata",
+          "refresh": "Yenile",
+          "started": "Başlangıç",
+          "trigger": "Tetikleyici",
+          "fetched": "Alınan",
+          "new": "Yeni",
+          "updated": "Güncellenen",
+          "triggers": {
+            "schedule": "planlı",
+            "manual": "elle",
+            "push": "Google push",
+            "reconcile": "gece kontrolü",
+            "test": "test",
+            "backfill": "geçmiş yükleme"
+          },
+          "preview": "Test önizleme",
+          "previewTitle": "Test çalışması: {{n}} yorum",
+          "previewHint": "İlk 10 öğe ve CRM'in bunları nasıl tanıdığı. Yorum sayısını platform sitesiyle karşılaştırın.",
+          "notParsed": "Yorum olarak tanınmadı",
+          "empty": "Henüz çalışma yok",
+          "alertsTitle": "Gönderilen uyarılar",
+          "alertsSub": "Son 100",
+          "sent": "Ne zaman",
+          "event": "Olay",
+          "channels": "Kanallar",
+          "noChannels": "gönderilecek kimse yok — alıcıları ayarlayın",
+          "noAlerts": "Henüz uyarı yok",
+          "updatedAt": "{{t}} itibarıyla güncellendi",
+          "auto": "15 sn’de bir otomatik yenileme",
+          "refreshing": "Yenileniyor…",
+          "minutes": "{{n}} dk",
+          "hours": "{{n}} sa"
+        },
+        "apifyPause": {
+          "title": "Yorum toplama duraklatıldı: Apify aylık bütçesi bitti.",
+          "text": "Apify'da harcama limitini veya planı yükseltin — toplama 3 saat içinde kendiliğinden (ya da «Topla» ile hemen) devam eder. Başlangıç: {{d}}.",
+          "link": "Apify → Billing"
+        },
+        "backfill": {
+          "button": "Geçmiş",
+          "pending": "Geçmiş sırada",
+          "all": "Geçmişi yükle: {{n}} otel",
+          "hint": "Eski yorumları yükleyin. Kazıyıcı en yeni N yorumu tamamen alır; zaten toplananlar yinelenen olarak atılır — yalnızca onlar için fazla ödersiniz.",
+          "promptTitle": "Geçmişi yükle",
+          "promptLabel": "Otel başına en fazla kaç yorum (en yeniler)",
+          "confirm": "{{h}} otel için otel başına en fazla {{n}} yorum yüklenecek. Apify’da yaklaşık en fazla ${{usd}} (platformda daha az yorum varsa daha az). Devam edilsin mi?",
+          "queued": "Sıraya alındı: {{n}}. Toplama birkaç dakika içinde başlar — Günlük’ü takip edin."
+        },
+        "history": {
+          "title": "Yorum dönemi",
+          "since": "{{d}} tarihinden itibaren",
+          "all": "Tüm geçmiş",
+          "text": "Hangi tarihten itibaren yorum alınacağı. Tarih filtresi olan kazıyıcılar (Google, Tripadvisor, Booking, Check24) bunu doğrudan istekte alır — daha eski yorumlar için Apify'a ödenmez. Diğerlerinde eski yorumlar kaydederken atılır. İlk yüklemeye, planlı toplamaya ve geçmiş yüklemeye uygulanır.",
+          "reset": "Sınırsız",
+          "olderFound": "CRM'de {{d}} tarihinden eski {{n}} yorum var. Siz silene kadar analitikte kalırlar.",
+          "purge": "Bunları sil",
+          "purgeConfirm": "{{d}} tarihinden eski {{n}} yorum konular, yanıtlar ve düzenleme geçmişiyle birlikte CRM'den silinsin mi? Geri alınamaz (yalnızca yeniden toplanarak).",
+          "purged": "Silinen yorum: {{n}}"
         }
       }
     },

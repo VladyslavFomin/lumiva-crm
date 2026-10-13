@@ -1327,7 +1327,8 @@
       "aiOfficePlan": "Plan & departments",
       "auraCreate": "Create",
       "auraTemplates": "Templates",
-      "auraApps": "My apps"
+      "auraApps": "My apps",
+      "hotelsReviews": "Reviews"
     },
     "aiEmployees": {
       "badge": {
@@ -6321,6 +6322,78 @@
           {
             "heading": "Tip",
             "body": "If an employee isn't behaving as expected, pause it from the Overview tab first, then check the Journal to see what went wrong."
+          }
+        ]
+      },
+      "hotelReviews": {
+        "title": "Reviews",
+        "tagline": "Every guest review from 8 platforms in one feed",
+        "sections": [
+          {
+            "heading": "Why this section",
+            "body": "Reviews from Google, Booking.com, HolidayCheck, Tripadvisor, Yandex, Expedia, Check24 and Otelpuan are collected automatically, normalised to one 0–10 scale and analysed by AI: topics, sentiment, translation."
+          },
+          {
+            "heading": "What you can do",
+            "bullets": [
+              "Filter by brand, hotel, platform, period, rating, language, topic and reply status",
+              "Start the day with “Unanswered negative”",
+              "Open a card: original and translation, topics with quotes, the guest’s edit history",
+              "Get an AI reply draft in the guest’s language and make it shorter, warmer or more formal",
+              "Send the reply from CRM (Google, HolidayCheck — when the API is connected) or copy it and open the platform"
+            ]
+          },
+          {
+            "heading": "Tip",
+            "body": "A red banner above the feed means AI or collection is paused — it says what to do."
+          }
+        ]
+      },
+      "hotelReviewsDashboard": {
+        "title": "Reputation dashboard",
+        "tagline": "How ratings change and what exactly guests complain about",
+        "sections": [
+          {
+            "heading": "What it shows",
+            "bullets": [
+              "Average 0–10 rating and reputation index with change vs the previous period",
+              "Negative share, response rate and reply time — by hotel and by manager",
+              "Rating and review-count trend over 12 months",
+              "Top complaints and praise with quotes, hotels compared by topic",
+              "“Other” topics — candidates for the topic dictionary"
+            ]
+          },
+          {
+            "heading": "Brand report",
+            "body": "The month summary: rating trend, top 5 complaints, changes vs last month and hotels that dropped. It is emailed to brand marketing on the 1st."
+          },
+          {
+            "heading": "Tip",
+            "body": "Click a complaint topic or the red number in the hotel table to open exactly those reviews in the feed."
+          }
+        ]
+      },
+      "hotelReviewsSettings": {
+        "title": "Review settings",
+        "tagline": "Platforms, connections, alerts and AI — no developer needed",
+        "sections": [
+          {
+            "heading": "Where to start",
+            "bullets": [
+              "Create brands and assign them to hotels",
+              "Paste the hotel page links on each platform",
+              "Enter the Apify token on the Connections tab",
+              "Run “Test” on one hotel and compare the review count with the site",
+              "Pick a Telegram bot and alert recipients"
+            ]
+          },
+          {
+            "heading": "About cost",
+            "body": "Apify charges per collected review and platform prices differ tenfold. Frequency, first load and per-run limit can be set for each platform separately."
+          },
+          {
+            "heading": "Tip",
+            "body": "If reviews stop arriving, check the Log — it shows errors for every run."
           }
         ]
       }
@@ -17552,7 +17625,8 @@
         "frontdesk": "Today",
         "pricing": "Pricing & markets",
         "calendar": "Room calendar",
-        "analytics": "Analytics"
+        "analytics": "Analytics",
+        "reviews": "Reviews"
       },
       "status": {
         "active": "Active",
@@ -18474,6 +18548,522 @@
           "cancel": "Cancel",
           "upload": "Upload",
           "done": "Done"
+        }
+      },
+      "reputation": {
+        "kicker": "Reputation",
+        "tabs": {
+          "feed": "Feed",
+          "dashboard": "Dashboard",
+          "settings": "Settings"
+        },
+        "units": {
+          "minutes": "{{n}} min",
+          "hours": "{{n}} h",
+          "days": "{{n}} d",
+          "pp": "pp",
+          "h": "h"
+        },
+        "status": {
+          "edited": "edited by guest",
+          "deleted": "removed by platform"
+        },
+        "reply": {
+          "none": "no reply",
+          "replied": "replied",
+          "notPublished": "no replies"
+        },
+        "replyMode": {
+          "api": "Reply from CRM",
+          "external": "Reply on the platform",
+          "none": "Platform does not publish replies"
+        },
+        "replySource": {
+          "crm": "From CRM",
+          "platform": "On the platform",
+          "manual": "Marked manually"
+        },
+        "replyStatus": {
+          "queued": "queued",
+          "sending": "sending",
+          "sent": "sent",
+          "failed": "failed",
+          "published": "published"
+        },
+        "sentiment": {
+          "positive": "positive",
+          "negative": "negative",
+          "neutral": "neutral"
+        },
+        "tone": {
+          "short": {
+            "label": "Shorter",
+            "prompt": "shorter, 2-3 sentences"
+          },
+          "warm": {
+            "label": "Warmer",
+            "prompt": "warmer and more personal"
+          },
+          "formal": {
+            "label": "More formal",
+            "prompt": "more formal and businesslike"
+          }
+        },
+        "topics": {
+          "cleanliness": "cleanliness",
+          "room": "room",
+          "bed_sleep": "bed & sleep",
+          "noise": "noise",
+          "breakfast": "breakfast",
+          "food": "restaurant & food",
+          "bar": "bar",
+          "all_inclusive": "all inclusive",
+          "pool": "pool",
+          "beach": "beach",
+          "animation": "entertainment",
+          "staff": "staff",
+          "reception": "reception & check-in",
+          "wifi": "Wi-Fi",
+          "air_conditioning": "air conditioning",
+          "value": "price & value",
+          "location": "location",
+          "transfer": "transfer",
+          "spa": "spa",
+          "kids_club": "kids club",
+          "other": "other"
+        },
+        "filters": {
+          "allBrands": "All brands",
+          "allHotels": "All hotels",
+          "allPlatforms": "All platforms",
+          "from": "From",
+          "to": "To",
+          "anyRating": "Any rating",
+          "negative": "Negative (< {{n}})",
+          "middle": "Average ({{a}}–{{b}})",
+          "positive": "Positive (8+)",
+          "allLanguages": "All languages",
+          "allTopics": "All topics",
+          "anyReply": "Any reply status",
+          "noReply": "No reply",
+          "replied": "Replied",
+          "statusActive": "Live",
+          "statusDeleted": "Removed by platform",
+          "statusAll": "All, incl. removed",
+          "reset": "Reset ({{n}})"
+        },
+        "sort": {
+          "new": "Newest first",
+          "priority": "Unanswered negative first",
+          "ratingAsc": "Lowest rating first",
+          "ratingDesc": "Highest rating first"
+        },
+        "feed": {
+          "title": "Reviews",
+          "subtitle": "Reviews from 8 platforms in one feed: Google, Booking.com, HolidayCheck, Tripadvisor, Yandex, Expedia, Check24, Otelpuan. Unanswered negative reviews are highlighted.",
+          "setup": "Set up",
+          "search": "Search text, translation or author",
+          "quickUrgent": "Unanswered negative",
+          "quickNoReply": "All unanswered",
+          "quickDeleted": "Removed",
+          "count": "Found: {{n}}",
+          "emptyTitle": "No reviews",
+          "emptyFiltered": "Nothing matches these filters — try loosening them.",
+          "emptyText": "Reviews will appear here as soon as the platforms sync.",
+          "emptySetupTitle": "No platforms connected yet",
+          "emptySetupText": "Add your hotels' page links on each platform, connect Google Business Profile and Apify — reviews will then be collected automatically.",
+          "more": "Show {{n}} more"
+        },
+        "card": {
+          "review": "Review",
+          "anonymous": "Guest",
+          "loading": "Loading…",
+          "close": "Close",
+          "error": "Something went wrong",
+          "travel": "Stay",
+          "text": "Review text",
+          "original": "Original",
+          "translation": "Translation",
+          "noText": "Rating without text",
+          "viewOnPlatform": "View on platform",
+          "reanalyze": "Re-analyse",
+          "analyzing": "Analysing…",
+          "analysisError": "AI analysis failed",
+          "subRatings": "Category ratings",
+          "topics": "Topics & sentiment",
+          "noTopics": "AI found no specific topics",
+          "notAnalyzed": "AI hasn't analysed this review yet — usually takes a few minutes",
+          "noTextNoTopics": "Review without text — excluded from topic analysis, only the rating counts",
+          "sentiment": "Sentiment",
+          "history": "Guest edit history",
+          "hotelReplies": "Hotel replies",
+          "retry": "Retry",
+          "reply": "Reply",
+          "replyAgain": "Edit reply",
+          "aiDraft": "AI reply draft",
+          "drafting": "Drafting…",
+          "writeManually": "Write it myself",
+          "replyPlaceholder": "Reply to the guest",
+          "rewrite": "Rewrite",
+          "googleNotReady": "Google Business Profile is not connected or the hotel isn't linked to a Google location — for now copy the reply and post it manually.",
+          "hcNotReady": "Replying via the HolidayCheck API needs the hotel key and the endpoint (Settings → Connections). For now copy the reply and post it in Business Center.",
+          "send": "Send to {{platform}}",
+          "sending": "Sending…",
+          "replyQueued": "Reply sent (or queued due to the platform's rate limit)",
+          "copyOpen": "Copy & open platform",
+          "copied": "Reply copied, platform opened in a new tab",
+          "externalHint": "This platform doesn't accept replies via API: copy the draft, post it in the hotelier dashboard and mark it as replied. If the platform shows replies, the mark will update on the next sync.",
+          "markReplied": "Mark as replied",
+          "unmarkReplied": "Unmark as replied",
+          "check24Hint": "Check24 does not publish hotel replies, so this review can't be answered. It still counts in ratings and topics.",
+          "googleManualHint": "Google Business Profile API is not connected: copy the draft, reply on Google (in the hotel profile, signed in as owner) and mark it as replied. Once the reply shows on Google, the mark updates on the next sync.",
+          "hcManualHint": "HolidayCheck reply API is not configured: copy the draft, post it in HolidayCheck Business Center and mark it as replied."
+        },
+        "dash": {
+          "title": "Reputation dashboard",
+          "subtitle": "How ratings change and what exactly guests complain about — by brand, hotel and platform.",
+          "viewOverview": "Overview",
+          "viewReport": "Brand report",
+          "lastDays": "Last {{n}} days",
+          "customPeriod": "Custom period",
+          "kpi": {
+            "avg": "Average rating",
+            "avgHint": "Mean rating_10 of all reviews in the period; every platform normalised to a 0–10 scale",
+            "index": "Reputation index",
+            "indexHint": "Each platform's average weighted by that platform's review count (the larger of the platform counter and reviews in CRM)",
+            "count": "New reviews",
+            "neg": "Negative share",
+            "negHint": "Share of reviews rated below {{n}} of 10",
+            "response": "Response rate",
+            "responseHint": "Share of reviews with a hotel reply, excluding Check24 (it doesn't publish replies)",
+            "replyTime": "Reply time",
+            "replyTimeHint": "Median from review publication to hotel reply (manual marks excluded)"
+          },
+          "noData": "No reviews in this period.",
+          "trendTitle": "Average rating by month",
+          "trendSub": "For the selected period, step — {{step}}; dashed line — negative threshold ({{n}})",
+          "countTitle": "New reviews by month",
+          "countSub": "For the selected period, step — {{step}}. Hover a bar.",
+          "complaints": "Top complaints",
+          "complaintsSub": "Topics with negative sentiment; change vs. previous period alongside",
+          "praises": "Top praise",
+          "praisesSub": "What guests praise — hover to see quotes",
+          "noTopics": "No analysed topics yet",
+          "hotelsTitle": "Hotels",
+          "hotelsSub": "Compared by reputation index; click to filter the dashboard by hotel",
+          "platformsTitle": "Platforms",
+          "platformsSub": "Reviews in the period and the full counter on the platform itself",
+          "noReplies": "no replies",
+          "failing": "failing",
+          "matrixTitle": "Hotels by topic",
+          "matrixSub": "Share of a hotel's reviews with a negative mention of the topic — the redder, the more complaints",
+          "managersTitle": "Reply time by manager",
+          "managersSub": "Replies sent from CRM",
+          "noManagers": "Nobody has replied from CRM yet",
+          "otherTitle": "\"Other\" for dictionary review",
+          "otherSub": "Topics AI couldn't map to the dictionary. Add frequent ones monthly",
+          "noOther": "No topics outside the dictionary",
+          "extendDictionary": "Extend topic dictionary",
+          "print": "Print / PDF",
+          "reportLoading": "Preparing report…",
+          "reportKicker": "Monthly report",
+          "reportEmpty": "No reviews for this brand this month.",
+          "top5": "Top 5 complaints",
+          "top5Sub": "Change vs. previous month alongside",
+          "dropped": "Hotels that dropped",
+          "droppedSub": "Average rating lower than the previous month",
+          "noDropped": "No drops",
+          "compareTitle": "Hotels within the brand",
+          "compareSub": "Reputation index and average rating vs. previous month",
+          "reportAutoSend": "Last month's report is emailed to brand marketing on the 1st at 08:00 (Settings → Alerts & recipients).",
+          "col": {
+            "hotel": "Hotel",
+            "index": "Index",
+            "avg": "Average",
+            "count": "Reviews",
+            "neg": "Negative",
+            "response": "Response rate",
+            "replyTime": "Reply time",
+            "open": "Unanswered negative",
+            "topComplaint": "Top complaint",
+            "platform": "Platform",
+            "onPlatform": "On platform",
+            "inCrm": "In CRM",
+            "manager": "Manager",
+            "replies": "Replies",
+            "periodCount": "In period"
+          },
+          "tipReviews": "{{n}} reviews",
+          "tipNeg": "negative {{n}}%",
+          "brandNoHotels": "This brand has no hotels, so the report is empty.",
+          "assignBrand": "Assign brands to hotels",
+          "trendTitleP": "Average rating",
+          "countTitleP": "New reviews",
+          "weekOf": "week of {{d}}",
+          "step": {
+            "day": "day",
+            "week": "week",
+            "month": "month"
+          }
+        },
+        "settings": {
+          "title": "Review settings",
+          "subtitle": "Hotel platforms, connections, alert thresholds, recipients and AI analysis — all configurable here, no developer needed.",
+          "tabs": {
+            "hotels": "Hotels & platforms",
+            "connections": "Connections",
+            "alerts": "Alerts & recipients",
+            "ai": "AI & topics",
+            "log": "Log"
+          },
+          "save": "Save",
+          "saved": "Saved",
+          "brandsTitle": "Brands",
+          "brandsSub": "The Norm, Selectum, Asteria — used to slice analytics, reports and alert recipients. Click a name to rename.",
+          "brandPh": "New brand",
+          "brandAdd": "Add",
+          "brandRename": "Brand name",
+          "brandDelete": "Delete brand \"{{n}}\"? Hotels stay, just without a brand.",
+          "noBrand": "No brand",
+          "platformsCount": "Platforms: {{n}} of {{t}}",
+          "noHotelsTitle": "No hotels yet",
+          "noHotelsText": "Add hotels in the Hotels section first, then link them to platforms here.",
+          "goHotels": "Go to hotels",
+          "colPlatform": "Platform",
+          "colLink": "Hotel page link",
+          "colStatus": "Sync"
+        },
+        "src": {
+          "urlPh": {
+            "google": "Hotel link on Google Maps",
+            "holidaycheck": "https://www.holidaycheck.de/hi/…",
+            "tripadvisor": "https://www.tripadvisor.com/Hotel_Review-…",
+            "yandex": "https://yandex.com/maps/org/…",
+            "expedia": "https://www.expedia.com/…Hotel-Information",
+            "check24": "https://hotel.check24.de/…",
+            "otelpuan": "https://www.otelpuan.com/…",
+            "booking": "https://www.booking.com/hotel/tr/…"
+          },
+          "pickLocation": "Google Business Profile location…",
+          "googleConnectFirst": "Connect Google Business Profile first",
+          "keyPh": "Hotel API key from Business Center",
+          "keySet": "Key set ({{k}}) — enter a new one to replace",
+          "error": "Error",
+          "okAt": "OK · {{d}}",
+          "notSynced": "Not collected yet",
+          "onPlatform": "On platform: {{n}} · ★ {{r}}",
+          "onFallback": "Fallback scraper in use.",
+          "backToPrimary": "Back to primary",
+          "sync": "Collect",
+          "syncStarted": "Collection started — results will appear in the log",
+          "test": "Test",
+          "testHint": "Test run of 20 reviews without saving — compare the count and fields with the platform's site",
+          "testStarted": "Test run started — open the Log in a couple of minutes",
+          "confirmDelete": "Unlink the platform from this hotel? Collected reviews stay in the database.",
+          "syncQueued": "All Apify slots are busy — collection is queued and will start in a few minutes"
+        },
+        "conn": {
+          "connectedAs": "Connected: {{e}}",
+          "notConnected": "Not connected",
+          "googleAccessNote": "Google grants Business Profile API access on application; without approval the quota is zero. You need a Google Cloud project, OAuth with the business.manage scope and the account that owns the hotel profiles. Until access is granted, Google can be read temporarily via Apify (Google Maps link on the hotel).",
+          "googleConnect": "Connect Google",
+          "reconnect": "Reconnect",
+          "disconnect": "Disconnect",
+          "disconnectConfirm": "Disconnect Google Business Profile? Replies from CRM to Google will stop.",
+          "googleAccount": "Business Profile account",
+          "accountsError": "Couldn't load accounts — check that API access has been approved",
+          "pubsubTopic": "Pub/Sub topic",
+          "pubsubHint": "Format: projects/<project>/topics/<topic>",
+          "step1": "Create a Pub/Sub topic in the same Google Cloud project.",
+          "step2": "Grant the Pub/Sub Publisher role to Google's service account:",
+          "step3": "Create a push subscription to this address:",
+          "step4": "Save the topic and enable notifications — new reviews will arrive instantly.",
+          "enableNotif": "Save & enable notifications",
+          "notifOk": "NEW_REVIEW notifications enabled",
+          "notifOn": "Push notifications on",
+          "notifOff": "Notifications off",
+          "googleNightly": "Safety net: every night CRM re-checks the last 30 days and the totalReviewCount; a mismatch over the threshold alerts the developer.",
+          "googleConnected": "Google Business Profile connected",
+          "googleError": "Couldn't connect Google: {{e}}",
+          "tokenSet": "Token set ({{k}})",
+          "tokenMissing": "No token",
+          "apifyText": "Booking.com, Tripadvisor, Yandex, Expedia, Check24, Otelpuan (and HolidayCheck for reading) are collected by ready-made Apify scrapers on a schedule. You pay per result, so after the first load only fresh reviews are fetched.",
+          "verify": "Verify",
+          "apifyOk": "Token works, account: {{u}}",
+          "remove": "Remove",
+          "tokenRemoveConfirm": "Remove the Apify token? Platform collection will stop.",
+          "scheduleTitle": "General",
+          "hcEvery": "HolidayCheck, every N minutes",
+          "apifyEvery": "Booking/Tripadvisor/Yandex/Expedia/Check24, every N hours",
+          "otelpuanEvery": "Otelpuan, every N hours",
+          "maxPerRun": "Reviews per hotel per run",
+          "offSeason": "Off-season mode",
+          "offSeasonHint": "Apify platforms are collected once a day — saves budget",
+          "actorsTitle": "Scrapers",
+          "actorsHint": "Each platform has its own scraper, frequency and limits: Apify charges per review returned and prices differ tenfold (Google ~$0.5 per 1000, Otelpuan ~$29). Scheduled runs fetch only new reviews. After two consecutive failures CRM switches to the fallback actor. Input is a JSON template: {{u}}, {{m}}, {{s}} are filled in at run time.",
+          "googleFallbackActor": "temporary read-only Google collection until the API is approved",
+          "hcReadActor": "reads reviews; replies go via the API below",
+          "primary": "Primary actor",
+          "fallback": "Fallback actor",
+          "fallbackPh": "user/actor-name",
+          "input": "Actor input (JSON)",
+          "hcReplies": "replies via API",
+          "hcConfigured": "Configured",
+          "hcNeedDocs": "HolidayCheck docs needed",
+          "hcNote": "The key is generated per hotel in HolidayCheck Business Center and entered on the Hotels & platforms tab. There's no public API documentation — request it from HolidayCheck and enter the reply endpoint and format here.",
+          "hcUrl": "Review reply URL",
+          "hcUrlHint": "{reviewId} and {hotelId} are filled in automatically",
+          "hcMethod": "Method",
+          "hcBodyField": "Reply text field",
+          "hcAuthHeader": "Auth header",
+          "hcAuthPrefix": "Key prefix",
+          "firstLoadMax": "First load: reviews per hotel",
+          "maxConcurrent": "Concurrent Apify runs",
+          "maxConcurrentHint": "Apify Free plan — up to 5, Starter — up to 32.",
+          "lim": {
+            "everyHours": "Collect every, h",
+            "firstLoadMax": "First load, reviews per hotel",
+            "maxPerRun": "Max per run"
+          }
+        },
+        "alerts": {
+          "rulesTitle": "Events",
+          "rulesSub": "Managers learn about negative reviews within an hour, not on their next CRM visit. Thresholds can be changed without a developer.",
+          "kind": {
+            "negative": {
+              "title": "New negative review",
+              "who": "Hotel manager + brand marketing · Telegram + email"
+            },
+            "no_reply": {
+              "title": "Review unanswered for too long (except Check24)",
+              "who": "Hotel manager · Telegram"
+            },
+            "rating_lowered": {
+              "title": "Guest lowered their rating when editing",
+              "who": "Hotel manager · Telegram"
+            },
+            "avg_drop": {
+              "title": "Hotel's 30-day average dropped",
+              "who": "Brand marketing · email"
+            },
+            "topic_spike": {
+              "title": "Same complaint keeps repeating",
+              "who": "Hotel manager + marketing · Telegram"
+            },
+            "sync_problem": {
+              "title": "Sync failure or counter mismatch",
+              "who": "Developer · Telegram"
+            }
+          },
+          "below": "rating below",
+          "hours": "hours",
+          "by": "by",
+          "timesIn": "times or more in",
+          "days": "days",
+          "stale": "no new reviews for",
+          "drift": "counter mismatch over",
+          "tgTitle": "Bot for Telegram alerts",
+          "tgSub": "Alerts go to this bot's recipients (Telegram → bot → Recipients)",
+          "noBot": "None (email and CRM notifications only)",
+          "recipientsN": "recipients: {{n}}",
+          "noBots": "No Telegram bot connected — alerts will go to email and the CRM bell.",
+          "openTelegram": "Connect a bot",
+          "recipientsTitle": "Recipients",
+          "recipientsSub": "Who gets what — see the events table above. If Telegram isn't set up, email is sent instead.",
+          "developer": "Developer",
+          "brandMarketing": "Brand marketing",
+          "hotelManager": "Hotel manager",
+          "noTgRecipients": "Pick a bot above to select recipients"
+        },
+        "ai": {
+          "translateTitle": "Translation language",
+          "translateSub": "Reviews in German, Turkish, English etc. are translated for the card; topics are analysed in the original language but stored in one language.",
+          "lang": {
+            "ru": "Русский",
+            "en": "English"
+          },
+          "topicsTitle": "Topic dictionary",
+          "topicsSub": "AI maps every mention to a dictionary topic; anything else goes to \"other\" with a label.",
+          "topicPh": "New topic, e.g. \"parking\"",
+          "addTopic": "Add",
+          "topicsNote": "Review \"other\" on the dashboard monthly and add frequent topics here. New topics apply to new and edited reviews.",
+          "signTitle": "Reply signature",
+          "signSub": "Added as the last line of the AI draft",
+          "signPh": "Default: {{n}}",
+          "monthly": "Monthly brand report",
+          "monthlySub": "On the 1st to brand marketing emails: rating trend, top 5 complaints, changes, hotels that dropped",
+          "status": {
+            "failedTitle": "AI couldn't analyse {{n}} reviews: topics, translations and sentiment are empty for now.",
+            "noCredits": "The platform OpenAI key is out of credits. Connect your own OpenAI or Anthropic key — analysis resumes automatically within 30 minutes.",
+            "error": "Error: {{e}}",
+            "connectKey": "Integrations → OpenAI / LLM",
+            "pending": "AI is analysing reviews: {{n}} left. Topics and translations will appear within minutes."
+          }
+        },
+        "log": {
+          "runsTitle": "Sync log",
+          "runsSub": "Every collection run: fetched, new, errors. The main risk is a silently broken scraper — check here.",
+          "all": "All",
+          "running": "Running",
+          "errors": "Errors",
+          "error": "Error",
+          "refresh": "Refresh",
+          "started": "Started",
+          "trigger": "Trigger",
+          "fetched": "Fetched",
+          "new": "New",
+          "updated": "Updated",
+          "triggers": {
+            "schedule": "scheduled",
+            "manual": "manual",
+            "push": "Google push",
+            "reconcile": "nightly check",
+            "test": "test",
+            "backfill": "history load"
+          },
+          "preview": "Test preview",
+          "previewTitle": "Test run: {{n}} reviews",
+          "previewHint": "First 10 items and how CRM parsed them. Compare the review count with the platform's site.",
+          "notParsed": "Not recognised as a review",
+          "empty": "No runs yet",
+          "alertsTitle": "Sent alerts",
+          "alertsSub": "Last 100",
+          "sent": "When",
+          "event": "Event",
+          "channels": "Channels",
+          "noChannels": "no one to send to — set up recipients",
+          "noAlerts": "No alerts yet",
+          "updatedAt": "updated at {{t}}",
+          "auto": "auto-refresh every 15 s",
+          "refreshing": "Refreshing…",
+          "minutes": "{{n}} min",
+          "hours": "{{n}} h"
+        },
+        "apifyPause": {
+          "title": "Review collection is paused: Apify monthly budget is used up.",
+          "text": "Raise the usage limit or plan in Apify — collection resumes automatically within 3 hours (or immediately via «Collect»). Since {{d}}.",
+          "link": "Apify → Billing"
+        },
+        "backfill": {
+          "button": "History",
+          "pending": "History queued",
+          "all": "Load history: {{n}} hotels",
+          "hint": "Load older reviews. The scraper takes the N newest in full; already collected ones are dropped as duplicates — you only overpay for those.",
+          "promptTitle": "Load history",
+          "promptLabel": "Up to how many reviews per hotel (newest)",
+          "confirm": "Load up to {{n}} reviews per hotel for {{h}} hotels. Roughly up to ${{usd}} on Apify (less if the platform has fewer reviews). Continue?",
+          "queued": "Queued: {{n}}. Collection starts within a couple of minutes — watch the Log."
+        },
+        "history": {
+          "title": "Review period",
+          "since": "Reviews since {{d}}",
+          "all": "Full history",
+          "text": "From which date to take reviews. Scrapers with a date filter (Google, Tripadvisor, Booking, Check24) get it in the request — older reviews aren't paid for on Apify. For the rest, older reviews are dropped on save. Applies to the first load, scheduled collection and history loads.",
+          "reset": "No limit",
+          "olderFound": "CRM already has {{n}} reviews older than {{d}}. They stay in analytics until you delete them.",
+          "purge": "Delete them",
+          "purgeConfirm": "Delete {{n}} reviews older than {{d}} from CRM together with topics, replies and edit history? This can't be undone (only by collecting them again).",
+          "purged": "Reviews deleted: {{n}}"
         }
       }
     },

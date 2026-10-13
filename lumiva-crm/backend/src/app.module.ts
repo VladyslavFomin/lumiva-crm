@@ -54,6 +54,7 @@ import { WorkspaceAreasModule } from './workspace-areas/workspace-areas.module';
 import { ProductsModule } from './products/products.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { HotelsModule } from './hotels/hotels.module';
+import { HotelReputationModule } from './hotel-reputation/hotel-reputation.module';
 import { PublicModule } from './public/public.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
@@ -348,6 +349,7 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     ProductsModule,
     BookingsModule,
     HotelsModule,
+    HotelReputationModule,
     WorkspaceAreasModule,
     MarketingModule,
     SeoAiModule,

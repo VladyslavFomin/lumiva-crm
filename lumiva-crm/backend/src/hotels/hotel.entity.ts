@@ -90,6 +90,10 @@ export class Hotel {
   @Column({ type: 'boolean', default: false })
   allowOverbooking: boolean;
 
+  /** Бренд/сеть отеля (The Norm, Selectum…) — разрез аналитики отзывов (hotel-reputation). */
+  @Column({ type: 'uuid', nullable: true })
+  brandId: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

@@ -182,6 +182,9 @@ const HotelPricingPage = lazy(() => import('../pages/hotels/HotelPricingPage').t
 const HotelCalendarPage = lazy(() => import('../pages/hotels/HotelCalendarPage').then((m) => ({ default: m.HotelCalendarPage })));
 const HotelRoomPricingPage = lazy(() => import('../pages/hotels/HotelRoomPricingPage').then((m) => ({ default: m.HotelRoomPricingPage })));
 const HotelAnalyticsPage = lazy(() => import('../pages/hotels/HotelAnalyticsPage').then((m) => ({ default: m.HotelAnalyticsPage })));
+const ReviewsFeedPage = lazy(() => import('../pages/hotels/reputation/ReviewsFeedPage').then((m) => ({ default: m.ReviewsFeedPage })));
+const ReviewsDashboardPage = lazy(() => import('../pages/hotels/reputation/ReviewsDashboardPage').then((m) => ({ default: m.ReviewsDashboardPage })));
+const ReviewsSettingsPage = lazy(() => import('../pages/hotels/reputation/ReviewsSettingsPage').then((m) => ({ default: m.ReviewsSettingsPage })));
 const AutomationsPageNew = lazy(() => import('../pages/automations/AutomationsPage').then((m) => ({ default: m.AutomationsPage })));
 const IntegrationsHubPage = lazy(() => import('../pages/integrations/IntegrationsHubPage').then((m) => ({ default: m.IntegrationsHubPage })));
 const AutomationFormPage = lazy(() => import('../pages/automations/AutomationFormPage').then((m) => ({ default: m.AutomationFormPage })));
@@ -1365,6 +1368,30 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <HotelRoomPricingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/reviews"
+          element={
+            <ProtectedRoute>
+              <ReviewsFeedPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/reviews/dashboard"
+          element={
+            <ProtectedRoute>
+              <ReviewsDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/reviews/settings"
+          element={
+            <ProtectedRoute>
+              <ReviewsSettingsPage />
             </ProtectedRoute>
           }
         />

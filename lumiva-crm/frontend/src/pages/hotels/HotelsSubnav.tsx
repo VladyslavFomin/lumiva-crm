@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'frontdesk' | 'pricing' | 'calendar' | 'analytics';
+type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'frontdesk' | 'pricing' | 'calendar' | 'analytics' | 'reviews';
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   overview: (
@@ -42,6 +42,11 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
       <path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" />
     </svg>
   ),
+  reviews: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" />
+    </svg>
+  ),
 };
 
 export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
@@ -56,6 +61,7 @@ export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
     { key: 'pricing', label: t('crm.hotels.nav.pricing'), path: '/hotels/pricing' },
     { key: 'calendar', label: t('crm.hotels.nav.calendar'), path: '/hotels/calendar' },
     { key: 'analytics', label: t('crm.hotels.nav.analytics'), path: '/hotels/analytics' },
+    { key: 'reviews', label: t('crm.hotels.nav.reviews'), path: '/hotels/reviews' },
   ];
 
   return (

@@ -114,6 +114,18 @@ function matchesNavPath(pathname: string, navPath: string): boolean {
   );
 }
 
+/**
+ * Активный подпункт — самый длинный совпавший путь: иначе «Обзор» (/hotels) подсвечивался вместе с
+ * любым подразделом (/hotels/reviews, /hotels/analytics…) и попадал в заголовок шапки.
+ */
+function bestChildPath(pathname: string, children: Array<{ path: string }> | undefined): string | null {
+  let best: string | null = null;
+  for (const c of children || []) {
+    if (matchesNavPath(pathname, c.path) && (!best || c.path.split('?')[0].length > best.split('?')[0].length)) best = c.path;
+  }
+  return best;
+}
+
 /** Сегменты /projects/:x, которые не являются карточкой одного проекта (списки, формы). */
 const PROJECT_ROUTE_PREFIXES = new Set([
   'archive',
@@ -1208,6 +1220,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.hotelsPricing'), path: '/hotels/pricing' },
           { label: t('crm.nav.hotelsCalendar'), path: '/hotels/calendar' },
           { label: t('crm.nav.hotelsAnalytics'), path: '/hotels/analytics' },
+          { label: t('crm.nav.hotelsReviews'), path: '/hotels/reviews' },
         ],
       },
 
@@ -1780,10 +1793,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     setModuleOverride({ open: isSectionOpen(path) ? null : path, at });
   };
 
-  const activeChild =
-    activeRoot.children?.find((child) =>
-      matchesNavPath(pathname, child.path),
-    ) || null;
+  const activeChildPath = bestChildPath(pathname, activeRoot.children);
+  const activeChild = activeRoot.children?.find((child) => child.path === activeChildPath) || null;
 
   const headerSubtitle = activeChild
     ? `${activeRoot.label} · ${activeChild.label}`
@@ -1944,7 +1955,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                         className={() =>
                           [
                             'flex items-center gap-2 text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
-                            matchesNavPath(pathname, child.path)
+                            bestChildPath(pathname, item.children) === child.path
                               ? 'bg-[#f0f0f0] text-neutral-900 font-medium'
                               : 'text-neutral-600 hover:bg-neutral-100',
                           ].join(' ')
@@ -2826,7 +2837,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                                 className={() =>
                                   [
                                     'flex items-center gap-2 text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
-                                    matchesNavPath(pathname, child.path)
+                                    bestChildPath(pathname, item.children) === child.path
                                       ? 'bg-[#f0f0f0] text-neutral-900 font-medium'
                                       : 'text-neutral-600 hover:bg-neutral-100',
                                   ].join(' ')
