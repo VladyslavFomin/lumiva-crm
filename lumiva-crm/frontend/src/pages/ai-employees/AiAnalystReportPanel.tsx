@@ -13,7 +13,7 @@ import {
 } from '../../api/aiEmployees';
 import { getLocale } from '../../i18n/utils';
 
-const BLOCKS: AnalystBlock[] = ['sales', 'payments', 'discounts', 'leads', 'bookings', 'hotels', 'tasks', 'helpdesk', 'marketing'];
+const BLOCKS: AnalystBlock[] = ['sales', 'payments', 'discounts', 'leads', 'bookings', 'hotels', 'reviews', 'tasks', 'helpdesk', 'marketing'];
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 
 export function AiAnalystReportPanel({ agentId }: { agentId: string }) {

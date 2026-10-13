@@ -29,16 +29,21 @@ export interface RepReviewRow {
   repliedAt: string | null;
   replyMode: ReplyMode;
   urgent: boolean;
+  draftReady: boolean;
+  draftByAgent: boolean;
   topics: RepTopicTag[];
   reviewUrl: string | null;
 }
 
 export interface RepReviewCard extends RepReviewRow {
   translatedLang: string | null;
+  translateTo?: 'ru' | 'en';
   subRatings: Record<string, number> | null;
   replyText: string | null;
   replyMarkedManually: boolean;
   aiDraft: string | null;
+  aiDraftBy: { id: string; name: string; avatarUrl: string | null } | null;
+  reviewsAgent: { id: string; name: string; avatarUrl: string | null } | null;
   analysisError: string | null;
   deletedAt: string | null;
   hotel: { id: string; name: string; city: string | null; brandId: string | null } | null;
@@ -72,6 +77,7 @@ export const draftRepReply = (id: string, tone?: string) => api.post<{ aiDraft: 
 export const sendRepReply = (id: string, text: string) => api.post<RepReviewCard>(`/hotel-reputation/reviews/${id}/reply`, { text });
 export const markRepReplied = (id: string, replied: boolean, text?: string) => api.post<RepReviewCard>(`/hotel-reputation/reviews/${id}/mark-replied`, { replied, text });
 export const reanalyzeRepReview = (id: string) => api.post<RepReviewCard>(`/hotel-reputation/reviews/${id}/reanalyze`, {});
+export const translateRepReview = (id: string) => api.post<RepReviewCard>(`/hotel-reputation/reviews/${id}/translate`, {});
 export const retryRepReply = (id: string) => api.post<RepReviewCard>(`/hotel-reputation/replies/${id}/retry`, {});
 
 // ---------------------------------------------------------------- аналитика
@@ -187,3 +193,40 @@ export const fetchRepGoogleAccounts = () => api.get<Array<{ name: string; accoun
 export const fetchRepGoogleLocations = (account?: string) =>
   api.get<Array<{ path: string; title: string; address: string | null; mapsUri: string | null }>>(`/hotel-reputation/google/locations${qs({ account })}`);
 export const setupRepGoogleNotifications = () => api.post<{ ok: boolean }>('/hotel-reputation/google/notifications', {});
+
+// ---------------------------------------------------------------- ИИ-менеджер отзывов
+
+export interface RepReviewsWork {
+  digest: { enabled: boolean; time: string; weekdays: number[]; recipients: string[]; telegram: string[]; inApp: boolean; lastSentDate: string | null };
+  reminders: { enabled: boolean; firstHours: number; escalateHours: number; negativeOnly: boolean };
+  drafts: { mode: 'off' | 'negative' | 'all' };
+  insights: { enabled: boolean; weekday: number; time: string; createTasks: boolean; lastSentDate: string | null };
+  scope: { brandIds: string[]; hotelIds: string[] };
+}
+export interface RepAgentState {
+  agent: { id: string; name: string; status: string; avatarUrl: string | null; autonomyMode: string; timezone: string } | null;
+  work: RepReviewsWork;
+  reports: Array<{ id: string; type: string; title: string; createdAt: string; sentTo: string[] | null }>;
+}
+export const fetchRepAgent = () => api.get<RepAgentState>('/hotel-reputation/agent');
+export const updateRepAgent = (body: Partial<RepReviewsWork>) => api.patch<RepAgentState>('/hotel-reputation/agent', body);
+export const runRepAgentDigest = (deliver: boolean) => api.post<{ ok: boolean; day: string; sentTo: string[]; contentMd: string }>('/hotel-reputation/agent/digest', { deliver });
+export const runRepAgentInsights = (deliver: boolean) =>
+  api.post<{ ok: boolean; items: number; recommendations: number; tasks: number; contentMd: string }>('/hotel-reputation/agent/insights', { deliver });
+export const runRepAgentReminders = () => api.post<{ reminded: number; escalated: number }>('/hotel-reputation/agent/reminders', {});
+
+export interface RepHotelsSummary {
+  negBelow: number;
+  totals: { n7: number; openNeg: number; openAll: number; n90: number; avg90: number | null };
+  hotels: Array<{ hotelId: string; n90: number; avg90: number | null; avg30: number | null; avgPrev30: number | null; n7: number; unansweredNegative: number; unanswered: number }>;
+}
+export const fetchRepHotelsSummary = () => api.get<RepHotelsSummary>('/hotel-reputation/hotels-summary');
+export interface RepHotelSummary {
+  negBelow: number;
+  kpis: RepKpis;
+  series: RepDashboard['series'];
+  complaints: RepTopicStat[];
+  praises: RepTopicStat[];
+  platforms: Array<{ platform: RepPlatform; url: string | null; platformRating: number | null; platformCount: number | null; lastSuccessAt: string | null; failing: boolean; total: number; n90: number; avg90: number | null; unansweredNegative: number }>;
+}
+export const fetchRepHotelSummary = (hotelId: string) => api.get<RepHotelSummary>(`/hotel-reputation/hotels/${hotelId}/summary`);

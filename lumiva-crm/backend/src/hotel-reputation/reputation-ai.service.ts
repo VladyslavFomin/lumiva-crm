@@ -26,7 +26,7 @@ function langName(code: string): string {
 
 /**
  * ИИ по отзывам: темы из фиксированного справочника + тональность + цитата (один раз при поступлении и при
- * правке гостем), перевод на рабочий язык, черновик ответа на языке отзыва. Свой ключ LLM тенанта (BYOK)
+ * правке гостем), перевод по кнопке, черновик ответа на языке отзыва. Свой ключ LLM тенанта (BYOK)
  * используется, если подключён.
  */
 @Injectable()
@@ -92,7 +92,6 @@ Topic dictionary (use these exact keys): ${dict}.
 Return JSON:
 {"lang":"ISO 639-1 code of the ORIGINAL text",
  "sentiment":"positive|negative|neutral — overall, consider rating and text",
- "translation":"full translation of the review INTO ${target} (must be written in ${target}, not the original language), or null if it is already in ${target}",
  "topics":[{"topic":"dictionary key, or \\"other\\" if nothing fits","other_label":"short ${target} label, only for other","sentiment":"positive|negative|neutral","quote":"short verbatim quote (max 140 chars) from the original text"}]}
 Each topic at most once; only topics the guest really mentions.`,
         true,
@@ -123,21 +122,14 @@ Each topic at most once; only topics the guest really mentions.`,
       }
       await this.topics.delete({ reviewId: review.id });
       if (rows.length) await this.topics.insert(rows.slice(0, 12) as any);
-      const targetCode = cfg.translateTo;
-      let translation = typeof j.translation === 'string' && j.translation.trim() ? j.translation.trim().slice(0, 10000) : null;
-      const srcLang = review.lang || lang;
-      // модель иногда возвращает «исправленный» оригинал вместо перевода — проверяем письменность и переспрашиваем отдельно
-      if (srcLang !== cfg.translateTo && !this.looksTranslated(translation, cfg.translateTo)) {
-        translation = await this.translateOnly(review.tenantId, text, cfg.translateTo).catch(() => null);
-        if (!this.looksTranslated(translation, cfg.translateTo)) translation = null;
-      }
+      // перевод здесь не делаем — только по кнопке в карточке (translate); гость изменил текст → старый перевод неактуален
+      const textChanged = !!review.analysisHash && review.analysisHash !== hash;
       await this.reviews.update(
         { id: review.id },
         {
           sentiment,
           lang: review.lang || lang,
-          textTranslated: (review.lang || lang) === targetCode ? null : translation,
-          translatedLang: translation ? targetCode : null,
+          ...(textChanged ? { textTranslated: null, translatedLang: null } : {}),
           analyzedAt: new Date(),
           analysisHash: hash,
           analysisError: null,
@@ -149,6 +141,22 @@ Each topic at most once; only topics the guest really mentions.`,
       await this.reviews.update({ id: review.id }, { sentiment: review.sentiment || byRating, analysisError: String(e?.message || e).slice(0, 300) });
       return false;
     }
+  }
+
+  /**
+   * Перевод одного отзыва по запросу пользователя (не массово: история за годы почти никому не нужна в переводе).
+   * Результат кэшируется в textTranslated — повторное открытие бесплатно.
+   */
+  async translate(review: HotelReview, target: 'ru' | 'en'): Promise<{ text: string | null; lang: string | null }> {
+    if (review.textTranslated && review.translatedLang === target) return { text: review.textTranslated, lang: target };
+    const text = [review.title, review.textOriginal].filter(Boolean).join('\n').trim();
+    if (!text || review.lang === target) return { text: null, lang: null };
+    let t = await this.translateOnly(review.tenantId, text, target);
+    // модель иногда возвращает «исправленный» оригинал вместо перевода — один повтор
+    if (!this.looksTranslated(t, target)) t = await this.translateOnly(review.tenantId, text, target);
+    if (!this.looksTranslated(t, target)) throw new Error('Translation failed');
+    await this.reviews.update({ id: review.id }, { textTranslated: t, translatedLang: target });
+    return { text: t, lang: target };
   }
 
   private looksTranslated(t: string | null, target: 'ru' | 'en'): boolean {

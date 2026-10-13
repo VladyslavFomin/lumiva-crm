@@ -7,6 +7,7 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
 import { fetchHotels, createHotel, type Hotel } from '../../api/hotels';
+import { HotelRepLine, useRepHotelsSummary } from './reputation/HotelRepLine';
 import './hotels-design.css';
 
 type SortKey = 'name' | 'rooms' | 'occupancy' | 'stars' | 'newest';
@@ -18,6 +19,7 @@ function uniqSorted(values: Array<string | null>): string[] {
 
 export const HotelsListPage: React.FC = () => {
   const { t } = useTranslation();
+  const repSummary = useRepHotelsSummary();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -267,6 +269,7 @@ export const HotelsListPage: React.FC = () => {
                   <span><b>{h.roomTypesCount}</b> {t('crm.hotels.list.card.types')}</span>
                   <span><b>{h.occupancyToday}%</b> {t('crm.hotels.list.card.occupancy')}</span>
                 </div>
+                <HotelRepLine summary={repSummary} hotelId={h.id} />
               </div>
             </div>
           ))}

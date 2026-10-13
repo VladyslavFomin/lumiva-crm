@@ -11,11 +11,12 @@ import {
   HotelReviewTopic,
   HotelReviewVersion,
 } from './reputation.entities';
-import { PLATFORM_REPLY_HOME, REPLY_MODE, REPUTATION_PLATFORMS } from './reputation.constants';
+import { PLATFORM_REPLY_HOME, REPLY_MODE, REPUTATION_PLATFORMS, historyFloor } from './reputation.constants';
 import { ReputationSettingsService } from './reputation-settings.service';
 import { GoogleBusinessService } from './google-business.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
+import { ReputationEventsService } from './reputation-events.service';
 
 export interface FeedQuery {
   brandId?: string;
@@ -57,6 +58,7 @@ export class ReputationReviewsService {
     private readonly google: GoogleBusinessService,
     private readonly ai: ReputationAiService,
     private readonly alerts: ReputationAlertsService,
+    private readonly events: ReputationEventsService,
   ) {}
 
   private toRow(r: HotelReview, topics: HotelReviewTopic[], negBelow: number) {
@@ -84,6 +86,9 @@ export class ReputationReviewsService {
       replyMode,
       /** Подсветка: негатив без ответа. */
       urgent: !r.hasReply && replyMode !== 'none' && r10 != null && r10 < negBelow && r.status !== 'deleted',
+      /** Черновик ответа готов (подготовил ИИ-менеджер отзывов или кто-то в карточке) — осталось отправить человеку. */
+      draftReady: !r.hasReply && replyMode !== 'none' && !!r.aiDraft,
+      draftByAgent: !!r.aiDraftAgentId,
       topics: topics.map((t) => ({ topic: t.topic, label: t.otherLabel, sentiment: t.sentiment })),
       reviewUrl: r.reviewUrl,
     };
@@ -143,12 +148,13 @@ export class ReputationReviewsService {
 
   /** Сколько отзывов ещё ждёт ИИ-разбора и последняя ошибка — чтобы пустые темы не выглядели как «жалоб нет». */
   async aiStatus(tenantId: string) {
+    const floor = new Date(historyFloor(await this.settings.config(tenantId)));
     const [row] = await this.reviews.query(
       `SELECT COUNT(*) FILTER (WHERE "analyzedAt" IS NULL)::int AS pending,
               COUNT(*) FILTER (WHERE "analyzedAt" IS NULL AND "analysisError" IS NOT NULL)::int AS failed,
               (SELECT "analysisError" FROM hotel_reviews WHERE "tenantId" = $1 AND "analyzedAt" IS NULL AND "analysisError" IS NOT NULL ORDER BY "updatedAt" DESC LIMIT 1) AS "lastError"
-         FROM hotel_reviews WHERE "tenantId" = $1 AND status <> 'deleted'`,
-      [tenantId],
+         FROM hotel_reviews WHERE "tenantId" = $1 AND status <> 'deleted' AND "publishedAt" >= $2`,
+      [tenantId, floor],
     );
     return { pending: row?.pending ?? 0, failed: row?.failed ?? 0, lastError: row?.lastError ?? null };
   }
@@ -181,10 +187,14 @@ export class ReputationReviewsService {
     return {
       ...this.toRow(r, topics, cfg.thresholds.negativeBelow),
       translatedLang: r.translatedLang,
+      translateTo: cfg.translateTo,
       subRatings: r.subRatings,
       replyText: r.replyText,
       replyMarkedManually: r.replyMarkedManually,
       aiDraft: r.aiDraft,
+      aiDraftBy: r.aiDraftAgentId ? await this.agentName(tenantId, r.aiDraftAgentId) : null,
+      /** ИИ-менеджер отзывов, который готовит черновики (нет — кнопка ИИ-черновика недоступна). */
+      reviewsAgent: await this.activeReviewsAgent(tenantId),
       analysisError: r.analysisError,
       deletedAt: r.deletedAt?.toISOString() ?? null,
       hotel: hotel ? { id: hotel.id, name: hotel.name, city: hotel.city, brandId: hotel.brandId } : null,
@@ -207,16 +217,16 @@ export class ReputationReviewsService {
     };
   }
 
-  async draft(tenantId: string, id: string, tone?: string) {
-    const r = await this.reviews.findOne({ where: { id, tenantId } });
-    if (!r) throw new NotFoundException('Review not found');
-    if (REPLY_MODE[r.platform] === 'none') throw new BadRequestException('This platform does not publish hotel replies');
-    const cfg = await this.settings.config(tenantId);
-    const hotel = await this.hotels.findOne({ where: { id: r.hotelId } });
-    const sig = cfg.signatures[r.hotelId] || hotel?.name || '';
-    const text = await this.ai.draftReply(r, hotel?.name || '', sig, tone ? String(tone).slice(0, 100) : undefined);
-    await this.reviews.update({ id: r.id }, { aiDraft: text.slice(0, 5000) });
-    return { aiDraft: text };
+  private async activeReviewsAgent(tenantId: string) {
+    const [a] = await this.reviews
+      .query(`SELECT id, name, avatar_url AS "avatarUrl" FROM ai_agents WHERE tenant_id = $1 AND role = 'reviews_manager' AND status = 'active' ORDER BY created_at LIMIT 1`, [tenantId])
+      .catch(() => []);
+    return a ? { id: a.id, name: a.name, avatarUrl: a.avatarUrl ?? null } : null;
+  }
+
+  private async agentName(tenantId: string, agentId: string): Promise<{ id: string; name: string; avatarUrl: string | null } | null> {
+    const [a] = await this.reviews.query(`SELECT id, name, avatar_url AS "avatarUrl" FROM ai_agents WHERE id = $1 AND tenant_id = $2`, [agentId, tenantId]).catch(() => []);
+    return a ? { id: a.id, name: a.name, avatarUrl: a.avatarUrl ?? null } : null;
   }
 
   async reanalyze(tenantId: string, id: string) {
@@ -225,6 +235,19 @@ export class ReputationReviewsService {
     r.analysisHash = null;
     r.analyzedAt = null;
     await this.ai.analyze(r, await this.settings.config(tenantId));
+    return this.card(tenantId, id);
+  }
+
+  /** Перевод одного отзыва на рабочий язык — по кнопке в карточке, с кэшем. */
+  async translate(tenantId: string, id: string) {
+    const r = await this.reviews.findOne({ where: { id, tenantId } });
+    if (!r) throw new NotFoundException('Review not found');
+    const cfg = await this.settings.config(tenantId);
+    try {
+      await this.ai.translate(r, cfg.translateTo);
+    } catch (e: any) {
+      throw new BadRequestException(e?.message || 'Translation failed');
+    }
     return this.card(tenantId, id);
   }
 
@@ -256,6 +279,7 @@ export class ReputationReviewsService {
       r.repliedAt = r.repliedAt || new Date();
       if (text?.trim()) r.replyText = text.trim().slice(0, 5000);
       await this.replies.insert({ tenantId, reviewId: r.id, text: (text || r.aiDraft || '').trim() || '—', authorUserId: userId, source: 'manual', status: 'published', postedAt: new Date() } as any);
+      void this.events.replied(r, text || r.aiDraft || '', 'manual');
     } else if (r.replyMarkedManually) {
       r.hasReply = false;
       r.replyMarkedManually = false;
@@ -293,6 +317,7 @@ export class ReputationReviewsService {
         const at = d?.updateTime ? new Date(d.updateTime) : new Date();
         await this.replies.update({ id: row.id }, { status: 'sent', postedAt: at, error: null, attempts: row.attempts + 1 });
         await this.reviews.update({ id: r.id }, { hasReply: true, repliedAt: r.hasReply && r.repliedAt ? r.repliedAt : at, replyText: row.text, replyMarkedManually: false });
+        void this.events.replied(r, row.text, 'crm');
         return;
       }
       if (r.platform === 'holidaycheck') {
@@ -310,6 +335,7 @@ export class ReputationReviewsService {
         });
         await this.replies.update({ id: row.id }, { status: 'sent', postedAt: new Date(), error: null, attempts: row.attempts + 1 });
         await this.reviews.update({ id: r.id }, { hasReply: true, repliedAt: r.repliedAt || new Date(), replyText: row.text, replyMarkedManually: false });
+        void this.events.replied(r, row.text, 'crm');
         return;
       }
       throw new Error('Platform does not support replies via API');

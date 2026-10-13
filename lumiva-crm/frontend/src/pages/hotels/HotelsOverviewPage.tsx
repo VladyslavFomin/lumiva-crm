@@ -7,6 +7,7 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
 import { fetchHotels, fetchHotelsOverviewKpis, type Hotel, type HotelsOverviewKpis } from '../../api/hotels';
+import { HotelRepLine, useRepHotelsSummary } from './reputation/HotelRepLine';
 import './hotels-design.css';
 
 /** Полная сумма в валюте (символ/позиция по локали); при неизвестном коде валюты — число + код. */
@@ -21,6 +22,7 @@ function money(v: number, currency: string | undefined, locale?: string) {
 
 export const HotelsOverviewPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const repSummary = useRepHotelsSummary();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -103,6 +105,7 @@ export const HotelsOverviewPage: React.FC = () => {
                   <span><b>{h.occupancyToday}%</b> {t('crm.hotels.overview.card.occupancy')}</span>
                   <span><b>{money(h.adr, h.currency, i18n.language)}</b> ADR</span>
                 </div>
+                <HotelRepLine summary={repSummary} hotelId={h.id} />
               </div>
             </div>
           ))}

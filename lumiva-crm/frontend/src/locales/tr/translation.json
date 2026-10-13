@@ -4225,13 +4225,13 @@
           "shortTitle": "Yorum Yöneticisi",
           "department": "Müşteri Hizmetleri",
           "jobTitle": "YZ Yorum Yöneticisi",
-          "description": "Google yorumlarınızı takip eder, misafirin dilinde (RU/TR/EN ve diğerleri) yanıt taslakları yazar ve olumsuz yorumları anında bildirir.",
+          "description": "Google, Booking.com, Tripadvisor, HolidayCheck, Yandex, Expedia, Check24 ve Otelpuan’daki otel yorumlarını izler: sabah özeti, yanıtsız yorum hatırlatmaları, misafirin dilinde yanıt taslakları (siz gönderirsiniz), haftalık öneriler ve ekibe görevler.",
           "functions": [
-            "Google yorum takibi",
-            "RU/TR/EN yanıtlar",
-            "Olumsuz yorum uyarıları",
-            "Yorum konuları ve eğilimler",
-            "Kötü yorumlar için görevler"
+            "Günlük yorum özeti",
+            "Yanıtsız yorum hatırlatmaları",
+            "Misafirin dilinde yanıt taslakları",
+            "Şikâyet önerileri",
+            "Otel ekibine görevler"
           ]
         },
         "chat_operator": {
@@ -4402,6 +4402,10 @@
         "read_products": {
           "title": "Katalog ve fiyatlar",
           "hint": "«Ürünler»deki ürünler ve online randevu hizmetleri fiyatlarıyla — danışman güncel fiyatları söyler."
+        },
+        "read_reviews": {
+          "title": "Otel yorumları",
+          "hint": "Tüm platformlardan misafir yorumları: puanlar, yanıtsız olumsuzlar, şikâyet konuları ve trendleri."
         }
       },
       "config": {
@@ -4736,6 +4740,10 @@
           "marketing": {
             "t": "Pazarlama",
             "d": "Oturumlar, tıklamalar, reklam lead'leri, harcama"
+          },
+          "reviews": {
+            "t": "Yorumlar",
+            "d": "Yeni yorumlar, ortalama puan, olumsuzlar, yanıtlanan, yanıtsız olumsuzlar"
           }
         }
       },
@@ -4958,6 +4966,61 @@
         "emptyFilter": "Bu filtreye uyan çalışan yok.",
         "configure": "Ayarla",
         "all": "Tümü"
+      },
+      "reviewsWork": {
+        "tab": "Yorum çalışması",
+        "loadError": "Ayarlar yüklenemedi",
+        "saved": "Kaydedildi",
+        "saveError": "Kaydedilemedi",
+        "runError": "Çalıştırılamadı",
+        "saving": "Kaydediliyor…",
+        "save": "Kaydet",
+        "running": "Hazırlanıyor…",
+        "preview": "Önizleme",
+        "sendNow": "Şimdi gönder",
+        "paused": "Çalışan duraklatıldı — zamanlamaya göre hiçbir şey yapmaz. Profil başlığından etkinleştirin; Önizleme yine çalışır.",
+        "digestTitle": "Günlük özet",
+        "digestHint": "Her sabah: dün her otele gelen yorumlar, ortalama, olumsuzlar, yanıt bekleyenler, alıntılarla şikâyetler ve bugün için öneriler.",
+        "digestEnabled": "Özet gönder",
+        "time": "Saat ({{tz}})",
+        "days": "Günler",
+        "recipients": "Alıcı e-postaları",
+        "telegram": "Telegram (yorum botu alıcıları)",
+        "noBot": "Yorumlar için Telegram botu seçilmedi.",
+        "openReviewSettings": "Ayarla",
+        "inApp": "Sahiplere CRM bildirimi",
+        "inAppShort": "CRM’de",
+        "sent": "Gönderildi: {{list}}",
+        "previewReady": "{{day}} özeti hazır (gönderilmedi)",
+        "remindersTitle": "Yanıtsız yorum hatırlatmaları",
+        "remindersHint": "Önce otel yöneticisine yorum listesi ve bağlantılarla mesaj. Hâlâ yanıt yoksa — “Yorumlar · otel” projesinde görev.",
+        "remindersEnabled": "Hatırlat",
+        "firstHours": "Hatırlatma, sa",
+        "escalateHours": "Görev, sa",
+        "negativeOnly": "Yalnızca olumsuzlar",
+        "runReminders": "Şimdi kontrol et",
+        "remindersDone": "Hatırlatılan: {{r}}, görev: {{e}}",
+        "draftsTitle": "Yanıt taslakları",
+        "draftsHint": "Çalışan yanıtı misafirin dilinde önceden hazırlar — yorum kartında kimin hazırladığı görünür. Kendisi asla yanıtlamaz: bir insan gönderir.",
+        "drafts": {
+          "negative": "Yalnızca olumsuz yorumlara",
+          "all": "Tüm yeni yorumlara",
+          "off": "Önceden hazırlama (yalnızca karttaki düğme)"
+        },
+        "insightsTitle": "Haftalık içgörüler",
+        "insightsHint": "Geçen aya göre hangi şikâyetler artıyor, misafir alıntıları ve öneriler — hangi departman neyi kontrol etmeli.",
+        "insightsEnabled": "İçgörü hazırla",
+        "weekday": "Gün",
+        "createTasks": "Önerilerden görev oluştur",
+        "insightsReady": "Artan şikâyet: {{items}}, öneri: {{recs}}, görev: {{tasks}}",
+        "scopeTitle": "Sorumluluk alanı",
+        "scopeHint": "Hiçbiri seçili değil — tüm oteller. Markalarla veya otellerle sınırlayabilirsiniz.",
+        "brands": "Markalar",
+        "hotels": "Oteller",
+        "openFeed": "Yorum akışı",
+        "humanReplies": "Yorumlara her zaman bir insan yanıt verir: çalışan yalnızca taslak, özet, hatırlatma ve görev hazırlar.",
+        "reportsTitle": "Son raporlar",
+        "previewTitle": "Önizleme"
       }
     },
     "settings": {
@@ -8147,7 +8210,8 @@
             "hotels": "Oteller",
             "products": "Ürünler",
             "aiOffice": "YZ departmanları",
-            "helpdesk": "Destek"
+            "helpdesk": "Destek",
+            "reviews": "Yorumlar"
           },
           "triggerDesc": {
             "scheduled": "CRON veya aralık",
@@ -8420,7 +8484,29 @@
           "aiOfficePriority1": "Acil",
           "aiOfficePriority2": "Normal",
           "aiOfficePriority3": "Zaman olunca",
-          "aiOfficeHelp": "Departman görevi kendisi alır: ajan seçer, yetkileri ve onayları uygular. Olayın kaydı göreve bağlanır."
+          "aiOfficeHelp": "Departman görevi kendisi alır: ajan seçer, yetkileri ve onayları uygular. Olayın kaydı göreve bağlanır.",
+          "tokenBrandName": "Marka",
+          "tokenPlatform": "Platform",
+          "tokenRating": "Puan",
+          "tokenRating10": "Puan 0–10",
+          "tokenAuthor": "Yazar",
+          "tokenReviewText": "Yorum metni",
+          "tokenReviewTranslation": "Çeviri",
+          "tokenComplaints": "Şikâyetler",
+          "tokenTopics": "Konular",
+          "tokenReviewUrl": "Platform bağlantısı",
+          "tokenCrmUrl": "CRM bağlantısı",
+          "tokenTopic": "Konu",
+          "tokenCount": "Kaç kez",
+          "tokenDays": "Gün",
+          "tokenQuotes": "Alıntılar",
+          "tokenAvgNow": "Şimdiki ortalama",
+          "tokenAvgPrev": "Önceki ortalama",
+          "tokenDrop": "Düşüş",
+          "tokenHoursWithoutReply": "Yanıtsız saat",
+          "tokenOldRating": "Eski puan",
+          "tokenNewRating": "Yeni puan",
+          "tokenReplyText": "Yanıt metni"
         },
         "triggerGroups": {
           "contacts": "Kişiler",
@@ -8485,7 +8571,14 @@
           "AI_OFFICE_HELP_NEEDED": "YZ departmanının yardıma ihtiyacı var",
           "AI_OFFICE_BUDGET_EXHAUSTED": "YZ departmanının bütçesi bitti",
           "HELPDESK_TICKET_CREATED": "Yeni destek talebi",
-          "HELPDESK_MESSAGE_RECEIVED": "Müşteri talepte yanıtladı"
+          "HELPDESK_MESSAGE_RECEIVED": "Müşteri talepte yanıtladı",
+          "REVIEW_CREATED": "Yeni yorum",
+          "REVIEW_NEGATIVE": "Olumsuz yorum",
+          "REVIEW_NO_REPLY": "Yanıtsız yorum",
+          "REVIEW_RATING_LOWERED": "Misafir puanı düşürdü",
+          "REVIEW_REPLIED": "Yoruma yanıt verildi",
+          "REVIEW_TOPIC_SPIKE": "Tekrarlayan şikâyet",
+          "REVIEW_RATING_DROP": "Otel ortalaması düştü"
         },
         "report": {
           "type": "Rapor türü",
@@ -8496,7 +8589,8 @@
             "tasks": "Görevler",
             "marketing": "Pazarlama (trafik ve reklamlar)",
             "bookings": "Rezervasyonlar",
-            "hotels": "Oteller"
+            "hotels": "Oteller",
+            "reviews": "Yorumlar"
           },
           "marketingHint": "CRM pazarlama trafiği tablosundan veri: Google Ads, Meta, Yandex.Metrica, GA4 senkronları ve içe aktarmalar. Entegrasyonlar yoksa veya çalışmadıysa raporda az veya satır olmayabilir.",
           "dataRangeTitle": "Rapor veri dönemi (isteğe bağlı)",
@@ -8537,7 +8631,13 @@
           "dateField": "Tarih",
           "dateSale": "Satış tarihi",
           "dateCreated": "Oluşturulma tarihi",
-          "rateFor": "{{currency}} için kur"
+          "rateFor": "{{currency}} için kur",
+          "reviews": {
+            "brand": "Marka",
+            "hotel": "Otel",
+            "platform": "Platform",
+            "all": "Tümü"
+          }
         },
         "dataExport": {
           "intro": "Önceki adımın sonucunu alır (ör. pazarlamadan Google Ads / Meta yanıtı), dosyalar oluşturur ve gönderir.",
@@ -11995,7 +12095,8 @@
           "funnel_today": "Bugünün Hunisi",
           "lead_sources_week": "Lead Kaynakları (7 gün)",
           "recent_deals": "Son Anlaşmalar",
-          "birthdays": "Bu Haftaki Doğum Günleri"
+          "birthdays": "Bu Haftaki Doğum Günleri",
+          "hotels-reviews": "Otel yorumları"
         },
         "funnelToday": "Bugünün Hunisi",
         "funnelTodayEmpty": "Bugün lead yok",
@@ -12276,6 +12377,14 @@
         "upcoming": "Yaklaşan",
         "titleWithProject": "{{title}} · {{project}}",
         "fallbackTitle": "Görev"
+      },
+      "hotelsReviewsWidget": {
+        "avg": "90 gün ort.",
+        "week": "7 günde yorum",
+        "openNeg": "Yanıtsız olumsuz",
+        "hint": "Tüm platformlardan 0–10 puanlar; 90 günde toplam: {{n}}",
+        "openUnanswered": "Yanıtsız",
+        "openFull": "Panel"
       }
     },
     "leads": {
@@ -18116,7 +18225,8 @@
           "markets": "Pazarlar ve fiyatlandırma",
           "info": "Otel bilgisi",
           "gallery": "Galeri",
-          "settings": "Otel ayarları"
+          "settings": "Otel ayarları",
+          "reviews": "Yorumlar"
         },
         "housekeeping": {
           "clean": "Temiz",
@@ -18654,7 +18764,9 @@
           "emptyText": "Platformlar senkronize olur olmaz yorumlar burada görünecek.",
           "emptySetupTitle": "Henüz platform bağlanmadı",
           "emptySetupText": "Otellerin platformlardaki sayfa bağlantılarını ekleyin, Google Business Profile ve Apify'ı bağlayın — yorumlar otomatik toplanmaya başlar.",
-          "more": "{{n}} tane daha göster"
+          "more": "{{n}} tane daha göster",
+          "draftReady": "taslak hazır",
+          "draftByAgentHint": "YZ Yorum Yöneticisi hazırladı — kontrol edip gönderin"
         },
         "card": {
           "review": "Yorum",
@@ -18699,7 +18811,16 @@
           "unmarkReplied": "«Yanıtlandı» işaretini kaldır",
           "check24Hint": "Check24 otel yanıtlarını yayınlamaz, bu yüzden bu yoruma yanıt verilemez. Puan ve konularda yine de sayılır.",
           "googleManualHint": "Google Business Profile API bağlı değil: taslağı kopyalayın, yoruma Google'da (otel profilinde, sahip hesabıyla) yanıt verin ve «Yanıtlandı» olarak işaretleyin. Yanıt Google'da görününce işaret bir sonraki toplamada kendiliğinden gelir.",
-          "hcManualHint": "HolidayCheck yanıt API'si ayarlı değil: taslağı kopyalayın, HolidayCheck Business Center'da yayınlayın ve «Yanıtlandı» olarak işaretleyin."
+          "hcManualHint": "HolidayCheck yanıt API'si ayarlı değil: taslağı kopyalayın, HolidayCheck Business Center'da yayınlayın ve «Yanıtlandı» olarak işaretleyin.",
+          "noAgent": "YZ taslaklarını YZ Yorum Yöneticisi hazırlar. İşe alınmamış veya duraklatılmış — yanıtı kendiniz yazabilirsiniz.",
+          "hireAgent": "YZ çalışanlarını aç",
+          "aiDraftBy": "{{name}} taslak yazsın",
+          "draftingBy": "{{name}} taslak yazıyor…",
+          "draftPreparedBy": "Taslağı {{name}} hazırladı — kontrol edip kendiniz gönderin",
+          "rewriteBy": "{{name}} yeniden yazsın",
+          "translate": "Çevir",
+          "translating": "Çevriliyor…",
+          "translateHint": "Bu yorumu çalışma diline çevir. Çeviri kaydedilir — tekrar token harcanmaz."
         },
         "dash": {
           "title": "İtibar paneli",
@@ -18959,7 +19080,7 @@
         },
         "ai": {
           "translateTitle": "Çeviri dili",
-          "translateSub": "Almanca, Türkçe, İngilizce vb. yorumlar kart için çevrilir; konular orijinal dilde analiz edilir ama tek dilde saklanır.",
+          "translateSub": "Yorumlar otomatik çevrilmez — yalnızca ilgili yorum kartındaki “Çevir” düğmesiyle (çeviri kaydedilir). Konular orijinal dilde analiz edilir.",
           "lang": {
             "ru": "Русский",
             "en": "English"
@@ -18975,11 +19096,11 @@
           "monthly": "Aylık marka raporu",
           "monthlySub": "Her ayın 1'inde marka pazarlama e-postalarına: puan trendi, ilk 5 şikâyet, değişimler, düşüş yaşayan oteller",
           "status": {
-            "failedTitle": "YZ {{n}} yorumu analiz edemedi: konular, çeviriler ve duygu şimdilik boş.",
+            "failedTitle": "YZ yorumları analiz edemedi ({{n}}): konular ve duygu durumu şimdilik boş.",
             "noCredits": "Platformun OpenAI anahtarında kredi kalmadı. Kendi OpenAI veya Anthropic anahtarınızı bağlayın — analiz 30 dakika içinde kendiliğinden devam eder.",
             "error": "Hata: {{e}}",
             "connectKey": "Entegrasyonlar → OpenAI / LLM",
-            "pending": "YZ yorumları analiz ediyor: {{n}} kaldı. Konular ve çeviriler birkaç dakika içinde görünecek."
+            "pending": "YZ yorumları analiz ediyor: {{n}} kaldı. Konular birkaç dakika içinde görünecek."
           }
         },
         "log": {
@@ -19046,6 +19167,32 @@
           "purge": "Bunları sil",
           "purgeConfirm": "{{d}} tarihinden eski {{n}} yorum konular, yanıtlar ve düzenleme geçmişiyle birlikte CRM'den silinsin mi? Geri alınamaz (yalnızca yeniden toplanarak).",
           "purged": "Silinen yorum: {{n}}"
+        },
+        "hotelTab": {
+          "emptyTitle": "Bu otelin yorumları henüz toplanmıyor",
+          "emptyText": "Yorum ayarlarında oteli platformlara bağlayın — toplama otomatik başlar.",
+          "reviews90": "90 günde yorum",
+          "platformsSub": "Platformda — platformun kendi sayacı ve puanı; CRM’de — toplanan yorumlar",
+          "openFeed": "Yorum akışı",
+          "n90": "Son 90 gün",
+          "last90": "Son 90 gün",
+          "latest": "Son yorumlar",
+          "lineHint": "Otelin 90 günlük yorumları — akışı aç",
+          "lineReviews": "90 günde {{n}} yorum",
+          "lineOpen": "{{n}} yanıtsız olumsuz"
+        },
+        "agentStrip": {
+          "none": "YZ Yorum Yöneticisi işe alınmadı: sabah özeti gönderir, yanıtsız yorumları hatırlatır, yanıt taslakları ve haftalık öneriler hazırlar.",
+          "paused": "{{name}} (YZ Yorum Yöneticisi) duraklatıldı — özet, hatırlatma ve taslak hazırlanmıyor.",
+          "active": "{{name}}: özet {{time}}, hatırlatma {{h1}} sa sonra, görev {{h2}} sa sonra, taslaklar — {{drafts}}. Yanıtları siz gönderirsiniz.",
+          "drafts": {
+            "off": "kapalı",
+            "negative": "olumsuzlara",
+            "all": "tüm yenilere"
+          },
+          "hire": "İşe al",
+          "enable": "Etkinleştir",
+          "settings": "Ayarlar"
         }
       }
     },

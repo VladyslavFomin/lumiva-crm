@@ -13,6 +13,7 @@ import { ReputationSyncService } from './reputation-sync.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
 import { GoogleBusinessService } from './google-business.service';
 import { ApifyService } from './apify.service';
+import { ReputationAgentService } from './reputation-agent.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HotelReviewSource, HotelReviewSyncRun } from './reputation.entities';
@@ -30,6 +31,7 @@ export class ReputationController {
     private readonly alerts: ReputationAlertsService,
     private readonly google: GoogleBusinessService,
     private readonly apify: ApifyService,
+    private readonly agent: ReputationAgentService,
     @InjectRepository(HotelReviewSyncRun) private readonly runs: Repository<HotelReviewSyncRun>,
     @InjectRepository(HotelReviewSource) private readonly sources: Repository<HotelReviewSource>,
   ) {}
@@ -59,7 +61,7 @@ export class ReputationController {
   @Post('reviews/:id/draft')
   @RequirePermission('hotels', 'write')
   draft(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { tone?: string }) {
-    return this.reviews.draft(u.tenantId, id, b?.tone);
+    return this.agent.draftReview(u.tenantId, id, b?.tone, 'card');
   }
 
   @Post('reviews/:id/reply')
@@ -80,6 +82,12 @@ export class ReputationController {
     return this.reviews.reanalyze(u.tenantId, id);
   }
 
+  @Post('reviews/:id/translate')
+  @RequirePermission('hotels', 'read')
+  translate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    return this.reviews.translate(u.tenantId, id);
+  }
+
   @Post('replies/:id/retry')
   @RequirePermission('hotels', 'write')
   retry(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
@@ -91,6 +99,16 @@ export class ReputationController {
   @Get('analytics/dashboard')
   dashboard(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery) {
     return this.analytics.dashboard(u.tenantId, q);
+  }
+
+  @Get('hotels-summary')
+  hotelsSummary(@CurrentUser() u: CurrentUserPayload) {
+    return this.analytics.hotelsSummary(u.tenantId);
+  }
+
+  @Get('hotels/:hotelId/summary')
+  hotelSummary(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
+    return this.analytics.hotelSummary(u.tenantId, hotelId);
   }
 
   @Get('analytics/topic-matrix')
@@ -183,6 +201,39 @@ export class ReputationController {
   @RequirePermission('hotels', 'write')
   purgeOlder(@CurrentUser() u: CurrentUserPayload, @Body() b: { before: string }) {
     return this.sync.purgeOlder(u.tenantId, b?.before);
+  }
+
+  // ---------------------------------------------------------------- ИИ-менеджер отзывов
+
+  @Get('agent')
+  agentState(@CurrentUser() u: CurrentUserPayload) {
+    return this.agent.getState(u.tenantId);
+  }
+
+  @Patch('agent')
+  @RequirePermission('hotels', 'write')
+  agentUpdate(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+    return this.agent.updateWork(u.tenantId, b);
+  }
+
+  @Post('agent/digest')
+  @RequirePermission('hotels', 'write')
+  agentDigest(@CurrentUser() u: CurrentUserPayload, @Body() b: { deliver?: boolean }) {
+    return this.agent.runDigest(u.tenantId, { deliver: b?.deliver !== false });
+  }
+
+  @Post('agent/insights')
+  @RequirePermission('hotels', 'write')
+  agentInsights(@CurrentUser() u: CurrentUserPayload, @Body() b: { deliver?: boolean }) {
+    return this.agent.runInsights(u.tenantId, { deliver: b?.deliver !== false });
+  }
+
+  @Post('agent/reminders')
+  @RequirePermission('hotels', 'write')
+  async agentReminders(@CurrentUser() u: CurrentUserPayload) {
+    const a = await this.agent.agentFor(u.tenantId);
+    if (!a) return { reminded: 0, escalated: 0, noAgent: true };
+    return this.agent.remind(a, this.agent.work(a));
   }
 
   @Post('backfill')

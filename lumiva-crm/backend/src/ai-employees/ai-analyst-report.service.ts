@@ -22,7 +22,7 @@ import { EmailService } from '../email/email.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 
 /** Галочки «какие данные собирает аналитик». Каждый блок требует своё read_*-право. */
-export const ANALYST_BLOCKS = ['sales', 'payments', 'discounts', 'leads', 'bookings', 'hotels', 'tasks', 'helpdesk', 'marketing'] as const;
+export const ANALYST_BLOCKS = ['sales', 'payments', 'discounts', 'leads', 'bookings', 'hotels', 'reviews', 'tasks', 'helpdesk', 'marketing'] as const;
 export type AnalystBlock = (typeof ANALYST_BLOCKS)[number];
 const BLOCK_PERMS: Record<AnalystBlock, string[]> = {
   sales: ['read_sales'],
@@ -33,6 +33,7 @@ const BLOCK_PERMS: Record<AnalystBlock, string[]> = {
   hotels: ['read_bookings'],
   tasks: ['read_tasks', 'read_projects'],
   helpdesk: ['read_helpdesk'],
+  reviews: ['read_reviews'],
   marketing: ['read_marketing'],
 };
 
@@ -298,6 +299,19 @@ export class AiAnalystReportService {
       ]);
       out.helpdesk = { opened, openNow };
     }
+    if (has('reviews')) {
+      // отзывы гостей отелей (Отели → Отзывы): оценка в общей шкале 0–10, негатив < 6
+      const [row] = await this.tickets.manager.query(
+        `SELECT COUNT(*) FILTER (WHERE "publishedAt" >= $2 AND "publishedAt" < $3)::int AS count,
+                ROUND(AVG("rating10") FILTER (WHERE "publishedAt" >= $2 AND "publishedAt" < $3), 2) AS avg10,
+                COUNT(*) FILTER (WHERE "publishedAt" >= $2 AND "publishedAt" < $3 AND "rating10" < 6)::int AS negative,
+                COUNT(*) FILTER (WHERE "repliedAt" >= $2 AND "repliedAt" < $3)::int AS replied,
+                COUNT(*) FILTER (WHERE NOT "hasReply" AND platform <> 'check24' AND "rating10" < 6 AND "publishedAt" > $3::timestamptz - interval '30 days' AND "publishedAt" < $3)::int AS "unansweredNegative"
+           FROM hotel_reviews WHERE "tenantId" = $1 AND status <> 'deleted'`,
+        [tenantId, start, end],
+      ).catch(() => [null]);
+      out.reviews = row ? { count: row.count, avg10: row.avg10 != null ? Number(row.avg10) : 0, negative: row.negative, replied: row.replied, unansweredNegative: row.unansweredNegative } : null;
+    }
     if (has('marketing')) {
       try {
         const st = await this.marketing.getTrafficChannelsStats(tenantId, ymd, ymd, undefined, 50);
@@ -523,19 +537,20 @@ const M_RU = {
   'hotels.newReservations': 'Новые брони', 'hotels.revenue': 'Сумма броней', 'hotels.cancelled': 'Отменено', 'hotels.arrivals': 'Заезды', 'hotels.departures': 'Выезды', 'hotels.inHouse': 'Проживало гостей (номеров)',
   'tasks.overdue': 'Просрочено задач', 'tasks.completedCompanyTasks': 'Закрыто задач', 'tasks.dueNextDay': 'Срок на следующий день',
   'helpdesk.opened': 'Новые обращения', 'helpdesk.openNow': 'Открыто сейчас',
+  'reviews.count': 'Новые отзывы', 'reviews.avg10': 'Средняя оценка (0–10)', 'reviews.negative': 'Негативных', 'reviews.replied': 'Отвечено', 'reviews.unansweredNegative': 'Негатив без ответа',
   'marketing.sessions': 'Визиты', 'marketing.clicks': 'Клики', 'marketing.leads': 'Лиды из рекламы', 'marketing.cost': 'Расходы',
 };
 const I18N: Record<Lang, any> = {
   ru: {
     title: 'Отчёт аналитика за вчера', quiet: 'Без движения', metric: 'Показатель', yesterday: 'Вчера', dayBefore: 'Позавчера', ready: 'Отчёт готов',
     by: (n: string) => `Подготовил ${n} — ИИ-аналитик. Он только собирает данные и ничего не меняет в CRM.`,
-    blocks: { sales: 'Продажи', payments: 'Оплаты', discounts: 'Скидки', leads: 'Лиды', bookings: 'Записи', hotels: 'Отели', tasks: 'Задачи', helpdesk: 'Поддержка', marketing: 'Маркетинг' },
+    blocks: { sales: 'Продажи', payments: 'Оплаты', discounts: 'Скидки', leads: 'Лиды', bookings: 'Записи', hotels: 'Отели', reviews: 'Отзывы', tasks: 'Задачи', helpdesk: 'Поддержка', marketing: 'Маркетинг' },
     m: M_RU,
   },
   en: {
     title: "Analyst report for yesterday", quiet: 'No activity', metric: 'Metric', yesterday: 'Yesterday', dayBefore: 'Day before', ready: 'Report ready',
     by: (n: string) => `Prepared by ${n}, AI analyst. It only collects data and never changes anything in the CRM.`,
-    blocks: { sales: 'Sales', payments: 'Payments', discounts: 'Discounts', leads: 'Leads', bookings: 'Appointments', hotels: 'Hotels', tasks: 'Tasks', helpdesk: 'Support', marketing: 'Marketing' },
+    blocks: { sales: 'Sales', payments: 'Payments', discounts: 'Discounts', leads: 'Leads', bookings: 'Appointments', hotels: 'Hotels', reviews: 'Reviews', tasks: 'Tasks', helpdesk: 'Support', marketing: 'Marketing' },
     m: {
       'sales.count': 'Sales', 'sales.revenue': 'Revenue', 'sales.cancelled': 'Cancelled/refunded',
       'payments.count': 'Payments received', 'payments.amount': 'Payments total', 'payments.failed': 'Failed payments',
@@ -545,13 +560,14 @@ const I18N: Record<Lang, any> = {
       'hotels.newReservations': 'New reservations', 'hotels.revenue': 'Reservations total', 'hotels.cancelled': 'Cancelled', 'hotels.arrivals': 'Arrivals', 'hotels.departures': 'Departures', 'hotels.inHouse': 'In-house (rooms)',
       'tasks.overdue': 'Overdue tasks', 'tasks.completedCompanyTasks': 'Tasks completed', 'tasks.dueNextDay': 'Due next day',
       'helpdesk.opened': 'New tickets', 'helpdesk.openNow': 'Open now',
+      'reviews.count': 'New reviews', 'reviews.avg10': 'Average rating (0–10)', 'reviews.negative': 'Negative', 'reviews.replied': 'Replied', 'reviews.unansweredNegative': 'Unanswered negative',
       'marketing.sessions': 'Sessions', 'marketing.clicks': 'Clicks', 'marketing.leads': 'Leads from ads', 'marketing.cost': 'Spend',
     },
   },
   tr: {
     title: 'Dünün analist raporu', quiet: 'Hareket yok', metric: 'Gösterge', yesterday: 'Dün', dayBefore: 'Önceki gün', ready: 'Rapor hazır',
     by: (n: string) => `${n} hazırladı — YZ analist. Yalnızca veri toplar, CRM'de hiçbir şeyi değiştirmez.`,
-    blocks: { sales: 'Satışlar', payments: 'Ödemeler', discounts: 'İndirimler', leads: "Lead'ler", bookings: 'Randevular', hotels: 'Oteller', tasks: 'Görevler', helpdesk: 'Destek', marketing: 'Pazarlama' },
+    blocks: { sales: 'Satışlar', payments: 'Ödemeler', discounts: 'İndirimler', leads: "Lead'ler", bookings: 'Randevular', hotels: 'Oteller', reviews: 'Yorumlar', tasks: 'Görevler', helpdesk: 'Destek', marketing: 'Pazarlama' },
     m: {
       'sales.count': 'Satışlar', 'sales.revenue': 'Gelir', 'sales.cancelled': 'İptal/iade',
       'payments.count': 'Alınan ödemeler', 'payments.amount': 'Ödeme toplamı', 'payments.failed': 'Başarısız ödemeler',
@@ -561,6 +577,7 @@ const I18N: Record<Lang, any> = {
       'hotels.newReservations': 'Yeni rezervasyonlar', 'hotels.revenue': 'Rezervasyon toplamı', 'hotels.cancelled': 'İptal', 'hotels.arrivals': 'Girişler', 'hotels.departures': 'Çıkışlar', 'hotels.inHouse': 'Konaklayan (oda)',
       'tasks.overdue': 'Geciken görevler', 'tasks.completedCompanyTasks': 'Tamamlanan görevler', 'tasks.dueNextDay': 'Ertesi gün teslim',
       'helpdesk.opened': 'Yeni talepler', 'helpdesk.openNow': 'Şu an açık',
+      'reviews.count': 'Yeni yorumlar', 'reviews.avg10': 'Ortalama puan (0–10)', 'reviews.negative': 'Olumsuz', 'reviews.replied': 'Yanıtlandı', 'reviews.unansweredNegative': 'Yanıtsız olumsuz',
       'marketing.sessions': 'Oturumlar', 'marketing.clicks': 'Tıklamalar', 'marketing.leads': "Reklamdan lead'ler", 'marketing.cost': 'Harcama',
     },
   },

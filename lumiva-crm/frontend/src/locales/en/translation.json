@@ -1962,13 +1962,13 @@
           "shortTitle": "Reviews Manager",
           "department": "Customer Service",
           "jobTitle": "AI Reviews Manager",
-          "description": "Watches your Google reviews, drafts replies in the reviewer’s language (RU/TR/EN and more) and alerts you about negative reviews right away.",
+          "description": "Watches hotel reviews on Google, Booking.com, Tripadvisor, HolidayCheck, Yandex, Expedia, Check24 and Otelpuan: morning digest, reminders about unanswered reviews, reply drafts in the guest’s language (you send them), weekly recommendations and tasks for the team.",
           "functions": [
-            "Google review monitoring",
-            "Replies in RU/TR/EN",
-            "Negative review alerts",
-            "Review topics and trends",
-            "Tasks for bad reviews"
+            "Daily review digest",
+            "Unanswered review reminders",
+            "Reply drafts in the guest’s language",
+            "Complaint recommendations",
+            "Tasks for the hotel team"
           ]
         },
         "chat_operator": {
@@ -2139,6 +2139,10 @@
         "read_products": {
           "title": "Catalog and prices",
           "hint": "Products and online-booking services with prices — so the consultant quotes current prices."
+        },
+        "read_reviews": {
+          "title": "Hotel reviews",
+          "hint": "Guest reviews from all platforms: ratings, unanswered negatives, complaint topics and trends."
         }
       },
       "config": {
@@ -2473,6 +2477,10 @@
           "marketing": {
             "t": "Marketing",
             "d": "Sessions, clicks, leads from ads, spend"
+          },
+          "reviews": {
+            "t": "Reviews",
+            "d": "New reviews, average rating, negatives, replied, unanswered negatives"
           }
         }
       },
@@ -2695,6 +2703,61 @@
         "emptyFilter": "No employees match this filter.",
         "configure": "Configure",
         "all": "All"
+      },
+      "reviewsWork": {
+        "tab": "Reviews work",
+        "loadError": "Couldn’t load settings",
+        "saved": "Saved",
+        "saveError": "Couldn’t save",
+        "runError": "Couldn’t run",
+        "saving": "Saving…",
+        "save": "Save",
+        "running": "Preparing…",
+        "preview": "Preview",
+        "sendNow": "Send now",
+        "paused": "The employee is paused — nothing runs on schedule. Enable it in the profile header; Preview works anyway.",
+        "digestTitle": "Daily digest",
+        "digestHint": "Every morning: reviews per hotel yesterday, average, negatives, what awaits a reply, complaints with quotes and recommendations for today.",
+        "digestEnabled": "Send the digest",
+        "time": "Time ({{tz}})",
+        "days": "Days",
+        "recipients": "Recipient emails",
+        "telegram": "Telegram (review bot recipients)",
+        "noBot": "No Telegram bot chosen for reviews.",
+        "openReviewSettings": "Set up",
+        "inApp": "CRM notification to owners",
+        "inAppShort": "in CRM",
+        "sent": "Sent: {{list}}",
+        "previewReady": "Digest for {{day}} is ready (not sent)",
+        "remindersTitle": "Reminders about unanswered reviews",
+        "remindersHint": "First a message to the hotel manager with the reviews and links. If still unanswered — a task in the “Reviews · hotel” project.",
+        "remindersEnabled": "Send reminders",
+        "firstHours": "Remind after, h",
+        "escalateHours": "Task after, h",
+        "negativeOnly": "Negative reviews only",
+        "runReminders": "Check now",
+        "remindersDone": "Reminded: {{r}}, tasks: {{e}}",
+        "draftsTitle": "Reply drafts",
+        "draftsHint": "The employee prepares the reply in the guest’s language in advance — the review card shows who prepared it. It never replies itself: a human sends it.",
+        "drafts": {
+          "negative": "Negative reviews only",
+          "all": "All new reviews",
+          "off": "Don’t prepare in advance (button in the card only)"
+        },
+        "insightsTitle": "Weekly insights",
+        "insightsHint": "Which complaints are growing vs last month, guest quotes and recommendations — what each department should check.",
+        "insightsEnabled": "Prepare insights",
+        "weekday": "Weekday",
+        "createTasks": "Create tasks from recommendations",
+        "insightsReady": "Rising complaints: {{items}}, recommendations: {{recs}}, tasks: {{tasks}}",
+        "scopeTitle": "Area of responsibility",
+        "scopeHint": "Nothing selected — all hotels. You can limit it to brands or hotels.",
+        "brands": "Brands",
+        "hotels": "Hotels",
+        "openFeed": "Review feed",
+        "humanReplies": "A human always replies to reviews: the employee only prepares drafts, digests, reminders and tasks.",
+        "reportsTitle": "Latest reports",
+        "previewTitle": "Preview"
       }
     },
     "settings": {
@@ -10901,7 +10964,8 @@
             "hotels": "Hotels",
             "products": "Products",
             "aiOffice": "AI departments",
-            "helpdesk": "Support"
+            "helpdesk": "Support",
+            "reviews": "Reviews"
           },
           "triggerDesc": {
             "scheduled": "CRON or interval",
@@ -11174,7 +11238,29 @@
           "aiOfficePriority1": "Urgent",
           "aiOfficePriority2": "Normal",
           "aiOfficePriority3": "When there's time",
-          "aiOfficeHelp": "The department takes the task on its own: picks an agent, applies permissions and approvals. The event's record is linked to the task."
+          "aiOfficeHelp": "The department takes the task on its own: picks an agent, applies permissions and approvals. The event's record is linked to the task.",
+          "tokenBrandName": "Brand",
+          "tokenPlatform": "Platform",
+          "tokenRating": "Rating",
+          "tokenRating10": "Rating 0–10",
+          "tokenAuthor": "Author",
+          "tokenReviewText": "Review text",
+          "tokenReviewTranslation": "Translation",
+          "tokenComplaints": "Complaints",
+          "tokenTopics": "Topics",
+          "tokenReviewUrl": "Platform link",
+          "tokenCrmUrl": "CRM link",
+          "tokenTopic": "Topic",
+          "tokenCount": "Times",
+          "tokenDays": "Days",
+          "tokenQuotes": "Quotes",
+          "tokenAvgNow": "Average now",
+          "tokenAvgPrev": "Average before",
+          "tokenDrop": "Drop",
+          "tokenHoursWithoutReply": "Hours without reply",
+          "tokenOldRating": "Old rating",
+          "tokenNewRating": "New rating",
+          "tokenReplyText": "Reply text"
         },
         "triggerGroups": {
           "contacts": "Contacts",
@@ -11239,7 +11325,14 @@
           "AI_OFFICE_HELP_NEEDED": "AI department needs help",
           "AI_OFFICE_BUDGET_EXHAUSTED": "AI department ran out of budget",
           "HELPDESK_TICKET_CREATED": "New support ticket",
-          "HELPDESK_MESSAGE_RECEIVED": "Client replied in a ticket"
+          "HELPDESK_MESSAGE_RECEIVED": "Client replied in a ticket",
+          "REVIEW_CREATED": "New review",
+          "REVIEW_NEGATIVE": "Negative review",
+          "REVIEW_NO_REPLY": "Review without reply",
+          "REVIEW_RATING_LOWERED": "Guest lowered the rating",
+          "REVIEW_REPLIED": "Review replied",
+          "REVIEW_TOPIC_SPIKE": "Repeating complaint",
+          "REVIEW_RATING_DROP": "Hotel average dropped"
         },
         "report": {
           "type": "Report type",
@@ -11250,7 +11343,8 @@
             "tasks": "Tasks",
             "marketing": "Marketing (traffic and ads)",
             "bookings": "Bookings",
-            "hotels": "Hotels"
+            "hotels": "Hotels",
+            "reviews": "Reviews"
           },
           "marketingHint": "Data from the CRM marketing traffic table: Google Ads, Meta, Yandex.Metrica, GA4 syncs and imports. If integrations are not set up or never ran, the report may have few or no rows.",
           "dataRangeTitle": "Report data period (optional)",
@@ -11291,7 +11385,13 @@
           "dateField": "Date",
           "dateSale": "Sale date",
           "dateCreated": "Created date",
-          "rateFor": "Rate for {{currency}}"
+          "rateFor": "Rate for {{currency}}",
+          "reviews": {
+            "brand": "Brand",
+            "hotel": "Hotel",
+            "platform": "Platform",
+            "all": "All"
+          }
         },
         "dataExport": {
           "intro": "Takes the previous step result (e.g. Google Ads / Meta response from marketing), builds files, and sends them.",
@@ -12013,7 +12113,8 @@
           "funnel_today": "Today's Funnel",
           "lead_sources_week": "Lead Sources (7 days)",
           "recent_deals": "Recent Deals",
-          "birthdays": "Birthdays This Week"
+          "birthdays": "Birthdays This Week",
+          "hotels-reviews": "Hotel reviews"
         },
         "funnelToday": "Today's Funnel",
         "funnelTodayEmpty": "No leads today",
@@ -12294,6 +12395,14 @@
         "templatesTitle": "Ready-made templates",
         "templatesDesc": "Launch workflows in minutes — funnels, projects, campaigns.",
         "templatesBtn": "Open templates"
+      },
+      "hotelsReviewsWidget": {
+        "avg": "Avg 90 d",
+        "week": "Reviews 7 d",
+        "openNeg": "Unanswered negative",
+        "hint": "0–10 ratings from all platforms; 90-day total: {{n}}",
+        "openUnanswered": "Unanswered",
+        "openFull": "Dashboard"
       }
     },
     "leads": {
@@ -18134,7 +18243,8 @@
           "markets": "Markets & pricing",
           "info": "Hotel information",
           "gallery": "Gallery",
-          "settings": "Hotel settings"
+          "settings": "Hotel settings",
+          "reviews": "Reviews"
         },
         "housekeeping": {
           "clean": "Clean",
@@ -18672,7 +18782,9 @@
           "emptyText": "Reviews will appear here as soon as the platforms sync.",
           "emptySetupTitle": "No platforms connected yet",
           "emptySetupText": "Add your hotels' page links on each platform, connect Google Business Profile and Apify — reviews will then be collected automatically.",
-          "more": "Show {{n}} more"
+          "more": "Show {{n}} more",
+          "draftReady": "draft ready",
+          "draftByAgentHint": "Prepared by the AI Reviews Manager — just review and send"
         },
         "card": {
           "review": "Review",
@@ -18717,7 +18829,16 @@
           "unmarkReplied": "Unmark as replied",
           "check24Hint": "Check24 does not publish hotel replies, so this review can't be answered. It still counts in ratings and topics.",
           "googleManualHint": "Google Business Profile API is not connected: copy the draft, reply on Google (in the hotel profile, signed in as owner) and mark it as replied. Once the reply shows on Google, the mark updates on the next sync.",
-          "hcManualHint": "HolidayCheck reply API is not configured: copy the draft, post it in HolidayCheck Business Center and mark it as replied."
+          "hcManualHint": "HolidayCheck reply API is not configured: copy the draft, post it in HolidayCheck Business Center and mark it as replied.",
+          "noAgent": "AI drafts are prepared by the AI Reviews Manager. It isn’t hired or is paused — you can still write the reply yourself.",
+          "hireAgent": "Open AI employees",
+          "aiDraftBy": "Draft by {{name}}",
+          "draftingBy": "{{name}} is drafting…",
+          "draftPreparedBy": "Draft prepared by {{name}} — review it and send it yourself",
+          "rewriteBy": "Ask {{name}} to rewrite",
+          "translate": "Translate",
+          "translating": "Translating…",
+          "translateHint": "Translate this review into the working language. The translation is saved — no tokens are spent again."
         },
         "dash": {
           "title": "Reputation dashboard",
@@ -18977,7 +19098,7 @@
         },
         "ai": {
           "translateTitle": "Translation language",
-          "translateSub": "Reviews in German, Turkish, English etc. are translated for the card; topics are analysed in the original language but stored in one language.",
+          "translateSub": "Reviews are not translated automatically — only with the “Translate” button in the review card (the translation is saved). Topics are analysed in the original language.",
           "lang": {
             "ru": "Русский",
             "en": "English"
@@ -18993,11 +19114,11 @@
           "monthly": "Monthly brand report",
           "monthlySub": "On the 1st to brand marketing emails: rating trend, top 5 complaints, changes, hotels that dropped",
           "status": {
-            "failedTitle": "AI couldn't analyse {{n}} reviews: topics, translations and sentiment are empty for now.",
+            "failedTitle": "AI couldn’t analyse reviews ({{n}}): topics and sentiment are empty for now.",
             "noCredits": "The platform OpenAI key is out of credits. Connect your own OpenAI or Anthropic key — analysis resumes automatically within 30 minutes.",
             "error": "Error: {{e}}",
             "connectKey": "Integrations → OpenAI / LLM",
-            "pending": "AI is analysing reviews: {{n}} left. Topics and translations will appear within minutes."
+            "pending": "AI is analysing reviews: {{n}} left. Topics will appear within a few minutes."
           }
         },
         "log": {
@@ -19064,6 +19185,32 @@
           "purge": "Delete them",
           "purgeConfirm": "Delete {{n}} reviews older than {{d}} from CRM together with topics, replies and edit history? This can't be undone (only by collecting them again).",
           "purged": "Reviews deleted: {{n}}"
+        },
+        "hotelTab": {
+          "emptyTitle": "Reviews for this hotel aren’t collected yet",
+          "emptyText": "Link the hotel to platforms in review settings — collection starts automatically.",
+          "reviews90": "Reviews in 90 days",
+          "platformsSub": "On platform — the platform’s own counter and rating; in CRM — reviews collected",
+          "openFeed": "Review feed",
+          "n90": "Last 90 days",
+          "last90": "Last 90 days",
+          "latest": "Latest reviews",
+          "lineHint": "Hotel reviews for 90 days — open the feed",
+          "lineReviews": "{{n}} reviews in 90 d",
+          "lineOpen": "{{n}} unanswered negative"
+        },
+        "agentStrip": {
+          "none": "No AI Reviews Manager hired: it sends a morning digest, reminds about unanswered reviews, prepares reply drafts and weekly recommendations.",
+          "paused": "{{name}} (AI Reviews Manager) is paused — no digests, reminders or drafts.",
+          "active": "{{name}}: digest at {{time}}, reminder after {{h1}} h, task after {{h2}} h, drafts — {{drafts}}. You send the replies.",
+          "drafts": {
+            "off": "off",
+            "negative": "for negatives",
+            "all": "for all new"
+          },
+          "hire": "Hire",
+          "enable": "Enable",
+          "settings": "Settings"
         }
       }
     },

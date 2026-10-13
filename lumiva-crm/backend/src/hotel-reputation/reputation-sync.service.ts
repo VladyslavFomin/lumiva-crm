@@ -16,6 +16,7 @@ import { GoogleBusinessService } from './google-business.service';
 import { ApifyService } from './apify.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
+import { ReputationEventsService } from './reputation-events.service';
 
 type IngestResult = { fetched: number; created: number; updated: number; createdIds: string[] };
 
@@ -45,6 +46,7 @@ export class ReputationSyncService {
     private readonly apify: ApifyService,
     private readonly ai: ReputationAiService,
     private readonly alerts: ReputationAlertsService,
+    private readonly events: ReputationEventsService,
   ) {}
 
   // ---------------------------------------------------------------- запись
@@ -133,6 +135,7 @@ export class ReputationSyncService {
         await this.versions.insert({ reviewId: ex.id, rating10: ex.rating10, ratingRaw: ex.ratingRaw, text: ex.textOriginal } as any);
         if (ratingChanged && oldRating != null && rating10! < oldRating) {
           await this.alerts.ratingLowered(ex, oldRating, rating10!, cfg).catch((e) => this.log.warn(`alert rating_lowered: ${e?.message}`));
+          void this.events.ratingLowered(ex, oldRating, rating10!);
         }
         changed = true;
       }
@@ -151,6 +154,7 @@ export class ReputationSyncService {
           await this.replies.insert({
             tenantId: ex.tenantId, reviewId: ex.id, text: it.reply.text, source: 'platform', status: 'published', postedAt: it.reply.at || new Date(),
           } as any);
+          if (!wasReplied) void this.events.replied(ex, it.reply.text, 'platform');
         }
         changed = true;
       }
@@ -187,6 +191,8 @@ export class ReputationSyncService {
       (r) => r.rating10 != null && Number(r.rating10) < cfg.thresholds.negativeBelow && r.publishedAt && Date.now() - r.publishedAt.getTime() < NEGATIVE_ALERT_MAX_AGE_DAYS * DAY,
     );
     for (const r of fresh) await this.alerts.negative(r, cfg).catch((e) => this.log.warn(`alert negative: ${e?.message}`));
+    // автоматизации и ИИ-сотрудники: только по свежим отзывам (не по загрузке истории)
+    for (const r of rows) await this.events.reviewCreated(r, cfg.thresholds.negativeBelow);
     // разбор — небольшими порциями здесь, остальное подберёт фоновая очередь
     for (const r of rows.slice(0, 30)) await this.ai.analyze(r, cfg);
   }
@@ -596,6 +602,8 @@ export class ReputationSyncService {
           .createQueryBuilder('r')
           .where('r.tenantId = :tenantId AND r.analyzedAt IS NULL AND r.status <> :d', { tenantId, d: 'deleted' })
           .andWhere('(r.analysisError IS NULL OR r.updatedAt < :retry)', { retry: new Date(Date.now() - RETRY_AI_MS) })
+          // отзывы старше «Отзывы с даты» не разбираем — это токены впустую
+          .andWhere('r.publishedAt >= :floor', { floor: new Date(historyFloor(cfg)) })
           .orderBy('r.publishedAt', 'DESC')
           .take(batch)
           .getMany();

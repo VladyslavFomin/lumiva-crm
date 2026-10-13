@@ -31,6 +31,7 @@ import {
 import { InsightsView, KnowledgeView } from './AiKnowledgeInsightsViews';
 import { AiAgentWorkPanel } from './AiAgentWorkPanel';
 import { AiAnalystReportPanel } from './AiAnalystReportPanel';
+import { AiReviewsWorkPanel } from './AiReviewsWorkPanel';
 import { AiChatOperatorPanel } from './AiChatOperatorPanel';
 import { AiMessengerOperatorPanel } from './AiMessengerOperatorPanel';
 import {
@@ -104,6 +105,7 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
       'read_notes',
       'read_reports',
       'read_products',
+      'read_reviews',
     ],
   },
   {
@@ -2593,7 +2595,7 @@ export function AiEmployeeProfilePage() {
   const [openaiConnectionId, setOpenaiConnectionId] = useState('');
   const [allConnections, setAllConnections] = useState<IntegrationConnectionDto[]>([]);
   const [assignments, setAssignments] = useState<AiAgentAssignmentItem[]>([]);
-  const [tab, setTab] = useState<'overview' | 'chat' | 'access' | 'work' | 'journal'>('overview');
+  const [tab, setTab] = useState<'overview' | 'chat' | 'reviews' | 'access' | 'work' | 'journal'>('overview');
   const [journalFilter, setJournalFilter] = useState<'all' | 'appr' | 'log' | 'rep' | 'err'>('all');
   const [accessOpen, setAccessOpen] = useState(true);
   const [cfg, setCfg] = useState<AiAgentConfig | null>(null);
@@ -2705,6 +2707,8 @@ export function AiEmployeeProfilePage() {
           : agent.role === 'messenger_operator'
             ? [{ key: 'chat' as const, label: t('crm.aiEmployees.messengerOperator.tab'), icon: ICON.chat, badge: 0 }]
             : []),
+        // менеджер отзывов: сводка, напоминания, черновики, инсайты по отзывам отелей
+        ...(agent.role === 'reviews_manager' ? [{ key: 'reviews' as const, label: t('crm.aiEmployees.reviewsWork.tab'), icon: ICON.chat, badge: 0 }] : []),
         {
           key: 'access' as const,
           // у аналитика вместо «Доступов» — настройка отчёта (какие данные и когда)
@@ -2955,6 +2959,7 @@ export function AiEmployeeProfilePage() {
               />
             ) : null}
             {tab === 'access' && detail?.role?.reportOnly && agent ? <AiAnalystReportPanel agentId={agent.id} /> : null}
+            {tab === 'reviews' && agent ? <AiReviewsWorkPanel agentStatus={agent.status} /> : null}
             {tab === 'access' && !detail?.role?.reportOnly ? (
               <>
                 <div className="e2-grid2">

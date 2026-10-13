@@ -110,6 +110,18 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
       ],
     },
     {
+      group: t('crm.automations.form.library.groups.reviews'),
+      items: [
+        { id: 'review.created', label: getTriggerLabel('review.created', t), icon: 'bell' },
+        { id: 'review.negative', label: getTriggerLabel('review.negative', t), icon: 'bell' },
+        { id: 'review.no_reply', label: getTriggerLabel('review.no_reply', t), icon: 'bell' },
+        { id: 'review.rating_lowered', label: getTriggerLabel('review.rating_lowered', t), icon: 'bell' },
+        { id: 'review.replied', label: getTriggerLabel('review.replied', t), icon: 'user' },
+        { id: 'review.topic_spike', label: getTriggerLabel('review.topic_spike', t), icon: 'bell' },
+        { id: 'review.rating_drop', label: getTriggerLabel('review.rating_drop', t), icon: 'sale' },
+      ],
+    },
+    {
       group: t('crm.automations.form.library.groups.products'),
       items: [
         { id: 'product.price_changed', label: getTriggerLabel('product.price_changed', t), icon: 'sale' },

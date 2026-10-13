@@ -1746,6 +1746,68 @@ export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
       },
     },
   },
+  // ---- Отзывы отелей (Отели → Отзывы): 8 площадок, оценки 0–10, темы ИИ. Отвечает на отзывы всегда человек. ----
+  {
+    type: 'function',
+    function: {
+      name: 'crm_reviews_overview',
+      description:
+        'Репутация отелей по отзывам гостей (Google, Booking.com, Tripadvisor, HolidayCheck, Яндекс, Expedia, Check24, Otelpuan): средняя оценка 0–10, индекс, доля негатива, response rate, разрез по отелям и площадкам, топ жалоб и похвал с цитатами. Для вопросов «как у нас с отзывами», «на что жалуются», «какой рейтинг у отеля».',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: { type: 'number', description: 'Период: последние N дней (по умолчанию 30)' },
+          from: { type: 'string', description: 'YYYY-MM-DD (вместо days)' },
+          to: { type: 'string', description: 'YYYY-MM-DD' },
+          hotel: { type: 'string', description: 'Название или id отеля' },
+          brand: { type: 'string', description: 'Название или id бренда' },
+          platform: { type: 'string', enum: ['google', 'booking', 'tripadvisor', 'holidaycheck', 'yandex', 'expedia', 'check24', 'otelpuan'] },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_reviews_list',
+      description: 'Список отзывов гостей с фильтрами (отель, площадка, без ответа, тональность, оценка, тема, период). Возвращает id, оценку, автора, начало текста и перевод.',
+      parameters: {
+        type: 'object',
+        properties: {
+          hotel: { type: 'string' },
+          brand: { type: 'string' },
+          platform: { type: 'string' },
+          reply: { type: 'string', enum: ['none', 'replied'], description: 'none — без ответа' },
+          sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] },
+          ratingMax: { type: 'number', description: 'Оценка 0–10 не выше' },
+          ratingMin: { type: 'number' },
+          topic: { type: 'string', description: 'Ключ темы: cleanliness, room, noise, breakfast, food, staff, reception, pool, beach, wifi, value, transfer, …' },
+          days: { type: 'number', description: 'За последние N дней' },
+          limit: { type: 'number', description: 'До 20' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_reviews_get',
+      description: 'Полная карточка отзыва: оригинал и перевод, оценки по категориям, темы с цитатами, история правок, ответы отеля, черновик.',
+      parameters: { type: 'object', properties: { reviewId: { type: 'string' } }, required: ['reviewId'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_reviews_draft_reply',
+      description: 'Подготовить черновик ответа на отзыв на языке гостя и сохранить его в карточке. Сам ответ на площадке отправляет человек — эта функция ничего не публикует.',
+      parameters: {
+        type: 'object',
+        properties: { reviewId: { type: 'string' }, tone: { type: 'string', description: 'Например: короче, теплее, официальнее' } },
+        required: ['reviewId'],
+      },
+    },
+  },
 ];
 
 /**

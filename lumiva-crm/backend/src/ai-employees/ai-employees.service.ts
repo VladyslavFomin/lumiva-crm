@@ -208,6 +208,14 @@ type ActionDraft = {
   payload?: Record<string, unknown> | null;
 };
 
+/** Хуки модуля для ИИ-сотрудников: свои действия (тип → ключ права в ACTION_PERMISSION) и блок снапшота. */
+export type ModuleAgentHooks = {
+  key: string;
+  actions: string[];
+  dispatch(tenantId: string, action: AiAgentAction): Promise<void>;
+  snapshot?(tenantId: string, permissions: Record<string, boolean>): Promise<Record<string, unknown> | null>;
+};
+
 const ACTION_PERMISSION: Record<string, string> = {
   create_task: 'create_task',
   update_task: 'update_task',
@@ -397,6 +405,32 @@ export class AiEmployeesService {
     private readonly integrationsService: IntegrationsService,
     private readonly tenantLogs: TenantLogsService,
   ) {}
+
+  // ───────────── хуки модулей (отзывы отелей и т.п.) ─────────────
+
+  private moduleHooks: ModuleAgentHooks[] = [];
+
+  /** Модуль (например hotel-reputation) регистрирует исполнение своих действий и блок снапшота — без импорта модуля отсюда. */
+  registerModuleHooks(hooks: ModuleAgentHooks): void {
+    this.moduleHooks = [...this.moduleHooks.filter((h) => h.key !== hooks.key), hooks];
+  }
+
+  private async moduleSnapshotBlocks(tenantId: string, permissions: Record<string, boolean>): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (const h of this.moduleHooks) {
+      if (!h.snapshot) continue;
+      try {
+        Object.assign(out, (await h.snapshot(tenantId, permissions)) || {});
+      } catch (e) {
+        this.log.warn(`AI snapshot module block "${h.key}" failed: ${(e as Error).message}`);
+      }
+    }
+    return out;
+  }
+
+  private moduleHookFor(actionType: string): ModuleAgentHooks | null {
+    return this.moduleHooks.find((h) => h.actions.includes(actionType)) ?? null;
+  }
 
   // ───────────── ИИ-офис (см. ai-office/ai-office-bridge.ts) ─────────────
 
@@ -2913,6 +2947,8 @@ export class AiEmployeesService {
       // только у ИИ SEO-менеджера: последние SEO-отчёты по сайтам (см. seoPromise)
       ...(seoBlock ? { seo: seoBlock } : {}),
       ...(reviewsBlock ? { reviews: reviewsBlock } : {}),
+      // блоки модулей по правам сотрудника (например hotelReputation при read_reviews)
+      ...(await this.moduleSnapshotBlocks(tenantId, permissions)),
       ...(onlineChatBlock ? { onlineChat: onlineChatBlock } : {}),
       assignedTasks: assignedTasks.map((task) => ({
         id: task.id,
@@ -6751,6 +6787,11 @@ ${JSON.stringify(snapshot).slice(0, SNAPSHOT_PROMPT_LIMIT)}`,
     }
     if (action.actionType === 'handoff_to_colleague') {
       await this.dispatchHandoff(tenantId, action, p);
+      return;
+    }
+    const moduleHook = this.moduleHookFor(action.actionType);
+    if (moduleHook) {
+      await moduleHook.dispatch(tenantId, action);
       return;
     }
 

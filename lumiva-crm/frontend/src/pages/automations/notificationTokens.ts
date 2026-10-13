@@ -28,6 +28,36 @@ const HOTEL_TOKENS: NotificationToken[] = [
   { token: 'status', labelKey: 'tokenStatus' },
 ];
 
+/** Отзывы отелей (hotel-reputation/reputation-events.service.ts → tokens). */
+const REVIEW_TOKENS: NotificationToken[] = [
+  { token: 'hotel_name', labelKey: 'tokenHotelName' },
+  { token: 'brand_name', labelKey: 'tokenBrandName' },
+  { token: 'platform_label', labelKey: 'tokenPlatform' },
+  { token: 'rating_text', labelKey: 'tokenRating' },
+  { token: 'rating10', labelKey: 'tokenRating10' },
+  { token: 'author', labelKey: 'tokenAuthor' },
+  { token: 'text', labelKey: 'tokenReviewText' },
+  { token: 'text_translated', labelKey: 'tokenReviewTranslation' },
+  { token: 'complaints', labelKey: 'tokenComplaints' },
+  { token: 'topics', labelKey: 'tokenTopics' },
+  { token: 'published_at', labelKey: 'tokenDate' },
+  { token: 'review_url', labelKey: 'tokenReviewUrl' },
+  { token: 'crm_url', labelKey: 'tokenCrmUrl' },
+];
+const REVIEW_SPIKE_TOKENS: NotificationToken[] = [
+  { token: 'hotel_name', labelKey: 'tokenHotelName' },
+  { token: 'topic_label', labelKey: 'tokenTopic' },
+  { token: 'count', labelKey: 'tokenCount' },
+  { token: 'days', labelKey: 'tokenDays' },
+  { token: 'quotes', labelKey: 'tokenQuotes' },
+];
+const REVIEW_DROP_TOKENS: NotificationToken[] = [
+  { token: 'hotel_name', labelKey: 'tokenHotelName' },
+  { token: 'avg_now', labelKey: 'tokenAvgNow' },
+  { token: 'avg_prev', labelKey: 'tokenAvgPrev' },
+  { token: 'drop', labelKey: 'tokenDrop' },
+];
+
 /** Триггеры, для которых бэкенд кладёт плоские токены ({{client_name}}, ...) в triggerData автоматизации. */
 const TOKENS_BY_TRIGGER: Partial<Record<TriggerEvent, NotificationToken[]>> = {
   'booking.reservation_created': BOOKING_TOKENS,
@@ -36,6 +66,13 @@ const TOKENS_BY_TRIGGER: Partial<Record<TriggerEvent, NotificationToken[]>> = {
   'hotel.reservation_created': HOTEL_TOKENS,
   'hotel.reservation_status_changed': HOTEL_TOKENS,
   'hotel.price_changed': HOTEL_TOKENS,
+  'review.created': REVIEW_TOKENS,
+  'review.negative': REVIEW_TOKENS,
+  'review.no_reply': [...REVIEW_TOKENS, { token: 'hours_without_reply', labelKey: 'tokenHoursWithoutReply' }],
+  'review.rating_lowered': [...REVIEW_TOKENS, { token: 'old_rating10', labelKey: 'tokenOldRating' }, { token: 'new_rating10', labelKey: 'tokenNewRating' }],
+  'review.replied': [...REVIEW_TOKENS, { token: 'reply_text', labelKey: 'tokenReplyText' }],
+  'review.topic_spike': REVIEW_SPIKE_TOKENS,
+  'review.rating_drop': REVIEW_DROP_TOKENS,
 };
 
 export function getNotificationTokens(triggerEvent: TriggerEvent): NotificationToken[] {

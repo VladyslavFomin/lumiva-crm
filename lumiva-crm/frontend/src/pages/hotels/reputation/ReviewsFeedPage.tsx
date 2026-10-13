@@ -15,7 +15,7 @@ import {
   type RepFeedQuery,
   type RepSetup,
 } from '../../../api/hotelReputation';
-import { AiStatusBanner, ApifyPauseBanner, PLATFORM_META, PlatformBadge, ReputationTabs, Score, TOPIC_KEYS, fmtDate, topicLabel, useRepT } from './ReputationShared';
+import { AiStatusBanner, ApifyPauseBanner, ReviewsAgentStrip, PLATFORM_META, PlatformBadge, ReputationTabs, Score, TOPIC_KEYS, fmtDate, topicLabel, useRepT } from './ReputationShared';
 import { ReviewCardDrawer } from './ReviewCardDrawer';
 import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../../components/ui/DateRangePicker';
 import '../hotels-design.css';
@@ -208,6 +208,7 @@ export const ReviewsFeedPage: React.FC = () => {
               )}
             </div>
 
+            <ReviewsAgentStrip />
             <ApifyPauseBanner pause={apifyPause} />
             <AiStatusBanner status={feed?.ai} />
             <div data-tour="rv-quick" className="rp-chipbar">
@@ -267,6 +268,7 @@ export const ReviewsFeedPage: React.FC = () => {
                     ) : (
                       <span className="rp-pill noreply">{r('reply.none')}</span>
                     )}
+                    {x.draftReady && <span className="rp-pill draft" title={x.draftByAgent ? r('feed.draftByAgentHint') : ''}>✎ {r('feed.draftReady')}</span>}
                   </div>
                 </div>
               ))}

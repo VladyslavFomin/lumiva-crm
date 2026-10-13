@@ -110,6 +110,7 @@ const ALL_READS = [
   'read_messages',
   'read_notes',
   'read_reports',
+  'read_reviews',
 ];
 
 /** Есть у всех ролей: позвать человека — это подстраховка, а не рычаг влияния, отключать незачем. */
@@ -160,6 +161,9 @@ export const AI_EMPLOYEE_PERMISSION_KEYS = [
   // (выключено — ответ пишется черновиком-заметкой для оператора) и брать цены из каталога «Продукты».
   'reply_online_chat',
   'read_products',
+  // Отзывы отелей (hotel-reputation): read_reviews открывает блок snapshot.hotelReputation.
+  // Отвечать на отзывы ИИ не может по решению владельца — только готовит черновик, отвечает человек.
+  'read_reviews',
 ] as const;
 
 /** Action types where the system can perform real execution (not just "mark done"). */
@@ -552,14 +556,22 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
     minPlan: 'professional',
     accent: '#7c2d12',
     description:
-      'Watches your Google reviews, drafts replies in the reviewer’s language (RU/TR/EN and more) and alerts you about negative reviews right away.',
-    functions: ['Google review monitoring', 'Reply drafts in RU/TR/EN', 'Negative review alerts', 'Review topics and trends', 'Tasks for bad reviews'],
-    defaultPermissions: ['read_reports', 'create_task', 'create_report', 'escalate_to_human'],
+      'Watches your reviews on Google, Booking.com, Tripadvisor, HolidayCheck, Yandex, Expedia, Check24 and Otelpuan: daily digest, reminders about unanswered reviews, ready reply drafts in the guest’s language (your team sends them), weekly insights on what guests complain about, and tasks for the hotel team.',
+    functions: [
+      'Daily reputation digest',
+      'Reminders about unanswered reviews',
+      'Reply drafts in the guest’s language',
+      'Weekly complaint insights and recommendations',
+      'Tasks for the hotel team',
+    ],
+    defaultPermissions: ['read_reviews', 'read_reports', 'read_tasks', 'create_task', 'create_report', 'escalate_to_human'],
     defaultTriggers: [],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     assignableEntityTypes: [],
     systemPrompt:
-      'You are an AI Reviews Manager inside Lumiva CRM. snapshot.reviews holds the monitored Google places with rating, recent reviews, sentiment and open negatives — base answers on it. Replies to reviews must be polite, specific to what the guest wrote, in the reviewer’s language, never argue or disclose private data, and invite unhappy guests to contact the business directly.',
+      'You are an AI Reviews Manager inside Lumiva CRM. snapshot.hotelReputation holds guest reviews of the company’s hotels from 8 platforms (rating on a 0–10 scale, per-hotel/per-platform numbers for the last 7 and 30 days, unanswered negative reviews with ids and excerpts, complaint topics with quotes and their trend, collection problems); snapshot.reviews holds monitored Google places from Marketing → Reviews. Base every answer on these numbers and say when data is missing. ' +
+      'Replies to reviews must be polite, specific to what the guest wrote, in the guest’s language, never argue or disclose private data, and invite unhappy guests to contact the hotel directly. You NEVER publish replies yourself (owner rule): you prepare reply drafts, and a human always reviews and sends them; when a review needs attention, create a task for the hotel team with the draft and the link. ' +
+      'Recommendations must point to concrete operational causes from quotes (e.g. housekeeping in a block, breakfast queue times) and name the department that should act.',
   },
   {
     // Отвечает посетителям в онлайн-чате сайта (виджет lumiva-chat.js / WP-плагин) — по брифу владельца
@@ -818,10 +830,10 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
     },
   },
   reviews_manager: {
-    allowedPermissions: ['read_reports', 'read_projects', 'read_tasks', 'create_task', 'update_task', 'create_report', 'escalate_to_human'],
-    allowedTriggers: ['ai.assigned'],
+    allowedPermissions: ['read_reviews', 'read_reports', 'read_projects', 'read_tasks', 'create_task', 'update_task', 'create_report', 'escalate_to_human'],
+    allowedTriggers: ['ai.assigned', 'review.created', 'review.negative', 'review.no_reply', 'review.rating_lowered', 'review.topic_spike', 'review.rating_drop'],
     charter: {
-      does: 'public reviews about the business (Google): monitoring, reply drafts in the reviewer’s language, negative review alerts, review topics and trends',
+      does: 'public guest reviews about the hotels/business on Google, Booking.com, Tripadvisor, HolidayCheck, Yandex, Expedia, Check24, Otelpuan: monitoring, daily digest, reminders about unanswered reviews, reply drafts (a human always sends the reply), complaint topics, trends and recommendations, tasks for the hotel team',
       doesNot: 'leads and sales (Lead/Sales Manager), support tickets (Support), marketing campaigns (Marketing), SEO (SEO Manager), bookings (Reservation Assistant)',
     },
   },
@@ -938,4 +950,7 @@ export const EVENT_OWNER_ROLE: Record<string, AiEmployeeRoleKey> = {
   'telegram.message_received': 'support_manager',
   'whatsapp.message_received': 'messenger_operator',
   'online_chat.message_received': 'chat_operator',
+  'review.negative': 'reviews_manager',
+  'review.no_reply': 'reviews_manager',
+  'review.topic_spike': 'reviews_manager',
 };

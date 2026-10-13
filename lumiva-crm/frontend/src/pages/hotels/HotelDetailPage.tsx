@@ -60,6 +60,7 @@ import {
   type HotelRoomUnit,
   type HotelRoomUnitHousekeepingStatus,
 } from '../../api/hotels';
+import { HotelReviewsTab } from './reputation/HotelReviewsTab';
 import './hotels-design.css';
 
 /** Сумма в валюте отеля (символ/позиция по локали браузера); при неизвестном коде — число + код. */
@@ -72,7 +73,7 @@ function formatHotelMoney(v: number, currency: string | undefined) {
   }
 }
 
-type Tab = 'rooms' | 'calendar' | 'markets' | 'info' | 'gallery' | 'settings';
+type Tab = 'rooms' | 'calendar' | 'markets' | 'info' | 'gallery' | 'reviews' | 'settings';
 
 function pctDiff(base: number, val: number) {
   if (!base) return 0;
@@ -1525,6 +1526,7 @@ export const HotelDetailPage: React.FC = () => {
           <div className={`htl-detail-tab${tab === 'markets' ? ' active' : ''}`} onClick={() => setTab('markets')}>{t('crm.hotels.detail.tabs.markets')}</div>
           <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>{t('crm.hotels.detail.tabs.info')}</div>
           <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>{t('crm.hotels.detail.tabs.gallery')}</div>
+          <div className={`htl-detail-tab${tab === 'reviews' ? ' active' : ''}`} onClick={() => setTab('reviews')}>{t('crm.hotels.detail.tabs.reviews')}</div>
           <div className={`htl-detail-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>{t('crm.hotels.detail.tabs.settings')}</div>
         </div>
 
@@ -1533,6 +1535,7 @@ export const HotelDetailPage: React.FC = () => {
         {tab === 'markets' && <MarketsTab hotelId={hotel.id} roomTypes={roomTypes} />}
         {tab === 'info' && <HotelInfoTab hotel={hotel} onSaved={load} />}
         {tab === 'gallery' && <HotelGalleryTab hotelId={hotel.id} />}
+        {tab === 'reviews' && <HotelReviewsTab hotelId={hotel.id} />}
         {tab === 'settings' && <SettingsTab hotel={hotel} onSaved={load} />}
       </div>
     </MainLayout>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import { Ic, HTL_ICON } from '../HotelIcons';
 import {
@@ -6,6 +7,7 @@ import {
   fetchRepReview,
   markRepReplied,
   reanalyzeRepReview,
+  translateRepReview,
   retryRepReply,
   sendRepReply,
   type RepReviewCard,
@@ -67,6 +69,7 @@ export const ReviewCardDrawer: React.FC<{
       const d = await draftRepReply(id, tone);
       setDraft(d.aiDraft);
       setReplyOpen(true);
+      setCard(await fetchRepReview(id));
     });
 
   const send = () =>
@@ -158,6 +161,17 @@ export const ReviewCardDrawer: React.FC<{
                 {viewUrl && (
                   <a className="btn btn-sm" href={viewUrl} target="_blank" rel="noopener noreferrer">{r('card.viewOnPlatform')} ↗</a>
                 )}
+                {!hasTranslation && c.text && (!c.lang || !c.translateTo || c.lang !== c.translateTo) && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy === 'translate'}
+                    title={r('card.translateHint')}
+                    onClick={() => run('translate', async () => { setCard(await translateRepReview(id)); setShowOriginal(false); })}
+                  >
+                    {busy === 'translate' ? r('card.translating') : r('card.translate')}
+                  </button>
+                )}
                 {canWrite && c.text && (
                   <button type="button" className="btn btn-sm" disabled={busy === 'reanalyze'} onClick={() => run('reanalyze', async () => setCard(await reanalyzeRepReview(id)))}>
                     {busy === 'reanalyze' ? r('card.analyzing') : r('card.reanalyze')}
@@ -246,26 +260,39 @@ export const ReviewCardDrawer: React.FC<{
             {c.replyMode !== 'none' && canWrite && c.status !== 'deleted' && (
               <div className="rp-card-sec rp-reply-box">
                 <h4>{c.hasReply ? r('card.replyAgain') : r('card.reply')}</h4>
+                {!c.reviewsAgent && (
+                  <div className="rp-note" style={{ marginBottom: 10 }}>
+                    {r('card.noAgent')} <Link to="/ai-employees">{r('card.hireAgent')}</Link>
+                  </div>
+                )}
                 {!replyOpen && !draft ? (
                   <div className="rp-reply-actions" style={{ marginTop: 0 }}>
-                    <button type="button" className="btn btn-primary" disabled={busy === 'draft'} onClick={() => genDraft()}>
-                      {busy === 'draft' ? r('card.drafting') : r('card.aiDraft')}
+                    <button type="button" className="btn btn-primary" disabled={busy === 'draft' || !c.reviewsAgent} onClick={() => genDraft()}>
+                      {busy === 'draft' ? r('card.draftingBy', { name: c.reviewsAgent?.name || '' }) : c.reviewsAgent ? r('card.aiDraftBy', { name: c.reviewsAgent.name }) : r('card.aiDraft')}
                     </button>
                     <button type="button" className="btn" onClick={() => setReplyOpen(true)}>{r('card.writeManually')}</button>
                   </div>
                 ) : (
                   <>
-                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={r('card.replyPlaceholder')} />
-                    <div className="rp-reply-actions">
-                      <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{r('card.rewrite')}:</span>
-                      <div className="rp-tone">
-                        {TONES.map((tone) => (
-                          <button key={tone} type="button" className="btn btn-sm" disabled={!!busy} onClick={() => genDraft(r(`tone.${tone}.prompt`))}>
-                            {r(`tone.${tone}.label`)}
-                          </button>
-                        ))}
+                    {c.aiDraftBy && draft === (c.aiDraft || '') && (
+                      <div className="rp-draft-by">
+                        <span className="av">{c.aiDraftBy.avatarUrl ? <img src={c.aiDraftBy.avatarUrl} alt="" /> : c.aiDraftBy.name.slice(0, 1)}</span>
+                        {r('card.draftPreparedBy', { name: c.aiDraftBy.name })}
                       </div>
-                    </div>
+                    )}
+                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={r('card.replyPlaceholder')} />
+                    {c.reviewsAgent && (
+                      <div className="rp-reply-actions">
+                        <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{r('card.rewriteBy', { name: c.reviewsAgent.name })}:</span>
+                        <div className="rp-tone">
+                          {TONES.map((tone) => (
+                            <button key={tone} type="button" className="btn btn-sm" disabled={!!busy} onClick={() => genDraft(r(`tone.${tone}.prompt`))}>
+                              {r(`tone.${tone}.label`)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {mode === 'api' ? (
                       <div className="rp-reply-actions">
                         <button type="button" className="btn btn-primary" disabled={!draft.trim() || busy === 'send'} onClick={send}>

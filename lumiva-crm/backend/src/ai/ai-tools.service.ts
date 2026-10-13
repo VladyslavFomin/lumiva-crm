@@ -2047,6 +2047,35 @@ export class AiToolsService {
           return JSON.stringify(await this.toolBookingAnalytics(ctx.tenantId, args));
         }
 
+        // ---- Отзывы отелей (Отели → Отзывы) ----
+        case 'crm_reviews_overview': {
+          const g = await gate('hotels'); if (g) return g;
+          return JSON.stringify(await this.toolReviewsOverview(ctx.tenantId, args));
+        }
+        case 'crm_reviews_list': {
+          const g = await gate('hotels'); if (g) return g;
+          return JSON.stringify(await this.toolReviewsList(ctx.tenantId, args));
+        }
+        case 'crm_reviews_get': {
+          const g = await gate('hotels'); if (g) return g;
+          const { reviews } = await this.reputationServices();
+          const c: any = await reviews.card(ctx.tenantId, String(args.reviewId || ''));
+          return JSON.stringify({
+            id: c.id, hotel: c.hotel?.name, platform: c.platform, rating10: c.rating10, ratingRaw: c.ratingRaw, ratingScale: c.ratingScale,
+            author: c.author, lang: c.lang, publishedAt: c.publishedAt, status: c.status, title: c.title, text: c.text, translation: c.textTranslated,
+            subRatings: c.subRatings, topics: c.topics, versions: c.versions, replies: c.replies.map((r: any) => ({ source: r.source, status: r.status, text: r.text, at: r.postedAt })),
+            hasReply: c.hasReply, replyMode: c.replyMode, draft: c.aiDraft, url: c.reviewUrl || c.sourceUrl, crmLink: `/hotels/reviews?review=${c.id}`,
+          });
+        }
+        case 'crm_reviews_draft_reply': {
+          const g = await gate('hotels'); if (g) return g;
+          // черновик готовит только ИИ-менеджер отзывов (журнал сотрудника, пометка в карточке); без него — нельзя
+          const { ReputationAgentService } = await import('../hotel-reputation/reputation-agent.service.js');
+          const agentSvc = this.moduleRef.get(ReputationAgentService, { strict: false });
+          const d = await agentSvc.draftReview(ctx.tenantId, String(args.reviewId || ''), args.tone ? String(args.tone) : undefined, 'chat');
+          return JSON.stringify({ ok: true, draft: d.aiDraft, preparedBy: d.agentName, note: 'Черновик сохранён в карточке отзыва. Отправляет ответ человек: /hotels/reviews?review=' + String(args.reviewId || '') });
+        }
+
         // ---- Система резервации / Отели ----
         case 'crm_hotel_list': {
           const g = await gate('hotels'); if (g) return g;
@@ -7092,6 +7121,83 @@ ${JSON.stringify(snapshot).slice(0, 24000)}`,
       failed,
       total: recipients.length,
       ...(errors.length ? { sampleErrors: errors } : {}),
+    };
+  }
+
+  // ───────────── Отзывы отелей (hotel-reputation) для чата ─────────────
+
+  private async reputationServices() {
+    const [{ ReputationAnalyticsService }, { ReputationReviewsService }] = await Promise.all([
+      import('../hotel-reputation/reputation-analytics.service.js'),
+      import('../hotel-reputation/reputation-reviews.service.js'),
+    ]);
+    return {
+      analytics: this.moduleRef.get(ReputationAnalyticsService, { strict: false }),
+      reviews: this.moduleRef.get(ReputationReviewsService, { strict: false }),
+    };
+  }
+
+  /** Название/id отеля и бренда → id (поиск без учёта регистра по части названия). */
+  private async resolveReviewScope(tenantId: string, args: Record<string, any>) {
+    const uuid = /^[0-9a-f-]{36}$/i;
+    const { DataSource } = await import('typeorm');
+    const ds = this.moduleRef.get(DataSource, { strict: false });
+    const q = (sql: string, p: unknown[]) => ds.query(sql, p);
+    let hotelId: string | undefined;
+    let brandId: string | undefined;
+    if (args.hotel) {
+      const v = String(args.hotel).trim();
+      hotelId = uuid.test(v) ? v : (await q(`SELECT id FROM hotels WHERE "tenantId" = $1 AND name ILIKE $2 ORDER BY length(name) LIMIT 1`, [tenantId, `%${v}%`]))[0]?.id;
+      if (!hotelId) return { error: `hotel_not_found: ${v}` };
+    }
+    if (args.brand) {
+      const v = String(args.brand).trim();
+      brandId = uuid.test(v) ? v : (await q(`SELECT id FROM hotel_brands WHERE "tenantId" = $1 AND name ILIKE $2 ORDER BY length(name) LIMIT 1`, [tenantId, `%${v}%`]))[0]?.id;
+      if (!brandId) return { error: `brand_not_found: ${v}` };
+    }
+    return { hotelId, brandId };
+  }
+
+  private async toolReviewsOverview(tenantId: string, args: Record<string, any>) {
+    const sc: any = await this.resolveReviewScope(tenantId, args);
+    if (sc.error) return { ok: false, error: sc.error };
+    const days = Math.min(730, Math.max(1, Number(args.days) || 30));
+    const from = args.from ? String(args.from) : new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
+    const { analytics } = await this.reputationServices();
+    const d: any = await analytics.dashboard(tenantId, { hotelId: sc.hotelId, brandId: sc.brandId, platform: args.platform || undefined, from, to: args.to || undefined });
+    return {
+      ok: true,
+      period: d.period,
+      scale: '0–10 for all platforms',
+      kpis: d.kpis,
+      byHotel: d.byHotel.slice(0, 20).map((h: any) => ({ hotel: h.name, brand: h.brand, reviews: h.count, avg10: h.avg10, change: h.delta, index: h.reputationIndex, negativePct: h.negativeShare, responseRatePct: h.responseRate, unansweredNegative: h.openNegative, topComplaint: h.topComplaint?.label })),
+      byPlatform: d.byPlatform,
+      complaints: d.complaints.slice(0, 8).map((t: any) => ({ topic: t.label, negative: t.negative, prevPeriod: t.prevNegative, quotes: t.negQuotes })),
+      praises: d.praises.slice(0, 5).map((t: any) => ({ topic: t.label, positive: t.positive, quotes: t.posQuotes })),
+      link: '/hotels/reviews/dashboard',
+    };
+  }
+
+  private async toolReviewsList(tenantId: string, args: Record<string, any>) {
+    const sc: any = await this.resolveReviewScope(tenantId, args);
+    if (sc.error) return { ok: false, error: sc.error };
+    const { reviews } = await this.reputationServices();
+    const days = Number(args.days) || 0;
+    const feed: any = await reviews.feed(tenantId, {
+      hotelId: sc.hotelId, brandId: sc.brandId, platform: args.platform || undefined, reply: args.reply || undefined, sentiment: args.sentiment || undefined,
+      ratingMax: args.ratingMax != null ? String(args.ratingMax) : undefined, ratingMin: args.ratingMin != null ? String(args.ratingMin) : undefined,
+      topic: args.topic || undefined, from: days ? new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10) : undefined,
+      limit: String(Math.min(20, Math.max(1, Number(args.limit) || 10))),
+    });
+    return {
+      ok: true,
+      total: feed.total,
+      unansweredNegativeTotal: feed.unansweredNegative,
+      items: feed.items.map((x: any) => ({
+        id: x.id, platform: x.platform, rating10: x.rating10, author: x.author, date: x.publishedAt?.slice(0, 10), lang: x.lang,
+        text: (x.text || '').slice(0, 260), translation: (x.textTranslated || '').slice(0, 260), hasReply: x.hasReply, draftReady: x.draftReady,
+        topics: x.topics.map((t: any) => `${t.label || t.topic}:${t.sentiment}`), crmLink: `/hotels/reviews?review=${x.id}`,
+      })),
     };
   }
 }

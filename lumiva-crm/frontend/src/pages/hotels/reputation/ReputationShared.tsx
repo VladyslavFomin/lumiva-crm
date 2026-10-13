@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { RepAiStatus, RepPlatform } from '../../../api/hotelReputation';
+import { fetchRepAgent, type RepAgentState, type RepAiStatus, type RepPlatform } from '../../../api/hotelReputation';
 
 /** Префикс ключей переводов раздела «Отзывы». */
 export function useRepT() {
@@ -144,3 +144,35 @@ export const TOPIC_KEYS = [
   'cleanliness', 'room', 'bed_sleep', 'noise', 'breakfast', 'food', 'bar', 'all_inclusive', 'pool', 'beach',
   'animation', 'staff', 'reception', 'wifi', 'air_conditioning', 'value', 'location', 'transfer', 'spa', 'kids_club',
 ];
+
+/** Строка статуса ИИ-менеджера отзывов: не нанят / на паузе / что делает (со ссылкой в профиль). */
+export const ReviewsAgentStrip: React.FC = () => {
+  const { r } = useRepT();
+  const navigate = useNavigate();
+  const [st, setSt] = useState<RepAgentState | null>(null);
+  useEffect(() => {
+    fetchRepAgent().then(setSt).catch(() => setSt(null));
+  }, []);
+  if (!st) return null;
+  const a = st.agent;
+  const w = st.work;
+  const go = () => navigate(a ? `/ai-employees/${a.id}` : '/ai-employees');
+  const text = !a
+    ? r('agentStrip.none')
+    : a.status !== 'active'
+      ? r('agentStrip.paused', { name: a.name })
+      : r('agentStrip.active', {
+          name: a.name,
+          time: w.digest.enabled ? w.digest.time : '—',
+          h1: w.reminders.firstHours,
+          h2: w.reminders.escalateHours,
+          drafts: r(`agentStrip.drafts.${w.drafts.mode}`),
+        });
+  return (
+    <div className={`rp-agent-strip${!a || a.status !== 'active' ? ' off' : ''}`} onClick={go}>
+      <span className="av">{a?.avatarUrl ? <img src={a.avatarUrl} alt="" /> : 'AI'}</span>
+      <span className="tx">{text}</span>
+      <span className="go">{!a ? r('agentStrip.hire') : a.status !== 'active' ? r('agentStrip.enable') : r('agentStrip.settings')} →</span>
+    </div>
+  );
+};

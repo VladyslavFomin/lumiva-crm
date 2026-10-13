@@ -92,6 +92,15 @@ export enum TriggerEvent {
   PRODUCT_STOCK_LOW = 'product.stock_low',
 
   // Поддержка (Helpdesk): новая заявка (портал / внутренний запрос) и ответ клиента в заявке
+  /** Отзывы отелей (hotel-reputation): данные события — плоские токены {{hotel_name}}, {{rating10}}, {{text}}… */
+  REVIEW_CREATED = 'review.created',
+  REVIEW_NEGATIVE = 'review.negative',
+  REVIEW_NO_REPLY = 'review.no_reply',
+  REVIEW_RATING_LOWERED = 'review.rating_lowered',
+  REVIEW_REPLIED = 'review.replied',
+  REVIEW_TOPIC_SPIKE = 'review.topic_spike',
+  REVIEW_RATING_DROP = 'review.rating_drop',
+
   HELPDESK_TICKET_CREATED = 'helpdesk.ticket_created',
   HELPDESK_MESSAGE_RECEIVED = 'helpdesk.message_received',
 

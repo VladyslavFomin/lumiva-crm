@@ -229,6 +229,92 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Отчёт по отзывам отелей (модуль hotel-reputation): отзывы за период по отелям и площадкам со средней
+   * оценкой 0–10, жалобы и похвалы ИИ-тем, негатив без ответа. Фильтры: бренд / отель / площадка.
+   */
+  async buildReviewsReport(
+    tenantId: string,
+    range: ReportRange,
+    f: { brandId?: string; hotelId?: string; platform?: string } = {},
+  ): Promise<ReportPayload> {
+    const q = (sql: string, p: unknown[]) => this.leadRepo.manager.query(sql, p);
+    const p: unknown[] = [tenantId, range.from, range.to];
+    let w = `r."tenantId" = $1 AND r.status <> 'deleted' AND r."publishedAt" >= $2 AND r."publishedAt" < $3`;
+    if (f.brandId) { p.push(f.brandId); w += ` AND r."hotelId" IN (SELECT id FROM hotels WHERE "brandId" = $${p.length})`; }
+    if (f.hotelId) { p.push(f.hotelId); w += ` AND r."hotelId" = $${p.length}`; }
+    if (f.platform) { p.push(f.platform); w += ` AND r.platform = $${p.length}`; }
+    const [tot] = await q(
+      `SELECT COUNT(*)::int AS n, AVG(r."rating10") AS avg,
+              COUNT(*) FILTER (WHERE r."rating10" < 6)::int AS neg,
+              COUNT(*) FILTER (WHERE r."hasReply")::int AS replied,
+              COUNT(*) FILTER (WHERE r.platform <> 'check24')::int AS replyable
+         FROM hotel_reviews r WHERE ${w}`,
+      p,
+    );
+    const byHotel = await q(
+      `SELECT h.name AS label, COUNT(*)::int AS n, AVG(r."rating10") AS avg FROM hotel_reviews r JOIN hotels h ON h.id = r."hotelId"
+        WHERE ${w} GROUP BY h.name ORDER BY n DESC LIMIT 50`,
+      p,
+    );
+    const byPlatform = await q(
+      `SELECT r.platform AS label, COUNT(*)::int AS n, AVG(r."rating10") AS avg FROM hotel_reviews r WHERE ${w} GROUP BY r.platform ORDER BY n DESC`,
+      p,
+    );
+    const topics = await q(
+      `SELECT CASE WHEN t.topic = 'other' THEN COALESCE(t."otherLabel", 'other') ELSE t.topic END AS label, t.sentiment, COUNT(*)::int AS n
+         FROM hotel_review_topics t JOIN hotel_reviews r ON r.id = t."reviewId"
+        WHERE ${w} AND t.sentiment IN ('negative', 'positive')
+        GROUP BY 1, 2 ORDER BY n DESC`,
+      p,
+    );
+    const open = await q(
+      `SELECT h.name AS label, COUNT(*)::int AS n FROM hotel_reviews r JOIN hotels h ON h.id = r."hotelId"
+        WHERE ${w} AND NOT r."hasReply" AND r.platform <> 'check24' AND r."rating10" < 6
+        GROUP BY h.name ORDER BY n DESC`,
+      p,
+    );
+    const TOPIC_RU: Record<string, string> = {
+      cleanliness: 'уборка', room: 'номер', bed_sleep: 'кровать и сон', noise: 'шум', breakfast: 'завтрак', food: 'ресторан и еда',
+      bar: 'бар', all_inclusive: 'all inclusive', pool: 'бассейн', beach: 'пляж', animation: 'анимация', staff: 'персонал',
+      reception: 'ресепшн и заселение', wifi: 'Wi-Fi', air_conditioning: 'кондиционер', value: 'цена и ценность', location: 'расположение',
+      transfer: 'трансфер', spa: 'спа', kids_club: 'детский клуб',
+    };
+    const PLATFORM: Record<string, string> = {
+      google: 'Google', booking: 'Booking.com', holidaycheck: 'HolidayCheck', tripadvisor: 'Tripadvisor', yandex: 'Яндекс',
+      expedia: 'Expedia', check24: 'Check24', otelpuan: 'Otelpuan',
+    };
+    const r2 = (v: unknown) => (v == null ? undefined : Math.round(Number(v) * 100) / 100);
+    const pct = (a: number, b: number) => (b ? Math.round((a / b) * 1000) / 10 : 0);
+    return {
+      title: 'Отчёт по отзывам',
+      range,
+      summary: { totalCount: tot?.n ?? 0, totalAmount: r2(tot?.avg) ?? 0, currency: '/ 10' },
+      summaryLabels: { total: 'Отзывов', amount: 'Средняя оценка' },
+      sections: [
+        {
+          title: 'Ключевое',
+          rows: [
+            { label: 'Негатив (< 6/10), %', count: pct(tot?.neg ?? 0, tot?.n ?? 0) },
+            { label: 'Response rate (без Check24), %', count: pct(tot?.replied ?? 0, tot?.replyable ?? 0) },
+            { label: 'Негатив без ответа', count: open.reduce((a: number, x: any) => a + x.n, 0) },
+          ],
+        },
+        { title: 'По отелям (кол-во · средняя)', rows: byHotel.map((x: any) => ({ label: x.label, count: x.n, amount: r2(x.avg) })) },
+        { title: 'По площадкам (кол-во · средняя)', rows: byPlatform.map((x: any) => ({ label: PLATFORM[x.label] || x.label, count: x.n, amount: r2(x.avg) })) },
+        {
+          title: 'Жалобы (темы ИИ)',
+          rows: topics.filter((x: any) => x.sentiment === 'negative').slice(0, 10).map((x: any) => ({ label: TOPIC_RU[x.label] || x.label, count: x.n })),
+        },
+        {
+          title: 'Похвалы (темы ИИ)',
+          rows: topics.filter((x: any) => x.sentiment === 'positive').slice(0, 10).map((x: any) => ({ label: TOPIC_RU[x.label] || x.label, count: x.n })),
+        },
+        { title: 'Негатив без ответа по отелям', rows: open.map((x: any) => ({ label: x.label, count: x.n })) },
+      ],
+    };
+  }
+
   async buildLeadsReport(tenantId: string, range: ReportRange): Promise<ReportPayload> {
     const totalCount = await this.leadRepo.count({
       where: {

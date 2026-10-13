@@ -72,6 +72,8 @@ export class HotelReview {
   /** «Отвечено» отметил менеджер вручную (ответ дан на самой площадке). */
   @Column({ type: 'boolean', default: false }) replyMarkedManually: boolean;
   @Column({ type: 'text', nullable: true }) aiDraft: string | null;
+  /** Черновик подготовил ИИ-менеджер отзывов (id сотрудника); отвечает всегда человек. */
+  @Column({ type: 'uuid', nullable: true }) aiDraftAgentId: string | null;
   @Column({ type: 'varchar', length: 10, nullable: true }) sentiment: ReviewSentiment | null;
   @Column({ type: 'timestamptz', nullable: true }) analyzedAt: Date | null;
   /** Хэш текста, по которому делался разбор — повторный разбор только при правке гостем. */

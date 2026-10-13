@@ -380,6 +380,64 @@ export class ReputationAnalyticsService {
     };
   }
 
+  /** Короткая сводка по всем отелям (карточки отелей, список, виджет главной): 90 дней. */
+  async hotelsSummary(tenantId: string) {
+    const cfg = await this.settings.config(tenantId);
+    const rows = await this.reviews.query(
+      `SELECT r."hotelId",
+              COUNT(*) FILTER (WHERE r."publishedAt" > now() - interval '90 days')::int AS n90,
+              ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '90 days'), 2) AS avg90,
+              ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '30 days'), 2) AS avg30,
+              ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '60 days' AND r."publishedAt" <= now() - interval '30 days'), 2) AS avg_prev30,
+              COUNT(*) FILTER (WHERE r."publishedAt" > now() - interval '7 days')::int AS n7,
+              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."rating10" < $2 AND r."publishedAt" > now() - interval '30 days')::int AS open_neg,
+              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."publishedAt" > now() - interval '30 days')::int AS open_all
+         FROM hotel_reviews r WHERE r."tenantId" = $1 AND r.status <> 'deleted' GROUP BY r."hotelId"`,
+      [tenantId, cfg.thresholds.negativeBelow],
+    );
+    const totals = rows.reduce((a: any, x: any) => ({ n7: a.n7 + x.n7, openNeg: a.openNeg + x.open_neg, openAll: a.openAll + x.open_all }), { n7: 0, openNeg: 0, openAll: 0 });
+    const n90 = rows.reduce((a: number, x: any) => a + x.n90, 0);
+    const avg90 = n90 ? round(rows.reduce((a: number, x: any) => a + (x.avg90 ? Number(x.avg90) * x.n90 : 0), 0) / n90) : null;
+    return {
+      negBelow: cfg.thresholds.negativeBelow,
+      totals: { ...totals, n90, avg90 },
+      hotels: rows.map((x: any) => ({
+        hotelId: x.hotelId, n90: x.n90, avg90: round(x.avg90), avg30: round(x.avg30), avgPrev30: round(x.avg_prev30), n7: x.n7,
+        unansweredNegative: x.open_neg, unanswered: x.open_all,
+      })),
+    };
+  }
+
+  /** Вкладка «Отзывы» карточки отеля: KPI, площадки (с рейтингом на самой площадке), последние отзывы, главные темы. */
+  async hotelSummary(tenantId: string, hotelId: string) {
+    const cfg = await this.settings.config(tenantId);
+    const nb = cfg.thresholds.negativeBelow;
+    const from = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+    const dash = await this.dashboard(tenantId, { hotelId, from });
+    const platforms = await this.reviews.query(
+      `SELECT s.platform, s.url, s."platformRating", s."platformCount", s."lastSuccessAt", s."lastError",
+              COUNT(r.id) FILTER (WHERE r.status <> 'deleted')::int AS total,
+              COUNT(r.id) FILTER (WHERE r."publishedAt" > now() - interval '90 days' AND r.status <> 'deleted')::int AS n90,
+              ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '90 days' AND r.status <> 'deleted'), 2) AS avg90,
+              COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."rating10" < $3 AND r."publishedAt" > now() - interval '30 days' AND r.status <> 'deleted')::int AS open_neg
+         FROM hotel_review_sources s LEFT JOIN hotel_reviews r ON r."sourceId" = s.id
+        WHERE s."tenantId" = $1 AND s."hotelId" = $2
+        GROUP BY s.id ORDER BY total DESC`,
+      [tenantId, hotelId, nb],
+    );
+    return {
+      negBelow: nb,
+      kpis: dash.kpis,
+      series: dash.series,
+      complaints: dash.complaints.slice(0, 5),
+      praises: dash.praises.slice(0, 5),
+      platforms: platforms.map((p: any) => ({
+        platform: p.platform, url: p.url, platformRating: round(p.platformRating), platformCount: p.platformCount, lastSuccessAt: p.lastSuccessAt,
+        failing: !!p.lastError, total: p.total, n90: p.n90, avg90: round(p.avg90), unansweredNegative: p.open_neg,
+      })),
+    };
+  }
+
   /** Сравнение отелей бренда по темам: доля негативных упоминаний темы среди отзывов отеля. */
   async topicMatrix(tenantId: string, qIn: AnalyticsQuery) {
     const q = await this.resolveAll(tenantId, qIn);

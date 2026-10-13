@@ -627,7 +627,7 @@ export async function askAiEmployee(
 
 // ---------------------------------------------------------------- CRM-аналитик: отчёт «за вчера»
 
-export type AnalystBlock = 'sales' | 'payments' | 'discounts' | 'leads' | 'bookings' | 'hotels' | 'tasks' | 'helpdesk' | 'marketing';
+export type AnalystBlock = 'sales' | 'payments' | 'discounts' | 'leads' | 'bookings' | 'hotels' | 'reviews' | 'tasks' | 'helpdesk' | 'marketing';
 export interface AnalystReportConfig {
   enabled: boolean;
   blocks: AnalystBlock[];

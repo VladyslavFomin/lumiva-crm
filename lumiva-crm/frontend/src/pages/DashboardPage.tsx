@@ -62,6 +62,7 @@ import { BirthdaysWidget } from '../dashboard/widgets/BirthdaysWidget';
 import { ProductsAnalyticsWidget } from '../dashboard/widgets/ProductsAnalyticsWidget';
 import { BookingsAnalyticsWidget } from '../dashboard/widgets/BookingsAnalyticsWidget';
 import { HotelsAnalyticsWidget } from '../dashboard/widgets/HotelsAnalyticsWidget';
+import { HotelsReviewsWidget } from '../dashboard/widgets/HotelsReviewsWidget';
 import { usePermission } from '../hooks/usePermission';
 import type { PermissionKey } from '../api/rbac';
 
@@ -89,6 +90,7 @@ const WIDGET_PERMISSION: Partial<Record<string, PermissionKey>> = {
   'products-analytics': 'products',
   'bookings-analytics': 'bookings',
   'hotels-analytics': 'hotels',
+  'hotels-reviews': 'hotels',
 };
 
 interface LeadShort {
@@ -1367,6 +1369,8 @@ export const DashboardPage: React.FC = () => {
         return <BookingsAnalyticsWidget />;
       case 'hotels-analytics':
         return <HotelsAnalyticsWidget />;
+      case 'hotels-reviews':
+        return <HotelsReviewsWidget />;
       case 'funnel_today':
         return <FunnelTodayWidget />;
       case 'lead_sources_week':

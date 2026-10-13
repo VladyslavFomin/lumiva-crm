@@ -1,4 +1,5 @@
 // src/pages/automations/AutomationFormPage.tsx
+import { ReviewsReportFilters } from './ReviewsReportFilters';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useLocation, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
@@ -2182,8 +2183,15 @@ export const AutomationFormPage: React.FC = () => {
                           <option value="projects">{t('crm.automations.form.report.types.projects')}</option>
                           <option value="bookings">{t('crm.automations.form.report.types.bookings')}</option>
                           <option value="hotels">{t('crm.automations.form.report.types.hotels')}</option>
+                          <option value="reviews">{t('crm.automations.form.report.types.reviews')}</option>
                         </select>
                       </div>
+                      {selAction.config.reportType === 'reviews' && (
+                        <ReviewsReportFilters
+                          value={{ brandId: selAction.config.reviewsBrandId || '', hotelId: selAction.config.reviewsHotelId || '', platform: selAction.config.reviewsPlatform || '' }}
+                          onChange={(k2, v) => ua(k2, v)}
+                        />
+                      )}
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.report.channel')}</label>
                         <select className="cfg-select" value={selAction.config.channel || 'email'} onChange={e => ua('channel', e.target.value)}>

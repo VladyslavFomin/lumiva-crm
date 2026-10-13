@@ -5,6 +5,7 @@ import { ReputationReviewsService } from './reputation-reviews.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
 import { ReputationAnalyticsService } from './reputation-analytics.service';
 import { ReputationSettingsService } from './reputation-settings.service';
+import { ReputationAgentService } from './reputation-agent.service';
 
 /** Расписание модуля отзывов. Каждая задача — со своим флагом «уже идёт», чтобы не наслаивались. */
 @Injectable()
@@ -18,6 +19,7 @@ export class ReputationScheduler {
     private readonly alerts: ReputationAlertsService,
     private readonly analytics: ReputationAnalyticsService,
     private readonly settings: ReputationSettingsService,
+    private readonly agent: ReputationAgentService,
   ) {}
 
   private async once(name: string, fn: () => Promise<unknown>) {
@@ -45,10 +47,11 @@ export class ReputationScheduler {
     void this.once('schedule', () => this.sync.scheduleDue());
   }
 
-  /** ИИ-разбор хвоста. */
+  /** ИИ-разбор хвоста + ИИ-менеджер отзывов (черновики, напоминания, сводка, инсайты). */
   @Cron('*/5 * * * *')
   fiveMinutes() {
     void this.once('ai', () => this.sync.analyzeBacklog());
+    void this.once('agent', () => this.agent.tick(new Date().getMinutes()));
   }
 
   /** Алерты: без ответа, повторяющиеся жалобы — раз в час; падение средней и «тихий» скрейпер — тоже. */

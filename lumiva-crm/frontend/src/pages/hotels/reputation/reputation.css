@@ -181,3 +181,23 @@ html .px-scope .bk-drawer.rp-drawer { width: min(640px, 100vw); }
 .px-scope .rp-switch-btn.on { background: var(--ink); }
 .px-scope .rp-switch-btn.on::after { translate: 16px 0; }
 .px-scope .rp-switch-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* черновик ответа готов (подготовил ИИ-менеджер отзывов) */
+.px-scope .rp-pill.draft { background: #eef1fb; color: #3b4a8a; }
+.px-scope .rp-draft-by { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); margin-bottom: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--bg-soft); }
+.px-scope .rp-draft-by .av { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; overflow: hidden; }
+.px-scope .rp-draft-by .av img { width: 100%; height: 100%; object-fit: cover; }
+
+/* строка репутации на карточке отеля (Обзор / Отели) */
+.rp-hotel-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-3, #f0f0f0); font-size: 12px; color: var(--fg-2, #555); cursor: pointer; }
+.rp-hotel-line:hover { color: var(--ink, #222); }
+.rp-hotel-line .rp-score b { font-size: 13px; }
+
+/* статус ИИ-менеджера отзывов над лентой */
+.px-scope .rp-agent-strip { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 12px 0 0; border: 1px solid var(--line-2); border-radius: 12px; background: #fff; font-size: 12.5px; color: var(--fg-2); cursor: pointer; transition: border-color .12s; }
+.px-scope .rp-agent-strip:hover { border-color: var(--ink); }
+.px-scope .rp-agent-strip.off { background: var(--bg-muted); }
+.px-scope .rp-agent-strip .av { width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; overflow: hidden; flex-shrink: 0; }
+.px-scope .rp-agent-strip .av img { width: 100%; height: 100%; object-fit: cover; }
+.px-scope .rp-agent-strip .tx { flex: 1; min-width: 0; }
+.px-scope .rp-agent-strip .go { font-weight: 600; color: var(--ink); white-space: nowrap; }

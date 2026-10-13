@@ -2466,6 +2466,12 @@ export class AutomationsService {
           reportPayload = await this.reportsService.buildBookingsReport(tenantId, range);
         } else if (reportType === 'hotels') {
           reportPayload = await this.reportsService.buildHotelsReport(tenantId, range);
+        } else if (reportType === 'reviews') {
+          reportPayload = await this.reportsService.buildReviewsReport(tenantId, range, {
+            brandId: config.reviewsBrandId || undefined,
+            hotelId: config.reviewsHotelId || undefined,
+            platform: config.reviewsPlatform || undefined,
+          });
         } else {
           reportPayload = await this.reportsService.buildLeadsReport(tenantId, range);
         }

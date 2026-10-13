@@ -4,6 +4,8 @@ import { Hotel } from '../hotels/hotel.entity';
 import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
 import { User } from '../users/user.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
+import { AiAgent } from '../ai-employees/ai-agent.entity';
+import { AiAgentReport } from '../ai-employees/ai-agent-report.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MailModule } from '../mail/mail.module';
@@ -24,6 +26,8 @@ import { GoogleBusinessService } from './google-business.service';
 import { ApifyService } from './apify.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
+import { ReputationEventsService } from './reputation-events.service';
+import { ReputationAgentService } from './reputation-agent.service';
 import { ReputationSyncService } from './reputation-sync.service';
 import { ReputationReviewsService } from './reputation-reviews.service';
 import { ReputationAnalyticsService } from './reputation-analytics.service';
@@ -50,6 +54,8 @@ import { ReputationController, ReputationPublicController } from './reputation.c
       TelegramBot,
       User,
       IntegrationConnection,
+      AiAgent,
+      AiAgentReport,
     ]),
     RbacModule,
     NotificationsModule,
@@ -63,6 +69,8 @@ import { ReputationController, ReputationPublicController } from './reputation.c
     ApifyService,
     ReputationAiService,
     ReputationAlertsService,
+    ReputationEventsService,
+    ReputationAgentService,
     ReputationSyncService,
     ReputationReviewsService,
     ReputationAnalyticsService,

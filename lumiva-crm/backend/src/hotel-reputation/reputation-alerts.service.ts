@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import axios from 'axios';
 import { Hotel } from '../hotels/hotel.entity';
 import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
@@ -10,6 +10,7 @@ import { MailService } from '../mail/mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelReview, HotelReviewAlert, HotelReviewSource } from './reputation.entities';
 import { AlertKind, REPLY_MODE, ReputationConfig, Recipients, TOPIC_LABELS_RU } from './reputation.constants';
+import { ReputationEventsService } from './reputation-events.service';
 
 const PLATFORM_LABEL: Record<string, string> = {
   google: 'Google', holidaycheck: 'HolidayCheck', tripadvisor: 'Tripadvisor', yandex: 'Яндекс', expedia: 'Expedia', check24: 'Check24', otelpuan: 'Otelpuan', booking: 'Booking.com',
@@ -34,6 +35,7 @@ export class ReputationAlertsService {
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
+    private readonly events: ReputationEventsService,
   ) {}
 
   private link(path: string) {
@@ -44,9 +46,10 @@ export class ReputationAlertsService {
   private async send(
     tenantId: string,
     cfg: ReputationConfig,
-    a: { kind: AlertKind; key: string; hotelId?: string | null; reviewId?: string | null; title: string; body: string; path: string; to: Audience[]; channels: Channel[] },
+    a: { kind: AlertKind | 'agent'; key: string; hotelId?: string | null; reviewId?: string | null; title: string; body: string; path: string; to: Audience[]; channels: Channel[] },
   ) {
-    if (!cfg.alerts[a.kind]) return;
+    // сообщения ИИ-сотрудника (сводка, напоминания) не зависят от переключателей алертов
+    if (a.kind !== 'agent' && !cfg.alerts[a.kind]) return;
     const ins = await this.alerts
       .createQueryBuilder()
       .insert()
@@ -107,7 +110,7 @@ export class ReputationAlertsService {
         }
       }
     }
-    if (!userIds.length && a.to.includes('developer') && !emails.length && !tg.length) {
+    if (!userIds.length && (a.to.includes('developer') || a.kind === 'agent') && !emails.length && !tg.length) {
       userIds = (await this.users.find({ where: { tenantId, role: 'owner' } as any })).map((u) => u.id);
     }
     if (userIds.length) {
@@ -176,6 +179,7 @@ export class ReputationAlertsService {
       .take(100)
       .getMany();
     for (const r of rows) {
+      void this.events.noReply(r, (Date.now() - (r.publishedAt?.getTime() ?? Date.now())) / 36e5);
       const hotel = await this.hotelName(r.hotelId);
       await this.send(tenantId, cfg, {
         kind: 'no_reply',
@@ -209,6 +213,7 @@ export class ReputationAlertsService {
       if (Number(x.cur_n) < 5 || Number(x.prev_n) < 5) continue;
       const drop = Number(x.prev) - Number(x.cur);
       if (drop < cfg.thresholds.ratingDropPoints) continue;
+      void this.events.ratingDrop(tenantId, x.hotelId, Number(x.cur), Number(x.prev), week);
       const hotel = await this.hotelName(x.hotelId);
       await this.send(tenantId, cfg, {
         kind: 'avg_drop',
@@ -239,6 +244,7 @@ export class ReputationAlertsService {
     for (const x of rows) {
       const hotel = await this.hotelName(x.hotelId);
       const label = x.topic === 'other' ? x.label || 'прочее' : TOPIC_LABELS_RU[x.topic] || cfg.topicsExtra.find((t) => t.key === x.topic)?.label || x.topic;
+      void this.events.topicSpike(tenantId, x.hotelId, x.topic, label, Number(x.n), d, (x.quotes || []).filter(Boolean), bucket);
       await this.send(tenantId, cfg, {
         kind: 'topic_spike',
         key: `topic:${x.hotelId}:${x.topic}:${x.label}:${bucket}`,
@@ -341,7 +347,17 @@ export class ReputationAlertsService {
     });
   }
 
+  /** Сообщение от ИИ-менеджера отзывов получателям отеля/бренда/разработчика (с защитой от повтора по key). */
+  deliver(
+    tenantId: string,
+    cfg: ReputationConfig,
+    a: { key: string; hotelId?: string | null; reviewId?: string | null; title: string; body: string; path: string; to: Array<'hotel' | 'brand' | 'developer'>; channels: Array<'telegram' | 'email' | 'inapp'> },
+  ) {
+    return this.send(tenantId, cfg, { kind: 'agent', ...a });
+  }
+
   async recent(tenantId: string, limit = 100) {
-    return this.alerts.find({ where: { tenantId }, order: { sentAt: 'DESC' }, take: limit });
+    // метки событий автоматизаций (kind=event) — служебные, в журнал алертов не попадают
+    return this.alerts.find({ where: { tenantId, kind: Not('event') }, order: { sentAt: 'DESC' }, take: limit });
   }
 }
