@@ -150,14 +150,14 @@ export const BookingLocationsPage: React.FC = () => {
             <p className="sub">{t('crm.bookings.locations.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
-            <button className="btn btn-primary btn-sm" onClick={() => setModal({ mode: 'create' })}>
+            <button data-tour="bloc-create" className="btn btn-primary btn-sm" onClick={() => setModal({ mode: 'create' })}>
               <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.locations.newLocation')}
             </button>
           </div>
         </div>
 
         {!loading && locations.length > 0 && (
-          <div className="bk-kpi-grid" style={{ margin: '16px 0' }}>
+          <div data-tour="bloc-kpis" className="bk-kpi-grid" style={{ margin: '16px 0' }}>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.todayReservations')}</div><div className="v">{totals.todayReservations}</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.avgOccupancy')}</div><div className="v">{totals.avgOccupancy}%</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.locations.kpis.todayRevenue')}</div><div className="v">{totals.todayRevenue.toLocaleString()} {totals.currency}</div></div>
@@ -165,7 +165,7 @@ export const BookingLocationsPage: React.FC = () => {
           </div>
         )}
 
-        <div className="bk-table-wrap" style={{ marginTop: 16 }}>
+        <div data-tour="bloc-table" className="bk-table-wrap" style={{ marginTop: 16 }}>
           <table className="bk-table">
             <thead>
               <tr>

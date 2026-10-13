@@ -94,7 +94,7 @@ export const OverdueTasksPage: React.FC = () => {
           </div>
         )}
 
-        <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+        <section data-tour="poverdue-card" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-lumiva-accent">
               {t('crm.projects.overdue.table.title')}
@@ -108,7 +108,7 @@ export const OverdueTasksPage: React.FC = () => {
             <div className="text-xs text-slate-500">{t('crm.projects.overdue.loading')}</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-[11px]">
+              <table data-tour="poverdue-table" className="min-w-full border-collapse text-[11px]">
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-500">
                     <th className="py-1.5 px-2 text-left font-normal">

@@ -210,7 +210,7 @@ export const EmailTemplateFormPage: React.FC = () => {
           )}
 
           {isWrapperTemplate && (
-            <div className="mt-4 rounded-xl border-2 px-3 py-2.5 text-xs leading-relaxed" style={{ borderColor: ACCENT, background: '#fafafa' }}>
+            <div data-tour="etplf-vars" className="mt-4 rounded-xl border-2 px-3 py-2.5 text-xs leading-relaxed" style={{ borderColor: ACCENT, background: '#fafafa' }}>
               <span className="font-semibold" style={{ color: ACCENT }}>
                 {t('crm.emailTemplates.list.wrapperBadge')}.
               </span>{' '}
@@ -220,7 +220,7 @@ export const EmailTemplateFormPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="rounded-3xl border border-zinc-200 bg-white px-5 py-5 shadow-sm md:px-8 md:py-6 space-y-4">
+          <div data-tour="etplf-fields" className="rounded-3xl border border-zinc-200 bg-white px-5 py-5 shadow-sm md:px-8 md:py-6 space-y-4">
             <p className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-600">
               {t('crm.emailTemplates.form.constructorHint')}
             </p>
@@ -349,7 +349,7 @@ export const EmailTemplateFormPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center justify-end gap-3">
             {id && (
-              <button
+              <button data-tour="etplf-preview"
                 type="button"
                 onClick={handlePreview}
                 className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-50"
@@ -364,7 +364,7 @@ export const EmailTemplateFormPage: React.FC = () => {
             >
               {t('crm.emailTemplates.form.actions.cancel')}
             </button>
-            <button
+            <button data-tour="etplf-save"
               type="submit"
               disabled={saving}
               className="rounded-xl px-5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"

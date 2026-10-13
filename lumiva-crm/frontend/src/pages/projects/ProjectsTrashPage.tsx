@@ -103,7 +103,7 @@ export const ProjectsTrashPage: React.FC = () => {
           </div>
         </div>
         <div className="flex justify-end">
-          <button
+          <button data-tour="ptrash-empty"
             type="button"
             onClick={() => void handleEmptyTrash()}
             disabled={!projects.length || actionLoading}
@@ -119,7 +119,7 @@ export const ProjectsTrashPage: React.FC = () => {
           </div>
         )}
 
-        <div className="card p-4">
+        <div data-tour="ptrash-card" className="card p-4">
           {loading ? (
             <div className="text-xs text-text-tertiary">
               {t('crm.projects.loading')}
@@ -163,14 +163,14 @@ export const ProjectsTrashPage: React.FC = () => {
                       <td className="px-3 py-1.5 text-text-tertiary">{p.createdAt}</td>
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
-                          <button
+                          <button data-tour="ptrash-restore"
                             type="button"
                             onClick={() => handleRestore(p.id)}
                             className="btn-secondary btn-secondary-sm"
                           >
                             {t('crm.projects.trash.actions.restore')}
                           </button>
-                          <button
+                          <button data-tour="ptrash-delete"
                             type="button"
                             onClick={() => void handlePermanentDelete(p)}
                             className="btn-danger btn-secondary-sm"

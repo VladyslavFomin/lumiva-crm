@@ -795,7 +795,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-              <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50 p-[3px]">
+              <div data-tour="aia-tabs" className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50 p-[3px]">
                 <button
                   type="button"
                   onClick={() => setTab('assistant')}
@@ -1378,7 +1378,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
 
               {!hub || messages.length > 0 ? (
                 /* ---- докованный композер ---- */
-                <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3.5">
+                <div data-tour="aia-input" className="shrink-0 border-t border-slate-200 bg-white px-4 py-3.5">
                   <div className="overflow-hidden rounded-xl border border-slate-200 bg-white transition focus-within:border-[#c9c3ff] focus-within:ring-2 focus-within:ring-[#5b4bec]/10">
                     <textarea
                       className="ai-assistant-input block max-h-32 min-h-[44px] w-full resize-none border-0 bg-white px-3.5 py-2.5 text-sm !text-slate-900 outline-none placeholder:!text-slate-400"

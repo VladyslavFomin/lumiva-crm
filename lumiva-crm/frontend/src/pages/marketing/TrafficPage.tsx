@@ -533,7 +533,7 @@ export const TrafficPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="sm-bar">
+          <div data-tour="traffic-filters" className="sm-bar">
             <DateRangePicker
               value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
               presetId={preset === 'custom' ? null : preset}
@@ -581,7 +581,7 @@ export const TrafficPage: React.FC = () => {
             </div>
           ) : stats ? (
             <div className={cl('tr-body', loading && 'is-loading')}>
-              <div className="sm-kpis tr-kpis">
+              <div data-tour="traffic-kpis" className="sm-kpis tr-kpis">
                 <div className="sm-kpi">
                   <span className="l">{t('crm.trafficPage.col.impressions')}</span>
                   <span className="v">{nf(tot.impressions)}</span>
@@ -652,7 +652,7 @@ export const TrafficPage: React.FC = () => {
                   </h3>
                   <div className="sm-card-tools">
                     <span className="meta">{t('crm.trafficPage.shareBy')}</span>
-                    <div className="sm-seg">
+                    <div data-tour="traffic-share" className="sm-seg">
                       {SHARE_KEYS.map((k) => (
                         <button type="button" key={k} className={share === k ? 'active' : ''} onClick={() => setShare(k)}>
                           {t(`crm.trafficPage.share.${k}`)}
@@ -668,7 +668,7 @@ export const TrafficPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="sm-table-scroll">
-                    <table className="sm-table tr-ch">
+                    <table data-tour="traffic-table" className="sm-table tr-ch">
                       <thead>
                         <tr>
                           <th style={{ width: 28 }} />

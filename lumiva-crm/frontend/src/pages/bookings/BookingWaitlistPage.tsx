@@ -238,20 +238,20 @@ export const BookingWaitlistPage: React.FC = () => {
             <p className="sub">{t('crm.bookings.waitlist.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
-            <button className="btn btn-primary btn-sm" onClick={() => setAddOpen(true)}>
+            <button data-tour="bwait-add" className="btn btn-primary btn-sm" onClick={() => setAddOpen(true)}>
               <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.waitlist.addToList')}
             </button>
           </div>
         </div>
 
-        <div className="bk-savedviews" style={{ marginTop: 16 }}>
+        <div data-tour="bwait-filters" className="bk-savedviews" style={{ marginTop: 16 }}>
           {FILTER_KEYS.map((f) => (
             <div key={f} className={`bk-sv-tab${f === filter ? ' active' : ''}`} onClick={() => setFilter(f)}>{t(`crm.bookings.waitlist.filters.${f}`)}</div>
           ))}
         </div>
 
         <div className="bk-table-wrap">
-          <table className="bk-table">
+          <table data-tour="bwait-table" className="bk-table">
             <thead>
               <tr>
                 <th>{t('crm.bookings.waitlist.table.colClient')}</th>
@@ -285,10 +285,10 @@ export const BookingWaitlistPage: React.FC = () => {
                   <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>{new Date(e.createdAt).toLocaleString(dateLocale, { dateStyle: 'short', timeStyle: 'short' })}</td>
                   <td style={{ textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     {e.status === 'waiting' && (
-                      <button className="btn btn-sm" onClick={() => setOfferEntry(e)}>{t('crm.bookings.waitlist.table.offerSlot')}</button>
+                      <button data-tour="bwait-offer" className="btn btn-sm" onClick={() => setOfferEntry(e)}>{t('crm.bookings.waitlist.table.offerSlot')}</button>
                     )}
                     {e.status === 'offer' && (
-                      <button className="btn btn-primary btn-sm" onClick={() => convert(e.id)}>{t('crm.bookings.waitlist.table.createBooking')}</button>
+                      <button data-tour="bwait-convert" className="btn btn-primary btn-sm" onClick={() => convert(e.id)}>{t('crm.bookings.waitlist.table.createBooking')}</button>
                     )}
                     {e.status !== 'removed' && (
                       <button className="btn btn-sm" style={{ border: 0, color: '#cc2f47' }} onClick={() => remove(e.id)}>

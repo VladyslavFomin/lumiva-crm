@@ -449,6 +449,7 @@ export const LeadsBoardPage: React.FC = () => {
             <button
               type="button"
               onClick={handleCreateLead}
+              data-tour="leads-create"
               className="lv-tb-btn"
               style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
             >
@@ -460,7 +461,7 @@ export const LeadsBoardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="lv-view-tabs">
+        <div data-tour="leads-views" className="lv-view-tabs">
           <button type="button" className={`lv-view-tab${isListTab ? ' active' : ''}`} onClick={goList}>
             {t('crm.leads.list.viewList')}
             <span className="badge">{filteredLeads.length}</span>
@@ -637,7 +638,7 @@ export const LeadsBoardPage: React.FC = () => {
 
         {!loading && !error && (
           <div className="lv-toolbar">
-            <div className="lv-tb-search">
+            <div data-tour="leads-search" className="lv-tb-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <circle cx="11" cy="11" r="7" />
                 <path d="M21 21l-4.5-4.5" />

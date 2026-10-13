@@ -243,7 +243,7 @@ export const ContactPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHelpButton topic="contacts" />
+      <PageHelpButton topic="contactCard" />
       <div className="px-scope">
         <div className="cf-wrap">
           <a
@@ -284,7 +284,7 @@ export const ContactPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="cf-actions">
+            <div data-tour="contact-actions" className="cf-actions">
               {!isNew && (
                 <>
                   {form.email && (
@@ -303,14 +303,14 @@ export const ContactPage: React.FC = () => {
                   </button>
                 </>
               )}
-              <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={handleSave}>
+              <button type="button" data-tour="contact-save" className="btn btn-sm btn-primary" disabled={saving} onClick={handleSave}>
                 <Ic d={LIC.check} size={13} />
                 {saving ? t('crm.contacts.card.saving') : isNew ? t('crm.contacts.card.create') : t('crm.contacts.card.save')}
               </button>
             </div>
           </div>
 
-          <Tabs tabs={TABS} v={tab} set={setTab} locked={isNew} />
+          <Tabs tour="contact-tabs" tabs={TABS} v={tab} set={setTab} locked={isNew} />
           {error && (
             <div className="cf-alert">
               <Ic d={LIC.close} size={14} />
@@ -322,6 +322,7 @@ export const ContactPage: React.FC = () => {
             <>
               {!isNew && (
                 <Metrics
+                  tour="contact-metrics"
                   items={[
                     [
                       t('crm.contacts.card.metrics.leads'),
@@ -345,7 +346,7 @@ export const ContactPage: React.FC = () => {
 
               <div className="cf-grid">
                 <div className="cf-col">
-                  <Card icon={LIC.users} title={t('crm.contacts.card.personal.title')} sub={t('crm.contacts.card.personal.sub')}>
+                  <Card tour="contact-info" icon={LIC.users} title={t('crm.contacts.card.personal.title')} sub={t('crm.contacts.card.personal.sub')}>
                     <div className="cf-body">
                       <div className="cf-fields">
                         <F label={t('crm.contacts.card.personal.firstName')}>
@@ -404,7 +405,7 @@ export const ContactPage: React.FC = () => {
                   </Card>
 
                   {!isNew && company && (
-                    <Card icon={LIC.users} title={t('crm.contacts.card.companyCard.title')}>
+                    <Card tour="contact-company" icon={LIC.users} title={t('crm.contacts.card.companyCard.title')}>
                       <div className="cf-body">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                           <div className="cl-av sq" style={{ width: 38, height: 38, fontSize: 13 }}>
@@ -430,7 +431,7 @@ export const ContactPage: React.FC = () => {
                   <SideCard title={t('crm.contacts.list.table.status')}>
                     <Sel value={form.status || 'active'} onChange={(e) => set('status', e.target.value)} options={CST_C} />
                   </SideCard>
-                  <SideCard title={t('crm.contacts.card.assignees')} right={<span className="cf-mono">{picked.length}</span>}>
+                  <SideCard tour="contact-assignees" title={t('crm.contacts.card.assignees')} right={<span className="cf-mono">{picked.length}</span>}>
                     <DeptAssignees staff={staff} picked={picked} setPicked={setPicked} />
                     <AiAssigneeGroup entityType="contact" entityId={isNew ? null : id} compact />
                   </SideCard>

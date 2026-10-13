@@ -162,6 +162,11 @@ export class AccountService {
     if (patch.notifications) {
       merged.notifications = { ...current.notifications, ...patch.notifications };
     }
+    // Подсказки-туры: { seen: { <topic>: ISO-дата }, off?: boolean } — seen копится по страницам.
+    if (patch.tours) {
+      const cur = current.tours || {};
+      merged.tours = { ...cur, ...patch.tours, seen: { ...(cur.seen || {}), ...(patch.tours.seen || {}) } };
+    }
     if (patch.analyticsLayouts) {
       merged.analyticsLayouts = {
         ...(current.analyticsLayouts || {}),

@@ -153,7 +153,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
           </div>
           <div className="px-head-actions">
             {mode === 'overview' && (
-              <button type="button" className="aib ghost" onClick={handleExport} disabled={exporting || !data}>
+              <button data-tour="pan-export" type="button" className="aib ghost" onClick={handleExport} disabled={exporting || !data}>
                 <Icon d={I.download} size={14} />
                 {t('crm.products.analytics.exportButton')}
               </button>
@@ -163,7 +163,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
 
         <ProductsSubnav active="analytics" />
 
-        <div className="pxb-mode-switch" style={{ marginBottom: 18 }}>
+        <div data-tour="pan-mode" className="pxb-mode-switch" style={{ marginBottom: 18 }}>
           <button type="button" className={mode === 'overview' ? 'active' : undefined} onClick={() => setMode('overview')}>
             {t('crm.products.analytics.modeOverview')}
           </button>
@@ -176,7 +176,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
           <ProductsAnalyticsBuilder />
         ) : (
         <>
-        <div className="an-toolbar">
+        <div data-tour="pan-filters" className="an-toolbar">
           <div className="an-filter">
             <label>{t('crm.dateRange.title')}</label>
             <DateRangePicker
@@ -244,7 +244,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
           <div className="an-empty">{t('crm.common.loading')}</div>
         ) : (
           <>
-            <div className="pr-kpis">
+            <div data-tour="pan-kpis" className="pr-kpis">
               <div className="pr-kpi">
                 <div className="l">{t('crm.products.analytics.kpis.totalProducts')}</div>
                 <div className="v">{data.kpis.totalProducts}<span className="u"> / {data.kpis.activeProducts} {t('crm.products.status.active')}</span></div>
@@ -270,7 +270,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="an-grid">
+            <div data-tour="pan-grid" className="an-grid">
               <div className="an-panel">
                 <div className="an-panel-head">
                   <div className="t">{t('crm.products.analytics.panels.byCategory')}</div>

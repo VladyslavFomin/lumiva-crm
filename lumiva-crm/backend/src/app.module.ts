@@ -85,6 +85,8 @@ import { CcpModule } from './modules/ccp/ccp.module';
 import { EmbedFormsModule } from './embed-forms/embed-forms.module';
 import { PaymentsModule } from './payments/payments.module';
 import { Payment } from './payments/payment.entity';
+import { HelpMedia } from './help-content/help-media.entity';
+import { HelpContentModule } from './help-content/help-content.module';
 
 // --- Chat ---
 import { OnlineChatModule } from './online-chat/online-chat.module';
@@ -291,6 +293,7 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
         EmbedForm,
         EmbedFormUpload,
         Payment,
+        HelpMedia,
       ],
       synchronize: false,
     }),
@@ -298,6 +301,7 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     HealthModule,
     TenantsModule,
     StorageQuotaModule,
+    HelpContentModule,
     UsersModule,
     DashboardModule,
     BiDashboardModule,

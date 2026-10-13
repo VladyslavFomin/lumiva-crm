@@ -209,7 +209,7 @@ export const SegmentsPage: React.FC = () => {
           style={{ borderColor: borderSubtle }}
         >
           <form onSubmit={handleCreate} className="space-y-5">
-            <div>
+            <div data-tour="segments-ads">
               <h2 className="text-sm font-semibold text-neutral-900">
                 {t('crm.marketingSegments.adsBlock.title')}
               </h2>
@@ -269,7 +269,7 @@ export const SegmentsPage: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div data-tour="segments-name" className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-[11px] font-medium text-neutral-600">
                   {t('crm.marketingSegments.form.name')}
@@ -294,7 +294,7 @@ export const SegmentsPage: React.FC = () => {
               </div>
             </div>
 
-            <details className="group rounded-xl border border-neutral-100 bg-neutral-50/40 px-3 py-2">
+            <details data-tour="segments-filters" className="group rounded-xl border border-neutral-100 bg-neutral-50/40 px-3 py-2">
               <summary className="cursor-pointer text-[11px] font-medium text-neutral-800">
                 {t('crm.marketingSegments.advanced.title')}
               </summary>
@@ -401,6 +401,7 @@ export const SegmentsPage: React.FC = () => {
               <p className="text-[11px] text-neutral-500">{t('crm.marketingSegments.form.helper')}</p>
               <button
                 type="submit"
+                data-tour="segments-create"
                 disabled={saving || !name.trim()}
                 className="rounded-xl px-4 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ backgroundColor: ACCENT }}
@@ -412,6 +413,7 @@ export const SegmentsPage: React.FC = () => {
         </section>
 
         <section
+          data-tour="segments-list"
           className="rounded-2xl border bg-white px-4 py-4 text-xs shadow-sm md:px-5 md:py-5"
           style={{ borderColor: borderSubtle }}
         >

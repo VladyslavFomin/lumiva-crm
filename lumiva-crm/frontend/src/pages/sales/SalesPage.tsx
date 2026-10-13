@@ -740,7 +740,7 @@ export const SalesPage: React.FC = () => {
             )}
           </div>
           <div className="sl-hero-r">
-            <span className="sl-cur">
+            <span data-tour="sales-currency" className="sl-cur">
               <span className="l">Валюта отчёта</span>
               <select value={reportCurrency} onChange={onCurrencyChange}>
                 {currencyOptions.map((c) => (
@@ -750,18 +750,18 @@ export const SalesPage: React.FC = () => {
                 ))}
               </select>
             </span>
-            <button type="button" className="sl-btn" disabled={exporting} onClick={() => void handleExport()}>
+            <button type="button" data-tour="sales-export" className="sl-btn" disabled={exporting} onClick={() => void handleExport()}>
               <Ic d={SL_ICON.down} size={14} />
               {exporting ? '…' : t('crm.sales.list.export')}
             </button>
-            <button type="button" className="sl-btn solid" onClick={() => setAutomationOpen(true)}>
+            <button type="button" data-tour="sales-automations" className="sl-btn solid" onClick={() => setAutomationOpen(true)}>
               <Ic d={SL_ICON.bolt} size={14} />
               {t('crm.automations.panel.button')}
             </button>
           </div>
         </div>
 
-        <div className="sl-kpis">
+        <div data-tour="sales-kpis" className="sl-kpis">
           <Kpi l={t('crm.sales.summary.totalSales')} v={(stats?.totalCount ?? 0).toLocaleString(locale)} />
           <Kpi
             l={t('crm.sales.summary.revenue')}
@@ -778,7 +778,7 @@ export const SalesPage: React.FC = () => {
           />
         </div>
 
-        <div className="sl-filters">
+        <div data-tour="sales-filters" className="sl-filters">
           <span className="sl-fl-l">{t('crm.sales.filters.period')}</span>
           <DateRangePicker
             value={{ from: fromIsoDate(filters.from), to: fromIsoDate(filters.to) }}
@@ -823,7 +823,7 @@ export const SalesPage: React.FC = () => {
         </div>
 
         {stats && (
-          <div className="sl-two">
+          <div data-tour="sales-charts" className="sl-two">
             <div className="sl-panel">
               <div className="sl-panel-h">
                 <span className="t">{t('crm.sales.charts.statusStructureTitle')}</span>
@@ -893,7 +893,7 @@ export const SalesPage: React.FC = () => {
         <div className="sl-panel">
           <div className="sl-panel-h">
             <span className="t">{t('crm.sales.list.title')}</span>
-            <button type="button" className="sl-btn sm" style={{ marginLeft: 4 }} onClick={() => setCustomFieldsOpen(true)}>
+            <button type="button" data-tour="sales-columns" className="sl-btn sm" style={{ marginLeft: 4 }} onClick={() => setCustomFieldsOpen(true)}>
               <Ic d={SL_ICON.cols} size={12} />
               {t('crm.sales.list.addColumn')}
             </button>
@@ -918,7 +918,7 @@ export const SalesPage: React.FC = () => {
           ) : (
             <>
               <div className="sl-tbl-wrap">
-                <table className="sl-tbl">
+                <table data-tour="sales-table" className="sl-tbl">
                   <thead>
                     <tr>
                       {orderedColumns.map((col) => {

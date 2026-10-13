@@ -81,7 +81,7 @@ export const ProductModerationQueuePage: React.FC = () => {
         ) : !items.length ? (
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.moderation.empty')}</div>
         ) : (
-          <div className="px-table-wrap">
+          <div data-tour="pmod-table" className="px-table-wrap">
             <table className="px-table">
               <thead>
                 <tr>

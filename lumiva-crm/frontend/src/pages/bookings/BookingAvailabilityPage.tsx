@@ -784,14 +784,14 @@ export const BookingAvailabilityPage: React.FC = () => {
             <button className="btn btn-sm" onClick={() => setReassignOpen(true)} disabled={!availableStaff.length}>
               <Ic d={BK_ICON.users} size={13} /> {t('crm.bookings.availability.reassignBtn')}
             </button>
-            <button className="btn btn-sm" onClick={() => setInspectorOpen(true)}>
+            <button data-tour="avail-inspector" className="btn btn-sm" onClick={() => setInspectorOpen(true)}>
               <Ic d={BK_ICON.search} size={13} /> {t('crm.bookings.availability.slotInspectorBtn')}
             </button>
           </div>
         </div>
 
         {!loading && (
-          <div className="bk-panel" style={{ margin: '16px 0' }}>
+          <div data-tour="avail-staff" className="bk-panel" style={{ margin: '16px 0' }}>
             <div className="bk-panel-head"><div className="t">{t('crm.bookings.availability.staffAvailability.title')}</div></div>
             <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
               {staffList.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.bookings.availability.staffAvailability.empty')}</div>}
@@ -810,18 +810,20 @@ export const BookingAvailabilityPage: React.FC = () => {
 
         <div className="bk-cols">
           <div>
-            <ClosurePanel project={project} staffList={availableStaff} onChanged={load} />
+            <div data-tour="avail-closure"><ClosurePanel project={project} staffList={availableStaff} onChanged={load} /></div>
+            <div data-tour="avail-grid">
             <StaffFreeGrid
               grid={grid}
               date={date}
               onDateChange={setDate}
               onSlotClick={(staffUserId, staffName, hour) => setQuickBook({ staffUserId, staffName, hour })}
             />
-            <LocationWeeklyHoursPanel locations={locations} onChanged={load} />
-            <SpecialDatesPanel locations={locations} onChanged={load} />
+            </div>
+            <div data-tour="avail-hours"><LocationWeeklyHoursPanel locations={locations} onChanged={load} /></div>
+            <div data-tour="avail-special"><SpecialDatesPanel locations={locations} onChanged={load} /></div>
           </div>
           <div>
-            <BookingRulesPanel project={project} onChanged={load} />
+            <div data-tour="avail-rules"><BookingRulesPanel project={project} onChanged={load} /></div>
           </div>
         </div>
       </div>

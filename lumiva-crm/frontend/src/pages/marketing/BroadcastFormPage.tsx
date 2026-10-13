@@ -154,7 +154,7 @@ export const BroadcastFormPage: React.FC = () => {
             />
           </div>
 
-          <div>
+          <div data-tour="broadcast-channel">
             <p className="section-label">{t('crm.marketingBroadcasts.form.channelLabel')}</p>
             <div className="grid grid-cols-2 gap-2">
               {(['email', 'sms'] as BroadcastChannel[]).map((ch) => (
@@ -172,7 +172,7 @@ export const BroadcastFormPage: React.FC = () => {
             </div>
           </div>
 
-          <div>
+          <div data-tour="broadcast-audience">
             <label className="block text-xs font-medium text-text-secondary mb-1.5">{t('crm.marketingBroadcasts.form.audienceLabel')}</label>
             <select className="input w-full" value={segmentId} disabled={!isDraft} onChange={(e) => setSegmentId(e.target.value)}>
               <option value="">
@@ -208,7 +208,7 @@ export const BroadcastFormPage: React.FC = () => {
           )}
         </div>
 
-        <div className="card p-5 space-y-4">
+        <div data-tour="broadcast-steps" className="card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <p className="section-label mb-0">{t('crm.marketingBroadcasts.form.stepsHeading')}</p>
             {isDraft && (
@@ -261,7 +261,7 @@ export const BroadcastFormPage: React.FC = () => {
         </div>
 
         {isDraft && (
-          <div className="card p-5 space-y-4">
+          <div data-tour="broadcast-launch" className="card p-5 space-y-4">
             <p className="section-label">{t('crm.marketingBroadcasts.form.launchHeading')}</p>
             <div className="flex gap-2">
               <button

@@ -525,7 +525,7 @@ export const ProjectsViewsBar: React.FC<Props> = ({
 
   return (
     <>
-      <div className="lv-view-tabs">
+      <div data-tour="projects-views" className="lv-view-tabs">
         {tablesLoading && tables.length === 0 ? (
           <span className="text-[11px] text-slate-400 px-2">…</span>
         ) : (
@@ -594,6 +594,7 @@ export const ProjectsViewsBar: React.FC<Props> = ({
         <button
           type="button"
           className="lv-view-tabs-add"
+          data-tour="projects-settings"
           title={t('crm.projects.viewsBar.menu.settings')}
           onClick={openSettings}
         >

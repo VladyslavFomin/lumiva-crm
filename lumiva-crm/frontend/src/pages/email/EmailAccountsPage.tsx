@@ -737,18 +737,18 @@ export const EmailAccountsPage: React.FC = () => {
               <Ic d={EM_ICON.inbox} size={14} />
               {t('crm.email.accounts.hero.inboxBtn')}
             </Link>
-            <button type="button" className="em-btn" disabled={syncingAll || accounts.every((a) => !a.hasOAuthTokens)} onClick={() => void handleSyncAll()}>
+            <button type="button" data-tour="mail-sync" className="em-btn" disabled={syncingAll || accounts.every((a) => !a.hasOAuthTokens)} onClick={() => void handleSyncAll()}>
               <Ic d={EM_ICON.refresh} size={14} />
               {syncingAll ? t('crm.email.accounts.hero.syncAllPending') : t('crm.email.accounts.hero.syncAll')}
             </button>
-            <button type="button" className="em-btn solid" onClick={() => navigate('/email/accounts/new')}>
+            <button type="button" data-tour="mail-create" className="em-btn solid" onClick={() => navigate('/email/accounts/new')}>
               <Ic d={EM_ICON.plus} size={14} />
               {t('crm.email.accounts.hero.createBtn')}
             </button>
           </div>
         </div>
 
-        <div className="em-tabs">
+        <div data-tour="mail-tabs" className="em-tabs">
           <button className={cx('em-tab', topTab === 'accounts' && 'active')} onClick={() => setTopTab('accounts')}>
             {t('crm.email.accounts.tabs.accounts')} <span className="n">{String(accounts.length).padStart(2, '0')}</span>
           </button>
@@ -763,14 +763,14 @@ export const EmailAccountsPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="em-kpis">
+        <div data-tour="mail-kpis" className="em-kpis">
           <Kpi l={t('crm.email.accounts.kpis.connected')} v={activeCount} sub={t('crm.email.accounts.kpis.connectedSub', { total: accounts.length })} />
           <Kpi l={t('crm.email.accounts.kpis.sentWeek')} v={sentWeek ?? '—'} sub={t('crm.email.accounts.kpis.sentWeekSub')} />
           <Kpi l={t('crm.email.accounts.kpis.leads')} v={leadsThisMonth ?? '—'} sub={t('crm.email.accounts.kpis.leadsSub')} />
           <Kpi l={t('crm.email.accounts.kpis.errors')} v={errCount} sub={t('crm.email.accounts.kpis.errorsSub')} warn={errCount > 0} />
         </div>
 
-        <div className="em-info">
+        <div data-tour="mail-info" className="em-info">
           <Ic d={EM_ICON.info} size={15} />
           <span>{t('crm.email.accounts.infoBanner')}</span>
           <span className="em-info-sp" />
@@ -837,7 +837,7 @@ export const EmailAccountsPage: React.FC = () => {
         ) : (
           <div className="em-split">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div className="em-panel">
+              <div data-tour="mail-list" className="em-panel">
                 <div className="em-panel-h">
                   <span className="t">
                     <Ic d={EM_ICON.mail} size={14} />
@@ -893,7 +893,7 @@ export const EmailAccountsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="em-panel">
+              <div data-tour="mail-connect" className="em-panel">
                 <div className="em-panel-h">
                   <span className="t">
                     <Ic d={EM_ICON.bolt} size={14} />

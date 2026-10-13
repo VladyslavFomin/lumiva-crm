@@ -104,7 +104,7 @@ export const ProductAttributesPage: React.FC = () => {
 
         <ProductsSubnav active="attributes" />
 
-        <form onSubmit={handleAddAttribute} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
+        <form data-tour="pattr-add" onSubmit={handleAddAttribute} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
           <input
             className="ai-input"
             style={{ flex: '0 1 320px' }}
@@ -124,7 +124,7 @@ export const ProductAttributesPage: React.FC = () => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {attributes.map((attr) => (
-              <div key={attr.id} className="an-panel">
+              <div data-tour="pattr-panel" key={attr.id} className="an-panel">
                 <div className="an-panel-head">
                   <div className="t">{attr.name}</div>
                   <button

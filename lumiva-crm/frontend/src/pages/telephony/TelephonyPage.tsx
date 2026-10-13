@@ -256,7 +256,7 @@ export const TelephonyPage: React.FC = () => {
         <TelephonySubnav active="calls" />
 
         {stats && (
-          <div className="tel-kpis">
+          <div data-tour="tel-kpis" className="tel-kpis">
             <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.total')}</div><div className="v">{stats.totalCalls}</div></div>
             <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.missed')}</div><div className="v">{stats.missedCalls}</div></div>
             <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.avgDuration')}</div><div className="v">{formatDuration(stats.avgDurationSeconds)}</div></div>
@@ -266,16 +266,16 @@ export const TelephonyPage: React.FC = () => {
         )}
 
         <div style={{ display: 'flex', gap: 10, margin: '14px 0', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div className="bk-search" style={{ flex: '1 1 260px', maxWidth: 340 }}>
+          <div data-tour="tel-search" className="bk-search" style={{ flex: '1 1 260px', maxWidth: 340 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.5-4.5" /></svg>
             <input placeholder={t('crm.telephony.calls.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="bk-savedviews" style={{ flex: 'none' }}>
+          <div data-tour="tel-direction" className="bk-savedviews" style={{ flex: 'none' }}>
             {(['all', 'inbound', 'outbound', 'missed'] as DirFilter[]).map((k) => (
               <div key={k} className={cx('bk-sv-tab', dirFilter === k && 'active')} onClick={() => setDirFilter(k)}>{t(`crm.telephony.calls.filters.${k}`)}</div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8, flex: '1 1 260px' }}>
+          <div data-tour="tel-call" style={{ display: 'flex', gap: 8, flex: '1 1 260px' }}>
             <input
               className="bk-search"
               style={{ flex: 1 }}
@@ -287,7 +287,7 @@ export const TelephonyPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bk-table-wrap">
+        <div data-tour="tel-table" className="bk-table-wrap">
           <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 120px 100px 130px 32px', gap: 12, padding: '9px 14px', fontSize: 10.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em', borderBottom: '1px solid var(--line-2)', background: 'var(--bg-muted)' }}>
             <span></span><span>{t('crm.telephony.calls.table.contact')}</span><span>{t('crm.telephony.calls.table.tag')}</span><span>{t('crm.telephony.calls.table.duration')}</span><span>{t('crm.telephony.calls.table.when')}</span><span></span>
           </div>

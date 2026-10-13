@@ -87,7 +87,7 @@ export const ProductsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   ];
 
   return (
-    <div className="px-subnav">
+    <div data-tour="products-subnav" className="px-subnav">
       {items.map((item) => (
         <button
           key={item.key}

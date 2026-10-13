@@ -3487,11 +3487,11 @@ export const ProjectsListPage: React.FC = () => {
             <div className="sub">{t('crm.projects.list.subtitle')}</div>
           </div>
           <div className="lv-pt-head-actions">
-            <button type="button" className="lv-tb-btn" onClick={() => setAutomationOpen(true)}>
+            <button type="button" data-tour="projects-automations" className="lv-tb-btn" onClick={() => setAutomationOpen(true)}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
               {t('crm.automations.panel.button')}
             </button>
-            <button type="button" onClick={handleCreate} className="lv-tb-btn" style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}>
+            <button type="button" data-tour="projects-create" onClick={handleCreate} className="lv-tb-btn" style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 5v14M5 12h14"/></svg>
               {t('crm.projects.actions.newProject')}
             </button>
@@ -3526,7 +3526,7 @@ export const ProjectsListPage: React.FC = () => {
         {!loading && (
           <>
             {/* Toolbar */}
-            <div className="lv-toolbar">
+            <div data-tour="projects-filters" className="lv-toolbar">
               {/* Search */}
               <div className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: 300 }}>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--fg-4)', flexShrink: 0 }} aria-hidden>
@@ -3590,7 +3590,7 @@ export const ProjectsListPage: React.FC = () => {
               </button>
 
               {/* Columns */}
-              <div style={{ position: 'relative' }} ref={columnsMenuRef}>
+              <div data-tour="projects-columns" style={{ position: 'relative' }} ref={columnsMenuRef}>
                 <button type="button" className={`lv-tb-btn${columnsOpen ? ' active' : ''}`} onClick={() => setColumnsOpen((prev) => !prev)}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
                     <path d="M1 4h14M1 8h14M1 12h14" />
@@ -3813,7 +3813,7 @@ export const ProjectsListPage: React.FC = () => {
             {/* Table */}
             <div className="lv-proj-wrap">
               <div className="lv-proj-scroll">
-                <table className={`lv-proj-table lv-density-${density}`}>
+                <table data-tour="projects-table" className={`lv-proj-table lv-density-${density}`}>
                   <thead>
                     <tr>
                       <th className="lv-col-check">

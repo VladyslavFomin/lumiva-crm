@@ -899,14 +899,14 @@ export const SaleDetailsPage: React.FC = () => {
                 {t('crm.sales.paymentLink.openButton')}
               </button>
             )}
-            <button type="button" className="sl-btn solid" disabled={saving} onClick={() => void handleSave()}>
+            <button type="button" data-tour="sale-save" className="sl-btn solid" disabled={saving} onClick={() => void handleSave()}>
               <Ic d={SD_ICON.check} size={14} />
               {saving ? t('crm.sales.details.actions.saving') : t('crm.sales.details.actions.save')}
             </button>
           </div>
         </div>
 
-        <div className="sd-strip">
+        <div data-tour="sale-strip" className="sd-strip">
           <div>
             <div className="l">{t('crm.sales.details.strip.amount')}</div>
             <div className="v">
@@ -950,7 +950,7 @@ export const SaleDetailsPage: React.FC = () => {
 
         <div className="sd-split">
           <div className="sd-col">
-            <div className="sl-panel">
+            <div data-tour="sale-items" className="sl-panel">
               <div className="sl-panel-h">
                 <span className="t">{t('crm.sales.details.sections.orderContents')}</span>
                 <span className="s">{t('crm.sales.details.orderContentsHint')}</span>
@@ -1045,7 +1045,7 @@ export const SaleDetailsPage: React.FC = () => {
               )}
             </div>
 
-            <div className="sl-panel">
+            <div data-tour="sale-payment" className="sl-panel">
               <div className="sl-panel-h">
                 <span className="t">{t('crm.sales.details.strip.payment')}</span>
                 <span className="s">{t('crm.sales.paymentLink.openButton')}</span>
@@ -1351,7 +1351,7 @@ export const SaleDetailsPage: React.FC = () => {
           </div>
 
           <div className="sd-rail">
-            <div className="sl-panel">
+            <div data-tour="sale-client" className="sl-panel">
               <div className="sl-panel-h">
                 <span className="t">{t('crm.sales.details.sections.client')}</span>
               </div>
@@ -1402,7 +1402,7 @@ export const SaleDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="sl-panel">
+            <div data-tour="sale-lead" className="sl-panel">
               <div className="sl-panel-h">
                 <span className="t">{t('crm.sales.details.subsections.lead')}</span>
               </div>
@@ -1472,7 +1472,7 @@ export const SaleDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="sl-panel">
+            <div data-tour="sale-team" className="sl-panel">
               <div className="sl-panel-h">
                 <span className="t">{t('crm.sales.details.subsections.team')}</span>
                 <span className="s">{formManagerIds.length}</span>

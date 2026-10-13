@@ -860,7 +860,7 @@ export const SeoPage: React.FC = () => {
                 {connected ? t('crm.marketingSeo.ui.conn.ok') : t('crm.marketingSeo.ui.conn.off')}
               </span>
               {siteHost && (
-                <div className="seo-site-wrap" ref={siteMenuRef}>
+                <div data-tour="seo-site" className="seo-site-wrap" ref={siteMenuRef}>
                   <button
                     type="button"
                     className={cl('seo-site', 'seo-site-btn', siteMenuOpen && 'open')}
@@ -908,7 +908,7 @@ export const SeoPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="seo-views" role="tablist">
+          <div data-tour="seo-views" className="seo-views" role="tablist">
             <button type="button" role="tab" aria-selected={view === 'overview'} className={cl(view === 'overview' && 'on')} onClick={() => setView('overview')}>
               {t('crm.marketingSeo.ai.tabs.overview')}
             </button>
@@ -923,7 +923,7 @@ export const SeoPage: React.FC = () => {
             <SeoAiSection key={settings?.gscPropertyUrl || settings?.pageSpeedUrl || 'none'} site={settings?.gscPropertyUrl || settings?.pageSpeedUrl || null} />
           ) : (
           <>
-          <div className="seo-bar">
+          <div data-tour="seo-bar" className="seo-bar">
             {/* Данные Search Console есть только по вчерашний день. */}
             <DateRangePicker
               value={{ from: fromIsoDate(dateFrom), to: fromIsoDate(dateTo) }}
@@ -1022,7 +1022,7 @@ export const SeoPage: React.FC = () => {
           )}
 
           {gsc && (
-            <div className="seo-kpis">
+            <div data-tour="seo-kpis" className="seo-kpis">
               {kpis.map((k) => (
                 <button key={k.k} type="button" className={cl('seo-kpi', metric === k.k && 'active')} onClick={() => setMetric(k.k)}>
                   <div className="l">{k.l}</div>
@@ -1037,7 +1037,7 @@ export const SeoPage: React.FC = () => {
           )}
 
           <div className="seo-cols">
-            <div className="seo-card">
+            <div data-tour="seo-chart" className="seo-card">
               {syncing && <div className="seo-busy">{t('crm.marketingSeo.syncingOverlay')}</div>}
               <div className="seo-card-head">
                 <h3>{t('crm.marketingSeo.ui.chart.byDay', { metric: metricName(metric) })}</h3>
@@ -1068,7 +1068,7 @@ export const SeoPage: React.FC = () => {
               )}
             </div>
 
-            <div className="seo-card">
+            <div data-tour="seo-psi" className="seo-card">
               <div className="seo-card-head">
                 <h3>{t('crm.marketingSeo.psi.title')}</h3>
                 <div className="seo-seg">
@@ -1144,7 +1144,7 @@ export const SeoPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="seo-src">
+          <div data-tour="seo-sources" className="seo-src">
             <div className="seo-card">
               <div className="seo-card-head">
                 <h3>{t('crm.marketingSeo.ui.sources.title')}</h3>

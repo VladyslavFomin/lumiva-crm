@@ -286,7 +286,7 @@ export const UtmsPage: React.FC = () => {
 
           <div className="ut-cols">
             <div>
-              <div className="ut-card">
+              <div data-tour="utm-builder" className="ut-card">
                 <div className="ut-card-head">
                   <h3>{editingId ? t('crm.marketingUtms.ui.builder.titleEdit') : t('crm.marketingUtms.ui.builder.titleNew')}</h3>
                   <span className="meta">{editingId ? t('crm.marketingUtms.ui.builder.metaEdit') : t('crm.marketingUtms.ui.builder.metaNew')}</span>
@@ -352,7 +352,7 @@ export const UtmsPage: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="ut-out">
+                <div data-tour="utm-out" className="ut-out">
                   <div className="ut-out-head">
                     <span className="l">{t('crm.marketingUtms.ui.out.label')}</span>
                     <button type="button" className="btn btn-sm" onClick={() => void copy()} disabled={!url}>
@@ -383,7 +383,7 @@ export const UtmsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="ut-save">
+                <div data-tour="utm-save" className="ut-save">
                   <div className="ut-f">
                     <div className="l">
                       <b>{t('crm.marketingUtms.ui.save.name')}</b>
@@ -420,7 +420,7 @@ export const UtmsPage: React.FC = () => {
             </div>
 
             <div>
-              <div className="ut-card">
+              <div data-tour="utm-crm" className="ut-card">
                 <div className="ut-card-head">
                   <h3>{t('crm.marketingUtms.ui.crm.title')}</h3>
                   <span className="meta">{t('crm.marketingUtms.ui.crm.meta')}</span>

@@ -63,8 +63,10 @@ export const Card: React.FC<{
   children?: React.ReactNode;
   foot?: React.ReactNode;
   soft?: boolean;
-}> = ({ icon, title, sub, right, children, foot, soft }) => (
-  <div className={cl('cf-card', soft && 'soft')}>
+  /** data-tour — якорь шага подсказки-тура (см. components/help/tour) */
+  tour?: string;
+}> = ({ icon, title, sub, right, children, foot, soft, tour }) => (
+  <div data-tour={tour} className={cl('cf-card', soft && 'soft')}>
     {(title || right) && (
       <div className="cf-card-h">
         <div>
@@ -82,12 +84,13 @@ export const Card: React.FC<{
   </div>
 );
 
-export const SideCard: React.FC<{ title: string; right?: React.ReactNode; children: React.ReactNode }> = ({
+export const SideCard: React.FC<{ title: string; right?: React.ReactNode; children: React.ReactNode; tour?: string }> = ({
   title,
   right,
   children,
+  tour,
 }) => (
-  <div className="cf-card soft">
+  <div data-tour={tour} className="cf-card soft">
     <div className="cf-body">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="cf-side-t">{title}</div>
@@ -104,15 +107,16 @@ export interface TabDef {
   n?: number;
 }
 
-export const Tabs: React.FC<{ tabs: TabDef[]; v: string; set: (id: string) => void; locked?: boolean }> = ({
+export const Tabs: React.FC<{ tabs: TabDef[]; v: string; set: (id: string) => void; locked?: boolean; tour?: string }> = ({
   tabs,
   v,
   set,
   locked,
+  tour,
 }) => {
   const { t } = useTranslation();
   return (
-    <div className="cf-tabs">
+    <div data-tour={tour} className="cf-tabs">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -258,8 +262,8 @@ export const DeptAssignees: React.FC<{
   );
 };
 
-export const Metrics: React.FC<{ items: Array<[string, React.ReactNode, string]> }> = ({ items }) => (
-  <div className="cf-metrics">
+export const Metrics: React.FC<{ items: Array<[string, React.ReactNode, string]>; tour?: string }> = ({ items, tour }) => (
+  <div data-tour={tour} className="cf-metrics">
     {items.map(([k, v, d]) => (
       <div key={k} className="cf-metric">
         <div className="k">{k}</div>

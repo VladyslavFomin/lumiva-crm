@@ -17598,6 +17598,22 @@
           "submit": "Oluştur ve odaları ayarla",
           "nameRequired": "Otel adını girin",
           "createError": "Otel oluşturulamadı"
+        },
+        "filterPanel": {
+          "status": "Durum",
+          "country": "Ülke",
+          "city": "Şehir",
+          "stars": "Yıldız",
+          "any": "Tümü",
+          "reset": "Sıfırla",
+          "shown": "{{total}} otelden {{count}} gösteriliyor"
+        },
+        "sortBy": {
+          "name": "Ada göre",
+          "rooms": "Oda sayısına göre",
+          "occupancy": "Bugünkü doluluğa göre",
+          "stars": "Yıldıza göre",
+          "newest": "Önce yeniler"
         }
       },
       "calendarCommon": {
@@ -19111,7 +19127,17 @@
         "addBlockEmptyTitle": "Blok ekle",
         "addBlockEmptySubtitle": "KPI'lar, grafikler, tablolar, sıralamalar",
         "shareToastText": "Bağlantı panoya kopyalandı",
-        "sharePromptFallback": "Bağlantıyı kopyalayın:"
+        "sharePromptFallback": "Bağlantıyı kopyalayın:",
+        "savedViews": {
+          "title": "Görünümü kaydet",
+          "hint": "Sekme, dönem, filtreler ve arama kaydedilir — görünüm sekmelerin yanında çıkar.",
+          "namePlaceholder": "Örneğin: Google bu çeyrek",
+          "save": "Kaydet",
+          "cancel": "İptal",
+          "willOverwrite": "Bu adla bir görünüm var — güncellenecek.",
+          "applyTitle": "Kayıtlı görünümü aç",
+          "delete": "“{{name}}” görünümünü sil"
+        }
       },
       "addBlockModal": {
         "kicker": "Blok kataloğu",
@@ -21416,6 +21442,17 @@
         "companies": "Şirketler",
         "ads": "Reklam"
       }
+    },
+    "tour": {
+      "next": "İleri",
+      "back": "Geri",
+      "done": "Tamam",
+      "skip": "Atla",
+      "stepOf": "Adım {{current}} / {{total}}",
+      "start": "Eğitimi başlat",
+      "startHint": "Bu sayfada kısa bir tur — butonların hemen yanında {{count}} adımlık ipuçları.",
+      "videoGuide": "Video rehber",
+      "dontShow": "İpuçlarını otomatik gösterme"
     }
   },
   "landing": {

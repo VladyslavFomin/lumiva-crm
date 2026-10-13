@@ -654,18 +654,18 @@ export const SmmPage: React.FC = () => {
                   {integrations.vk.expired ? t('crm.marketingSmm.ui.conn.vkExpired') : t('crm.marketingSmm.ui.conn.vkOk')}
                 </span>
               )}
-              <button type="button" className="btn btn-sm" onClick={() => void runSync()} disabled={syncing}>
+              <button data-tour="smm-sync" type="button" className="btn btn-sm" onClick={() => void runSync()} disabled={syncing}>
                 <Ic d={M.refresh} size={14} />
                 {syncing ? t('crm.marketingSmm.ui.syncing') : t('crm.marketingSmm.ui.sync')}
               </button>
-              <button type="button" className="btn btn-sm btn-primary" onClick={() => setDrawer(true)}>
+              <button data-tour="smm-connect" type="button" className="btn btn-sm btn-primary" onClick={() => setDrawer(true)}>
                 <Ic d={M.plug} size={14} />
                 {t('crm.marketingSmm.ui.integrations')}
               </button>
             </div>
           </div>
 
-          <div className="sm-bar">
+          <div data-tour="smm-bar" className="sm-bar">
             <DateRangePicker
               value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
               presetId={preset === 'custom' ? null : preset}
@@ -713,7 +713,7 @@ export const SmmPage: React.FC = () => {
             </div>
           )}
 
-          <div className="sm-kpis">
+          <div data-tour="smm-kpis" className="sm-kpis">
             <div className="sm-kpi">
               <div className="l">{t('crm.marketingSmm.ui.kpi.profiles')}</div>
               <div className="v">
@@ -748,7 +748,7 @@ export const SmmPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="sm-card" style={{ position: 'relative' }}>
+          <div data-tour="smm-chart" className="sm-card" style={{ position: 'relative' }}>
             {loading && <div className="sm-busy">{t('crm.marketingSmm.ui.loading')}</div>}
             <div className="sm-card-head">
               <h3>{t('crm.marketingSmm.ui.chart.title', { metric: t(`crm.marketingSmm.ui.metrics.${metric}`) })}</h3>
@@ -781,7 +781,7 @@ export const SmmPage: React.FC = () => {
             )}
           </div>
 
-          <div className="sm-card">
+          <div data-tour="smm-profiles" className="sm-card">
             <div className="sm-card-head">
               <h3>{t('crm.marketingSmm.ui.profiles.title')}</h3>
               <div className="sm-card-tools">

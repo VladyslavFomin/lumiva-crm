@@ -322,12 +322,12 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
         <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>
           {t('crm.hotels.detail.roomsTab.countSummary', { count: roomTypes.length, total: totalRooms })}
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModalState('new')}>
+        <button data-tour="hotel-add-type" className="btn btn-primary btn-sm" onClick={() => setModalState('new')}>
           <Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.detail.roomsTab.addType')}
         </button>
       </div>
 
-      <div className="rm-grid">
+      <div data-tour="hotel-rooms" className="rm-grid">
         {roomTypes.map((r) => (
           <div key={r.id} className={r.stopSale ? 'rm-card rm-card-stopped' : 'rm-card'}>
             <div
@@ -1492,7 +1492,7 @@ export const HotelDetailPage: React.FC = () => {
               {[hotel.city, hotel.country].filter(Boolean).join(', ')} · {hotel.stars}★ · {totalRooms} {t('crm.hotels.detail.header.roomsCountSuffix')}
             </div>
           </div>
-          <button className="htl-cover-upload-btn" onClick={() => coverInputRef.current?.click()}>
+          <button data-tour="hotel-cover" className="htl-cover-upload-btn" onClick={() => coverInputRef.current?.click()}>
             <Ic d={HTL_ICON.pencil} size={12} />{t('crm.hotels.detail.header.changePhoto')}
           </button>
           <input
@@ -1512,14 +1512,14 @@ export const HotelDetailPage: React.FC = () => {
           />
         </div>
 
-        <div className="htl-info-grid">
+        <div data-tour="hotel-info" className="htl-info-grid">
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.occupancyToday')}</div><div className="v">{hotel.occupancyToday}%</div></div>
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.adr')}</div><div className="v">{formatHotelMoney(hotel.adr, hotel.currency)}</div></div>
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.roomTypesCount')}</div><div className="v">{hotel.roomTypesCount}</div></div>
           <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.marketsCount')}</div><div className="v">{hotel.marketsCount}</div></div>
         </div>
 
-        <div className="htl-detail-tabs">
+        <div data-tour="hotel-tabs" className="htl-detail-tabs">
           <div className={`htl-detail-tab${tab === 'rooms' ? ' active' : ''}`} onClick={() => setTab('rooms')}>{t('crm.hotels.detail.tabs.rooms')}</div>
           <div className={`htl-detail-tab${tab === 'calendar' ? ' active' : ''}`} onClick={() => setTab('calendar')}>{t('crm.hotels.detail.tabs.calendar')}</div>
           <div className={`htl-detail-tab${tab === 'markets' ? ' active' : ''}`} onClick={() => setTab('markets')}>{t('crm.hotels.detail.tabs.markets')}</div>

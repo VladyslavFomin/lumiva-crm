@@ -46,7 +46,7 @@ export const HotelCalendarPage: React.FC = () => {
             <h1>{t('crm.hotels.calendarPage.title')}</h1>
             <p className="sub">{t('crm.hotels.calendarPage.subtitle')}</p>
           </div>
-          <div className="htl-hero-r">
+          <div data-tour="hcal-hotel" className="htl-hero-r">
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
               {hotels.map((h) => (
                 <option key={h.id} value={h.id}>{h.name}</option>
@@ -55,12 +55,12 @@ export const HotelCalendarPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bk-savedviews" style={{ marginTop: 16 }}>
+        <div data-tour="hcal-tabs" className="bk-savedviews" style={{ marginTop: 16 }}>
           <div className={`bk-sv-tab${tab === 'price' ? ' active' : ''}`} onClick={() => setTab('price')}>{t('crm.hotels.calendarPage.tabPrice')}</div>
           <div className={`bk-sv-tab${tab === 'occupancy' ? ' active' : ''}`} onClick={() => setTab('occupancy')}>{t('crm.hotels.calendarPage.tabOccupancy')}</div>
         </div>
 
-        <div style={{ marginTop: 16 }}>
+        <div data-tour="hcal-grid" style={{ marginTop: 16 }}>
           {tab === 'price' ? (
             <HotelPricingCalendar roomTypes={roomTypes} />
           ) : (

@@ -669,7 +669,7 @@ export const LeadsCalendarPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="lv-view-tabs">
+        <div data-tour="leads-views" className="lv-view-tabs">
           <button type="button" className={`lv-view-tab${isListTab ? ' active' : ''}`} onClick={goList}>
             {t('crm.leads.list.viewList')}
             <span className="badge">{leadsTabBadgeCount}</span>

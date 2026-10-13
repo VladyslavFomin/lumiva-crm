@@ -17616,6 +17616,22 @@
           "submit": "Create and set up rooms",
           "nameRequired": "Enter a hotel name",
           "createError": "Failed to create the hotel"
+        },
+        "filterPanel": {
+          "status": "Status",
+          "country": "Country",
+          "city": "City",
+          "stars": "Stars",
+          "any": "Any",
+          "reset": "Reset",
+          "shown": "Showing {{count}} of {{total}}"
+        },
+        "sortBy": {
+          "name": "By name",
+          "rooms": "By number of rooms",
+          "occupancy": "By occupancy today",
+          "stars": "By stars",
+          "newest": "Newest first"
         }
       },
       "calendarCommon": {
@@ -19129,7 +19145,17 @@
         "addBlockEmptyTitle": "Add block",
         "addBlockEmptySubtitle": "KPIs, charts, tables, leaderboards",
         "shareToastText": "Link copied to clipboard",
-        "sharePromptFallback": "Copy the link:"
+        "sharePromptFallback": "Copy the link:",
+        "savedViews": {
+          "title": "Save view",
+          "hint": "We keep the tab, period, filters and search — the view appears next to the tabs.",
+          "namePlaceholder": "For example: Google this quarter",
+          "save": "Save",
+          "cancel": "Cancel",
+          "willOverwrite": "A view with this name exists — it will be updated.",
+          "applyTitle": "Open saved view",
+          "delete": "Delete view “{{name}}”"
+        }
       },
       "addBlockModal": {
         "kicker": "Block catalog",
@@ -21434,6 +21460,17 @@
         "companies": "Companies",
         "ads": "Ads"
       }
+    },
+    "tour": {
+      "next": "Next",
+      "back": "Back",
+      "done": "Done",
+      "skip": "Skip",
+      "stepOf": "Step {{current}} of {{total}}",
+      "start": "Take the tour",
+      "startHint": "A short walkthrough of this page — {{count}} steps with tips right next to the buttons.",
+      "videoGuide": "Video guide",
+      "dontShow": "Don't show tips automatically"
     }
   },
   "landing": {

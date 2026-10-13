@@ -402,7 +402,7 @@ export const EmailAccountFormPage: React.FC = () => {
 
           <div className="na-split">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-              <div className="em-panel">
+              <div data-tour="mform-provider" className="em-panel">
                 <div className="em-panel-h">
                   <span className="t">
                     <Ic d={EM_ICON.bolt} size={14} />
@@ -447,7 +447,7 @@ export const EmailAccountFormPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="em-panel">
+              <div data-tour="mform-account" className="em-panel">
                 <div className="em-panel-h">
                   <span className="t">
                     <Ic d={EM_ICON.user} size={14} />
@@ -490,7 +490,7 @@ export const EmailAccountFormPage: React.FC = () => {
               </div>
 
               {!p.oauth && (
-                <div className="em-panel">
+                <div data-tour="mform-smtp" className="em-panel">
                   <div className="em-panel-h">
                     <span className="t">
                       <Ic d={EM_ICON.mail} size={14} />
@@ -573,7 +573,7 @@ export const EmailAccountFormPage: React.FC = () => {
               )}
 
               {!p.oauth && (
-                <div className="em-panel">
+                <div data-tour="mform-imap" className="em-panel">
                   <div className="em-panel-h">
                     <span className="t">
                       <Ic d={EM_ICON.inbox} size={14} />
@@ -669,7 +669,7 @@ export const EmailAccountFormPage: React.FC = () => {
               )}
             </div>
 
-            <div className="na-side">
+            <div data-tour="mform-side" className="na-side">
               <div className="em-panel">
                 <div className="em-panel-h">
                   <span className="t">
@@ -759,7 +759,7 @@ export const EmailAccountFormPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="na-bar">
+          <div data-tour="mform-bar" className="na-bar">
             <span className="h">
               {p.oauth ? t('crm.email.form.wizard.footOauthHint') : id ? t('crm.email.form.wizard.footEditHint') : t('crm.email.form.wizard.footNewHint')}
             </span>

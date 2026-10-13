@@ -466,7 +466,7 @@ export const ProductDetailPage: React.FC = () => {
                 <Icon d={I.box} size={26} />
               )}
             </div>
-            <div className="pd-id">
+            <div data-tour="product-status" className="pd-id">
               <div className="nm">
                 {editing ? (
                   <input
@@ -514,7 +514,7 @@ export const ProductDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="pd-actions">
+          <div data-tour="product-actions" className="pd-actions">
             {editing ? (
               <>
                 <button type="button" className="aib ghost sm" onClick={cancelEdit} disabled={saving}>
@@ -540,7 +540,7 @@ export const ProductDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="pd-tabs">
+        <div data-tour="product-tabs" className="pd-tabs">
           {tabs.map((tb) => (
             <button key={tb.k} className={`pd-tab${tab === tb.k ? ' active' : ''}`} onClick={() => setTab(tb.k)}>
               <span className="ic"><Icon d={tb.ic} size={14} /></span>{tb.l}
@@ -553,7 +553,7 @@ export const ProductDetailPage: React.FC = () => {
         {tab === 'overview' && (
           <div className="pd-2col">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div className="pd-panel">
+              <div data-tour="product-gallery" className="pd-panel">
                 <div className="pd-panel-head">
                   <div className="pt"><span className="ic"><Icon d={I.box} size={14} /></span>{t('crm.products.detail.gallery.title')}</div>
                   {editing && <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.products.detail.gallery.hint')}</span>}
@@ -623,7 +623,7 @@ export const ProductDetailPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div className="pd-panel">
+              <div data-tour="product-price" className="pd-panel">
                 {editing ? (
                   <div className="pd-price-edit">
                     <div className="f">

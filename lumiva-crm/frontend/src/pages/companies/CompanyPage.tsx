@@ -286,7 +286,7 @@ export const CompanyPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHelpButton topic="companies" />
+      <PageHelpButton topic="companyCard" />
       <div className="px-scope">
         <div className="cf-wrap">
           <a
@@ -327,7 +327,7 @@ export const CompanyPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="cf-actions">
+            <div data-tour="company-actions" className="cf-actions">
               {!isNew && (
                 <>
                   <button type="button" className="btn btn-sm" onClick={() => setTab('contacts')}>
@@ -351,7 +351,7 @@ export const CompanyPage: React.FC = () => {
             </div>
           </div>
 
-          <Tabs tabs={TABS} v={tab} set={setTab} locked={isNew} />
+          <Tabs tour="company-tabs" tabs={TABS} v={tab} set={setTab} locked={isNew} />
           {error && (
             <div className="cf-alert">
               <Ic d={LIC.close} size={14} />
@@ -363,6 +363,7 @@ export const CompanyPage: React.FC = () => {
             <>
               {!isNew && analytics && (
                 <Metrics
+                  tour="company-metrics"
                   items={[
                     [
                       t('crm.companies.card.metrics.contacts'),
@@ -388,7 +389,7 @@ export const CompanyPage: React.FC = () => {
 
               <div className="cf-grid">
                 <div className="cf-col">
-                  <Card icon={LIC.users} title={t('crm.companies.card.companyFields.title')} sub={t('crm.companies.card.companyFields.sub')}>
+                  <Card tour="company-info" icon={LIC.users} title={t('crm.companies.card.companyFields.title')} sub={t('crm.companies.card.companyFields.sub')}>
                     <div className="cf-body">
                       <div className="cf-fields">
                         <F label={t('crm.companies.card.companyFields.name')} req wide>
@@ -428,7 +429,7 @@ export const CompanyPage: React.FC = () => {
                     </div>
                   </Card>
 
-                  <Card icon={LIC.note} title={t('crm.companies.card.requisites.title')} sub={t('crm.companies.card.requisites.sub')}>
+                  <Card tour="company-requisites" icon={LIC.note} title={t('crm.companies.card.requisites.title')} sub={t('crm.companies.card.requisites.sub')}>
                     <div className="cf-body">
                       <LegalRequisitesEditor value={req} onChange={setReq} />
                     </div>
@@ -439,7 +440,7 @@ export const CompanyPage: React.FC = () => {
                   <SideCard title={t('crm.contacts.list.table.status')}>
                     <Sel value={form.status || 'active'} onChange={(e) => set('status', e.target.value)} options={STATUSES_F(t)} />
                   </SideCard>
-                  <SideCard title={t('crm.companies.card.relationshipStage')}>
+                  <SideCard tour="company-stage" title={t('crm.companies.card.relationshipStage')}>
                     <Sel value={form.type || ''} onChange={(e) => set('type', e.target.value)} placeholder={t('crm.crmShared.notSpecifiedLead')} options={TYPE_OPTIONS(t)} />
                   </SideCard>
                   <SideCard title={t('crm.companies.list.drawer.size')}>

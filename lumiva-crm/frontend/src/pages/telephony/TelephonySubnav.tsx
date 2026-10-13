@@ -40,7 +40,7 @@ export const TelephonySubnav: React.FC<{ active: SubnavKey }> = ({ active }) => 
   ];
 
   return (
-    <div className="px-subnav">
+    <div data-tour="tel-subnav" className="px-subnav">
       {items.map((item) => (
         <button
           key={item.key}

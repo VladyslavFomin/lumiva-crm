@@ -34,6 +34,7 @@ import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
 import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage';
 import { postAiBuildAnalyticsDashboard } from '../../api/ai';
+import { fetchUserPreferences, updateUserPreferences } from '../../api/userPreferences';
 import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
 import { MetricCard } from '../../components/analytics/MetricCard';
 import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
@@ -67,6 +68,33 @@ type FilterRow = {
   scope: string;
   keys: string[];
 };
+
+/** Сохранённый вид: вкладка + период + фильтры + поиск. Хранится в preferences.analyticsLayouts на сервере. */
+type SavedView = {
+  id: string;
+  name: string;
+  view: ViewId;
+  period: PeriodId;
+  globalFilters: FilterRow[];
+  search: string;
+};
+const SAVED_VIEWS_PREF_KEY = 'leadsAnalyticsSavedViews';
+const SAVED_VIEWS_MAX = 20;
+
+function parseSavedViews(raw: unknown): SavedView[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is SavedView => !!v && typeof v === 'object' && typeof (v as SavedView).id === 'string' && typeof (v as SavedView).name === 'string')
+    .map((v) => ({
+      id: v.id,
+      name: v.name.slice(0, 40),
+      view: (['overview', 'sources', 'managers', 'funnel'] as ViewId[]).includes(v.view) ? v.view : 'overview',
+      period: typeof v.period === 'string' ? v.period : '30d',
+      globalFilters: Array.isArray(v.globalFilters) ? v.globalFilters.filter((f) => f && typeof f.scope === 'string' && Array.isArray(f.keys)) : [],
+      search: typeof v.search === 'string' ? v.search : '',
+    }))
+    .slice(0, SAVED_VIEWS_MAX);
+}
 
 type AnalyticsBlock = {
   id: string;
@@ -2163,7 +2191,95 @@ export const LeadsAnalyticsPage: React.FC<{
   const [aiConfirmOpen, setAiConfirmOpen] = useState(false);
   const [aiBuilding, setAiBuilding] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  // Строка вкладок прокручивается по горизонтали (overflow-x-auto) и обрезала бы абсолютное окно —
+  // поэтому окно fixed и ставится по координатам кнопки.
+  const [saveViewPos, setSaveViewPos] = useState<{ top: number; right: number } | null>(null);
+  const saveViewRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (embedBlock) return;
+    let alive = true;
+    fetchUserPreferences()
+      .then(({ preferences }) => {
+        if (alive) setSavedViews(parseSavedViews(preferences?.analyticsLayouts?.[SAVED_VIEWS_PREF_KEY]));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [embedBlock]);
+
+  useEffect(() => {
+    if (!saveViewOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (saveViewRef.current && !saveViewRef.current.contains(e.target as Node)) setSaveViewOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSaveViewOpen(false);
+    const onScroll = (e: Event) => {
+      if (saveViewRef.current && e.target instanceof Node && saveViewRef.current.contains(e.target)) return;
+      setSaveViewOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [saveViewOpen]);
+
+  const persistSavedViews = (next: SavedView[]) => {
+    setSavedViews(next);
+    void updateUserPreferences({ analyticsLayouts: { [SAVED_VIEWS_PREF_KEY]: next } }).catch(() => undefined);
+  };
+
+  const openSaveView = (anchor: HTMLElement) => {
+    const r = anchor.getBoundingClientRect();
+    setSaveViewPos({ top: r.bottom + 8, right: Math.max(16, window.innerWidth - r.right) });
+    const current = savedViews.find((v) => v.id === activeSavedId);
+    setSaveViewName(current?.name || '');
+    setSaveViewOpen(true);
+  };
+
+  /** То же имя — перезаписываем вид, новое — добавляем. */
+  const submitSaveView = () => {
+    const name = saveViewName.trim().slice(0, 40);
+    if (!name) return;
+    const existing = savedViews.find((v) => v.name.toLowerCase() === name.toLowerCase());
+    const entry: SavedView = {
+      id: existing?.id || `sv_${Date.now().toString(36)}`,
+      name,
+      view: activeView,
+      period,
+      globalFilters: globalFilters.map((f) => ({ ...f })),
+      search,
+    };
+    const next = existing ? savedViews.map((v) => (v.id === existing.id ? entry : v)) : [...savedViews, entry].slice(-SAVED_VIEWS_MAX);
+    persistSavedViews(next);
+    setActiveSavedId(entry.id);
+    setSaveViewOpen(false);
+  };
+
+  const applySavedView = (v: SavedView) => {
+    setActiveView(v.view);
+    setPeriod(v.period);
+    setGlobalFilters(v.globalFilters.map((f, i) => ({ ...f, id: `${f.scope}-${Date.now().toString(36)}-${i}` })));
+    setSearch(v.search);
+    setActiveSavedId(v.id);
+  };
+
+  const deleteSavedView = (id: string) => {
+    persistSavedViews(savedViews.filter((v) => v.id !== id));
+    if (activeSavedId === id) setActiveSavedId(null);
+  };
   const currenciesPresent = useMemo(
     () =>
       Array.from(
@@ -2559,7 +2675,7 @@ export const LeadsAnalyticsPage: React.FC<{
               <span className="hidden sm:inline">{t('crm.leadsAnalytics.page.breadcrumbLeads')} <span className="mx-2 text-neutral-300">/</span> </span><span className="font-semibold text-[#222]">{t('crm.leadsAnalytics.page.breadcrumbAnalytics')}</span>
             </div>
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
-              <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 shadow-sm sm:w-52 sm:flex-none">
+              <div data-tour="la-search" className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 shadow-sm sm:w-52 sm:flex-none">
                 <Icon name="search" size={14} />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('crm.leadsAnalytics.page.searchPlaceholder')} className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
               </div>
@@ -2583,28 +2699,77 @@ export const LeadsAnalyticsPage: React.FC<{
                 onChange={(v) => setPeriod(v.presetId ? (v.presetId as PresetPeriodId) : v.from && v.to ? `custom:${toIsoDate(v.from)}:${toIsoDate(v.to)}` : 'all')}
               />
               <button type="button" className="hidden sm:inline-flex items-center gap-2 btn-secondary" onClick={handleShare}><Icon name="share" size={15} /><span className="hidden md:inline">{t('crm.leadsAnalytics.page.shareBtn')}</span></button>
-              <button type="button" className="hidden sm:inline-flex items-center gap-2 btn-secondary" onClick={() => exportCsv(filteredItems, period, t)}><Icon name="download" size={15} /><span className="hidden md:inline">{t('crm.leadsAnalytics.page.exportCsvBtn')}</span></button>
-              <button type="button" className="btn-primary" onClick={() => setEditing((value) => !value)}>{editing ? t('crm.leadsAnalytics.page.doneBtn') : t('crm.leadsAnalytics.page.editBtn')}</button>
+              <button data-tour="la-export" type="button" className="hidden sm:inline-flex items-center gap-2 btn-secondary" onClick={() => exportCsv(filteredItems, period, t)}><Icon name="download" size={15} /><span className="hidden md:inline">{t('crm.leadsAnalytics.page.exportCsvBtn')}</span></button>
+              <button data-tour="la-edit" type="button" className="btn-primary" onClick={() => setEditing((value) => !value)}>{editing ? t('crm.leadsAnalytics.page.doneBtn') : t('crm.leadsAnalytics.page.editBtn')}</button>
             </div>
           </section>
 
           <nav className="border-b border-neutral-200">
-            <div className="-mx-3 flex items-center justify-between overflow-x-auto px-3 md:mx-0 md:px-0">
+            <div data-tour="la-views" className="-mx-3 flex items-center justify-between overflow-x-auto px-3 md:mx-0 md:px-0">
               <div className="flex shrink-0 gap-1 sm:gap-4">
                 {views.map((view) => (
-                  <button key={view.id} type="button" className={cx('whitespace-nowrap border-b-2 px-2 py-3 text-sm transition sm:px-3 sm:py-4 sm:text-base', activeView === view.id ? 'border-[#222] font-medium text-[#222]' : 'border-transparent text-neutral-500 hover:text-[#222]')} onClick={() => setActiveView(view.id)}>
-                    {activeView === view.id && <span className="mr-1 sm:mr-2">•</span>}{view.label}
+                  <button key={view.id} type="button" className={cx('whitespace-nowrap border-b-2 px-2 py-3 text-sm transition sm:px-3 sm:py-4 sm:text-base', activeView === view.id && !activeSavedId ? 'border-[#222] font-medium text-[#222]' : 'border-transparent text-neutral-500 hover:text-[#222]')} onClick={() => { setActiveView(view.id); setActiveSavedId(null); }}>
+                    {activeView === view.id && !activeSavedId && <span className="mr-1 sm:mr-2">•</span>}{view.label}
                   </button>
+                ))}
+                {savedViews.length > 0 && <span className="my-3 w-px shrink-0 bg-neutral-200" aria-hidden />}
+                {savedViews.map((v) => (
+                  <span key={v.id} className={cx('group flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-2 py-3 text-sm transition sm:px-3 sm:py-4 sm:text-base', activeSavedId === v.id ? 'border-[#222] font-medium text-[#222]' : 'border-transparent text-neutral-500 hover:text-[#222]')}>
+                    <button type="button" onClick={() => applySavedView(v)} title={t('crm.leadsAnalytics.page.savedViews.applyTitle')}>
+                      {activeSavedId === v.id && <span className="mr-1 sm:mr-2">•</span>}{v.name}
+                    </button>
+                    <button
+                      type="button"
+                      className="ml-0.5 rounded px-1 text-neutral-300 opacity-0 transition hover:text-rose-600 group-hover:opacity-100 focus-visible:opacity-100"
+                      onClick={() => deleteSavedView(v.id)}
+                      aria-label={t('crm.leadsAnalytics.page.savedViews.delete', { name: v.name })}
+                      title={t('crm.leadsAnalytics.page.savedViews.delete', { name: v.name })}
+                    >
+                      ×
+                    </button>
+                  </span>
                 ))}
               </div>
               <div className="ml-2 flex shrink-0 items-center gap-2">
                 <AnalyticsCurrencyControl state={currencyPrefs} onStateChange={setCurrencyPrefs} />
-                <button type="button" className="hidden md:block btn-secondary border-dashed border-border-strong text-text-secondary">{t('crm.leadsAnalytics.page.saveViewBtn')}</button>
+                <div data-tour="la-save" className="relative hidden md:block" ref={saveViewRef}>
+                  <button type="button" className="btn-secondary border-dashed border-border-strong text-text-secondary" onClick={(e) => (saveViewOpen ? setSaveViewOpen(false) : openSaveView(e.currentTarget))} aria-expanded={saveViewOpen}>
+                    {t('crm.leadsAnalytics.page.saveViewBtn')}
+                  </button>
+                  {saveViewOpen && saveViewPos && (
+                    <form
+                      style={{ top: saveViewPos.top, right: saveViewPos.right }}
+                      className="lv-pop fixed z-50 w-72 rounded-xl border border-neutral-200 bg-white p-3 shadow-xl"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        submitSaveView();
+                      }}
+                    >
+                      <div className="text-xs font-medium text-neutral-900">{t('crm.leadsAnalytics.page.savedViews.title')}</div>
+                      <div className="mt-0.5 text-[11px] leading-relaxed text-neutral-500">{t('crm.leadsAnalytics.page.savedViews.hint')}</div>
+                      <input
+                        autoFocus
+                        value={saveViewName}
+                        maxLength={40}
+                        onChange={(e) => setSaveViewName(e.target.value)}
+                        placeholder={t('crm.leadsAnalytics.page.savedViews.namePlaceholder')}
+                        className="mt-2 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+                      />
+                      {savedViews.some((v) => v.name.toLowerCase() === saveViewName.trim().toLowerCase()) && (
+                        <div className="mt-1 text-[11px] text-amber-700">{t('crm.leadsAnalytics.page.savedViews.willOverwrite')}</div>
+                      )}
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button type="button" className="btn-secondary" onClick={() => setSaveViewOpen(false)}>{t('crm.leadsAnalytics.page.savedViews.cancel')}</button>
+                        <button type="submit" className="btn-primary" disabled={!saveViewName.trim()}>{t('crm.leadsAnalytics.page.savedViews.save')}</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               </div>
             </div>
           </nav>
 
-          <section className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+          <section data-tour="la-filters" className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-400">{t('crm.leadsAnalytics.page.filtersLabel')}</span>
               {globalFilters.map((filter) => (
@@ -2640,7 +2805,7 @@ export const LeadsAnalyticsPage: React.FC<{
             </section>
           )}
 
-          <div
+          <div data-tour="la-grid"
             ref={gridRef}
             className={cx('grid min-h-[600px] grid-cols-12 gap-3 rounded-xl sm:gap-4', editing && 'bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]')}
             onClick={() => setSelected(null)}

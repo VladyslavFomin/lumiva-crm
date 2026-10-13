@@ -93,7 +93,7 @@ export const ProductFeedsPage: React.FC = () => {
             {sites.map((site) => {
               const base = `${apiBase}/public/feeds/${site.apiToken}`;
               return (
-                <div key={site.id} className="px-table-wrap" style={{ padding: '14px 16px' }}>
+                <div data-tour="pfeed-site" key={site.id} className="px-table-wrap" style={{ padding: '14px 16px' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 2 }}>
                     {site.name || site.domain}
                   </div>
@@ -104,7 +104,7 @@ export const ProductFeedsPage: React.FC = () => {
                 </div>
               );
             })}
-            <div className="ai-hint" style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.products.feeds.hint')}</div>
+            <div data-tour="pfeed-hint" className="ai-hint" style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.products.feeds.hint')}</div>
           </div>
         )}
       </div>

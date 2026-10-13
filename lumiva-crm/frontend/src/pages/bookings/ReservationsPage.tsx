@@ -359,25 +359,25 @@ export const ReservationsPage: React.FC = () => {
             <p className="sub">{t('crm.bookings.list.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
-            <button className="btn btn-sm" onClick={() => navigate('/bookings/reservations/import')}>
+            <button data-tour="reservations-import" className="btn btn-sm" onClick={() => navigate('/bookings/reservations/import')}>
               {t('crm.bookings.list.import')}
             </button>
             <button className="btn btn-sm" onClick={exportCsv} disabled={!filtered.length}>
               <Ic d={BK_ICON.more} size={13} /> {t('crm.bookings.list.export')}
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)} disabled={!locations.length}>
+            <button data-tour="reservations-create" className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)} disabled={!locations.length}>
               <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.list.newBooking')}
             </button>
           </div>
         </div>
 
-        <div className="bk-savedviews" style={{ marginTop: 16 }}>
+        <div data-tour="reservations-views" className="bk-savedviews" style={{ marginTop: 16 }}>
           {VIEW_KEYS.map((v) => (
             <div key={v} className={`bk-sv-tab${v === view ? ' active' : ''}`} onClick={() => setView(v)}>{t(`crm.bookings.list.views.${v}`)}</div>
           ))}
         </div>
 
-        <div className="bk-filters">
+        <div data-tour="reservations-filters" className="bk-filters">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--line-2)', borderRadius: 8, padding: '7px 12px', width: 200 }}>
             <Ic d={BK_ICON.search} size={13} />
             <input
@@ -418,7 +418,7 @@ export const ReservationsPage: React.FC = () => {
         </div>
 
         <div className="bk-table-wrap">
-          <table className="bk-table">
+          <table data-tour="reservations-table" className="bk-table">
             <thead>
               <tr>
                 <th style={{ width: 34 }}></th>

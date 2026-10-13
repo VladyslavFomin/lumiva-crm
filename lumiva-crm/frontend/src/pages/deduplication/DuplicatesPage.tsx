@@ -406,14 +406,14 @@ export const DuplicatesPage: React.FC = () => {
             <p className="sub">{t('crm.deduplication.page.heroSub')}</p>
           </div>
           <div className="du-hero-r">
-            <button className="btn btn-sm" disabled={scanning} onClick={handleScan}>
+            <button data-tour="du-scan" className="btn btn-sm" disabled={scanning} onClick={handleScan}>
               <Ic d={UIC.scan} size={13} />
               {scanning ? t('crm.deduplication.scanningBtn') : t('crm.deduplication.scanBtn')}
             </button>
           </div>
         </div>
 
-        <div className="du-seg" style={{ marginBottom: 16 }}>
+        <div data-tour="du-entity" className="du-seg" style={{ marginBottom: 16 }}>
           {ENTITY_TYPES.map((et) => (
             <button key={et} className={cx(entityType === et && 'on')} onClick={() => setEntityType(et)}>
               {t(`crm.deduplication.tabs.${et}`)}
@@ -433,7 +433,7 @@ export const DuplicatesPage: React.FC = () => {
         )}
 
         {overview && (
-          <div className="du-kpis">
+          <div data-tour="du-kpis" className="du-kpis">
             <div className="du-kpi">
               <div className="l">{t('crm.deduplication.page.kpi.groups')}</div>
               <div className="v">{overview.groupsCount}</div>
@@ -456,7 +456,7 @@ export const DuplicatesPage: React.FC = () => {
           </div>
         )}
 
-        <div className="du-tabs">
+        <div data-tour="du-tabs" className="du-tabs">
           <div className={cx('du-tab', tab === 'queue' && 'active')} onClick={() => setTab('queue')}>
             {t('crm.deduplication.page.tabs.queue')}
             <span className="n">{groups.length}</span>
@@ -476,7 +476,7 @@ export const DuplicatesPage: React.FC = () => {
             </div>
           ) : (
             <div className="du-layout">
-              <div className="du-card">
+              <div data-tour="du-rules" className="du-card">
                 <div className="du-card-head">
                   <div>
                     <h3>
@@ -503,7 +503,7 @@ export const DuplicatesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="du-card">
+              <div data-tour="du-groups" className="du-card">
                 <div className="du-toolbar">
                   <div className="du-search">
                     <Ic d={UIC.search} size={13} />
@@ -590,7 +590,7 @@ export const DuplicatesPage: React.FC = () => {
           )
         ) : tab === 'settings' ? (
           <div className="du-layout" style={{ gridTemplateColumns: 'minmax(0,1fr) 320px' }}>
-            <div className="du-card">
+            <div data-tour="du-settings" className="du-card">
               <div className="du-card-head">
                 <div>
                   <h3>

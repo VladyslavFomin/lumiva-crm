@@ -222,6 +222,7 @@ export const HelpdeskPage: React.FC = () => {
           <div className="esn-hero-r">
             <button
               type="button"
+              data-tour="helpdesk-create"
               className="btn btn-primary btn-sm"
               onClick={() => {
                 setShowForm((v) => !v);
@@ -234,7 +235,7 @@ export const HelpdeskPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="esn-kpis">
+        <div data-tour="helpdesk-kpis" className="esn-kpis">
           <div className="esn-kpi">
             <div className="l">{t('crm.helpdesk.kpis.open')}</div>
             <div className="v">{counts.open}</div>
@@ -363,7 +364,7 @@ export const HelpdeskPage: React.FC = () => {
           </form>
         )}
 
-        <div className="view-tabs">
+        <div data-tour="helpdesk-tabs" className="view-tabs">
           {TAB_KEYS.map((k) => (
             <button key={k} type="button" className={cx('view-tab', tab === k && 'active')} onClick={() => setTab(k)}>
               {t(`crm.helpdesk.tabs.${k}`)}
@@ -378,7 +379,7 @@ export const HelpdeskPage: React.FC = () => {
         </div>
 
         <div className="ds-layout hd-layout">
-          <div className="ds-list">
+          <div data-tour="helpdesk-list" className="ds-list">
             {loading && <div className="ds-empty">{t('crm.helpdesk.loadingList')}</div>}
             {!loading && filtered.length === 0 && <div className="ds-empty">{tickets.length === 0 ? t('crm.helpdesk.emptyTickets') : t('crm.helpdesk.emptySearch')}</div>}
             {!loading &&
@@ -471,7 +472,7 @@ export const HelpdeskPage: React.FC = () => {
                       {detail!.messages.length === 0 && <div className="ds-empty">{t('crm.helpdesk.noMessages')}</div>}
                     </div>
 
-                    <form className="hd-reply" onSubmit={handleReply}>
+                    <form data-tour="helpdesk-reply" className="hd-reply" onSubmit={handleReply}>
                       <textarea placeholder={t('crm.helpdesk.replyPlaceholder')} rows={3} value={reply} onChange={(e) => setReply(e.target.value)} />
                       <div className="hd-reply-actions">
                         <span className="hd-reply-chan">
@@ -488,7 +489,7 @@ export const HelpdeskPage: React.FC = () => {
                     </form>
                   </div>
 
-                  <div className="ds-side">
+                  <div data-tour="helpdesk-side" className="ds-side">
                     <div className="ds-meta">
                       <div className="ds-meta-row">
                         <span className="l">{sel.requesterName ? t('crm.helpdesk.meta.fromInternal') : t('crm.helpdesk.meta.from')}</span>

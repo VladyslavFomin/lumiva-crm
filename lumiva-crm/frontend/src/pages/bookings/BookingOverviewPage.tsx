@@ -122,14 +122,14 @@ export const BookingOverviewPage: React.FC = () => {
                 <Ic d={BK_ICON.warn} size={12} /> {t('crm.bookings.overview.setupChip', { done: setupDone, total: setupSteps.length })}
               </span>
             )}
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/bookings/reservations')}>
+            <button data-tour="bookings-create" className="btn btn-primary btn-sm" onClick={() => navigate('/bookings/reservations')}>
               <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.overview.newBooking')}
             </button>
           </div>
         </div>
 
         {locations.length > 1 && (
-          <div className="bk-selectors">
+          <div data-tour="bookings-location" className="bk-selectors">
             <select className="bk-select" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
               <option value="">{t('crm.bookings.overview.allLocations')}</option>
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -137,7 +137,7 @@ export const BookingOverviewPage: React.FC = () => {
           </div>
         )}
 
-        <div className="bk-kpi-grid" style={{ margin: '16px 0' }}>
+        <div data-tour="bookings-kpis" className="bk-kpi-grid" style={{ margin: '16px 0' }}>
           <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.cal} size={12} />{t('crm.bookings.overview.kpis.today')}</div><div className="v">{todayReservations.length}</div></div>
           <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.clock} size={12} />{t('crm.bookings.overview.kpis.pending')}</div><div className="v">{pendingCount}</div></div>
           <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.users} size={12} />{t('crm.bookings.overview.kpis.staffLoad')}</div><div className="v">{avgStaffLoad}%</div></div>
@@ -146,7 +146,7 @@ export const BookingOverviewPage: React.FC = () => {
 
         <div className="bk-cols">
           <div>
-            <div className="bk-panel" style={{ marginBottom: 16 }}>
+            <div data-tour="bookings-today" className="bk-panel" style={{ marginBottom: 16 }}>
               <div className="bk-panel-head">
                 <div className="t">{t('crm.bookings.overview.timeline.title')}</div>
                 <button className="link" onClick={() => navigate('/bookings/reservations')}>{t('crm.bookings.overview.timeline.openAll')}</button>
@@ -169,7 +169,7 @@ export const BookingOverviewPage: React.FC = () => {
             </div>
 
             {pendingCount > 0 && (
-              <div className="bk-panel">
+              <div data-tour="bookings-attention" className="bk-panel">
                 <div className="bk-panel-head"><div className="t">{t('crm.bookings.overview.attention.title')}</div></div>
                 <div className="bk-panel-body">
                   <div className="bk-attn-row">
@@ -189,7 +189,7 @@ export const BookingOverviewPage: React.FC = () => {
 
           <div>
             {staffLoadToday.length > 0 && (
-              <div className="bk-panel" style={{ marginBottom: 16 }}>
+              <div data-tour="bookings-staff" className="bk-panel" style={{ marginBottom: 16 }}>
                 <div className="bk-panel-head"><div className="t">{t('crm.bookings.overview.staffLoadPanel.title')}</div></div>
                 <div className="bk-panel-body" style={{ padding: '8px 18px 14px' }}>
                   {staffLoadToday.map((m, i) => (
@@ -211,7 +211,7 @@ export const BookingOverviewPage: React.FC = () => {
               </div>
             )}
             {setupSteps.length > 0 && (
-              <div className="bk-panel">
+              <div data-tour="bookings-setup" className="bk-panel">
                 <div className="bk-panel-head"><div className="t">{t('crm.bookings.overview.setupChecklist.title')}</div></div>
                 <div className="bk-panel-body" style={{ padding: '8px 18px 14px' }}>
                   {setupSteps.map((s, i) => (

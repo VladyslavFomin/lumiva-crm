@@ -21,6 +21,7 @@ import ModulesPage from "./pages/ModulesPage";
 import ComponentsPage from "./pages/ComponentsPage";
 import BillingMonitorPage from "./pages/BillingMonitorPage";
 import SalesPanelPage from "./pages/SalesPanelPage";
+import ContentPage from "./pages/ContentPage";
 import StoreRoutes from "./pages/store/StoreRoutes";
 import { isPanelAuthed, clearPanelSession } from "./auth/panelSession";
 
@@ -196,6 +197,21 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </NavLink>
 
           <NavLink
+            to="/content"
+            className={({ isActive }) =>
+              [
+                "flex items-center gap-2 rounded-xl px-3 py-2 transition-colors",
+                isActive
+                  ? "bg-slate-800 text-slate-50"
+                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-50",
+              ].join(" ")
+            }
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-400" />
+            <span>Контент</span>
+          </NavLink>
+
+          <NavLink
             to="/settings"
             className={({ isActive }) =>
               [
@@ -362,6 +378,14 @@ const App: React.FC = () => {
           element={
             <PanelProtectedRoute>
               <DemoRequestsPage />
+            </PanelProtectedRoute>
+          }
+        />
+        <Route
+          path="/content"
+          element={
+            <PanelProtectedRoute>
+              <ContentPage />
             </PanelProtectedRoute>
           }
         />

@@ -271,7 +271,7 @@ export const LeadsBinPage: React.FC<{ tab: Tab }> = ({ tab }) => {
             <h1>{t(isT ? 'crm.leads.trash.title' : 'crm.leads.archive.title')}</h1>
             <p>{isT ? t('crm.leads.bin.trashLead', { count: TRASH_TTL_DAYS }) : t('crm.leads.bin.archiveLead')}</p>
           </div>
-          <div className="lb-tabs" role="tablist">
+          <div data-tour="bin-tabs" className="lb-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={isT} className={px(isT && 'on')} onClick={() => navigate('/leads/trash')}>
               <Ic d={I.trash} size={14} />
               {t('crm.leads.bin.tabTrash')}
@@ -298,14 +298,14 @@ export const LeadsBinPage: React.FC<{ tab: Tab }> = ({ tab }) => {
                 t('crm.leads.bin.soonNone')
               )}
             </p>
-            <button type="button" className="lb-btn dng" onClick={() => setCf({ ids: trashRows.map((r) => r.id), all: true })}>
+            <button data-tour="bin-empty-trash" type="button" className="lb-btn dng" onClick={() => setCf({ ids: trashRows.map((r) => r.id), all: true })}>
               <Ic d={I.trash} size={14} />
               {t('crm.leads.bin.emptyTrash')}
             </button>
           </div>
         )}
 
-        <div className="lb-card">
+        <div data-tour="bin-card" className="lb-card">
           {ids.length > 0 ? (
             <div className="lb-bar sel">
               <span className="cnt">{t('crm.leads.bin.selected', { count: ids.length })}</span>
@@ -336,7 +336,7 @@ export const LeadsBinPage: React.FC<{ tab: Tab }> = ({ tab }) => {
               </button>
             </div>
           ) : (
-            <div className="lb-bar">
+            <div data-tour="bin-bar" className="lb-bar">
               <label className="lb-search">
                 <Ic d={I.srch} size={14} />
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('crm.leads.bin.searchPlaceholder')} />
@@ -434,7 +434,7 @@ export const LeadsBinPage: React.FC<{ tab: Tab }> = ({ tab }) => {
                         )}
                         <td className="r">
                           <div className="lb-acts">
-                            <button type="button" className="lb-btn" onClick={() => restore([r.id])}>
+                            <button data-tour="bin-restore" type="button" className="lb-btn" onClick={() => restore([r.id])}>
                               <Ic d={I.rest} size={14} />
                               {t(isT ? 'crm.leads.bin.restore' : 'crm.leads.bin.returnToWork')}
                             </button>

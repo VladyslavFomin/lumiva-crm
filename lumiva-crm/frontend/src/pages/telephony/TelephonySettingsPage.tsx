@@ -234,7 +234,7 @@ export const TelephonySettingsPage: React.FC = () => {
         <TelephonySubnav active="settings" />
 
         {/* ── IP-телефония ────────────────────────────────────────────── */}
-        <div className="ha-section">
+        <div data-tour="tset-voice" className="ha-section">
           <div className="ha-section-head"><div><h3>{t('crm.telephony.settings.voice.title')}</h3><div className="sub">{t('crm.telephony.settings.voice.subtitle')}</div></div></div>
 
           {telLoading ? (
@@ -310,7 +310,7 @@ export const TelephonySettingsPage: React.FC = () => {
                 {telError && <p style={{ fontSize: 11.5, color: '#cc2f47' }}>{telError}</p>}
                 {telSuccess && <p style={{ fontSize: 11.5, color: '#1f8a5e' }}>{t('crm.telephony.settings.voice.saveSuccess')}</p>}
                 <div>
-                  <button className="btn btn-primary" onClick={handleSaveTelephony} disabled={telSaving}>{telSaving ? t('crm.telephony.settings.voice.savingBtn') : t('crm.telephony.settings.voice.saveBtn')}</button>
+                  <button data-tour="tset-save" className="btn btn-primary" onClick={handleSaveTelephony} disabled={telSaving}>{telSaving ? t('crm.telephony.settings.voice.savingBtn') : t('crm.telephony.settings.voice.saveBtn')}</button>
                 </div>
               </div>
             </>
@@ -318,7 +318,7 @@ export const TelephonySettingsPage: React.FC = () => {
         </div>
 
         {/* ── SMS-провайдер ────────────────────────────────────────────── */}
-        <div className="ha-section">
+        <div data-tour="tset-sms" className="ha-section">
           <div className="ha-section-head"><div><h3>{t('crm.telephony.settings.sms.title')}</h3><div className="sub">{t('crm.telephony.settings.sms.subtitle')}</div></div></div>
 
           {smsLoading ? (

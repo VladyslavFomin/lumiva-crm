@@ -153,7 +153,7 @@ export const ProductStockPage: React.FC = () => {
 
         <ProductsSubnav active="stock" />
 
-        <div className="px-kpis">
+        <div data-tour="pstock-kpis" className="px-kpis">
           <div className="px-kpi">
             <div className="l">{t('crm.products.stock.kpis.positions')}</div>
             <div className="v">{rows.length}</div>
@@ -176,7 +176,7 @@ export const ProductStockPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="px-toolbar">
+        <div data-tour="pstock-filters" className="px-toolbar">
           <div className="tb-search" style={{ width: 240 }}>
             <Icon d={I.search} size={13} />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('crm.products.stock.searchPlaceholder') || ''} />
@@ -205,7 +205,7 @@ export const ProductStockPage: React.FC = () => {
         ) : rows.length === 0 ? (
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.stock.empty')}</div>
         ) : (
-          <div className="wh-table-wrap">
+          <div data-tour="pstock-table" className="wh-table-wrap">
             <table className="wh-table">
               <thead>
                 <tr>
@@ -257,11 +257,11 @@ export const ProductStockPage: React.FC = () => {
                     <td className="r" style={{ color: 'var(--fg-3)' }}>{r.lowStockThreshold ?? '—'}</td>
                     <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {locations.length > 1 && (
-                        <button type="button" className="tb-icon-btn" onClick={() => openTransfer(r)} style={{ marginRight: 6 }}>
+                        <button data-tour="pstock-transfer" type="button" className="tb-icon-btn" onClick={() => openTransfer(r)} style={{ marginRight: 6 }}>
                           {t('crm.products.stock.transferButton')}
                         </button>
                       )}
-                      <button type="button" className="tb-icon-btn" onClick={() => openAdjust(r)}>
+                      <button data-tour="pstock-adjust" type="button" className="tb-icon-btn" onClick={() => openAdjust(r)}>
                         {t('crm.products.stock.adjustButton')}
                       </button>
                     </td>

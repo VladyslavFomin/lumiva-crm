@@ -562,7 +562,7 @@ export const SalesImportPage: React.FC = () => {
                 </span>
               ) : null}
             </div>
-            <Link
+            <Link data-tour="simp-newchannel"
               to="/app/sales/integrations/new"
               className="lv-tb-btn"
               style={{
@@ -590,7 +590,7 @@ export const SalesImportPage: React.FC = () => {
         ) : null}
 
         {/* Шаги */}
-        <section className="rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5 mb-[14px]">
+        <section data-tour="simp-steps" className="rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5 mb-[14px]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-0">
             {[
               {
@@ -644,7 +644,7 @@ export const SalesImportPage: React.FC = () => {
         {/* Файл и канал */}
         <section className="mb-[14px] space-y-4 rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)]">
-            <div className="space-y-2">
+            <div data-tour="simp-file" className="space-y-2">
               <label className="mb-1 block text-[11px] font-medium text-[var(--fg-3)]">
                 {t('crm.salesImport.fileInputLabel')}
               </label>
@@ -657,7 +657,7 @@ export const SalesImportPage: React.FC = () => {
               <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t('crm.salesImport.fileHint')}</p>
             </div>
 
-            <div className="space-y-2">
+            <div data-tour="simp-channel" className="space-y-2">
               <label className="mb-1 block text-[11px] font-medium text-[var(--fg-3)]">
                 {t('crm.salesImport.channelLabel')}
               </label>
@@ -699,7 +699,7 @@ export const SalesImportPage: React.FC = () => {
 
         {/* Маппинг полей */}
         {preview && (
-          <section className="mb-[14px] space-y-4 rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5">
+          <section data-tour="simp-mapping" className="mb-[14px] space-y-4 rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-[15px] font-semibold leading-snug text-[var(--ink)]">
@@ -870,7 +870,7 @@ export const SalesImportPage: React.FC = () => {
             </div>
 
             <div className="flex justify-end border-t border-[var(--line-3)] pt-4">
-              <button
+              <button data-tour="simp-apply"
                 type="button"
                 onClick={handleApply}
                 disabled={applying}

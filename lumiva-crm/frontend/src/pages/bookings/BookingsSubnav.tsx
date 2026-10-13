@@ -93,7 +93,7 @@ export const BookingsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   ];
 
   return (
-    <div className="px-subnav">
+    <div data-tour="bookings-subnav" className="px-subnav">
       {items.map((item) => (
         <button
           key={item.key}

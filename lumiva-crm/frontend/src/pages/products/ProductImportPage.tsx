@@ -150,7 +150,7 @@ export const ProductImportPage: React.FC = () => {
             </button>
           </div>
         ) : !preview ? (
-          <div
+          <div data-tour="pimp-drop"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
@@ -182,10 +182,10 @@ export const ProductImportPage: React.FC = () => {
               {t('crm.products.import.mappedCount', { mapped: mappedCount, total: preview.columns.length })}
             </div>
 
-            <div className="px-toolbar" style={{ marginBottom: 4 }}>
+            <div data-tour="pimp-toolbar" className="px-toolbar" style={{ marginBottom: 4 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{t('crm.products.import.mappingTitle')}</div>
             </div>
-            <div className="px-table-wrap" style={{ marginBottom: 20 }}>
+            <div data-tour="pimp-table" className="px-table-wrap" style={{ marginBottom: 20 }}>
               <table className="px-table">
                 <thead>
                   <tr>
@@ -257,7 +257,7 @@ export const ProductImportPage: React.FC = () => {
               <button type="button" className="aib ghost" onClick={resetPreview}>
                 {t('crm.products.import.back')}
               </button>
-              <button type="button" className="aib" onClick={handleApply} disabled={applying}>
+              <button data-tour="pimp-apply" type="button" className="aib" onClick={handleApply} disabled={applying}>
                 {applying ? t('crm.products.import.applying') : t('crm.products.import.applyButton')}
               </button>
             </div>

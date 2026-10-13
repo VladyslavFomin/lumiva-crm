@@ -168,7 +168,7 @@ export const LostLeadsPage: React.FC = () => {
         {!loading && !error && stats && (
           <>
             {/* KPI */}
-            <section className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
+            <section data-tour="lost-kpis" className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
               <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                   {t('crm.leads.lost.kpi.lostTitle')}
@@ -212,7 +212,7 @@ export const LostLeadsPage: React.FC = () => {
 
             {/* График + таблица по менеджерам */}
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-2 md:gap-5">
-              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+              <div data-tour="lost-chart" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-lumiva-accent">
@@ -253,7 +253,7 @@ export const LostLeadsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+              <div data-tour="lost-managers" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-lumiva-accent">
                     {t('crm.leads.lost.tableManagers.title')}
@@ -313,7 +313,7 @@ export const LostLeadsPage: React.FC = () => {
 
             {/* Таблица по лидам */}
             <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
-                <div className="mb-3 flex items-center justify-between">
+                <div data-tour="lost-table" className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-lumiva-accent">
                       {t('crm.leads.lost.tableLeads.title')}

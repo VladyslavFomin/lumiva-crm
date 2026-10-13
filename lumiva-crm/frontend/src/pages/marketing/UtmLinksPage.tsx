@@ -448,10 +448,10 @@ export const UtmLinksPage: React.FC = () => {
               <div className="sub">{t('crm.marketingUtmLinks.subtitle')}</div>
             </div>
             <div className="ut-head-actions">
-              <button type="button" className="btn btn-sm" onClick={() => navigate('/marketing/utms')}>
+              <button data-tour="utml-builder" type="button" className="btn btn-sm" onClick={() => navigate('/marketing/utms')}>
                 {t('crm.marketingUtmLinks.builder')}
               </button>
-              <button type="button" className="btn btn-sm btn-primary" onClick={() => setDrawer(true)}>
+              <button data-tour="utml-create" type="button" className="btn btn-sm btn-primary" onClick={() => setDrawer(true)}>
                 <Ic d={LI.plus} size={14} />
                 {t('crm.marketingUtms.actions.newLink')}
               </button>
@@ -475,7 +475,7 @@ export const UtmLinksPage: React.FC = () => {
             </div>
           )}
 
-          <div className="ul-kpis">
+          <div data-tour="utml-kpis" className="ul-kpis">
             <div className="ul-kpi">
               <div className="l">{t('crm.marketingUtmLinks.kpi.links')}</div>
               <div className="v">{rows.length}</div>
@@ -515,7 +515,7 @@ export const UtmLinksPage: React.FC = () => {
             </div>
           )}
 
-          <div className="ut-card">
+          <div data-tour="utml-list" className="ut-card">
             <div className="ut-card-head">
               <h3>{t('crm.marketingUtmLinks.list.title')}</h3>
               <div className="ul-tools">

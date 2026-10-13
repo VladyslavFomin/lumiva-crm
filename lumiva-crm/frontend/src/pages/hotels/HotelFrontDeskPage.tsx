@@ -135,7 +135,7 @@ export const HotelFrontDeskPage: React.FC = () => {
             <h1>{t('crm.hotels.frontDesk.title')}</h1>
             <p className="sub">{t('crm.hotels.frontDesk.subtitle')}</p>
           </div>
-          <div className="htl-hero-r io-toolbar">
+          <div data-tour="frontdesk-filters" className="htl-hero-r io-toolbar">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 9, fontSize: 12.5 }} />
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)} style={{ padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 9, fontSize: 12.5 }}>
               <option value="">{t('crm.hotels.frontDesk.allHotels')}</option>
@@ -150,7 +150,7 @@ export const HotelFrontDeskPage: React.FC = () => {
               {t('crm.hotels.frontDesk.arrivals.title', { count: data?.arrivals.length ?? 0 })}
             </div>
             <div className="bk-table-wrap">
-              <table className="bk-table">
+              <table data-tour="frontdesk-arrivals" className="bk-table">
                 <thead>
                   <tr>
                     <th>{t('crm.hotels.frontDesk.arrivals.colGuest')}</th>
@@ -210,7 +210,7 @@ export const HotelFrontDeskPage: React.FC = () => {
               {t('crm.hotels.frontDesk.departures.title', { count: data?.departures.length ?? 0 })}
             </div>
             <div className="bk-table-wrap">
-              <table className="bk-table">
+              <table data-tour="frontdesk-departures" className="bk-table">
                 <thead>
                   <tr>
                     <th>{t('crm.hotels.frontDesk.departures.colGuest')}</th>

@@ -1727,13 +1727,13 @@ export const LeadsListPage: React.FC = () => {
             <div className="sub">{t('crm.leads.list.subtitle')}</div>
           </div>
           <div className="lv-pt-head-actions">
-            <button type="button" className="lv-tb-btn" onClick={() => setAutomationOpen(true)}>
+            <button type="button" data-tour="leads-automations" className="lv-tb-btn" onClick={() => setAutomationOpen(true)}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
               </svg>
               {t('crm.automations.panel.button')}
             </button>
-            <button type="button" onClick={handleCreateLead} className="lv-tb-btn" style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}>
+            <button type="button" data-tour="leads-create" onClick={handleCreateLead} className="lv-tb-btn" style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M12 5v14M5 12h14" />
               </svg>
@@ -1742,7 +1742,7 @@ export const LeadsListPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="lv-view-tabs">
+        <div data-tour="leads-views" className="lv-view-tabs">
           <button type="button" className="lv-view-tab active" onClick={() => navigate(`/leads${viewQs}`)}>
             {t('crm.leads.list.viewList')}
             <span className="badge">{filteredLeads.length}</span>
@@ -1887,7 +1887,7 @@ export const LeadsListPage: React.FC = () => {
         {!loading && (
           <>
             <div className="lv-toolbar">
-              <div className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: 300 }}>
+              <div data-tour="leads-search" className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: 300 }}>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--fg-4)', flexShrink: 0 }} aria-hidden>
                   <circle cx="6.5" cy="6.5" r="5.5" />
                   <path d="M11 11l3.5 3.5" />
@@ -1908,11 +1908,13 @@ export const LeadsListPage: React.FC = () => {
               <div className="lv-toolbar-divider" />
 
               {/* AI Smart Search */}
-              <AiSmartSearchBar
-                active={aiFilters !== null}
-                onFilters={(filters, desc) => { setAiFilters(filters); setAiFilterDesc(desc); }}
-                onClear={() => { setAiFilters(null); setAiFilterDesc(''); }}
-              />
+              <div data-tour="leads-ai-search" style={{ display: 'inline-flex' }}>
+                <AiSmartSearchBar
+                  active={aiFilters !== null}
+                  onFilters={(filters, desc) => { setAiFilters(filters); setAiFilterDesc(desc); }}
+                  onClear={() => { setAiFilters(null); setAiFilterDesc(''); }}
+                />
+              </div>
 
               {/* AI Duplicates */}
               <button
@@ -2044,6 +2046,7 @@ export const LeadsListPage: React.FC = () => {
                 type="button"
                 className="lv-tb-btn"
                 title="Import leads from CSV"
+                data-tour="leads-import"
                 onClick={() => setCsvImportOpen(true)}
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
@@ -2052,7 +2055,7 @@ export const LeadsListPage: React.FC = () => {
                 Import CSV
               </button>
 
-              <div style={{ position: 'relative' }} ref={columnsMenuRef}>
+              <div data-tour="leads-columns" style={{ position: 'relative' }} ref={columnsMenuRef}>
                 <button type="button" className={`lv-tb-btn${columnsOpen ? ' active' : ''}`} onClick={() => setColumnsOpen((prev) => !prev)}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
                     <path d="M1 4h14M1 8h14M1 12h14" />
@@ -2145,7 +2148,7 @@ export const LeadsListPage: React.FC = () => {
 
             <div className="lv-proj-wrap">
               <div className="lv-proj-scroll">
-                <table className="lv-proj-table lv-leads-table">
+                <table data-tour="leads-table" className="lv-proj-table lv-leads-table">
                   <thead>
                     <tr>
                       <th className="lv-col-check">

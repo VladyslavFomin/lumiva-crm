@@ -131,7 +131,7 @@ export const EmailTemplatesPage: React.FC = () => {
                 {t('crm.emailTemplates.list.subtitle')}
               </p>
             </div>
-            <button
+            <button data-tour="etpl-create"
               type="button"
               onClick={handleCreateBlank}
               className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
@@ -148,7 +148,7 @@ export const EmailTemplatesPage: React.FC = () => {
           )}
         </section>
 
-        <section className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
+        <section data-tour="etpl-presets" className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
           <div className="mb-5 flex flex-col gap-1 border-b border-zinc-100 pb-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
               {t('crm.emailTemplates.list.presetsTitle')}
@@ -190,7 +190,7 @@ export const EmailTemplatesPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
+        <section data-tour="etpl-mine" className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
           <h2 className="mb-5 border-b border-zinc-100 pb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             {t('crm.emailTemplates.list.myTemplatesTitle')}
           </h2>

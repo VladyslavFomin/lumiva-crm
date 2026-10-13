@@ -149,7 +149,7 @@ export const SalesPaymentsPage: React.FC = () => {
         </div>
 
         {analytics && (
-          <div className="tel-kpis">
+          <div data-tour="pay-kpis" className="tel-kpis">
             <div className="tel-kpi"><div className="l">{t('crm.sales.payments.kpi.total')}</div><div className="v">{analytics.totalCount}</div></div>
             <div className="tel-kpi"><div className="l">{t('crm.sales.payments.kpi.paid')}</div><div className="v">{analytics.paidCount}</div></div>
             <div className="tel-kpi"><div className="l">{t('crm.sales.payments.kpi.failed')}</div><div className="v">{analytics.failedCount}</div></div>
@@ -159,7 +159,7 @@ export const SalesPaymentsPage: React.FC = () => {
         )}
 
         {analytics && analytics.byCurrency.length > 0 && (
-          <div className="ha-section">
+          <div data-tour="pay-amount" className="ha-section">
             <div className="ha-section-head">
               <div>
                 <h3>{t('crm.sales.payments.paidAmount')}</h3>
@@ -180,7 +180,7 @@ export const SalesPaymentsPage: React.FC = () => {
         )}
 
         {analytics && (
-          <div className="ha-section">
+          <div data-tour="pay-dynamics" className="ha-section">
             <div className="ha-section-head">
               <div>
                 <h3>{t('crm.sales.payments.dynamics')}</h3>
@@ -205,7 +205,7 @@ export const SalesPaymentsPage: React.FC = () => {
 
         {analytics && analytics.byProvider.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: analytics.recentFailures.length > 0 ? '1fr 1fr' : '1fr', gap: 16 }}>
-            <div className="ha-section" style={{ marginBottom: 0 }}>
+            <div data-tour="pay-provider" className="ha-section" style={{ marginBottom: 0 }}>
               <div className="ha-section-head">
                 <div>
                   <h3>{t('crm.sales.payments.byProvider')}</h3>
@@ -241,11 +241,11 @@ export const SalesPaymentsPage: React.FC = () => {
         )}
 
         <div style={{ display: 'flex', gap: 10, margin: '20px 0 14px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div className="bk-search" style={{ flex: '1 1 240px', maxWidth: 320 }}>
+          <div data-tour="pay-search" className="bk-search" style={{ flex: '1 1 240px', maxWidth: 320 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.5-4.5" /></svg>
             <input placeholder={t('crm.sales.payments.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="bk-savedviews">
+          <div data-tour="pay-status" className="bk-savedviews">
             {(['all', 'paid', 'pending', 'failed'] as StatusFilter[]).map((s) => (
               <div key={s} className={cx('bk-sv-tab', statusFilter === s && 'active')} onClick={() => setStatusFilter(s)}>
                 {s === 'all' ? t('crm.sales.payments.filterAll') : statusLabel(s)}
@@ -264,7 +264,7 @@ export const SalesPaymentsPage: React.FC = () => {
           </select>
         </div>
 
-        <div className="bk-table-wrap">
+        <div data-tour="pay-table" className="bk-table-wrap">
           <div style={{ display: 'grid', gridTemplateColumns: '40px 1.6fr 1fr 110px 100px 130px', gap: 12, padding: '9px 14px', fontSize: 10.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em', borderBottom: '1px solid var(--line-2)', background: 'var(--bg-muted)' }}>
             <span></span>
             <span>{t('crm.sales.payments.col.buyer')}</span>

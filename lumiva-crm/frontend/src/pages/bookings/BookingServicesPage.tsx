@@ -205,20 +205,20 @@ export const BookingServicesPage: React.FC = () => {
             <p className="sub">{t('crm.bookings.services.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
-            <button className="btn btn-primary btn-sm" onClick={() => setModal({ mode: 'create' })}>
+            <button data-tour="services-create" className="btn btn-primary btn-sm" onClick={() => setModal({ mode: 'create' })}>
               <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.services.newService')}
             </button>
           </div>
         </div>
 
-        <div className="bk-savedviews" style={{ marginTop: 16 }}>
+        <div data-tour="services-categories" className="bk-savedviews" style={{ marginTop: 16 }}>
           {categories.map((c) => (
             <div key={c} className={`bk-sv-tab${c === category ? ' active' : ''}`} onClick={() => setCategory(c)}>{c === ALL_CATEGORY ? t('crm.bookings.services.allCategories') : c}</div>
           ))}
         </div>
 
         <div className="bk-table-wrap">
-          <table className="bk-table">
+          <table data-tour="services-table" className="bk-table">
             <thead>
               <tr>
                 <th>{t('crm.bookings.services.table.colName')}</th>

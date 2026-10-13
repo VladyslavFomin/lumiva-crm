@@ -52,17 +52,17 @@ export const HotelsOverviewPage: React.FC = () => {
             <p className="sub">{t('crm.hotels.overview.subtitle')}</p>
           </div>
           <div className="htl-hero-r">
-            <button className="btn" onClick={() => navigate('/hotels/pricing')}>
+            <button data-tour="hotels-pricing" className="btn" onClick={() => navigate('/hotels/pricing')}>
               <Ic d={HTL_ICON.settings} size={14} />{t('crm.hotels.overview.pricingBtn')}
             </button>
-            <button className="btn btn-primary" onClick={() => navigate('/hotels/list')}>
+            <button data-tour="hotels-create" className="btn btn-primary" onClick={() => navigate('/hotels/list')}>
               <Ic d={HTL_ICON.plus} size={14} />{t('crm.hotels.overview.newHotelBtn')}
             </button>
           </div>
         </div>
 
         {kpis && (
-          <div className="htl-kpis">
+          <div data-tour="hotels-kpis" className="htl-kpis">
             <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.occupancyToday')}</div><div className="v">{kpis.occupancyToday}%</div></div>
             <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.adr')}</div><div className="v">{money(kpis.adr, kpis.currency, i18n.language)}</div></div>
             <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.bookings30d')}</div><div className="v">{kpis.bookings30d}</div></div>
@@ -81,7 +81,7 @@ export const HotelsOverviewPage: React.FC = () => {
           <div style={{ padding: 24, color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.hotels.overview.empty')}</div>
         )}
 
-        <div className="htl-grid">
+        <div data-tour="hotels-grid" className="htl-grid">
           {hotels.map((h) => (
             <div key={h.id} className="htl-card" onClick={() => navigate(`/hotels/${h.id}`)}>
               <div className="htl-card-img">

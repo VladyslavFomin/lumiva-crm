@@ -74,7 +74,7 @@ export const ProductLabelsPrintPage: React.FC = () => {
             <div className="sub max-w-2xl">{t('crm.products.labels.subtitle')}</div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-            <label style={{ fontSize: 12, color: FG3, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label data-tour="plab-columns" style={{ fontSize: 12, color: FG3, display: 'flex', alignItems: 'center', gap: 6 }}>
               {t('crm.products.labels.columns')}
               <input
                 type="number"
@@ -92,7 +92,7 @@ export const ProductLabelsPrintPage: React.FC = () => {
             >
               {t('crm.products.labels.back')}
             </button>
-            <button
+            <button data-tour="plab-print"
               type="button"
               onClick={() => window.print()}
               style={{ padding: '8px 16px', fontSize: 12, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: '#fff', cursor: 'pointer' }}
@@ -102,7 +102,7 @@ export const ProductLabelsPrintPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="no-print" style={{ border: `1px solid ${LINE}`, borderRadius: 10, overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 20 }}>
+        <div data-tour="plab-table" className="no-print" style={{ border: `1px solid ${LINE}`, borderRadius: 10, overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 20 }}>
           <table style={{ width: '100%', minWidth: 420, borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: BG_MUTED, borderBottom: `1px solid ${LINE}` }}>

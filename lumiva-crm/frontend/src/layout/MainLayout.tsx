@@ -61,6 +61,9 @@ import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../i18n';
 import { auraApi, AURA_MENU_CHANGED_EVENT } from '../api/aura';
 import { BillingPage } from '../pages/BillingPage';
+import { TourHost } from '../components/help/tour/TourHost';
+import { setToursBlocked } from '../components/help/tour/tourStore';
+import { usePageTour } from '../components/help/PageHelpButton';
 import {
   DASHBOARD_ADD_WIDGET_EVENT,
   DASHBOARD_LAYOUT_CHANGED_EVENT,
@@ -251,6 +254,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const [tenantComponents, setTenantComponents] = useState<TenantComponent[]>([]);
   const [componentsLoaded, setComponentsLoaded] = useState(false);
   const billingLocked = isBillingLocked();
+  const billingOverlay = billingLocked && location.pathname !== '/app/billing';
+  useEffect(() => {
+    setToursBlocked('billing', billingOverlay);
+  }, [billingOverlay]);
   const trialDaysLeft = getTrialDaysLeft();
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
   const [forbiddenNotice, setForbiddenNotice] = useState<{ path: string; ts: number } | null>(
@@ -1843,7 +1850,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         </div>
 
         {/* Навигация (desktop) + рабочие области сразу под пунктами меню (общий скролл) */}
-        <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug pr-0.5 text-neutral-800">
+        <nav data-tour="app-nav" className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug pr-0.5 text-neutral-800">
           {(!componentsLoaded || !permsLoaded || !staffLoaded || !deptHeadLoaded) ? (
             // Показываем скелетон загрузки вместо меню
             <div className="space-y-2">
@@ -2085,6 +2092,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             {/* Бургер — только на мобиле */}
             <button
               type="button"
+              data-tour="app-nav"
               className="md:hidden mr-1 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-lumiva-accent hover:-translate-y-[1px] hover:shadow-[0_12px_30px_rgba(17,24,39,0.08)] transition-all"
               onClick={() => setMobileOpen((v) => !v)}
             >
@@ -2130,6 +2138,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                 setNotificationsOpen(false);
                 setAiAssistantOpen(true);
               }}
+              data-tour="app-ai"
               className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-300 bg-white shadow-sm transition hover:border-zinc-400 hover:bg-zinc-50 hover:shadow"
               title={t('crm.header.aiAssistant')}
               aria-label={t('crm.header.aiAssistant')}
@@ -2141,6 +2150,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
               <button
                 type="button"
                 onClick={() => (window.location.href = '/app/chat')}
+                data-tour="app-messages"
                 className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm hover:shadow transition"
                 title={t('crm.header.newMessages')}
               >
@@ -2174,6 +2184,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                 <button
                   type="button"
                   onClick={() => setNotificationsOpen((v) => !v)}
+                  data-tour="app-notifications"
                   className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm hover:shadow transition"
                   title={t('crm.header.notifications')}
                 >
@@ -2224,6 +2235,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             {/* Профиль — скрыт на самых маленьких, виден на sm+ */}
             <button
               onClick={() => (window.location.href = '/app/profile/overview')}
+              data-tour="app-profile"
               className="hidden sm:flex items-center gap-2 text-xs text-slate-600 hover:text-lumiva-accent"
             >
               <span className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] font-semibold text-lumiva-accent">
@@ -2941,6 +2953,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       />
 
       <HelpdeskQuickRequestModal open={helpdeskQuickRequestOpen} onClose={() => setHelpdeskQuickRequestOpen(false)} />
+
+      {componentsLoaded && permsLoaded && staffLoaded && deptHeadLoaded && !billingLocked ? <WelcomeTourTrigger /> : null}
+      <TourHost />
     </div>
   );
 };
+
+/** Тур «Первый вход» (меню, ИИ, сообщения, уведомления, профиль, «?») — раньше тура страницы. */
+function WelcomeTourTrigger() {
+  usePageTour('welcome', { auto: true, front: true });
+  return null;
+}

@@ -334,21 +334,21 @@ export const HotelPricingPage: React.FC = () => {
             <h1>{t('crm.hotels.pricing.title')}</h1>
             <p className="sub">{t('crm.hotels.pricing.subtitle')}</p>
           </div>
-          <div className="htl-hero-r io-toolbar">
+          <div data-tour="pricing-select" className="htl-hero-r io-toolbar">
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
               {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
             </select>
             <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)}>
               {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
-            <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.pricing.importBtn')}</button>
+            <button data-tour="pricing-import" className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.pricing.importBtn')}</button>
           </div>
         </div>
 
         <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em', marginTop: 16 }}>
           {t('crm.hotels.pricing.periodsLabel')}
         </div>
-        <div className="period-toolbar">
+        <div data-tour="pricing-periods" className="period-toolbar">
           {periods.map((p) => (
             <div key={p.id} className="period-chip" style={{ opacity: selectedPeriods.includes(p.id) ? 1 : 0.4, position: 'relative' }}>
               <input type="checkbox" checked={selectedPeriods.includes(p.id)} onChange={() => toggleSelected(p.id)} style={{ margin: 0 }} />
@@ -374,7 +374,7 @@ export const HotelPricingPage: React.FC = () => {
           {t('crm.hotels.pricing.hint')}
         </div>
         <div className="ppt-wrap" style={{ marginTop: 4 }} onKeyDown={handleGridKeyDown} onPaste={handleGridPaste}>
-          <table className="ppt-table">
+          <table data-tour="pricing-table" className="ppt-table">
             <thead>
               <tr className="grp">
                 <th className="periyot-h" rowSpan={2}>

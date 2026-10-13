@@ -476,6 +476,7 @@ export const ProjectsBoardPage: React.FC = () => {
             <button
               type="button"
               onClick={createProject}
+              data-tour="projects-create"
               className="lv-tb-btn"
               style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
             >

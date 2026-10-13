@@ -323,7 +323,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <button type="button" className="btn btn-sm" onClick={handleExport}>
+              <button data-tour="ca-export" type="button" className="btn btn-sm" onClick={handleExport}>
                 <Ic d={LIC.dl} size={13} />
                 {t('crm.companies.analytics.export.button')}
               </button>
@@ -334,7 +334,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="ca-kpis">
+          <div data-tour="ca-kpis" className="ca-kpis">
             {KPIS.map(([k, v, d]) => (
               <div key={k as string} className="ca-kpi">
                 <div className="k">{k}</div>
@@ -344,7 +344,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="ca-panel">
+          <div data-tour="ca-board" className="ca-panel">
             <div className="ca-head">
               <h2>{t('crm.companies.analytics.board.title')}</h2>
               <div className="cl-seg">
@@ -578,7 +578,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
           </div>
 
           <div className="ca-grid two">
-            <div className="ca-panel">
+            <div data-tour="ca-pipeline" className="ca-panel">
               <div className="ca-head">
                 <h2>{t('crm.companies.analytics.pipeline.title')}</h2>
                 <div className="sp" />
@@ -627,7 +627,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="ca-panel">
+            <div data-tour="ca-panel3" className="ca-panel">
               <div className="ca-head">
                 <h2>{t('crm.companies.analytics.funnel.title')}</h2>
                 <div className="sp" />

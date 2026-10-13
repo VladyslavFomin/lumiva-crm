@@ -518,7 +518,7 @@ export const ProjectTasksPage: React.FC = () => {
         )}
 
         <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5 space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
+          <div data-tour="ptasks-filters" className="flex flex-wrap items-center gap-3">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -551,7 +551,7 @@ export const ProjectTasksPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div data-tour="ptasks-new" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">
               {t('crm.projects.tasks.newTask.title')}
             </div>
@@ -641,7 +641,7 @@ export const ProjectTasksPage: React.FC = () => {
                 onChange={(e) => setNewTaskDeadline(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-slate-100 text-slate-800"
               />
-              <button
+              <button data-tour="ptasks-add"
                 type="button"
                 onClick={createTask}
                 className="px-3 py-2 text-xs rounded-xl border border-lumiva-accent bg-lumiva-accent text-white font-semibold shadow-sm hover:opacity-90"
@@ -654,7 +654,7 @@ export const ProjectTasksPage: React.FC = () => {
           {loading ? (
             <div className="text-xs text-slate-500">{t('crm.projects.tasks.loading')}</div>
           ) : (
-            <div className="space-y-3">
+            <div data-tour="ptasks-list" className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-lumiva-accent">
                   {t('crm.projects.tasks.table.title')}

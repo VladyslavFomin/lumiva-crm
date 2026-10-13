@@ -131,7 +131,7 @@ export const ProductLocationsPage: React.FC = () => {
 
         <ProductsSubnav active="locations" />
 
-        <form onSubmit={handleAdd} className="px-toolbar">
+        <form data-tour="ploc-add" onSubmit={handleAdd} className="px-toolbar">
           <input
             className="ai-input"
             style={{ width: 240 }}
@@ -157,7 +157,7 @@ export const ProductLocationsPage: React.FC = () => {
         ) : !locations.length ? (
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.locations.empty')}</div>
         ) : (
-          <div className="px-table-wrap">
+          <div data-tour="ploc-table" className="px-table-wrap">
             <table className="px-table">
               <thead>
                 <tr>

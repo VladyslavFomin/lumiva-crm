@@ -94,7 +94,7 @@ export const TelephonySmsPage: React.FC = () => {
 
         <TelephonySubnav active="sms" />
 
-        <div className="tel-kpis" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+        <div data-tour="sms-kpis" className="tel-kpis" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
           <div className="tel-kpi"><div className="l">{t('crm.telephony.sms.kpis.sent')}</div><div className="v">{totalSent}</div></div>
           <div className="tel-kpi"><div className="l">{t('crm.telephony.sms.kpis.delivered')}</div><div className="v">{deliveryRate}%</div></div>
           <div className="tel-kpi"><div className="l">{t('crm.telephony.sms.kpis.received')}</div><div className="v">{totalReceived}</div></div>
@@ -108,7 +108,7 @@ export const TelephonySmsPage: React.FC = () => {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 0, border: '1px solid var(--line-2)', borderRadius: 12, overflow: 'hidden', marginTop: 14, background: '#fff' }}>
-            <div style={{ borderRight: '1px solid var(--line-2)', maxHeight: 560, overflowY: 'auto' }}>
+            <div data-tour="sms-threads" style={{ borderRight: '1px solid var(--line-2)', maxHeight: 560, overflowY: 'auto' }}>
               {threads.map((th) => (
                 <div
                   key={th.phone}
@@ -127,7 +127,7 @@ export const TelephonySmsPage: React.FC = () => {
             </div>
 
             {active && (
-              <div className="sms-chat-wrap">
+              <div data-tour="sms-chat" className="sms-chat-wrap">
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-2)', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="sms-ava">{active.phone.slice(-2)}</div>
                   <div style={{ fontWeight: 600, fontSize: 13.5, fontFamily: 'var(--ff-mono)' }}>{active.phone}</div>
@@ -143,7 +143,7 @@ export const TelephonySmsPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <div className="sms-chat-input">
+                <div data-tour="sms-input" className="sms-chat-input">
                   <input placeholder={t('crm.telephony.sms.inputPlaceholder')} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }} />
                   <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={sending || !draft.trim()}>{t('crm.telephony.sms.sendBtn')}</button>
                 </div>

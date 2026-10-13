@@ -516,18 +516,18 @@ export const EsignPage: React.FC = () => {
             <p className="sub">{t('crm.esign.page.subtitle')}</p>
           </div>
           <div className="esn-hero-r">
-            <button type="button" className="btn btn-sm" onClick={() => setTab('tpl')}>
+            <button type="button" data-tour="esign-templates" className="btn btn-sm" onClick={() => setTab('tpl')}>
               <Ic d={ESN_ICON.doc} size={13} />
               {t('crm.esign.page.templatesBtn')}
             </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setTab('issue')}>
+            <button type="button" data-tour="esign-create" className="btn btn-primary btn-sm" onClick={() => setTab('issue')}>
               <Ic d={ESN_ICON.plus} size={13} />
               {t('crm.esign.page.newDocBtn')}
             </button>
           </div>
         </div>
 
-        <div className="view-tabs">
+        <div data-tour="esign-tabs" className="view-tabs">
           {TABS.map((tb) => (
             <button key={tb.id} type="button" className={cx('view-tab', tab === tb.id && 'active')} onClick={() => setTab(tb.id)}>
               {tb.label}
@@ -669,7 +669,7 @@ const DocsTab: React.FC<{
 
   return (
     <>
-      <div className="esn-kpis">
+      <div data-tour="esign-kpis" className="esn-kpis">
         {kpis.map(([k, v, d]) => (
           <div className="esn-kpi" key={k}>
             <div className="l">{k}</div>
@@ -680,7 +680,7 @@ const DocsTab: React.FC<{
       </div>
 
       <Card>
-        <div className="md-bar">
+        <div data-tour="esign-filters" className="md-bar">
           <div className="md-search">
             <Ic d={ESN_ICON.search} size={14} />
             <input placeholder={t('crm.esign.docsTab.searchPlaceholder')} value={q} onChange={(e) => setQ(e.target.value)} />
@@ -692,7 +692,7 @@ const DocsTab: React.FC<{
               </button>
             ))}
           </div>
-          <button type="button" className="btn btn-sm" onClick={() => setUploadFor(null)}>
+          <button type="button" data-tour="esign-upload" className="btn btn-sm" onClick={() => setUploadFor(null)}>
             <Ic d={ESN_ICON.upload} size={13} />
             {t('crm.esign.upload.btn')}
           </button>
@@ -711,7 +711,7 @@ const DocsTab: React.FC<{
           </div>
         ) : (
           <div className="md-tbl-wrap">
-          <table className="md-tbl">
+          <table data-tour="esign-table" className="md-tbl">
             <thead>
               <tr>
                 <th>{t('crm.esign.docsTab.colCreated')}</th>

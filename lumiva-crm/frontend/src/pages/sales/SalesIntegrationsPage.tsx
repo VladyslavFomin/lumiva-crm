@@ -885,7 +885,7 @@ export const SalesIntegrationsPage: React.FC = () => {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)]">
-          <div className="card p-4 md:p-5">
+          <div data-tour="sint-available" className="card p-4 md:p-5">
             <h2 className="text-sm font-semibold text-[#111827] mb-2">
               {t('crm.salesIntegrations.available.title')}
             </h2>
@@ -902,7 +902,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
           {/* Форма редактирования подключения */}
           {editOpen && editConn && (
-            <div className="card p-4 md:p-5">
+            <div data-tour="sint-edit" className="card p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-[#111827]">
                   {editMode === 'lumiva_simple'
@@ -1240,7 +1240,7 @@ export const SalesIntegrationsPage: React.FC = () => {
         </section>
 
         {/* Таблица интеграций */}
-        <section className="card p-4 md:p-5 min-w-0">
+        <section data-tour="sint-list" className="card p-4 md:p-5 min-w-0">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-3">
             <div>
               <h2 className="text-sm font-semibold text-[#111827]">

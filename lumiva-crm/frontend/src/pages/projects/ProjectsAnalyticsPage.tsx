@@ -4608,7 +4608,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         )}
 
         <div className="space-y-5 py-6">
-          <section className="border-b border-neutral-200 pb-6">
+          <section data-tour="pan2-head" className="border-b border-neutral-200 pb-6">
             <div className="mb-4">
               <div className="mb-2  text-xs uppercase tracking-[0.38em] text-neutral-500">
                 ● {pageKicker} · {periodLabels[period]}
@@ -4682,7 +4682,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     <span className="hidden md:inline">Поделиться</span>
                   </button>
                   {workspaceObjectId && (
-                    <button
+                    <button data-tour="pan2-report"
                       type="button"
                       className="hidden sm:inline-flex items-center gap-2 btn-secondary"
                       onClick={() => setReportOpen(true)}
@@ -4691,7 +4691,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       <span className="hidden md:inline">{t('crm.workspace.report.button')}</span>
                     </button>
                   )}
-                  <button
+                  <button data-tour="pan2-export"
                     type="button"
                     className="hidden sm:inline-flex items-center gap-2 btn-secondary"
                     onClick={() => exportCsv()}
@@ -4699,7 +4699,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     <Icon name="download" size={15} />
                     <span className="hidden md:inline">Экспорт CSV</span>
                   </button>
-                  <button
+                  <button data-tour="pan2-edit"
                     type="button"
                     className="btn-primary"
                     onClick={() => setEditMode((value) => !value)}
@@ -4719,7 +4719,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
           {beforeContentSlot}
 
-          <nav className="border-b border-neutral-200">
+          <nav data-tour="pan2-tabs" className="border-b border-neutral-200">
             <div className="-mx-3 flex items-center gap-1 overflow-x-auto px-3 sm:gap-2 md:mx-0 md:px-0">
               {tabs.map((tab) => {
                 const active = tab.id === activeTab.id;
@@ -4844,7 +4844,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             </div>
           )}
 
-          <section className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+          <section data-tour="pan2-filters" className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-400">Фильтры</span>
               {globalFilters.map((filter) => (
@@ -4982,7 +4982,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               <span className="text-xs text-neutral-500">{t('crm.projects.analytics.empty')}</span>
             </button>
           ) : (
-            <div
+            <div data-tour="pan2-grid"
               ref={gridRef}
               className={cx(
                 'grid min-h-[600px] grid-cols-12 gap-3 rounded-xl sm:gap-4',

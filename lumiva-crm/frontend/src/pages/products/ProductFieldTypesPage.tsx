@@ -579,7 +579,7 @@ export const ProductFieldTypesPage: React.FC = () => {
             <p className="sub">{t('crm.products.fieldTypes.subtitle')}</p>
           </div>
           <div className="px-head-actions">
-            <button type="button" className="aib" onClick={() => setAddModal({ group: null })}>
+            <button data-tour="pft-add" type="button" className="aib" onClick={() => setAddModal({ group: null })}>
               <PlusIcon />
               {t('crm.products.fieldTypes.addButton')}
             </button>
@@ -588,7 +588,7 @@ export const ProductFieldTypesPage: React.FC = () => {
 
         <ProductsSubnav active="fields" />
 
-        <div className="px-kpis">
+        <div data-tour="pft-kpis" className="px-kpis">
           <div className="px-kpi">
             <div className="l">{t('crm.products.fieldTypes.kpis.groups')}</div>
             <div className="v">{buckets.length}</div>
@@ -614,7 +614,7 @@ export const ProductFieldTypesPage: React.FC = () => {
         {loading ? (
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.common.loading')}</div>
         ) : (
-          <div className="px-fields-wrap">
+          <div data-tour="pft-fields" className="px-fields-wrap">
             <div className="px-fields-main">
               {!buckets.length && (
                 <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.fieldTypes.empty')}</div>

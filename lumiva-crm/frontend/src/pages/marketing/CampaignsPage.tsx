@@ -523,6 +523,7 @@ export const CampaignsPage: React.FC = () => {
           </div>
           <div className="flex flex-col items-stretch md:items-end gap-2">
             <div
+              data-tour="campaigns-period"
               className={`${marketingFilterBar} w-full md:w-auto md:justify-end flex-wrap gap-y-2`}
             >
               <span className={marketingFilterLabel}>{t('crm.marketingCampaigns.periodLabel')}</span>
@@ -537,7 +538,7 @@ export const CampaignsPage: React.FC = () => {
                 }}
               />
             </div>
-            <div className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
+            <div data-tour="campaigns-source" className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
               <span className={marketingFilterLabel}>
                 {t('crm.marketingTraffic.dataSourceLabel')}
               </span>
@@ -574,7 +575,7 @@ export const CampaignsPage: React.FC = () => {
               onStateChange={setCurPrefs}
             />
 
-            <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+            <section data-tour="campaigns-kpis" className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
               <div className={marketingKpiStripeBrand}>
                 <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.campaigns')}</div>
                 <div className={marketingKpiValue}>{formatNumber(campaignTotals.campaignCount)}</div>
@@ -680,7 +681,7 @@ export const CampaignsPage: React.FC = () => {
               </div>
             </section>
 
-            <section className={`${marketingCard} space-y-4`}>
+            <section data-tour="campaigns-summary" className={`${marketingCard} space-y-4`}>
               <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className={marketingSectionTitle}>
@@ -747,7 +748,7 @@ export const CampaignsPage: React.FC = () => {
               }}
             />
 
-            <section className={marketingCard}>
+            <section data-tour="campaigns-top" className={marketingCard}>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
                 <div>
                   <div className={marketingSectionTitle}>{t('crm.marketingCampaigns.top.title')}</div>
@@ -827,7 +828,7 @@ export const CampaignsPage: React.FC = () => {
               </div>
             </section>
 
-            <section className={marketingCard}>
+            <section data-tour="campaigns-table" className={marketingCard}>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
                 <div>
                   <div className={marketingSectionTitle}>{t('crm.marketingCampaigns.table.title')}</div>

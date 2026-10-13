@@ -427,7 +427,7 @@ export const LeadsRoiPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="roi-bar">
+        <div data-tour="roi-bar" className="roi-bar">
           <PeriodPicker months={MONTHS} value={period} onChange={setPeriod} locale={locale} t={t} />
           <div className="roi-seg" role="group" aria-label={t('crm.marketingRoi.currency', { defaultValue: 'Валюта' })}>
             {CURRENCIES.map((k) => (
@@ -453,7 +453,7 @@ export const LeadsRoiPage: React.FC = () => {
 
         {error && <div className="roi-err">{error}</div>}
 
-        <div className="roi-kpis" aria-busy={loading}>
+        <div data-tour="roi-kpis" className="roi-kpis" aria-busy={loading}>
           {kpis.map((x) => (
             <div className="roi-kpi" key={x.k}>
               <div className="kick">{x.k}</div>
@@ -477,7 +477,7 @@ export const LeadsRoiPage: React.FC = () => {
           </div>
         ) : null}
 
-        <section className="roi-card">
+        <section data-tour="roi-chart" className="roi-card">
           <header>
             <div>
               <div className="kick">
@@ -508,7 +508,7 @@ export const LeadsRoiPage: React.FC = () => {
           )}
         </section>
 
-        <section className="roi-card flush">
+        <section data-tour="roi-managers" className="roi-card flush">
           <header className="pad">
             <div>
               <div className="kick">

@@ -113,7 +113,7 @@ export const TelephonyAnalyticsPage: React.FC = () => {
           </div>
         )}
 
-        <div className="tel-kpis">
+        <div data-tour="tan-kpis" className="tel-kpis">
           <div className="tel-kpi"><div className="l">{t('crm.telephony.analytics.kpis.totalCalls')}</div><div className="v">{data.kpis.totalCalls}</div></div>
           <div className="tel-kpi"><div className="l">{t('crm.telephony.analytics.kpis.totalSms')}</div><div className="v">{data.kpis.totalSms}</div></div>
           <div className="tel-kpi"><div className="l">{t('crm.telephony.analytics.kpis.pickupRate')}</div><div className="v">{data.kpis.pickupRate}%</div></div>
@@ -121,7 +121,7 @@ export const TelephonyAnalyticsPage: React.FC = () => {
           <div className="tel-kpi"><div className="l">{t('crm.telephony.analytics.kpis.avgDuration')}</div><div className="v">{formatDuration(data.kpis.avgCallDurationSeconds)}</div></div>
         </div>
 
-        <div className="ha-section">
+        <div data-tour="tan-dynamics" className="ha-section">
           <div className="ha-section-head">
             <div>
               <h3>{t('crm.telephony.analytics.dynamics.title')}</h3>
@@ -136,7 +136,7 @@ export const TelephonyAnalyticsPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: data.telephonyEnabled ? '1fr 1fr' : '1fr', gap: 16 }}>
-          <div className="ha-section" style={{ marginBottom: 0 }}>
+          <div data-tour="tan-managers" className="ha-section" style={{ marginBottom: 0 }}>
             <div className="ha-section-head">
               <div>
                 <h3>{t('crm.telephony.analytics.byManager.title')}</h3>
@@ -153,7 +153,7 @@ export const TelephonyAnalyticsPage: React.FC = () => {
           </div>
 
           {data.telephonyEnabled && (
-            <div className="ha-section" style={{ marginBottom: 0 }}>
+            <div data-tour="tan-sentiment" className="ha-section" style={{ marginBottom: 0 }}>
               <div className="ha-section-head">
                 <div>
                   <h3>{t('crm.telephony.analytics.sentimentSection.title')}</h3>
@@ -187,7 +187,7 @@ export const TelephonyAnalyticsPage: React.FC = () => {
         </div>
 
         {data.telephonyEnabled && (
-          <div className="ha-section">
+          <div data-tour="tan-hourly" className="ha-section">
             <div className="ha-section-head">
               <div>
                 <h3>{t('crm.telephony.analytics.hourly.title')}</h3>

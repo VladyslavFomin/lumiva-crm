@@ -42,7 +42,7 @@ export const BookingLogsPage: React.FC = () => {
         </div>
 
         <div className="bk-table-wrap" style={{ marginTop: 16 }}>
-          <table className="bk-table">
+          <table data-tour="blog-table" className="bk-table">
             <thead>
               <tr>
                 <th>{t('crm.bookings.logs.table.colTime')}</th>

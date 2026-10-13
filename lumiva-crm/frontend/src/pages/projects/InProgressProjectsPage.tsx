@@ -424,7 +424,7 @@ export const InProgressProjectsPage: React.FC = () => {
           </div>
         )}
 
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+        <section data-tour="pinprog-kpis" className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
           <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
             <div className="text-[11px] text-slate-500 uppercase tracking-[0.18em]">
               {t('crm.projects.inProgress.kpis.count')}
@@ -451,7 +451,7 @@ export const InProgressProjectsPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+        <section data-tour="pinprog-card" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-lumiva-accent">
               {t('crm.projects.inProgress.table.title')}
@@ -476,7 +476,7 @@ export const InProgressProjectsPage: React.FC = () => {
           ) : (
             <div className="lv-proj-wrap">
               <div className="lv-proj-scroll">
-                <table className="lv-proj-table lv-leads-table">
+                <table data-tour="pinprog-table" className="lv-proj-table lv-leads-table">
                   <thead>
                     <tr>
                       {orderedColumns.map((col) => {

@@ -290,7 +290,7 @@ export const ProductWebhooksPage: React.FC = () => {
             <p className="sub">{t('crm.products.webhooks.subtitle')}</p>
           </div>
           <div className="px-head-actions">
-            <button type="button" className="aib" onClick={() => setModal({ mode: 'create' })}>
+            <button data-tour="pwh-create" type="button" className="aib" onClick={() => setModal({ mode: 'create' })}>
               <Icon d={I.plus} size={15} />
               {t('crm.products.webhooks.addButton')}
             </button>
@@ -304,7 +304,7 @@ export const ProductWebhooksPage: React.FC = () => {
         ) : !webhooks.length ? (
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.webhooks.empty')}</div>
         ) : (
-          <div className="px-table-wrap">
+          <div data-tour="pwh-table" className="px-table-wrap">
             <table className="px-table">
               <thead>
                 <tr>
@@ -346,7 +346,7 @@ export const ProductWebhooksPage: React.FC = () => {
                       <input type="checkbox" checked={wh.isActive} onChange={() => handleToggleActive(wh)} />
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <div className="px-row-actions">
+                      <div data-tour="pwh-actions" className="px-row-actions">
                         <button type="button" title={t('crm.products.webhooks.deliveries.button') || ''} onClick={() => setDeliveriesFor(wh)}>
                           <Icon d={I.history} size={13} />
                         </button>

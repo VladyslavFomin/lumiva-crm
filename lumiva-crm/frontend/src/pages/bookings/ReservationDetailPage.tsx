@@ -297,7 +297,7 @@ export const ReservationDetailPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="reservationCard" />
       <div className="px-scope">
-        <div className="bk-det-head">
+        <div data-tour="reservation-head" className="bk-det-head">
           <div>
             <div className="idline">
               {t('crm.bookings.detail.idLine', {
@@ -315,7 +315,7 @@ export const ReservationDetailPage: React.FC = () => {
               {staffProfile ? ` · ${t('crm.bookings.detail.staffPrefix', { name: staffProfile.staffUser?.fullName })}` : ''}
             </div>
           </div>
-          <div className="bk-det-actions">
+          <div data-tour="reservation-actions" className="bk-det-actions">
             <span className={`bk-badge ${reservation.status}`} style={{ fontSize: 12, padding: '5px 12px' }}>
               {statusLabel(reservation.status)}
             </span>
@@ -355,7 +355,7 @@ export const ReservationDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bk-tabs">
+        <div data-tour="reservation-tabs" className="bk-tabs">
           {TAB_KEYS.map((k) => (
             <div key={k} className={`bk-tab${k === tab ? ' active' : ''}`} onClick={() => setTab(k)}>{t(`crm.bookings.detail.tabs.${k}`)}</div>
           ))}
@@ -363,7 +363,7 @@ export const ReservationDetailPage: React.FC = () => {
 
         {tab === 'overview' && (
           <div className="bk-grid2">
-            <div className="bk-panel">
+            <div data-tour="reservation-details" className="bk-panel">
               <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.overviewTab.detailsTitle')}</div></div>
               <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
                 <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.service')}</span><span className="v">{service?.name || '—'}</span></div>
@@ -378,7 +378,7 @@ export const ReservationDetailPage: React.FC = () => {
             </div>
 
             <div>
-              <div className="bk-panel" style={{ marginBottom: 16 }}>
+              <div data-tour="reservation-client" className="bk-panel" style={{ marginBottom: 16 }}>
                 <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.overviewTab.clientTitle')}</div></div>
                 <div className="bk-panel-body" style={{ padding: '14px 18px' }}>
                   <div className="bk-cust-card" style={{ border: 0, padding: 0, margin: 0 }}>

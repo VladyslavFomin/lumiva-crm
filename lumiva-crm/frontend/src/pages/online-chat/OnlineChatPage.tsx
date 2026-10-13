@@ -389,7 +389,7 @@ const OnlineChatPage: React.FC = () => {
     const emp = aiStatus.employee;
     if (aiStatus.active && emp) {
       return (
-        <div className="oc-ai">
+        <div data-tour="chat-ai" className="oc-ai">
           <span className={px('dot', aiStatus.mode === 'draft' && 'draft', aiStatus.mode === 'off' && 'off')} />
           <div className="t">
             <b>{t(`crm.chat.ai.mode.${aiStatus.mode}`, { name: emp.name })}</b>
@@ -406,7 +406,7 @@ const OnlineChatPage: React.FC = () => {
       );
     }
     return (
-      <div className="oc-ai">
+      <div data-tour="chat-ai" className="oc-ai">
         <span className="dot off" />
         <div className="t">
           <b>{t('crm.chat.ai.offTitle')}</b>
@@ -552,7 +552,7 @@ const OnlineChatPage: React.FC = () => {
             <h1>{t('crm.chat.title')}</h1>
             <p>{t('crm.chat.subtitle')}</p>
           </div>
-          <div className="oc-stats">
+          <div data-tour="chat-stats" className="oc-stats">
             <div>
               <span className="kick">{t('crm.chat.stats.open')}</span>
               <b>{counts.open}</b>
@@ -577,7 +577,7 @@ const OnlineChatPage: React.FC = () => {
                 <Ic d={I.srch} />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('crm.chat.searchPlaceholder')} />
               </label>
-              <div className="oc-seg" role="tablist">
+              <div data-tour="chat-filters" className="oc-seg" role="tablist">
                 {(['all', 'ai', 'op', 'closed'] as Filter[]).map((k) => (
                   <button key={k} type="button" role="tab" aria-selected={filter === k} className={px(filter === k && 'on')} onClick={() => setFilter(k)}>
                     {t(`crm.chat.filters.${k}`)}
@@ -586,7 +586,7 @@ const OnlineChatPage: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="oc-items">
+            <div data-tour="chat-list" className="oc-items">
               {loadingSessions && !sessions.length ? <div className="oc-empty">{t('crm.chat.loadingChats')}</div> : null}
               {!loadingSessions && !sessions.length ? <div className="oc-empty">{search ? t('crm.chat.noMatches') : t('crm.chat.empty')}</div> : null}
               {sessions.length > 0 && !list.length ? <div className="oc-empty">{t('crm.chat.noMatches')}</div> : null}
@@ -617,7 +617,7 @@ const OnlineChatPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <div className="acts">
+                <div data-tour="chat-actions" className="acts">
                   {aiStatus?.active ? (
                     <button
                       type="button"
@@ -662,7 +662,7 @@ const OnlineChatPage: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div className="oc-comp">
+                <div data-tour="chat-composer" className="oc-comp">
                   <div className="note">
                     {curAiLed ? (
                       <>
@@ -722,7 +722,7 @@ const OnlineChatPage: React.FC = () => {
           )}
 
           {panel && cur ? (
-            <aside className="oc-info">
+            <aside data-tour="chat-info" className="oc-info">
               <div className="oc-sec">
                 <h4>{t('crm.chat.info.visitor')}</h4>
                 <dl className="oc-kv">

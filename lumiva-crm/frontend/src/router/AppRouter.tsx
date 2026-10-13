@@ -130,6 +130,7 @@ import { getAccessToken, isBillingLocked } from '../auth/session';
 const SetPasswordPage = lazy(() => import('../pages/SetPasswordPage'));
 const OnboardingWizardPage = lazy(() => import('../pages/onboarding/OnboardingWizardPage').then((m) => ({ default: m.OnboardingWizardPage })));
 import { fetchOnboardingState } from '../api/onboarding';
+import { setToursBlocked } from '../components/help/tour/tourStore';
 const TeamCalendarPage = lazy(() => import('../pages/calendar/TeamCalendarPage').then((m) => ({ default: m.TeamCalendarPage })));
 const PortalLoginPage = lazy(() => import('../pages/portal/PortalLoginPage').then((m) => ({ default: m.PortalLoginPage })));
 const PortalVerifyPage = lazy(() => import('../pages/portal/PortalVerifyPage').then((m) => ({ default: m.PortalVerifyPage })));
@@ -287,6 +288,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
     needsOnboarding &&
     !ONBOARDING_EXEMPT_PATHS.has(location.pathname) &&
     !isBillingLocked();
+
+  // Подсказки-туры не должны всплывать поверх мастера настройки — ждут, пока он закроется.
+  useEffect(() => {
+    setToursBlocked('onboarding', showOnboarding);
+  }, [showOnboarding]);
 
   return (
     <>

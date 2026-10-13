@@ -123,7 +123,7 @@ export const BookingAnalyticsPage: React.FC = () => {
             <h1>{t('crm.bookings.analytics.title')}</h1>
             <p className="sub">{t('crm.bookings.analytics.subtitle')}</p>
           </div>
-          <div className="bk-hero-r">
+          <div data-tour="ban-filter" className="bk-hero-r">
             <div className="bk-select" onClick={() => setPeriodDays((p) => (p === 30 ? 7 : 30))}>
               <span className="lbl">{t('crm.bookings.analytics.periodLabel')}</span>{t('crm.bookings.analytics.periodDays', { days: periodDays })}
             </div>
@@ -131,7 +131,7 @@ export const BookingAnalyticsPage: React.FC = () => {
         </div>
 
         {summary && (
-          <div className="bk-kpi-grid" style={{ margin: '16px 0' }}>
+          <div data-tour="ban-kpis" className="bk-kpi-grid" style={{ margin: '16px 0' }}>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.total')}</div><div className="v">{summary.totalReservations}</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.occupancy')}</div><div className="v">{summary.occupancyRate}%</div></div>
             <div className="bk-kpi"><div className="l">{t('crm.bookings.analytics.kpis.avgCheck')}</div><div className="v">{summary.avgCheck ? `${summary.avgCheck.toLocaleString()} ${summary.currency}` : '—'}</div></div>
@@ -141,18 +141,18 @@ export const BookingAnalyticsPage: React.FC = () => {
 
         <div className="bk-cols">
           <div>
-            <div className="bk-panel" style={{ marginBottom: 16 }}>
+            <div data-tour="ban-trend" className="bk-panel" style={{ marginBottom: 16 }}>
               <div className="bk-panel-head"><div className="t">{t('crm.bookings.analytics.trendTitle')}</div></div>
               <div className="bk-panel-body" style={{ padding: '10px 18px 16px' }}><LineMini points={trend} /></div>
             </div>
-            <div className="bk-panel">
+            <div data-tour="ban-heatmap" className="bk-panel">
               <div className="bk-panel-head"><div className="t">{t('crm.bookings.analytics.heatmapTitle')}</div></div>
               <div className="bk-panel-body" style={{ padding: '12px 18px 16px' }}><Heatmap points={heatmap} /></div>
             </div>
           </div>
 
           <div>
-            <div className="bk-panel" style={{ marginBottom: 16 }}>
+            <div data-tour="ban-risk" className="bk-panel" style={{ marginBottom: 16 }}>
               <div className="bk-panel-head"><div className="t">{t('crm.bookings.analytics.atRisk.title')}</div><span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.bookings.analytics.atRisk.hint')}</span></div>
               <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
                 {atRisk.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.bookings.analytics.atRisk.empty')}</div>}

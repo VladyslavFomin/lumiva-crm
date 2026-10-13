@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { fetchPageTour, type PageTour } from '../../api/helpContent';
+import { HelpMediaView } from './HelpMediaView';
+import { cancelTour, requestAutoTour, startTour } from './tour/tourStore';
 
 type HelpSection = {
   heading: string;
@@ -15,6 +18,28 @@ type HelpContent = {
   sections: HelpSection[];
 };
 
+/** Тур страницы (шаги + видео из pl1). auto — запустить при первом заходе на страницу. */
+export function usePageTour(topic: string, opts?: { auto?: boolean; front?: boolean }): PageTour | null {
+  const { i18n } = useTranslation();
+  const lang = (i18n.language || 'ru').slice(0, 2);
+  const [tour, setTour] = useState<PageTour | null>(null);
+  const auto = !!opts?.auto;
+  const front = !!opts?.front;
+  useEffect(() => {
+    let alive = true;
+    void fetchPageTour(topic, lang).then((data) => {
+      if (!alive) return;
+      setTour(data);
+      if (auto && data?.steps.length) void requestAutoTour(topic, data.steps, { front });
+    });
+    return () => {
+      alive = false;
+      if (auto) cancelTour(topic);
+    };
+  }, [topic, lang, auto, front]);
+  return tour;
+}
+
 function useHelpContent(topic: string): HelpContent | null {
   const { t } = useTranslation();
   const content = t(`crm.help.${topic}`, { returnObjects: true }) as HelpContent | string;
@@ -22,9 +47,15 @@ function useHelpContent(topic: string): HelpContent | null {
   return content;
 }
 
-const HelpModal: React.FC<{ topic: string; open: boolean; onClose: () => void }> = ({ topic, open, onClose }) => {
+const HelpModal: React.FC<{ topic: string; open: boolean; onClose: () => void; tour: PageTour | null }> = ({
+  topic,
+  open,
+  onClose,
+  tour,
+}) => {
   const { t } = useTranslation();
   const content = useHelpContent(topic);
+  const hasTour = !!tour?.steps.length;
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +66,8 @@ const HelpModal: React.FC<{ topic: string; open: boolean; onClose: () => void }>
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open || !content) return null;
+  if (!open || (!content && !hasTour)) return null;
+  const title = content?.title || tour?.title || '';
 
   return createPortal(
     <div
@@ -63,15 +95,47 @@ const HelpModal: React.FC<{ topic: string; open: boolean; onClose: () => void }>
             </svg>
           </button>
           <h2 id="page-help-modal-title" className="pr-8 text-lg font-semibold text-slate-900">
-            {content.title}
+            {title}
           </h2>
-          {content.tagline && (
+          {content?.tagline && (
             <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">{content.tagline}</p>
           )}
         </div>
 
         <div className="space-y-5 px-8 py-5">
-          {content.sections?.map((section, idx) => (
+          {(hasTour || tour?.pageMedia) && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {tour?.pageMedia && (
+                <>
+                  <div className="mb-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-900">
+                    {t('crm.tour.videoGuide')}
+                  </div>
+                  <HelpMediaView media={tour.pageMedia} className="mb-3 bg-white" />
+                </>
+              )}
+              {hasTour && (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[13px] leading-relaxed text-slate-600">
+                    {t('crm.tour.startHint', { count: tour!.steps.length })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      startTour(topic, tour!.steps);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#222222] px-4 py-2 text-sm font-semibold text-white transition hover:bg-black active:scale-[0.97]"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                    {t('crm.tour.start')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {content?.sections?.map((section, idx) => (
             <div key={idx}>
               <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-900">
                 {section.heading}
@@ -133,7 +197,8 @@ export const PageHelpButton: React.FC<PageHelpButtonProps> = ({ topic }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const content = useHelpContent(topic);
-  if (!content) return null;
+  const tour = usePageTour(topic, { auto: true });
+  if (!content && !tour?.steps.length) return null;
   const buttonLabel = t('crm.help.buttonLabel');
 
   return (
@@ -143,11 +208,12 @@ export const PageHelpButton: React.FC<PageHelpButtonProps> = ({ topic }) => {
         onClick={() => setOpen(true)}
         title={buttonLabel}
         aria-label={buttonLabel}
+        data-tour="help-button"
         className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 shadow-[0_10px_30px_rgba(15,23,42,0.16)] transition hover:bg-neutral-50 hover:text-neutral-900 hover:scale-[1.04]"
       >
         <HelpMarkIcon className="h-6 w-6" />
       </button>
-      <HelpModal topic={topic} open={open} onClose={() => setOpen(false)} />
+      <HelpModal topic={topic} open={open} onClose={() => setOpen(false)} tour={tour} />
     </>
   );
 };
@@ -160,6 +226,7 @@ export const InlineHelpButton: React.FC<PageHelpButtonProps & { className?: stri
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const content = useHelpContent(topic);
+  const tour = usePageTour(topic);
   if (!content) return null;
   const buttonLabel = t('crm.help.buttonLabel');
 
@@ -177,7 +244,7 @@ export const InlineHelpButton: React.FC<PageHelpButtonProps & { className?: stri
       >
         <HelpMarkIcon className="h-3.5 w-3.5" />
       </button>
-      <HelpModal topic={topic} open={open} onClose={() => setOpen(false)} />
+      <HelpModal topic={topic} open={open} onClose={() => setOpen(false)} tour={tour} />
     </>
   );
 };

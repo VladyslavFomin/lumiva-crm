@@ -413,11 +413,11 @@ export const CompaniesListPage: React.FC = () => {
               <p>{t('crm.companies.list.header.subtitle')}</p>
             </div>
             <div className="cl-hero-a">
-              <button type="button" className="btn btn-sm" onClick={() => navigate('/companies/analytics')}>
+              <button type="button" data-tour="companies-analytics" className="btn btn-sm" onClick={() => navigate('/companies/analytics')}>
                 <Ic d={LIC.bolt} size={13} />
                 {t('crm.companies.list.actions.analytics')}
               </button>
-              <label className="btn btn-sm" style={{ cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}>
+              <label data-tour="companies-import" className="btn btn-sm" style={{ cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}>
                 <Ic d={LIC.import} size={13} />
                 {importing ? t('crm.companies.list.actions.importing') : t('crm.companies.list.actions.import')}
                 <input
@@ -432,7 +432,7 @@ export const CompaniesListPage: React.FC = () => {
                   }}
                 />
               </label>
-              <button type="button" className="btn btn-sm btn-primary" onClick={handleCreate}>
+              <button type="button" data-tour="companies-create" className="btn btn-sm btn-primary" onClick={handleCreate}>
                 <Ic d={LIC.plus} size={13} />
                 {t('crm.companies.list.actions.newCompany')}
               </button>
@@ -455,7 +455,7 @@ export const CompaniesListPage: React.FC = () => {
             </div>
           )}
 
-          <div className="cl-kpis">
+          <div data-tour="companies-kpis" className="cl-kpis">
             {KPIS.map(([k, v, d]) => (
               <div key={k} className="cl-kpi" style={{ cursor: 'default' }}>
                 <div className="k">{k}</div>
@@ -529,7 +529,7 @@ export const CompaniesListPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="cl-bar">
+              <div data-tour="companies-filters" className="cl-bar">
                 <Search v={q} set={setQ} ph={t('crm.companies.list.search.placeholder')} />
                 <div className="cl-div" />
                 <Chips
@@ -580,7 +580,7 @@ export const CompaniesListPage: React.FC = () => {
               </div>
             ) : view === 'table' ? (
               <div className="cl-scroll">
-                <table className="cl-tbl" style={{ minWidth: 1200 }}>
+                <table data-tour="companies-table" className="cl-tbl" style={{ minWidth: 1200 }}>
                   <thead>
                     <tr>
                       <th className="col-chk">

@@ -78,7 +78,7 @@ export const BroadcastsPage: React.FC = () => {
             <h1 className="page-title">{t('crm.marketingBroadcasts.list.title')}</h1>
             <p className="page-subtitle">{t('crm.marketingBroadcasts.list.subtitle')}</p>
           </div>
-          <button onClick={() => navigate('/marketing/broadcasts/new')} className="btn-primary">
+          <button data-tour="broadcasts-create" onClick={() => navigate('/marketing/broadcasts/new')} className="btn-primary">
             {t('crm.marketingBroadcasts.list.create')}
           </button>
         </div>
@@ -93,7 +93,7 @@ export const BroadcastsPage: React.FC = () => {
           </div>
         ) : (
           <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <table data-tour="broadcasts-table" className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border-default text-left text-xs text-text-secondary">
                   <th className="px-4 py-3 font-medium">{t('crm.marketingBroadcasts.list.colName')}</th>

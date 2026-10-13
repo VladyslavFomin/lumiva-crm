@@ -1484,7 +1484,7 @@ export const LeadFormPage: React.FC = () => {
               </span>
             </div>
           </div>
-          <div className="ld-acts">
+          <div data-tour="lead-actions" className="ld-acts">
             {!isNew && (
               <>
                 <button type="button" className="ld-btn gh" onClick={() => openComposer('email')}>
@@ -1565,7 +1565,7 @@ export const LeadFormPage: React.FC = () => {
         {!loading && (
           <>
             {/* ── status ─────────────────────────────────────────── */}
-            <div className="ld-steps">
+            <div data-tour="lead-status" className="ld-steps">
               <div className="flow">
                 {FLOW_STATUSES.map((s, i) => (
                   <button
@@ -1643,7 +1643,7 @@ export const LeadFormPage: React.FC = () => {
 
             <div className="ld-grid">
               {/* ════ LEFT ════════════════════════════════════════ */}
-              <aside className="ld-left">
+              <aside data-tour="lead-info" className="ld-left">
                 <Sec title={t('crm.leadCard.sec.contact')}>
                   <div className="ld-fs">
                     <label className="ld-f w">
@@ -1958,7 +1958,7 @@ export const LeadFormPage: React.FC = () => {
 
               {/* ════ CENTER ══════════════════════════════════════ */}
               <main className="ld-center">
-                <div className="ld-tabs" role="tablist">
+                <div data-tour="lead-comms" className="ld-tabs" role="tablist">
                   <button type="button" role="tab" aria-selected={tab === 'chat'} className={cx(tab === 'chat' && 'on')} onClick={() => setTab('chat')}>
                     {t('crm.leadCard.tabs.chat')}
                     {unread > 0 && <b className="u">{unread}</b>}
@@ -2211,19 +2211,19 @@ export const LeadFormPage: React.FC = () => {
               {/* ════ RIGHT ═══════════════════════════════════════ */}
               <aside className="ld-right">
                 {!isNew && (
-                  <div className="ld-ai-block">
+                  <div data-tour="lead-ai" className="ld-ai-block">
                     <div className="ld-card-h" style={{ background: 'transparent', padding: '0 2px' }}>
                       <span className="kick">{t('crm.leads.form.sections.aiTitle')}</span>
                       <InlineHelpButton topic="leadAiTools" />
                     </div>
-                    <AiLeadScoreCard leadId={lead.id} onScored={setAiScore} />
-                    <AiNextActionCard leadId={lead.id} />
-                    <AiOutreachEmailCard leadId={lead.id} leadEmail={lead.email || null} leadName={lead.name || null} onSend={handleSendOutreach} />
-                    <AiEnrichPanel entityType="lead" entityId={lead.id} onApply={handleApplyEnrich} />
+                    <div data-tour="leadai-score"><AiLeadScoreCard leadId={lead.id} onScored={setAiScore} /></div>
+                    <div data-tour="leadai-next"><AiNextActionCard leadId={lead.id} /></div>
+                    <div data-tour="leadai-email"><AiOutreachEmailCard leadId={lead.id} leadEmail={lead.email || null} leadName={lead.name || null} onSend={handleSendOutreach} /></div>
+                    <div data-tour="leadai-enrich"><AiEnrichPanel entityType="lead" entityId={lead.id} onApply={handleApplyEnrich} /></div>
                   </div>
                 )}
 
-                <div className="ld-card">
+                <div data-tour="lead-tasks" className="ld-card">
                   <div className="ld-card-h">
                     <span className="kick">{t('crm.leadCard.tasks.title')}</span>
                     <span className="mono mut">

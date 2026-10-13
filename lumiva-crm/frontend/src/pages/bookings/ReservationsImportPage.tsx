@@ -138,7 +138,7 @@ export const ReservationsImportPage: React.FC = () => {
             </div>
           </div>
         ) : !preview ? (
-          <div
+          <div data-tour="rimp-drop"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
@@ -184,7 +184,7 @@ export const ReservationsImportPage: React.FC = () => {
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 8 }}>
               {t('crm.bookings.import.preview.mappingTitle')}
             </div>
-            <div className="bk-table-wrap" style={{ marginBottom: 20 }}>
+            <div data-tour="rimp-table" className="bk-table-wrap" style={{ marginBottom: 20 }}>
               <table className="bk-table">
                 <thead>
                   <tr>
@@ -224,7 +224,7 @@ export const ReservationsImportPage: React.FC = () => {
               <button type="button" className="btn btn-sm" onClick={resetPreview}>
                 {t('crm.bookings.import.preview.back')}
               </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={handleApply} disabled={applying}>
+              <button data-tour="rimp-apply" type="button" className="btn btn-primary btn-sm" onClick={handleApply} disabled={applying}>
                 {applying ? t('crm.bookings.import.preview.importingBtn') : t('crm.bookings.import.preview.importBtn')}
               </button>
             </div>

@@ -135,7 +135,7 @@ export const BookingSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bk-tabs" style={{ marginTop: 16 }}>
+        <div data-tour="bset-tabs" className="bk-tabs" style={{ marginTop: 16 }}>
           {TAB_KEYS.map((k) => (
             <div key={k} className={`bk-tab${k === tab ? ' active' : ''}`} onClick={() => setTab(k)}>{t(`crm.bookings.settings.tabs.${k}`)}</div>
           ))}
@@ -144,7 +144,7 @@ export const BookingSettingsPage: React.FC = () => {
         {!loading && project && (
           <>
             {tab === 'general' && (
-              <div className="bk-panel">
+              <div data-tour="bset-general" className="bk-panel">
                 <div className="bk-panel-head"><div className="t">{t('crm.bookings.settings.general.title')}</div></div>
                 <div className="bk-panel-body" style={{ padding: '14px 18px' }}>
                   <div className="bk-field"><label>{t('crm.bookings.settings.general.nameLabel')}</label><input value={project.name} onChange={(e) => patch({ name: e.target.value })} /></div>
@@ -154,7 +154,7 @@ export const BookingSettingsPage: React.FC = () => {
                   </div>
                   <div className="bk-info-row"><span className="l">{t('crm.bookings.settings.general.businessTypeLabel')}</span><span className="v">{activeBusinessType ? t(`crm.bookings.settings.businessTypes.${activeBusinessType}.name`) : ''}</span></div>
                   <div className="bk-info-row"><span className="l">{t('crm.bookings.settings.general.statusLabel')}</span><span className="v"><span className={project.status === 'active' ? 'bk-badge confirmed' : project.status === 'paused' ? 'bk-badge cancelled_by_business' : 'bk-badge pending'}>{projectStatusLabel}</span></span></div>
-                  <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} disabled={saving} onClick={() => save()}>
+                  <button data-tour="bset-save" className="btn btn-primary btn-sm" style={{ marginTop: 14 }} disabled={saving} onClick={() => save()}>
                     <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.settings.general.save')}
                   </button>
                 </div>

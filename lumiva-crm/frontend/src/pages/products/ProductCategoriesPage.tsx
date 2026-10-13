@@ -264,7 +264,7 @@ export const ProductCategoriesPage: React.FC = () => {
             <p className="sub">{t('crm.products.categories.subtitle')}</p>
           </div>
           <div className="px-head-actions">
-            <button type="button" className="aib" onClick={() => setModal({ mode: 'create' })}>
+            <button data-tour="pcat-create" type="button" className="aib" onClick={() => setModal({ mode: 'create' })}>
               <Icon d={I.plus} size={15} />
               {t('crm.products.categories.addButton')}
             </button>
@@ -273,7 +273,7 @@ export const ProductCategoriesPage: React.FC = () => {
 
         <ProductsSubnav active="categories" />
 
-        <div className="px-kpis">
+        <div data-tour="pcat-kpis" className="px-kpis">
           <div className="px-kpi">
             <div className="l">{t('crm.products.categories.kpis.total')}</div>
             <div className="v">{categories.length}</div>
@@ -296,7 +296,7 @@ export const ProductCategoriesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="px-toolbar">
+        <div data-tour="pcat-search" className="px-toolbar">
           <div className="tb-search" style={{ width: 240 }}>
             <Icon d={I.search} size={13} />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('crm.products.list.searchPlaceholder') || ''} />
@@ -308,7 +308,7 @@ export const ProductCategoriesPage: React.FC = () => {
         ) : !tree.length ? (
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.categories.empty')}</div>
         ) : (
-          <div className="px-table-wrap">
+          <div data-tour="pcat-table" className="px-table-wrap">
             <table className="px-table">
               <thead>
                 <tr>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
@@ -9,6 +9,13 @@ import { Ic, HTL_ICON } from './HotelIcons';
 import { fetchHotels, createHotel, type Hotel } from '../../api/hotels';
 import './hotels-design.css';
 
+type SortKey = 'name' | 'rooms' | 'occupancy' | 'stars' | 'newest';
+const SORT_KEYS: SortKey[] = ['name', 'rooms', 'occupancy', 'stars', 'newest'];
+
+function uniqSorted(values: Array<string | null>): string[] {
+  return Array.from(new Set(values.map((v) => (v || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
 export const HotelsListPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -16,6 +23,13 @@ export const HotelsListPage: React.FC = () => {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | Hotel['status']>('all');
+  const [filterCountry, setFilterCountry] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [filterStars, setFilterStars] = useState(0);
+  const [sortBy, setSortBy] = useState<SortKey>('name');
+  const [menu, setMenu] = useState<null | 'filters' | 'sort'>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -40,15 +54,55 @@ export const HotelsListPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      hotels.filter(
-        (h) =>
-          h.name.toLowerCase().includes(q.toLowerCase()) ||
-          (h.city || '').toLowerCase().includes(q.toLowerCase()),
-      ),
-    [hotels, q],
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(null);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  // Варианты фильтров — только то, что реально есть среди ваших отелей.
+  const countries = useMemo(() => uniqSorted(hotels.map((h) => h.country)), [hotels]);
+  const cities = useMemo(
+    () => uniqSorted(hotels.filter((h) => !filterCountry || h.country === filterCountry).map((h) => h.city)),
+    [hotels, filterCountry],
   );
+  const starOptions = useMemo(() => Array.from(new Set(hotels.map((h) => h.stars).filter((n) => n > 0))).sort((a, b) => b - a), [hotels]);
+  const activeFilterCount = (filterStatus !== 'all' ? 1 : 0) + (filterCountry ? 1 : 0) + (filterCity ? 1 : 0) + (filterStars ? 1 : 0);
+  const resetFilters = () => {
+    setFilterStatus('all');
+    setFilterCountry('');
+    setFilterCity('');
+    setFilterStars(0);
+  };
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = hotels.filter(
+      (h) =>
+        (!needle || h.name.toLowerCase().includes(needle) || (h.city || '').toLowerCase().includes(needle)) &&
+        (filterStatus === 'all' || h.status === filterStatus) &&
+        (!filterCountry || h.country === filterCountry) &&
+        (!filterCity || h.city === filterCity) &&
+        (!filterStars || h.stars === filterStars),
+    );
+    const byName = (a: Hotel, b: Hotel) => a.name.localeCompare(b.name);
+    const cmp: Record<SortKey, (a: Hotel, b: Hotel) => number> = {
+      name: byName,
+      rooms: (a, b) => (b.roomsCount || 0) - (a.roomsCount || 0) || byName(a, b),
+      occupancy: (a, b) => (b.occupancyToday || 0) - (a.occupancyToday || 0) || byName(a, b),
+      stars: (a, b) => (b.stars || 0) - (a.stars || 0) || byName(a, b),
+      newest: (a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''),
+    };
+    return [...list].sort(cmp[sortBy]);
+  }, [hotels, q, filterStatus, filterCountry, filterCity, filterStars, sortBy]);
 
   const resetForm = () => {
     setName('');
@@ -88,26 +142,110 @@ export const HotelsListPage: React.FC = () => {
             <p className="sub">{t('crm.hotels.list.subtitle')}</p>
           </div>
           <div className="htl-hero-r">
-            <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+            <button data-tour="hlist-create" className="btn btn-primary" onClick={() => setShowNew(true)}>
               <Ic d={HTL_ICON.plus} size={14} />{t('crm.hotels.list.addHotel')}
             </button>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, margin: '16px 0' }}>
-          <div className="bk-search" style={{ flex: 1, maxWidth: 340 }}>
+          <div data-tour="hlist-search" className="bk-search" style={{ flex: 1, maxWidth: 340 }}>
             <Ic d={HTL_ICON.search} size={14} />
             <input placeholder={t('crm.hotels.list.searchPlaceholder')} value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <button className="btn"><Ic d={HTL_ICON.filter} size={13} />{t('crm.hotels.list.filters')}</button>
-          <button className="btn"><Ic d={HTL_ICON.sort} size={13} />{t('crm.hotels.list.sort')}</button>
+          <div ref={toolbarRef} style={{ display: 'flex', gap: 10, position: 'relative' }}>
+            <button
+              type="button"
+              className="btn"
+              aria-expanded={menu === 'filters'}
+              onClick={() => setMenu((m) => (m === 'filters' ? null : 'filters'))}
+              style={activeFilterCount ? { borderColor: 'var(--ink)', color: 'var(--ink)' } : undefined}
+            >
+              <Ic d={HTL_ICON.filter} size={13} />
+              {t('crm.hotels.list.filters')}
+              {activeFilterCount > 0 && <span className="htl-filter-count">{activeFilterCount}</span>}
+            </button>
+            <button type="button" className="btn" aria-expanded={menu === 'sort'} onClick={() => setMenu((m) => (m === 'sort' ? null : 'sort'))}>
+              <Ic d={HTL_ICON.sort} size={13} />
+              {t(`crm.hotels.list.sortBy.${sortBy}`)}
+            </button>
+
+            {menu === 'filters' && (
+              <div className="lv-pop htl-menu" style={{ left: 0, width: 280 }}>
+                <label className="htl-menu-field">
+                  <span>{t('crm.hotels.list.filterPanel.status')}</span>
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}>
+                    <option value="all">{t('crm.hotels.list.filterPanel.any')}</option>
+                    <option value="active">{t('crm.hotels.status.active')}</option>
+                    <option value="draft">{t('crm.hotels.status.draft')}</option>
+                  </select>
+                </label>
+                <label className="htl-menu-field">
+                  <span>{t('crm.hotels.list.filterPanel.country')}</span>
+                  <select
+                    value={filterCountry}
+                    onChange={(e) => {
+                      setFilterCountry(e.target.value);
+                      setFilterCity('');
+                    }}
+                  >
+                    <option value="">{t('crm.hotels.list.filterPanel.any')}</option>
+                    {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <label className="htl-menu-field">
+                  <span>{t('crm.hotels.list.filterPanel.city')}</span>
+                  <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)}>
+                    <option value="">{t('crm.hotels.list.filterPanel.any')}</option>
+                    {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <label className="htl-menu-field">
+                  <span>{t('crm.hotels.list.filterPanel.stars')}</span>
+                  <select value={filterStars} onChange={(e) => setFilterStars(Number(e.target.value))}>
+                    <option value={0}>{t('crm.hotels.list.filterPanel.any')}</option>
+                    {starOptions.map((n) => <option key={n} value={n}>{'★'.repeat(n)}</option>)}
+                  </select>
+                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
+                    {t('crm.hotels.list.filterPanel.shown', { count: filtered.length, total: hotels.length })}
+                  </span>
+                  <button type="button" className="btn btn-sm" disabled={!activeFilterCount} onClick={resetFilters}>
+                    {t('crm.hotels.list.filterPanel.reset')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {menu === 'sort' && (
+              <div className="lv-pop htl-menu" role="menu" style={{ left: 0, width: 220, padding: 6 }}>
+                {SORT_KEYS.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={sortBy === k}
+                    className={`htl-menu-item${sortBy === k ? ' on' : ''}`}
+                    onClick={() => {
+                      setSortBy(k);
+                      setMenu(null);
+                    }}
+                  >
+                    {t(`crm.hotels.list.sortBy.${k}`)}
+                    {sortBy === k && <Ic d={HTL_ICON.check} size={13} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {!loading && filtered.length === 0 && hotels.length > 0 && (
           <div style={{ padding: 24, color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.hotels.list.empty')}</div>
         )}
 
-        <div className="htl-grid">
+        <div data-tour="hlist-grid" className="htl-grid">
           {filtered.map((h) => (
             <div key={h.id} className="htl-card" onClick={() => navigate(`/hotels/${h.id}`)}>
               <div className="htl-card-img">

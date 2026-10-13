@@ -200,12 +200,12 @@ export const HotelReservationsPage: React.FC = () => {
             <p className="sub">{t('crm.hotels.reservations.subtitle')}</p>
           </div>
           <div className="htl-hero-r io-toolbar">
-            <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.reservations.importBtn')}</button>
-            <button className="btn btn-primary" onClick={() => setModalState('new')}><Ic d={HTL_ICON.plus} size={14} />{t('crm.hotels.reservations.newBooking')}</button>
+            <button data-tour="hres-import" className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.reservations.importBtn')}</button>
+            <button data-tour="hres-create" className="btn btn-primary" onClick={() => setModalState('new')}><Ic d={HTL_ICON.plus} size={14} />{t('crm.hotels.reservations.newBooking')}</button>
           </div>
         </div>
 
-        <div className="htl-kpis" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+        <div data-tour="hres-kpis" className="htl-kpis" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
           <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.roomsSum')}</div><div className="v">${totals.rooms.toLocaleString()}</div></div>
           <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.costPeriod')}</div><div className="v">${totals.cost.toLocaleString()}</div></div>
           <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.discountsGiven')}</div><div className="v">${Math.round(totals.disc).toLocaleString()}</div></div>
@@ -213,7 +213,7 @@ export const HotelReservationsPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
-          <div className="bk-search" style={{ flex: 1, maxWidth: 280 }}>
+          <div data-tour="hres-search" className="bk-search" style={{ flex: 1, maxWidth: 280 }}>
             <Ic d={HTL_ICON.search} size={14} />
             <input placeholder={t('crm.hotels.reservations.searchPlaceholder')} value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
@@ -221,7 +221,7 @@ export const HotelReservationsPage: React.FC = () => {
             <option value="all">{t('crm.hotels.reservations.allAgencies')}</option>
             {agencies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <div className="bk-savedviews" style={{ flex: 'none' }}>
+          <div data-tour="hres-status" className="bk-savedviews" style={{ flex: 'none' }}>
             {STATUS_FILTER_KEYS.map((k) => (
               <div key={k} className={`bk-sv-tab${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>{t(`crm.hotels.reservations.statusFilters.${k}`)}</div>
             ))}
@@ -229,7 +229,7 @@ export const HotelReservationsPage: React.FC = () => {
         </div>
 
         <div className="bk-table-wrap">
-          <table className="bk-table">
+          <table data-tour="hres-table" className="bk-table">
             <thead>
               <tr>
                 <th>{t('crm.hotels.reservations.table.colGuest')}</th>

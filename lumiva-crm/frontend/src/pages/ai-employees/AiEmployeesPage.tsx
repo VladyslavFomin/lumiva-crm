@@ -778,9 +778,9 @@ function ApprovalList({ actions, onChanged }: { actions: AiAgentAction[]; onChan
                 <span className="sep">•</span>
                 <span>{formatDate(action.createdAt, t, i18n.language)}</span>
               </div>
-              {action.reason ? <div className="ai-appr-reason">{action.reason}</div> : null}
+              {action.reason ? <div data-tour="approvals-reason" className="ai-appr-reason">{action.reason}</div> : null}
               {action.status === 'pending' ? (
-                <div className="ai-appr-actions">
+                <div data-tour="approvals-decide" className="ai-appr-actions">
                   <button className="ai-appr-btn approve" disabled={!!busy[action.id]} onClick={() => run(action, 'approve')}>
                     <I d={ICON.check} size={13} />
                     {t('crm.aiEmployees.approvalCard.approve')}
@@ -1615,7 +1615,7 @@ function DashboardView() {
               <h1 className="e3-h1">{t('crm.aiEmployees.v3.title')}</h1>
               <p className="e3-sub">{t('crm.aiEmployees.v2.subtitle')}</p>
               <div className="e3-hero-act">
-                <button type="button" className="e3-btn lg" onClick={() => openHire()}>
+                <button type="button" data-tour="ai-hire" className="e3-btn lg" onClick={() => openHire()}>
                   <I d={ICON.plus} size={15} sw={2} />
                   {t('crm.aiEmployees.v2.hire')}
                 </button>
@@ -1628,7 +1628,7 @@ function DashboardView() {
                 </div>
               </div>
             </div>
-            <div className="e3-hero-r">
+            <div data-tour="ai-stats" className="e3-hero-r">
               <div className="e3-big">
                 <span className="e3-kick">{t('crm.aiEmployees.v3.todayLabel')}</span>
                 <b>{today}</b>
@@ -1664,7 +1664,7 @@ function DashboardView() {
             </div>
           </div>
           {ticker.length ? (
-            <div className="e3-ticker">
+            <div data-tour="ai-ticker" className="e3-ticker">
               <div className="e3-ticker-in" style={{ '--dur': `${Math.max(30, ticker.length * 6)}s` } as React.CSSProperties}>
                 {[...ticker, ...ticker].map((l, i) => (
                   <span key={`${l.id}-${i}`} title={l.outputSummary || ''}>
@@ -1702,7 +1702,7 @@ function DashboardView() {
 
         {data ? (
           <>
-            <div className="e3-bar e3-rv">
+            <div data-tour="ai-filters" className="e3-bar e3-rv">
               <h2>{t('crm.aiEmployees.v3.staff')}</h2>
               {items.length ? (
                 <E3Seg
@@ -1718,7 +1718,7 @@ function DashboardView() {
                 />
               ) : null}
             </div>
-            <div className="e3-grid" key={filter}>
+            <div data-tour="ai-grid" className="e3-grid" key={filter}>
               {list.map((a, i) => (
                 <E3Card
                   key={a.id}
@@ -1747,7 +1747,7 @@ function DashboardView() {
                   <h2>{t('crm.aiEmployees.v2.freeRoles')}</h2>
                   <span className="e3-count">{freeRoles.length}</span>
                 </div>
-                <div className="e3-roles">
+                <div data-tour="ai-roles" className="e3-roles">
                   {freeRoles.map((r, i) => {
                     const miss = missed?.items.find((m) => m.roleKey === r.key);
                     return (
@@ -1856,7 +1856,7 @@ function ChooseView() {
           </div>
         </div>
         {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.choose.loading')}</div> : null}
-        <div className="ai-role-grid">
+        <div data-tour="aichoose-grid" className="ai-role-grid">
           {roles.map((role) => (
             <RoleCard
               key={role.key}
@@ -2034,7 +2034,7 @@ function CreateView() {
             </div>
           ) : null}
 
-          <div className="ai-steps">
+          <div data-tour="aicreate-steps" className="ai-steps">
             {stepIds.map((sid, index) => (
               <div key={sid} className={cn('ai-step', step === index && 'active', step > index && 'done')}>
                 <span className="sn">{step > index ? <I d={ICON.check} size={13} /> : index + 1}</span>
@@ -2046,7 +2046,7 @@ function CreateView() {
 
           {step === 0 && selectedRole ? (
             <>
-              <div className="ai-form-card">
+              <div data-tour="aicreate-quick" className="ai-form-card">
                 <div className="fct">{t('crm.aiEmployees.quick.title')}</div>
                 <p className="ai-hint" style={{ margin: '4px 0 12px' }}>{t('crm.aiEmployees.quick.hint')}</p>
                 <div className="ai-field">
@@ -2084,7 +2084,7 @@ function CreateView() {
                 </button>
                 <div className="ai-hint" style={{ marginTop: 8 }}>{t('crm.aiEmployees.quick.orManual')}</div>
               </div>
-              <div className="ai-form-card">
+              <div data-tour="aicreate-identity" className="ai-form-card">
                 <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
                 <div className="ai-av-picker">
                   <div className="ai-av-preview">
@@ -2296,7 +2296,7 @@ function CreateView() {
             </button>
             <div className="spacer" />
             {step < stepIds.length - 1 ? (
-              <button className="aib" onClick={() => setStep((s) => Math.min(stepIds.length - 1, s + 1))}>
+              <button data-tour="aicreate-next" className="aib" onClick={() => setStep((s) => Math.min(stepIds.length - 1, s + 1))}>
                 {t('crm.aiEmployees.create.continue')}
                 <I d={ICON.chevR} size={14} />
               </button>
@@ -2345,7 +2345,7 @@ function ApprovalsView() {
           </div>
         </div>
         {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.approvalsPage.loading')}</div> : null}
-        <div className="ai-panel">
+        <div data-tour="approvals-list" className="ai-panel">
           <div className="ai-panel-body flush">
             <ApprovalList actions={actions} onChanged={load} />
           </div>
@@ -2387,7 +2387,7 @@ function LogsView() {
           </div>
         </div>
         {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.logsPage.loading')}</div> : null}
-        <div className="ai-panel">
+        <div data-tour="ailogs-panel" className="ai-panel">
           <LogList logs={logs} />
         </div>
       </div>
@@ -2426,7 +2426,7 @@ function ReportsView() {
           </div>
         </div>
         {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.reportsPage.loading')}</div> : null}
-        <div className="ai-panel">
+        <div data-tour="aireports-panel" className="ai-panel">
           <ReportBrowser reports={reports} onChanged={load} />
         </div>
       </div>
@@ -2763,7 +2763,7 @@ export function AiEmployeeProfilePage() {
                   <span>{t('crm.aiEmployees.agentCard.lastActivity', { time: formatDate(stats.lastActivityAt, t, i18n.language) })}</span>
                 </div>
               </div>
-              <div className="e2-id-r">
+              <div data-tour="aiprofile-actions" className="e2-id-r">
                 <button className="e2b gh sm" onClick={() => navigate(`/ai-employees/${agent.id}/edit`)}>
                   <I d={ICON.edit} size={13} />
                   {t('crm.aiEmployees.profile.edit')}
@@ -2779,7 +2779,7 @@ export function AiEmployeeProfilePage() {
                     {t('crm.aiEmployees.profile.pause')}
                   </button>
                 )}
-                <button className="e2b sm" disabled={busy === 'run'} onClick={() => run('run')}>
+                <button data-tour="aiprofile-run" className="e2b sm" disabled={busy === 'run'} onClick={() => run('run')}>
                   <I d={ICON.bolt} size={14} />
                   {t('crm.aiEmployees.profile.runNow')}
                 </button>
@@ -2794,7 +2794,7 @@ export function AiEmployeeProfilePage() {
               </div>
             </div>
 
-            <div className="e2-tabs">
+            <div data-tour="aiprofile-tabs" className="e2-tabs">
               {tabs.map((tb) => (
                 <button key={tb.key} className={cn('e2-tab', tab === tb.key && 'on')} onClick={() => setTab(tb.key)}>
                   <I d={tb.icon} size={14} />
@@ -2807,7 +2807,7 @@ export function AiEmployeeProfilePage() {
             {tab === 'overview' ? (
               <div className="e2-grid2">
                 <div className="e2-col">
-                  <div className="e2-panel">
+                  <div data-tour="aiprofile-pending" className="e2-panel">
                     <div className="e2-panel-hd">
                       <div className="h">{t('crm.aiEmployees.v2.overview.pendingTitle')}</div>
                       <div className="r">

@@ -1058,23 +1058,24 @@ export const EmailInboxPage: React.FC = () => {
               className="em-btn"
               disabled={accounts.length === 0}
               onClick={() => setBulkSendOpen(true)}
+              data-tour="inbox-bulk"
               title="Массовая рассылка"
             >
               <Ic d={NI.send} size={14} />
               Рассылка
             </button>
-            <Link to="/email" className="em-btn">
+            <Link to="/email" data-tour="inbox-settings" className="em-btn">
               <Ic d={NI.task} size={14} />
               Настройки почты
             </Link>
-            <button type="button" className="em-btn solid" disabled={accounts.length === 0} onClick={openNewCompose}>
+            <button type="button" data-tour="inbox-compose" className="em-btn solid" disabled={accounts.length === 0} onClick={openNewCompose}>
               <Ic d={NI.plus} size={14} />
               Новое письмо
             </button>
           </div>
         </div>
 
-        <div className="in-top">
+        <div data-tour="inbox-filters" className="in-top">
           <div className="in-search">
             <Ic d={NI.search} size={14} />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по отправителю, теме, тексту…" />
@@ -1151,7 +1152,7 @@ export const EmailInboxPage: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="in-nav" style={{ width: folderW, flexShrink: 0 }}>
+                <div data-tour="inbox-folders" className="in-nav" style={{ width: folderW, flexShrink: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px 8px' }}>
                     <span className="in-nav-l" style={{ padding: 0 }}>Аккаунт</span>
                     <button type="button" className="in-ico sm" onClick={() => setFoldersCollapsed(true)} title="Свернуть папки">
@@ -1266,6 +1267,7 @@ export const EmailInboxPage: React.FC = () => {
           ) : null}
 
           <div
+            data-tour="inbox-list"
             className={cx(mobileDetailOpen ? 'hidden' : 'flex', 'in-list')}
             style={isLg ? { width: listW, flexShrink: 0, flexDirection: 'column' } : { width: '100%', flexShrink: 0, flexDirection: 'column' }}
           >

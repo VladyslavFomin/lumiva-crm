@@ -598,7 +598,7 @@ export const ContactsListPage: React.FC = () => {
               </p>
             </div>
             <div className="cl-hero-a">
-              <button type="button" className="btn btn-sm" onClick={() => navigate('/app/contacts/duplicates')}>
+              <button type="button" data-tour="contacts-duplicates" className="btn btn-sm" onClick={() => navigate('/app/contacts/duplicates')}>
                 <Ic d={LIC.merge} size={13} />
                 {t('crm.contacts.list.actions.duplicates')}
                 {dedupCount > 0 && (
@@ -607,7 +607,7 @@ export const ContactsListPage: React.FC = () => {
                   </span>
                 )}
               </button>
-              <label className="btn btn-sm" style={{ cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}>
+              <label data-tour="contacts-import" className="btn btn-sm" style={{ cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}>
                 <Ic d={LIC.import} size={13} />
                 {importing ? t('crm.contacts.list.actions.importing') : t('crm.contacts.list.actions.import')}
                 <input
@@ -622,7 +622,7 @@ export const ContactsListPage: React.FC = () => {
                   }}
                 />
               </label>
-              <button type="button" className="btn btn-sm btn-primary" onClick={handleCreate}>
+              <button type="button" data-tour="contacts-create" className="btn btn-sm btn-primary" onClick={handleCreate}>
                 <Ic d={LIC.plus} size={13} />
                 {t('crm.contacts.list.actions.newContact')}
               </button>
@@ -645,7 +645,7 @@ export const ContactsListPage: React.FC = () => {
             </div>
           )}
 
-          <div className="cl-kpis">
+          <div data-tour="contacts-kpis" className="cl-kpis">
             {KPIS.map(([id, k, v, d]) => (
               <button
                 key={id}
@@ -726,7 +726,7 @@ export const ContactsListPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="cl-bar">
+              <div data-tour="contacts-filters" className="cl-bar">
                 <Search v={q} set={setQ} ph={t('crm.contacts.list.search.placeholder')} />
                 <div className="cl-div" />
                 <Chips
@@ -770,7 +770,7 @@ export const ContactsListPage: React.FC = () => {
               </div>
             ) : view === 'table' ? (
               <div className="cl-scroll">
-                <table className="cl-tbl">
+                <table data-tour="contacts-table" className="cl-tbl">
                   <thead>
                     <tr>
                       <th className="col-chk">

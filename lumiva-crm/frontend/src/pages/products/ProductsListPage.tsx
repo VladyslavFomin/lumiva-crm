@@ -247,12 +247,12 @@ export const ProductsListPage: React.FC = () => {
             <p className="sub">{t('crm.products.list.subtitle')}</p>
           </div>
           <div className="px-head-actions">
-            <button type="button" className="tb-icon-btn" onClick={() => navigate('/products/import')}>
+            <button type="button" data-tour="products-import" className="tb-icon-btn" onClick={() => navigate('/products/import')}>
               <Icon d={I.upload} size={13} />
               {t('crm.products.list.importButton')}
             </button>
             <div style={{ position: 'relative' }}>
-              <button type="button" className="tb-icon-btn" onClick={() => setExportMenuOpen((v) => !v)}>
+              <button type="button" data-tour="products-export" className="tb-icon-btn" onClick={() => setExportMenuOpen((v) => !v)}>
                 <Icon d={I.download} size={13} />
                 {t('crm.products.list.exportButton')}
               </button>
@@ -288,7 +288,7 @@ export const ProductsListPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <button type="button" className="aib" onClick={() => navigate('/products/new')}>
+            <button type="button" data-tour="products-create" className="aib" onClick={() => navigate('/products/new')}>
               <Icon d={I.plus} size={15} />
               {t('crm.products.list.addButton')}
             </button>
@@ -297,7 +297,7 @@ export const ProductsListPage: React.FC = () => {
 
         <ProductsSubnav active="catalog" />
 
-        <div className="pr-kpis">
+        <div data-tour="products-kpis" className="pr-kpis">
           <div className="pr-kpi">
             <div className="l">{t('crm.products.list.kpis.total')}</div>
             <div className="v">{total}</div>
@@ -326,7 +326,7 @@ export const ProductsListPage: React.FC = () => {
         </div>
 
         <div className="pr-body">
-          <div className="pr-rail">
+          <div data-tour="products-categories" className="pr-rail">
             <div className="pr-rail-head">
               <div className="t">{t('crm.products.list.rail.title')}</div>
               <button type="button" className="pr-rail-add" onClick={() => navigate('/products/categories')} title={t('crm.products.categories.addButton') || ''}>
@@ -370,7 +370,7 @@ export const ProductsListPage: React.FC = () => {
           </div>
 
           <div className="pr-main">
-            <div className="px-toolbar">
+            <div data-tour="products-filters" className="px-toolbar">
               <div className="tb-search" style={{ width: 230 }}>
                 <Icon d={I.search} size={13} />
                 <input value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} placeholder={t('crm.products.list.searchPlaceholder') || ''} />
@@ -410,7 +410,7 @@ export const ProductsListPage: React.FC = () => {
               </div>
             ) : view === 'table' ? (
               <div className="pr-table-wrap">
-                <table className="pr-table">
+                <table data-tour="products-table" className="pr-table">
                   <thead>
                     <tr>
                       <th style={{ width: 32 }}><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} /></th>

@@ -221,7 +221,7 @@ export const HotelAnalyticsPage: React.FC = () => {
             </p>
           </div>
           <div className="htl-hero-r">
-            <div className="hotel-select-tabs">
+            <div data-tour="han-hotels" className="hotel-select-tabs">
               <div className={cx('hotel-select-tab', selectedHotelIds.length === hotels.length && 'active')} onClick={toggleAll}>{t('crm.hotels.analytics.allHotels')}</div>
               {hotels.map((h) => (
                 <div key={h.id} className={cx('hotel-select-tab', selectedHotelIds.includes(h.id) && 'active')} onClick={() => toggleHotel(h.id)}>{h.name}</div>
@@ -236,7 +236,7 @@ export const HotelAnalyticsPage: React.FC = () => {
 
         {summary && (
           <>
-            <div className="ha-kpis">
+            <div data-tour="han-kpis" className="ha-kpis">
               <div className="ha-kpi">
                 <div className="l">{t('crm.hotels.analytics.kpis.occupancyNow')}</div>
                 <div className="v">{summary.kpis.occupancyNowPct}<small>%</small></div>
@@ -256,7 +256,7 @@ export const HotelAnalyticsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="ha-section">
+            <div data-tour="han-pacing" className="ha-section">
               <div className="ha-section-head">
                 <div>
                   <h3><Ic d={HTL_ICON.calendar} size={15} />{t('crm.hotels.analytics.pacing.title')}</h3>
@@ -272,7 +272,7 @@ export const HotelAnalyticsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="ha-section">
+            <div data-tour="han-sell" className="ha-section">
               <div className="ha-section-head">
                 <div>
                   <h3><Ic d={HTL_ICON.check} size={15} />{t('crm.hotels.analytics.sellTable.title')}</h3>
@@ -285,7 +285,7 @@ export const HotelAnalyticsPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16 }}>
-              <div className="ha-section" style={{ marginBottom: 0 }}>
+              <div data-tour="han-heatmap" className="ha-section" style={{ marginBottom: 0 }}>
                 <div className="ha-section-head">
                   <div>
                     <h3><Ic d={HTL_ICON.calendar} size={15} />{t('crm.hotels.analytics.heatmap.title')}</h3>
@@ -294,7 +294,7 @@ export const HotelAnalyticsPage: React.FC = () => {
                 </div>
                 <ArrivalHeatmap rows={arrivals} />
               </div>
-              <div className="ha-section" style={{ marginBottom: 0 }}>
+              <div data-tour="han-funnel" className="ha-section" style={{ marginBottom: 0 }}>
                 <div className="ha-section-head">
                   <div>
                     <h3><Ic d={HTL_ICON.chart} size={15} />{t('crm.hotels.analytics.funnel.title')}</h3>

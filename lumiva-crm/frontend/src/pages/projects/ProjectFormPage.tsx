@@ -2039,7 +2039,7 @@ export const ProjectFormPage: React.FC = () => {
         {!loading && (
           <>
             {/* metric strip */}
-            <div className="pd-strip">
+            <div data-tour="project-strip" className="pd-strip">
               <div className="pd-metric">
                 <div className="l">{t('crm.projects.detail.metrics.budget')}</div>
                 <div className="v">
@@ -2110,7 +2110,7 @@ export const ProjectFormPage: React.FC = () => {
             </div>
 
             {/* tabs */}
-            <div className="pd-tabs">
+            <div data-tour="project-tabs" className="pd-tabs">
               {(
                 [
                   ['props', t('crm.projects.detail.tabs.props', 'Свойства'), null],
@@ -3152,7 +3152,7 @@ export const ProjectFormPage: React.FC = () => {
             </div>
 
             <div className="pd-rail">
-              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+              <div data-tour="project-actions" style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
                 <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, marginBottom: 12 }}>
                   {t('crm.leads.form.sections.actionsTitle')}
                 </div>
@@ -3363,7 +3363,7 @@ export const ProjectFormPage: React.FC = () => {
                 <AiRecordChat entityType="project" entityId={isNew ? null : project.id} />
               </div>
 
-              <div className="pd-rail-card">
+              <div data-tour="project-watchers" className="pd-rail-card">
                 <h4>{t('crm.projects.detail.watchers.title')}</h4>
                 <div className="pd-rail-body">
                   <div style={{ fontSize: 11.5, color: FG3, marginBottom: 8 }}>{t('crm.projects.detail.watchers.hint')}</div>
@@ -3481,7 +3481,7 @@ export const ProjectFormPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pd-rail-card">
+              <div data-tour="project-links" className="pd-rail-card">
                 <h4>{t('crm.projects.detail.relations.title', 'Связи')}</h4>
                 <div className="pd-rail-body">
                   <div className="pd-kv">
@@ -3533,7 +3533,7 @@ export const ProjectFormPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pd-rail-card">
+              <div data-tour="project-files" className="pd-rail-card">
                 <h4>{t('crm.projects.detail.files.title')}</h4>
                 <div className="pd-rail-body" style={{ gap: 0 }}>
                   {displayedFiles.map((f) => (

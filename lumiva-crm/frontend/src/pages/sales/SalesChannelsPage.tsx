@@ -338,7 +338,7 @@ export const SalesChannelsPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-end gap-2">
-            <div className="flex flex-wrap gap-2 justify-end">
+            <div data-tour="sch-summary" className="flex flex-wrap gap-2 justify-end">
               <span className="badge bg-surface-subtle text-[#111827]">
                 {t('crm.salesChannels.summary.channels', { count: channels.length })}
               </span>
@@ -351,14 +351,14 @@ export const SalesChannelsPage: React.FC = () => {
                 })}{' '}€
               </span>
             </div>
-            <Link to="/app/sales/integrations" className="btn-secondary btn-secondary-sm">
+            <Link data-tour="sch-integrations" to="/app/sales/integrations" className="btn-secondary btn-secondary-sm">
               {t('crm.salesChannels.openIntegrations')}
               <span className="text-[10px]">↗</span>
             </Link>
           </div>
         </section>
 
-        <section className="card p-4 md:p-5">
+        <section data-tour="sch-chart" className="card p-4 md:p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-[#111827]">
               {t('crm.salesChannels.chart.title')}
@@ -377,7 +377,7 @@ export const SalesChannelsPage: React.FC = () => {
           )}
         </section>
 
-        <section className="card p-4 md:p-5 min-w-0">
+        <section data-tour="sch-table" className="card p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-[#111827]">
               {t('crm.salesChannels.table.title')}

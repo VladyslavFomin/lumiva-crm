@@ -179,7 +179,7 @@ export const BookingResourcesPage: React.FC = () => {
             <p className="sub">{t('crm.bookings.resources.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
-            <button
+            <button data-tour="bres-create"
               className="btn btn-primary btn-sm"
               disabled={!locations.length}
               onClick={() => setModal({ mode: 'create' })}
@@ -194,7 +194,7 @@ export const BookingResourcesPage: React.FC = () => {
           </div>
         )}
 
-        <div className="bk-table-wrap" style={{ marginTop: 16 }}>
+        <div data-tour="bres-table" className="bk-table-wrap" style={{ marginTop: 16 }}>
           <table className="bk-table">
             <thead>
               <tr>
