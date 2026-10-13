@@ -152,7 +152,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean; initialMode?: "login" | "s
       }
       const loginResp = resp as import('../api/client').LoginResponse;
       persistSession(loginResp); setMessage(text.loginOk);
-      navigate(loginResp.billingLocked ? "/app/billing" : "/app", { replace: true });
+      navigate(loginResp.billingLocked ? "/billing" : "/dashboard", { replace: true });
     } catch (err: any) { setError(err?.message || "Error"); } finally { setLoading(false); }
   };
 
@@ -163,7 +163,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean; initialMode?: "login" | "s
     try {
       const resp = await verifyTwoFactorLogin({ challengeToken: twoFactorChallenge, code: twoFactorCode });
       persistSession(resp); setMessage(text.loginOk);
-      navigate(resp.billingLocked ? "/app/billing" : "/app", { replace: true });
+      navigate(resp.billingLocked ? "/billing" : "/dashboard", { replace: true });
     } catch (err: any) { setError(err?.message || "Error"); } finally { setLoading(false); }
   };
 
@@ -190,7 +190,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean; initialMode?: "login" | "s
       // Раньше сюда всегда попадал только что заблокированный free_locked тенант, поэтому
       // редирект на /app/billing был безусловным. Теперь signup даёт 14-дневный Enterprise-триал
       // (billingLocked=false), так что нужно вести в CRM, а не сразу на экран оплаты.
-      navigate(resp.billingLocked ? "/app/billing" : "/app", { replace: true });
+      navigate(resp.billingLocked ? "/billing" : "/dashboard", { replace: true });
     } catch (err: any) { setError(err?.message || "Error"); } finally { setLoading(false); }
   };
 
@@ -225,7 +225,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean; initialMode?: "login" | "s
 
       {loggedIn && (
         <div className={compact ? "mt-4 grid gap-3" : "mt-5 grid gap-3"}>
-          <button type="button" onClick={() => navigate("/app")}
+          <button type="button" onClick={() => navigate("/dashboard")}
             style={{ fontFamily: FF }}
             className="w-full rounded-xl bg-black py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
             {text.returnToPanel}
@@ -587,7 +587,7 @@ const LandingPage: React.FC = () => {
       <PublicHeader activeKey="home" />
 
       <main className="lhv" ref={rootRef}>
-        <Hero onAuth={setAuth} loggedIn={loggedIn} onOpenCrm={() => navigate("/app")} />
+        <Hero onAuth={setAuth} loggedIn={loggedIn} onOpenCrm={() => navigate("/dashboard")} />
         <Integrations />
         <Platform />
         <Modules />

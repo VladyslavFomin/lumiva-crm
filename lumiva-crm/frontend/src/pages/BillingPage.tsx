@@ -294,7 +294,7 @@ export const BillingPage: React.FC<{
         }
         markBillingUnlocked();
         setStatus({ type: 'success', text: 'Оплата подтверждена, тариф активирован.' });
-        setTimeout(() => navigate('/app', { replace: true }), 800);
+        setTimeout(() => navigate('/dashboard', { replace: true }), 800);
       })
       .catch((e) =>
         setStatus({
@@ -311,7 +311,7 @@ export const BillingPage: React.FC<{
     if (providerStatus === 'paid') {
       markBillingUnlocked();
       setStatus({ type: 'success', text: 'Оплата подтверждена, тариф активирован.' });
-      setTimeout(() => navigate('/app', { replace: true }), 800);
+      setTimeout(() => navigate('/dashboard', { replace: true }), 800);
     } else {
       setStatus({
         type: 'error',
@@ -351,7 +351,7 @@ export const BillingPage: React.FC<{
         }
         markBillingUnlocked();
         setStatus({ type: 'success', text: 'Оплата подтверждена, тариф активирован.' });
-        setTimeout(() => navigate('/app', { replace: true }), 800);
+        setTimeout(() => navigate('/dashboard', { replace: true }), 800);
       })
       .catch((e) =>
         setStatus({
@@ -366,7 +366,7 @@ export const BillingPage: React.FC<{
       setLoadingPlan(plan);
       setStatus(null);
       const origin = window.location.origin;
-      const returnBasePath = embedded ? '/app' : '/app/billing';
+      const returnBasePath = embedded ? '/dashboard' : '/billing';
       const data = await createCheckoutSession({
         plan,
         period,

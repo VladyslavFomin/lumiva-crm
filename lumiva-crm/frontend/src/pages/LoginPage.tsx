@@ -33,7 +33,7 @@ export const LoginPage: React.FC = () => {
 
   React.useEffect(() => {
     if (existingToken) {
-      navigate('/app', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [existingToken, navigate]);
 
@@ -72,7 +72,7 @@ export const LoginPage: React.FC = () => {
   }, []);
 
   if (existingToken) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,7 +96,7 @@ export const LoginPage: React.FC = () => {
       persistSession(resp as LoginResponse);
       setSuccess(true);
       setTimeout(() => {
-        navigate('/app', { replace: true });
+        navigate('/dashboard', { replace: true });
       }, 400);
     } catch (err: any) {
       setError(err.message || t('crm.auth.login.errors.failed'));
@@ -115,7 +115,7 @@ export const LoginPage: React.FC = () => {
       persistSession(resp);
       setSuccess(true);
       setTimeout(() => {
-        navigate('/app', { replace: true });
+        navigate('/dashboard', { replace: true });
       }, 400);
     } catch (err: any) {
       setError(err.message || t('crm.auth.login.errors.failed'));

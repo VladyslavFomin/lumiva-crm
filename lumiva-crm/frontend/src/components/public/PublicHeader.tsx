@@ -317,7 +317,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
           </div>
           <div className="lhh-dr-b">
             {tenantSession && (
-              <Link to="/app" className="lhh-dr-acct" style={st()}>
+              <Link to="/dashboard" className="lhh-dr-acct" style={st()}>
                 <AcctLogo size="lg" />
                 <span className="lhh-acct-t">
                   <b>{tenantSession.companyName}</b>
@@ -489,7 +489,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
                       <em>{tenantSession.userLabel}</em>
                     </div>
                   </div>
-                  <Link to="/app" className="lhh-acct-go">
+                  <Link to="/dashboard" className="lhh-acct-go">
                     <Ic d={I.app} size={15} />
                     {ht.openCrm}
                     <Ic d={I.arrow} size={13} />
