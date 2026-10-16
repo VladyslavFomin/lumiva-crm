@@ -2,7 +2,7 @@
    сталь #5980a6, волосяные рамки с метками «+», квадратные углы. Всё в области .rv. */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600&family=Fira+Sans+Condensed:wght@500;600;700&subset=cyrillic,latin-ext&display=swap');
 
-.rv{--h:'Fira Sans Condensed','Inter Tight',sans-serif;--t:'Fira Sans','Inter',sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;--acc:#5980a6;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#d4d4d7;--n5:#98989b;--n7:#5d5d60;--tx:#1d1f20;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#d4d4d7;font-family:var(--t);font-size:14px;color:var(--tx);max-width:1320px;margin:0 auto}
+.rv{--h:'Fira Sans Condensed','Inter Tight',sans-serif;--t:'Fira Sans','Inter',sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;--acc:#5980a6;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#d4d4d7;--n5:#98989b;--n7:#5d5d60;--tx:#1d1f20;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#d4d4d7;font-family:var(--t);font-size:14px;color:var(--tx);width:100%}
 .rv-portal{--h:'Fira Sans Condensed','Inter Tight',sans-serif;--t:'Fira Sans','Inter',sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,monospace;--acc:#5980a6;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#d4d4d7;--n5:#98989b;--n7:#5d5d60;--tx:#1d1f20;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#d4d4d7;font-family:var(--t)}
 .rv h1,.rv h2,.rv h3,.rv h4,.rv .h{font-family:var(--h);font-weight:600;margin:0;letter-spacing:.005em;color:var(--tx)}
 .rv .num{font-family:var(--h);font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
@@ -422,5 +422,18 @@
 .rv .rv-kpi .spark+.l{padding-right:62px}
 .rv .rv-country{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(150px,auto)}
 .rv .rv-country .v{white-space:nowrap}
-.rv .rv-grid3 .rv-chart{max-height:220px}
+
 .px-scope .rv .rp-save-bar{position:static;background:transparent;box-shadow:none;margin:16px 0 0;padding:14px 0 0;border-top:1px solid var(--ln);display:flex;gap:8px;justify-content:flex-start}
+
+/* Карточки — как по всему сайту: скругление 14px, светлая линия, без меток «+» по углам (2026-10-16) */
+.rv .bp>i.c,.rv-portal .bp>i.c{display:none}
+.rv .bp:not(.rb),.rv-portal .bp:not(.rb),.rv .bpx{border:1px solid var(--ln2);border-radius:14px;background:#fff}
+.rv .bpx::before,.rv .ha-section::before,.rv .rp-conn::before{display:none}
+.px-scope .rv .ha-section,.px-scope .rv .rp-conn{border:1px solid var(--ln2);border-radius:14px;background:#fff}
+.px-scope .rv .rp-conn .rp-conn{border-radius:12px}
+.rv .rv-kpis,.rv .rv-agent{overflow:hidden}
+.rv .rv-kpi+.rv-kpi{border-left-color:var(--ln2)}
+.rv .rv-rank{border-radius:12px}
+.rv .rv-dup{border-radius:10px}
+.rv .rv-reply,.rv .rv-compose{border-radius:12px}
+@media (max-width:1500px){.rv .rv-kpi .spark{display:none}.rv .rv-kpi .spark+.l{padding-right:0}}

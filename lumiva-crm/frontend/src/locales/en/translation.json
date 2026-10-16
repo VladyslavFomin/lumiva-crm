@@ -19444,11 +19444,14 @@
             "vsYoy": "vs a year ago",
             "negKpi": "Negative · below {{n}}",
             "countNegNote": "The red part of a bar is negative reviews.",
-            "matrixSub": "Red — complaints, green — praise. The number is reviews with the topic in the period. Click a cell to open the feed.",
-            "legendNeg": "complaints",
-            "legendPos": "praise",
             "cellTip": "{{hotel}} · {{topic}}: {{neg}} complaints, {{pos}} praise",
-            "open": "open"
+            "open": "open",
+            "heatNeg": "Complaints",
+            "heatPos": "Praise",
+            "heatBoth": "Both",
+            "matrixSub_neg": "How many reviews complained about the topic in the period — darker means more. Click a cell to open them in the feed.",
+            "matrixSub_pos": "How many reviews praised the topic in the period — darker means more. Click a cell to open the feed.",
+            "matrixSub_both": "Red — more complaints, green — more praise; the number is the prevailing reviews. Click a cell to open the feed."
           },
           "report": {
             "kick": "Monthly report · {{name}} · {{month}}",

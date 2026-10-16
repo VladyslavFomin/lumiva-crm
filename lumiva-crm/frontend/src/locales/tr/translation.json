@@ -19426,11 +19426,14 @@
             "vsYoy": "geçen yıla göre",
             "negKpi": "Olumsuz · {{n}} altı",
             "countNegNote": "Sütunun kırmızı kısmı olumsuz yorumlardır.",
-            "matrixSub": "Kırmızı — şikâyet, yeşil — övgü. Sayı, dönemde bu konuyu içeren yorumlardır. Akışı açmak için hücreye tıklayın.",
-            "legendNeg": "şikâyetler",
-            "legendPos": "övgüler",
             "cellTip": "{{hotel}} · {{topic}}: {{neg}} şikâyet, {{pos}} övgü",
-            "open": "aç"
+            "open": "aç",
+            "heatNeg": "Şikâyetler",
+            "heatPos": "Övgüler",
+            "heatBoth": "Birlikte",
+            "matrixSub_neg": "Dönemde konuyla ilgili şikâyet içeren yorum sayısı — koyu renk daha fazla demek. Hücreye tıklayınca akışta açılır.",
+            "matrixSub_pos": "Dönemde konuyu öven yorum sayısı — koyu renk daha fazla demek. Hücreye tıklayınca akış açılır.",
+            "matrixSub_both": "Kırmızı — şikâyet fazla, yeşil — övgü fazla; sayı baskın yorumlardır. Hücreye tıklayınca akış açılır."
           },
           "report": {
             "kick": "Aylık rapor · {{name}} · {{month}}",

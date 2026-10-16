@@ -26,7 +26,7 @@ import {
   type RepTopicStat,
 } from '../../../api/hotelReputation';
 import { AiStatusBanner, PLATFORM_META, fmtHours, fmtRepIndex, topicLabel, useRepT } from './ReputationShared';
-import { Btn, CardHead, CountUp, Delta, Frame, PlatformBadge, RvHead, RvTabs, Score, Seg, Sel, Track, cx, scoreClass, useNumFmt } from './rvui';
+import { Btn, CardHead, CountUp, Delta, Frame, PlatformBadge, RvHead, RvTabs, Score, Seg, Sel, Track, cx, scoreClass, useBoxWidth, useNumFmt } from './rvui';
 import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../../components/ui/DateRangePicker';
 import { joinParam, splitParam } from './RepMultiSelect';
 import { RepReportModal } from './RepReportModal';
@@ -102,13 +102,13 @@ const AvgLine: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['p
   const { r, lang } = useRepT();
   const fmt = useNumFmt();
   const [hv, setHv] = useState<number | null>(null);
+  const [box, W] = useBoxWidth();
   const rows = series.points;
   const g = series.granularity;
-  const W = 440;
-  const H = 170;
+  const H = 190;
   const pts = rows.map((m, i) => ({ ...m, x: rows.length > 1 ? 28 + (i / (rows.length - 1)) * (W - 44) : W / 2, prev: prev?.points[i] ?? null }));
   const vals = pts.flatMap((p) => [p.avg10, p.prev?.avg10 ?? null]).filter((v): v is number => v != null);
-  if (!vals.length) return <div className="rv-empty-s">{r('dash.noData')}</div>;
+  if (!vals.length) return <div ref={box} className="rv-empty-s">{r('dash.noData')}</div>;
   const lo = Math.max(0, Math.floor(Math.min(...vals, negBelow) - 0.3));
   const hi = Math.min(10, Math.ceil(Math.max(...vals, 8) + 0.2));
   const y = (v: number) => 10 + (1 - (v - lo) / Math.max(0.1, hi - lo)) * (H - 34);
@@ -120,7 +120,8 @@ const AvgLine: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['p
   const step = pts.length > 1 ? (W - 44) / (pts.length - 1) : 40;
   const small = pts.length > 30;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="rv-chart" onMouseLeave={() => setHv(null)}>
+    <div ref={box}>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="rv-chart" onMouseLeave={() => setHv(null)}>
       <defs>
         <linearGradient id="rvAvgArea" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={ACC} stopOpacity=".22" />
@@ -163,6 +164,7 @@ const AvgLine: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['p
         </>
       )}
     </svg>
+    </div>
   );
 };
 
@@ -171,10 +173,10 @@ const CountBars: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard[
   const { r, lang } = useRepT();
   const fmt = useNumFmt();
   const [hv, setHv] = useState<number | null>(null);
+  const [box, W] = useBoxWidth();
   const rows = series.points;
   const g = series.granularity;
-  const W = 440;
-  const H = 170;
+  const H = 190;
   const prevRows = prev?.points || [];
   const mx = Math.max(1, ...rows.map((m) => m.count), ...(prev ? prevRows.map((m) => m.count) : []));
   const step = (W - 36) / Math.max(1, rows.length);
@@ -182,7 +184,8 @@ const CountBars: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard[
   const bw = Math.max(1.5, prev ? Math.min(14, (step - gap) / 2) : Math.min(26, step - gap));
   const every = tickEvery(rows.length);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="rv-chart" onMouseLeave={() => setHv(null)}>
+    <div ref={box}>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="rv-chart" onMouseLeave={() => setHv(null)}>
       <line x1={24} x2={W - 8} y1={H - 22} y2={H - 22} stroke="#d4d4d7" />
       {rows.map((p, i) => {
         const x0 = 28 + i * step;
@@ -214,6 +217,7 @@ const CountBars: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard[
         />
       )}
     </svg>
+    </div>
   );
 };
 
@@ -223,6 +227,7 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number; legend?: bool
   const fmt = useNumFmt();
   const [metric, setMetric] = useState<'avg' | 'count'>('avg');
   const [hv, setHv] = useState<number | null>(null);
+  const [box, W] = useBoxWidth();
   const g = data.granularity;
   const items = data.items.map((it, i) => ({
     ...it,
@@ -230,8 +235,7 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number; legend?: bool
     color: data.dim === 'platform' ? PLATFORM_META[it.key as keyof typeof PLATFORM_META]?.bg || SERIES[i % SERIES.length] : SERIES[i % SERIES.length],
   }));
   const buckets = items[0]?.points.map((p) => p.bucket) || [];
-  const W = 440;
-  const H = 170;
+  const H = 190;
   const xOf = (i: number) => (buckets.length > 1 ? 28 + (i / (buckets.length - 1)) * (W - 44) : W / 2);
   const val = (p: { avg10: number | null; count: number }) => (metric === 'avg' ? p.avg10 : p.count);
   const vals = items.flatMap((it) => it.points.map(val)).filter((v): v is number => v != null);
@@ -255,7 +259,7 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number; legend?: bool
     return out;
   };
   return (
-    <div>
+    <div ref={box}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         {legend ? (
           <div className="rv-legend">
@@ -273,7 +277,7 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number; legend?: bool
       {!vals.length ? (
         <div className="rv-empty-s">{r('dash.noData')}</div>
       ) : (
-        <svg key={metric} viewBox={`0 0 ${W} ${H}`} className="rv-chart" onMouseLeave={() => setHv(null)}>
+        <svg key={metric} viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="rv-chart" onMouseLeave={() => setHv(null)}>
           {[lo, (lo + hi) / 2, hi].map((gv) => (
             <g key={gv}>
               <line x1={28} x2={W - 16} y1={y(gv)} y2={y(gv)} stroke={GRID} />
@@ -536,24 +540,26 @@ const TopicBars: React.FC<{ rows: RepTopicStat[]; kind: 'negative' | 'positive';
 };
 
 type Matrix = Awaited<ReturnType<typeof fetchRepTopicMatrix>>;
-/** Темы по отелям: красный — жалобы, зелёный — похвалы; число — отзывов с темой; клик — лента. */
-const Heat: React.FC<{ m: Matrix; onPick: (topic: string, hotelId: string) => void }> = ({ m, onPick }) => {
+type HeatMode = 'neg' | 'pos' | 'both';
+/** Темы по отелям: жалобы, похвалы или вместе (что преобладает); число — отзывов с темой; клик — лента. */
+const Heat: React.FC<{ m: Matrix; mode: HeatMode; onPick: (topic: string, hotelId: string) => void }> = ({ m, mode, onPick }) => {
   const { r, lang } = useRepT();
-  const max = Math.max(1, ...m.hotels.flatMap((h) => h.cells.map((c) => Math.max(c.negative, c.positive))));
+  const pick = (c: Matrix['hotels'][number]['cells'][number]) =>
+    mode === 'neg' ? { n: c.negative, neg: true } : mode === 'pos' ? { n: c.positive, neg: false } : c.negative >= c.positive ? { n: c.negative, neg: true } : { n: c.positive, neg: false };
+  const max = Math.max(1, ...m.hotels.flatMap((h) => h.cells.map((c) => pick(c).n)));
   let k = 0;
   return (
     <div className="rv-tw">
-      <div className="rv-heat" style={{ gridTemplateColumns: `160px repeat(${m.topics.length}, minmax(44px,1fr))`, minWidth: 160 + m.topics.length * 46 }}>
+      <div key={mode} className="rv-heat" style={{ gridTemplateColumns: `160px repeat(${m.topics.length}, minmax(44px,1fr))`, minWidth: 160 + m.topics.length * 46 }}>
         <div />
         {m.topics.map((t) => <div key={t.topic} className="hd" title={topicLabel(t, r, lang)}>{topicLabel(t, r, lang)}</div>)}
         {m.hotels.map((h) => (
           <React.Fragment key={h.hotelId}>
             <div className="rh" title={h.name}>{h.name}</div>
             {h.cells.map((c, j) => {
-              const negSide = c.negative >= c.positive;
-              const n = negSide ? c.negative : c.positive;
+              const { n, neg } = pick(c);
               const pct = n ? Math.round(18 + (n / max) * 67) : 0;
-              const bg = !n ? 'var(--n1, #f4f4f5)' : `color-mix(in oklab, ${negSide ? NEG : POS} ${pct}%, #fff)`;
+              const bg = !n ? 'var(--n1, #f4f4f5)' : `color-mix(in oklab, ${neg ? NEG : POS} ${pct}%, #fff)`;
               const t = m.topics[j];
               return (
                 <div
@@ -571,6 +577,28 @@ const Heat: React.FC<{ m: Matrix; onPick: (topic: string, hotelId: string) => vo
         ))}
       </div>
     </div>
+  );
+};
+
+const HeatCard: React.FC<{ m: Matrix; onPick: (topic: string, hotelId: string, mode: HeatMode) => void }> = ({ m, onPick }) => {
+  const { r } = useRepT();
+  const [mode, setMode] = useState<HeatMode>('neg');
+  const sw = (c: string) => <i style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: c, marginRight: 6, verticalAlign: -1 }} />;
+  return (
+    <Frame className="rv-card rv-st" style={{ '--i': 6, marginBottom: 22 } as React.CSSProperties}>
+      <CardHead title={r('dash.matrixTitle')} sub={r(`rv.dash.matrixSub_${mode}`)}>
+        <Seg
+          value={mode}
+          onChange={(v) => setMode(v as HeatMode)}
+          opts={[
+            ['neg', <>{sw(NEG)}{r('rv.dash.heatNeg')}</>],
+            ['pos', <>{sw(POS)}{r('rv.dash.heatPos')}</>],
+            ['both', r('rv.dash.heatBoth')],
+          ]}
+        />
+      </CardHead>
+      <Heat m={m} mode={mode} onPick={(t, h) => onPick(t, h, mode)} />
+    </Frame>
   );
 };
 
@@ -875,15 +903,7 @@ export const ReviewsDashboardPage: React.FC = () => {
                     </Frame>
 
                     {matrix && matrix.hotels.length > 1 && matrix.topics.length > 0 && (
-                      <Frame className="rv-card rv-st" style={{ '--i': 6, marginBottom: 22 } as React.CSSProperties}>
-                        <CardHead title={r('dash.matrixTitle')} sub={r('rv.dash.matrixSub')}>
-                          <div className="rv-legend">
-                            <span style={{ color: NEG }}><i style={{ height: 8 }} />{r('rv.dash.legendNeg')}</span>
-                            <span style={{ color: POS }}><i style={{ height: 8 }} />{r('rv.dash.legendPos')}</span>
-                          </div>
-                        </CardHead>
-                        <Heat m={matrix} onPick={(tp, hid) => toFeed({ topic: tp, hotelId: hid })} />
-                      </Frame>
+                      <HeatCard m={matrix} onPick={(tp, hid, mode) => toFeed({ topic: tp, hotelId: hid, ...(mode === 'neg' ? { sentiment: 'negative' } : {}) })} />
                     )}
 
                     {(data.countries || (data.rooms && (data.rooms.linked > 0 || data.rooms.suggested > 0))) && (

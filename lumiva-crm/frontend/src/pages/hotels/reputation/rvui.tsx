@@ -128,6 +128,23 @@ export const Track: React.FC<{ pct: number; color: string; h?: number }> = ({ pc
   return <span className="rv-track" style={h ? { height: h } : undefined}><i style={{ width: `${m ? Math.max(0, Math.min(100, pct)) : 0}%`, background: color }} /></span>;
 };
 
+/** Ширина контейнера графика: рисуем SVG в реальных пикселях, чтобы на широком экране не росли подписи. */
+export function useBoxWidth<T extends HTMLElement = HTMLDivElement>(fallback = 440) {
+  const ref = useRef<T>(null);
+  const [w, setW] = useState(fallback);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = (x: number) => setW(Math.max(280, Math.round(x)));
+    set(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => set(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
+
 export const Tabs: React.FC<{ items: Array<{ k: string; label: string; badge?: number | null }>; active: string; onChange: (k: string) => void }> = ({ items, active, onChange }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [ink, setInk] = useState({ left: 0, width: 0 });
