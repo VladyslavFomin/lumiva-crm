@@ -7,6 +7,7 @@ import { HotelsSubnav } from '../HotelsSubnav';
 import { Ic, HTL_ICON } from '../HotelIcons';
 import {
   REP_PLATFORMS,
+  confirmRepExactDuplicates,
   fetchRepFeed,
   fetchRepLanguages,
   fetchRepSettings,
@@ -18,22 +19,26 @@ import {
 import { AiStatusBanner, ApifyPauseBanner, ReviewsAgentStrip, PLATFORM_META, PlatformBadge, ReputationTabs, Score, TOPIC_KEYS, fmtDate, topicLabel, useRepT } from './ReputationShared';
 import { ReviewCardDrawer } from './ReviewCardDrawer';
 import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../../components/ui/DateRangePicker';
+import { RepMultiSelect, joinParam, splitParam } from './RepMultiSelect';
 import '../hotels-design.css';
 import './reputation.css';
 
 const PAGE = 50;
-const FILTER_KEYS = ['brandId', 'hotelId', 'platform', 'from', 'to', 'ratingMin', 'ratingMax', 'lang', 'topic', 'reply', 'sentiment', 'status', 'q', 'sort'] as const;
+const FILTER_KEYS = ['brandId', 'hotelId', 'platform', 'from', 'to', 'ratingMin', 'ratingMax', 'lang', 'topic', 'reply', 'sentiment', 'status', 'dup', 'q', 'sort'] as const;
 
 /** Отели → Отзывы → Лента: все площадки в одной ленте, сначала новые, негатив без ответа подсвечен. */
 export const ReviewsFeedPage: React.FC = () => {
   const { r, t, lang } = useRepT();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
+  const [bulkBusy, setBulkBusy] = useState(false);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [setup, setSetup] = useState<RepSetup | null>(null);
   const [langs, setLangs] = useState<Array<{ lang: string; n: number }>>([]);
   const [negBelow, setNegBelow] = useState(6);
   const [apifyPause, setApifyPause] = useState<{ reason: string | null; at: string | null } | null>(null);
+  const [disabledTopics, setDisabledTopics] = useState<string[]>([]);
+  const [extraTopics, setExtraTopics] = useState<Array<{ key: string; label: string; translations?: Partial<Record<'ru' | 'tr' | 'en', string>> }>>([]);
   const [feed, setFeed] = useState<RepFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const [qInput, setQInput] = useState(params.get('q') || '');
@@ -67,7 +72,12 @@ export const ReviewsFeedPage: React.FC = () => {
   useEffect(() => {
     fetchRepSetup().then(setSetup).catch(() => setSetup({ brands: [], hotels: [] }));
     fetchRepLanguages().then(setLangs).catch(() => undefined);
-    fetchRepSettings().then((s) => { setNegBelow(s.config.thresholds.negativeBelow); setApifyPause(s.config.apifyPause); }).catch(() => undefined);
+    fetchRepSettings().then((s) => {
+      setNegBelow(s.config.thresholds.negativeBelow);
+      setApifyPause(s.config.apifyPause);
+      setDisabledTopics(s.config.topicsDisabled || []);
+      setExtraTopics(s.config.topicsExtra || []);
+    }).catch(() => undefined);
   }, []);
 
   const load = useCallback(
@@ -96,7 +106,27 @@ export const ReviewsFeedPage: React.FC = () => {
   }, [qInput]);
 
   const hotels = setup?.hotels || [];
-  const hotelsInBrand = filters.brandId ? hotels.filter((h) => h.brandId === filters.brandId) : hotels;
+  const selBrands = splitParam(filters.brandId);
+  const selHotels = splitParam(filters.hotelId);
+  const hotelsInBrand = selBrands.length ? hotels.filter((h) => h.brandId && selBrands.includes(h.brandId)) : hotels;
+  const setBrands = (v: string[]) => {
+    const p = new URLSearchParams(params);
+    p.delete('hotel');
+    p.delete('review');
+    const j = joinParam(v);
+    j ? p.set('brandId', j) : p.delete('brandId');
+    if (v.length) {
+      const keep = selHotels.filter((id) => v.includes(hotels.find((h) => h.id === id)?.brandId || ''));
+      const jh = joinParam(keep);
+      jh ? p.set('hotelId', jh) : p.delete('hotelId');
+    }
+    setParams(p, { replace: true });
+  };
+  const topicOptions = [
+    ...TOPIC_KEYS.filter((key) => !disabledTopics.includes(key)).map((key) => ({ topic: key } as { topic: string; label?: string; translations?: Partial<Record<'ru' | 'tr' | 'en', string>> })),
+    ...extraTopics.map((topic) => ({ topic: topic.key, label: topic.label, translations: topic.translations })),
+    { topic: 'other' },
+  ].map((tp) => ({ value: tp.topic, label: topicLabel(tp, r, lang) }));
   const hotelName = (id: string) => hotels.find((h) => h.id === id)?.name || '—';
   const activeCount = FILTER_KEYS.filter((k) => k !== 'sort' && (filters as any)[k]).length;
   const noSources = setup && !hotels.some((h) => h.sources.length);
@@ -135,18 +165,14 @@ export const ReviewsFeedPage: React.FC = () => {
                 <Ic d={HTL_ICON.search} />
                 <input value={qInput} onChange={(e) => setQInput(e.target.value)} placeholder={r('feed.search')} />
               </div>
-              <select value={filters.brandId || ''} onChange={(e) => setFilter('brandId', e.target.value || null)}>
-                <option value="">{r('filters.allBrands')}</option>
-                {setup?.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <select value={filters.hotelId || ''} onChange={(e) => setFilter('hotelId', e.target.value || null)}>
-                <option value="">{r('filters.allHotels')}</option>
-                {hotelsInBrand.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-              </select>
-              <select value={filters.platform || ''} onChange={(e) => setFilter('platform', e.target.value || null)}>
-                <option value="">{r('filters.allPlatforms')}</option>
-                {REP_PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_META[p].label}</option>)}
-              </select>
+              <RepMultiSelect allLabel={r('filters.allBrands')} value={selBrands} onChange={setBrands} options={(setup?.brands || []).map((b) => ({ value: b.id, label: b.name }))} />
+              <RepMultiSelect allLabel={r('filters.allHotels')} value={selHotels} onChange={(v) => setFilter('hotelId', joinParam(v))} options={hotelsInBrand.map((h) => ({ value: h.id, label: h.name }))} />
+              <RepMultiSelect
+                allLabel={r('filters.allPlatforms')}
+                value={splitParam(filters.platform)}
+                onChange={(v) => setFilter('platform', joinParam(v))}
+                options={REP_PLATFORMS.map((p) => ({ value: p, label: PLATFORM_META[p].label, icon: <PlatformBadge platform={p} compact /> }))}
+              />
               <DateRangePicker
                 value={{ from: fromIsoDate(filters.from), to: fromIsoDate(filters.to) }}
                 presets={[
@@ -181,10 +207,7 @@ export const ReviewsFeedPage: React.FC = () => {
                 <option value="">{r('filters.allLanguages')}</option>
                 {langs.map((l) => <option key={l.lang} value={l.lang}>{l.lang.toUpperCase()} · {l.n}</option>)}
               </select>
-              <select value={filters.topic || ''} onChange={(e) => setFilter('topic', e.target.value || null)}>
-                <option value="">{r('filters.allTopics')}</option>
-                {[...TOPIC_KEYS, 'other'].map((k) => <option key={k} value={k}>{topicLabel({ topic: k }, r)}</option>)}
-              </select>
+              <RepMultiSelect allLabel={r('filters.allTopics')} value={splitParam(filters.topic)} onChange={(v) => setFilter('topic', joinParam(v))} options={topicOptions} />
               <select value={filters.reply || ''} onChange={(e) => setFilter('reply', e.target.value || null)}>
                 <option value="">{r('filters.anyReply')}</option>
                 <option value="none">{r('filters.noReply')}</option>
@@ -227,8 +250,38 @@ export const ReviewsFeedPage: React.FC = () => {
               <span className={`rp-chip${filters.status === 'deleted' ? ' on' : ''}`} onClick={() => setFilter('status', filters.status === 'deleted' ? null : 'deleted')}>
                 {r('feed.quickDeleted')}
               </span>
+              {(!!feed?.duplicatesSuggested || filters.dup) && (
+                <span className={`rp-chip${filters.dup === 'suggested' ? ' on' : ''}`} title={r('dup.chipHint')} onClick={() => setFilter('dup', filters.dup === 'suggested' ? null : 'suggested')}>
+                  {r('dup.chip')} {feed?.duplicatesSuggested ? `· ${feed.duplicatesSuggested}` : ''}
+                </span>
+              )}
               <span className="rp-count">{feed ? r('feed.count', { n: feed.total }) : ''}</span>
             </div>
+            {filters.dup === 'suggested' && !!feed?.duplicatesExact && (
+              <div className="rp-note" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <span>{r('dup.exactNote', { n: feed.duplicatesExact })}</span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  disabled={bulkBusy}
+                  onClick={async () => {
+                    if (!(await showConfirm(r('dup.exactConfirm', { n: feed.duplicatesExact })))) return;
+                    setBulkBusy(true);
+                    try {
+                      const res = await confirmRepExactDuplicates();
+                      showAlert(r('dup.exactDone', { n: res.confirmed, left: res.left }), { variant: 'success' });
+                      load(false);
+                    } catch (e: any) {
+                      showAlert(e?.message || r('card.error'), { variant: 'error' });
+                    } finally {
+                      setBulkBusy(false);
+                    }
+                  }}
+                >
+                  {bulkBusy ? r('dup.exactBusy') : r('dup.exactButton', { n: feed.duplicatesExact })}
+                </button>
+              </div>
+            )}
 
             <div data-tour="rv-feed" className="rp-feed">
               {feed?.items.map((x) => (
@@ -248,6 +301,11 @@ export const ReviewsFeedPage: React.FC = () => {
                       {x.lang && <span className="rp-lang">{x.lang}</span>}
                       {x.status === 'edited' && <span className="rp-pill edited">{r('status.edited')}</span>}
                       {x.status === 'deleted' && <span className="rp-pill deleted">{r('status.deleted')}</span>}
+                      {x.duplicateOfId ? (
+                        <span className="rp-pill dup" title={r('dup.pillHint')}>{r('dup.pill')}</span>
+                      ) : x.duplicateSuggested ? (
+                        <span className="rp-pill dup-maybe" title={r('dup.maybeHint')}>{r('dup.maybe')}</span>
+                      ) : null}
                     </div>
                     <div className={`rp-row-text${x.text ? '' : ' empty'}`}>
                       {x.title ? <b>{x.title}. </b> : null}
@@ -255,18 +313,20 @@ export const ReviewsFeedPage: React.FC = () => {
                     </div>
                     {x.topics.length > 0 && (
                       <div className="rp-topics">
-                        {x.topics.slice(0, 6).map((tp, i) => <span key={i} className={`rp-topic ${tp.sentiment}`}>{topicLabel(tp, r)}</span>)}
+                        {x.topics.slice(0, 6).map((tp, i) => <span key={i} className={`rp-topic ${tp.sentiment}`}>{topicLabel(tp, r, lang)}</span>)}
                       </div>
                     )}
                   </div>
                   <div className="rp-row-right">
                     <Score rating10={x.rating10} raw={x.ratingRaw} scale={x.ratingScale} negBelow={negBelow} />
-                    {x.replyMode === 'none' ? (
-                      <span className="rp-pill muted">{r('reply.notPublished')}</span>
-                    ) : x.hasReply ? (
-                      <span className="rp-pill replied">{r('reply.replied')}</span>
-                    ) : (
-                      <span className="rp-pill noreply">{r('reply.none')}</span>
+                    {(x.replyEligible || x.hasReply) && (
+                      x.replyMode === 'none' ? (
+                        <span className="rp-pill muted">{r('reply.notPublished')}</span>
+                      ) : x.hasReply ? (
+                        <span className="rp-pill replied">{r('reply.replied')}</span>
+                      ) : (
+                        <span className="rp-pill noreply">{r('reply.none')}</span>
+                      )
                     )}
                     {x.draftReady && <span className="rp-pill draft" title={x.draftByAgent ? r('feed.draftByAgentHint') : ''}>✎ {r('feed.draftReady')}</span>}
                   </div>
@@ -297,6 +357,7 @@ export const ReviewsFeedPage: React.FC = () => {
             canWrite
             onClose={() => openReview(null)}
             onChanged={() => load(false)}
+            onOpen={(rid) => openReview(rid)}
           />
         )}
       </div>

@@ -5,11 +5,13 @@ import { Hotel } from '../hotels/hotel.entity';
 import { MailService } from '../mail/mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelBrand, HotelReview } from './reputation.entities';
-import { REPLY_MODE, TOPIC_LABELS_RU } from './reputation.constants';
+import { REPLY_MODE, TOPIC_LABELS_RU, activeTopicSql, listParam, reviewHasTextSql } from './reputation.constants';
 import { ReputationSettingsService } from './reputation-settings.service';
 import { ReputationAiService } from './reputation-ai.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
 
 export interface AnalyticsQuery {
+  /** Один id или несколько через запятую (мультивыбор в фильтрах). */
   brandId?: string;
   hotelId?: string;
   platform?: string;
@@ -17,13 +19,30 @@ export interface AnalyticsQuery {
   to?: string;
   /** «Всё время»: начало периода — самый ранний отзыв в срезе. */
   all?: string;
+  /** С чем сравнивать: prev — предыдущий период той же длины (по умолчанию), yoy — тот же период год назад. */
+  compare?: string;
 }
 
 export type SeriesGranularity = 'day' | 'week' | 'month';
 
 const NO_REPLY_PLATFORMS = Object.entries(REPLY_MODE).filter(([, m]) => m === 'none').map(([p]) => p);
 const round = (v: any, d = 2) => (v == null || !Number.isFinite(Number(v)) ? null : Math.round(Number(v) * 10 ** d) / 10 ** d);
-
+/**
+ * Страна гостя по языку отзыва (если площадка не отдала страну профиля). Язык ≠ паспорт: немецкий —
+ * это и Австрия со Швейцарией; английский и арабский — группы стран (x-en, x-ar).
+ */
+const LANG_COUNTRY: Record<string, string> = {
+  tr: 'TR', ru: 'RU', de: 'DE', pl: 'PL', fr: 'FR', nl: 'NL', ro: 'RO', uk: 'UA', it: 'IT', bg: 'BG', cs: 'CZ', lt: 'LT',
+  hu: 'HU', sk: 'SK', es: 'ES', bs: 'BA', hr: 'HR', sv: 'SE', da: 'DK', sq: 'AL', az: 'AZ', sr: 'RS', lv: 'LV', pt: 'PT',
+  no: 'NO', nb: 'NO', et: 'EE', zh: 'CN', ja: 'JP', ko: 'KR', fi: 'FI', el: 'GR', he: 'IL', iw: 'IL', ka: 'GE', kk: 'KZ',
+  be: 'BY', sl: 'SI', mk: 'MK', fa: 'IR', hy: 'AM', uz: 'UZ', ky: 'KG', tk: 'TM', mn: 'MN', is: 'IS', ga: 'IE', hi: 'IN',
+  th: 'TH', vi: 'VN', id: 'ID', ms: 'MY', en: 'x-en', ar: 'x-ar',
+};
+export function countryOf(authorCountry: string | null, lang: string | null): { code: string; byLang: boolean } | null {
+  if (authorCountry) return { code: authorCountry.toUpperCase(), byLang: false };
+  const l = (lang || '').toLowerCase().split(/[-_]/)[0];
+  return LANG_COUNTRY[l] ? { code: LANG_COUNTRY[l], byLang: true } : null;
+}
 /** Дашборд репутации: как меняется рейтинг и на что конкретно жалуются гости. */
 @Injectable()
 export class ReputationAnalyticsService {
@@ -36,23 +55,28 @@ export class ReputationAnalyticsService {
     private readonly settings: ReputationSettingsService,
     private readonly ai: ReputationAiService,
     private readonly mail: MailService,
+    private readonly stays: ReputationReservationsService,
   ) {}
 
   /** WHERE по отзывам (алиас r) без периода — период добавляется отдельно. */
   private scope(tenantId: string, q: AnalyticsQuery, params: any[], alias = 'r') {
     params.push(tenantId);
-    let w = `${alias}."tenantId" = $${params.length} AND ${alias}.status <> 'deleted'`;
-    if (q.brandId) {
-      params.push(q.brandId);
-      w += ` AND ${alias}."hotelId" IN (SELECT id FROM hotels WHERE "brandId" = $${params.length})`;
+    // подтверждённые дубликаты (тот же отзыв гостя на другой площадке) в аналитике не считаем дважды
+    let w = `${alias}."tenantId" = $${params.length} AND ${alias}.status <> 'deleted' AND ${alias}."duplicateOfId" IS NULL`;
+    const brands = listParam(q.brandId, 'uuid');
+    const hotels = listParam(q.hotelId, 'uuid');
+    const platforms = listParam(q.platform, 'platform');
+    if (brands.length) {
+      params.push(brands);
+      w += ` AND ${alias}."hotelId" IN (SELECT id FROM hotels WHERE "brandId" = ANY($${params.length}::uuid[]))`;
     }
-    if (q.hotelId) {
-      params.push(q.hotelId);
-      w += ` AND ${alias}."hotelId" = $${params.length}`;
+    if (hotels.length) {
+      params.push(hotels);
+      w += ` AND ${alias}."hotelId" = ANY($${params.length}::uuid[])`;
     }
-    if (q.platform) {
-      params.push(q.platform);
-      w += ` AND ${alias}.platform = $${params.length}`;
+    if (platforms.length) {
+      params.push(platforms);
+      w += ` AND ${alias}.platform = ANY($${params.length}::text[])`;
     }
     return w;
   }
@@ -74,8 +98,8 @@ export class ReputationAnalyticsService {
   }
 
   /** Ряд по периоду: оценка, число отзывов, доля негатива по дням/неделям/месяцам, пустые шаги заполнены нулями. */
-  private async series(tenantId: string, q: AnalyticsQuery, from: Date, to: Date, negBelow: number) {
-    const gran = this.granularity(from, to);
+  private async series(tenantId: string, q: AnalyticsQuery, from: Date, to: Date, negBelow: number, granOverride?: SeriesGranularity) {
+    const gran = granOverride || this.granularity(from, to);
     const p: any[] = [];
     const w = this.scope(tenantId, q, p);
     p.push(from, to, negBelow, gran);
@@ -110,8 +134,16 @@ export class ReputationAnalyticsService {
     const to = q.to ? new Date(new Date(q.to).getTime() + 864e5) : new Date();
     const from = q.from ? new Date(q.from) : new Date(to.getTime() - 90 * 864e5);
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) throw new BadRequestException('Bad period');
+    if (q.compare === 'yoy') {
+      // курорты сезонные: сентябрь честнее сравнивать с прошлым сентябрём, а не с августом
+      const prevFrom = new Date(from);
+      prevFrom.setUTCFullYear(prevFrom.getUTCFullYear() - 1);
+      const prevTo = new Date(to);
+      prevTo.setUTCFullYear(prevTo.getUTCFullYear() - 1);
+      return { from, to, prevFrom, prevTo, mode: 'yoy' as const };
+    }
     const len = to.getTime() - from.getTime();
-    return { from, to, prevFrom: new Date(from.getTime() - len), prevTo: from };
+    return { from, to, prevFrom: new Date(from.getTime() - len), prevTo: from, mode: 'prev' as const };
   }
 
   /** Базовые метрики за интервал (используется для текущего и предыдущего периода). */
@@ -125,8 +157,8 @@ export class ReputationAnalyticsService {
               AVG(r."rating10") AS avg,
               COUNT(*) FILTER (WHERE r."rating10" < $${n - 1})::int AS neg,
               COUNT(r."rating10")::int AS rated,
-              COUNT(*) FILTER (WHERE NOT (r.platform = ANY($${n})))::int AS replyable,
-              COUNT(*) FILTER (WHERE NOT (r.platform = ANY($${n})) AND r."hasReply")::int AS replied,
+              COUNT(*) FILTER (WHERE NOT (r.platform = ANY($${n})) AND ${reviewHasTextSql('r')})::int AS replyable,
+              COUNT(*) FILTER (WHERE NOT (r.platform = ANY($${n})) AND ${reviewHasTextSql('r')} AND r."hasReply")::int AS replied,
               percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (r."repliedAt" - r."publishedAt")) / 3600)
                 FILTER (WHERE r."hasReply" AND r."repliedAt" >= r."publishedAt" AND NOT r."replyMarkedManually") AS median_h
          FROM hotel_reviews r
@@ -169,8 +201,10 @@ export class ReputationAnalyticsService {
     const byHotel: Record<string, number | null> = {};
     let total: number | null = null;
     for (const r of rows) {
-      if (r.hotelId) byHotel[r.hotelId] = round(r.idx);
-      else total = round(r.idx);
+      // индекс 0–100 (средняя 0–10 × 10); пустой период — null, а не 0
+      const v = r.idx == null ? null : round(Number(r.idx) * 10, 2);
+      if (r.hotelId) byHotel[r.hotelId] = v;
+      else total = v;
     }
     return { total, byHotel };
   }
@@ -179,7 +213,7 @@ export class ReputationAnalyticsService {
     const q = await this.resolveAll(tenantId, qIn);
     const cfg = await this.settings.config(tenantId);
     const negBelow = cfg.thresholds.negativeBelow;
-    const { from, to, prevFrom, prevTo } = this.period(q);
+    const { from, to, prevFrom, prevTo, mode } = this.period(q);
     const [cur, prev, idx, prevIdx] = await Promise.all([
       this.kpis(tenantId, q, from, to, negBelow),
       this.kpis(tenantId, q, prevFrom, prevTo, negBelow),
@@ -202,13 +236,15 @@ export class ReputationAnalyticsService {
     );
     const sp: any[] = [tenantId];
     let sw = `s."tenantId" = $1`;
-    if (q.hotelId) {
-      sp.push(q.hotelId);
-      sw += ` AND s."hotelId" = $${sp.length}`;
+    const qHotels = listParam(q.hotelId, 'uuid');
+    const qBrands = listParam(q.brandId, 'uuid');
+    if (qHotels.length) {
+      sp.push(qHotels);
+      sw += ` AND s."hotelId" = ANY($${sp.length}::uuid[])`;
     }
-    if (q.brandId) {
-      sp.push(q.brandId);
-      sw += ` AND s."hotelId" IN (SELECT id FROM hotels WHERE "brandId" = $${sp.length})`;
+    if (qBrands.length) {
+      sp.push(qBrands);
+      sw += ` AND s."hotelId" IN (SELECT id FROM hotels WHERE "brandId" = ANY($${sp.length}::uuid[]))`;
     }
     const sourceStats = await this.reviews.query(
       `SELECT s.platform, SUM(s."platformCount")::int AS pcount,
@@ -222,22 +258,22 @@ export class ReputationAnalyticsService {
     // по отелям
     const hp: any[] = [];
     const wh = this.scope(tenantId, q, hp);
-    hp.push(from, to, prevFrom, negBelow, NO_REPLY_PLATFORMS);
-    const n = hp.length;
+    hp.push(from, to, prevFrom, negBelow, NO_REPLY_PLATFORMS, prevTo);
+    const n = hp.length - 1; // $n — площадки без ответов, $${n + 1} — конец периода сравнения
     const byHotelRows = await this.reviews.query(
       `SELECT r."hotelId",
               COUNT(*) FILTER (WHERE r."publishedAt" >= $${n - 4})::int AS count,
               AVG(r."rating10") FILTER (WHERE r."publishedAt" >= $${n - 4}) AS avg,
-              AVG(r."rating10") FILTER (WHERE r."publishedAt" < $${n - 4}) AS prev_avg,
+              AVG(r."rating10") FILTER (WHERE r."publishedAt" >= $${n - 2} AND r."publishedAt" < $${n + 1}) AS prev_avg,
               COUNT(*) FILTER (WHERE r."publishedAt" >= $${n - 4} AND r."rating10" < $${n - 1})::int AS neg,
               COUNT(r."rating10") FILTER (WHERE r."publishedAt" >= $${n - 4})::int AS rated,
-              COUNT(*) FILTER (WHERE r."publishedAt" >= $${n - 4} AND NOT (r.platform = ANY($${n})))::int AS replyable,
-              COUNT(*) FILTER (WHERE r."publishedAt" >= $${n - 4} AND NOT (r.platform = ANY($${n})) AND r."hasReply")::int AS replied,
-              COUNT(*) FILTER (WHERE NOT (r.platform = ANY($${n})) AND NOT r."hasReply" AND r."rating10" < $${n - 1})::int AS open_neg,
+              COUNT(*) FILTER (WHERE r."publishedAt" >= $${n - 4} AND NOT (r.platform = ANY($${n})) AND ${reviewHasTextSql('r')})::int AS replyable,
+              COUNT(*) FILTER (WHERE r."publishedAt" >= $${n - 4} AND NOT (r.platform = ANY($${n})) AND ${reviewHasTextSql('r')} AND r."hasReply")::int AS replied,
+              COUNT(*) FILTER (WHERE NOT (r.platform = ANY($${n})) AND NOT r."hasReply" AND ${reviewHasTextSql('r')} AND r."rating10" < $${n - 1})::int AS open_neg,
               percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (r."repliedAt" - r."publishedAt")) / 3600)
                 FILTER (WHERE r."publishedAt" >= $${n - 4} AND r."hasReply" AND r."repliedAt" >= r."publishedAt" AND NOT r."replyMarkedManually") AS median_h
          FROM hotel_reviews r
-        WHERE ${wh} AND r."publishedAt" >= $${n - 2} AND r."publishedAt" < $${n - 3}
+        WHERE ${wh} AND ((r."publishedAt" >= $${n - 4} AND r."publishedAt" < $${n - 3}) OR (r."publishedAt" >= $${n - 2} AND r."publishedAt" < $${n + 1}))
         GROUP BY r."hotelId"`,
       hp,
     );
@@ -248,17 +284,17 @@ export class ReputationAnalyticsService {
     // темы: жалобы и похвалы за период против предыдущего
     const tp: any[] = [];
     const wt = this.scope(tenantId, q, tp);
-    tp.push(from, to, prevFrom);
+    tp.push(from, to, prevFrom, prevTo);
     const topicRows = await this.reviews.query(
       `SELECT t.topic, COALESCE(t."otherLabel", '') AS label,
-              COUNT(*) FILTER (WHERE t.sentiment = 'negative' AND r."publishedAt" >= $${tp.length - 2})::int AS neg,
-              COUNT(*) FILTER (WHERE t.sentiment = 'positive' AND r."publishedAt" >= $${tp.length - 2})::int AS pos,
-              COUNT(*) FILTER (WHERE t.sentiment = 'neutral' AND r."publishedAt" >= $${tp.length - 2})::int AS neu,
-              COUNT(*) FILTER (WHERE t.sentiment = 'negative' AND r."publishedAt" < $${tp.length - 2})::int AS prev_neg,
-              (array_agg(t.quote ORDER BY r."publishedAt" DESC) FILTER (WHERE t.sentiment = 'negative' AND t.quote IS NOT NULL AND r."publishedAt" >= $${tp.length - 2}))[1:2] AS neg_quotes,
-              (array_agg(t.quote ORDER BY r."publishedAt" DESC) FILTER (WHERE t.sentiment = 'positive' AND t.quote IS NOT NULL AND r."publishedAt" >= $${tp.length - 2}))[1:2] AS pos_quotes
+              COUNT(*) FILTER (WHERE t.sentiment = 'negative' AND r."publishedAt" >= $${tp.length - 3})::int AS neg,
+              COUNT(*) FILTER (WHERE t.sentiment = 'positive' AND r."publishedAt" >= $${tp.length - 3})::int AS pos,
+              COUNT(*) FILTER (WHERE t.sentiment = 'neutral' AND r."publishedAt" >= $${tp.length - 3})::int AS neu,
+              COUNT(*) FILTER (WHERE t.sentiment = 'negative' AND r."publishedAt" >= $${tp.length - 1} AND r."publishedAt" < $${tp.length})::int AS prev_neg,
+              (array_agg(t.quote ORDER BY r."publishedAt" DESC) FILTER (WHERE t.sentiment = 'negative' AND t.quote IS NOT NULL AND r."publishedAt" >= $${tp.length - 3}))[1:2] AS neg_quotes,
+              (array_agg(t.quote ORDER BY r."publishedAt" DESC) FILTER (WHERE t.sentiment = 'positive' AND t.quote IS NOT NULL AND r."publishedAt" >= $${tp.length - 3}))[1:2] AS pos_quotes
          FROM hotel_review_topics t JOIN hotel_reviews r ON r.id = t."reviewId"
-        WHERE ${wt} AND r."publishedAt" >= $${tp.length} AND r."publishedAt" < $${tp.length - 1}
+        WHERE ${wt} AND ${activeTopicSql(cfg)} AND ((r."publishedAt" >= $${tp.length - 3} AND r."publishedAt" < $${tp.length - 2}) OR (r."publishedAt" >= $${tp.length - 1} AND r."publishedAt" < $${tp.length}))
         GROUP BY t.topic, COALESCE(t."otherLabel", '')`,
       tp,
     );
@@ -266,6 +302,7 @@ export class ReputationAnalyticsService {
     const topics = topicRows.map((t: any) => ({
       topic: t.topic,
       label: topicLabel(t.topic, t.label),
+      translations: cfg.topicsExtra.find((category) => category.key === t.topic)?.translations,
       isOther: t.topic === 'other',
       negative: t.neg,
       positive: t.pos,
@@ -282,14 +319,25 @@ export class ReputationAnalyticsService {
     const hotelTopics = await this.reviews.query(
       `SELECT DISTINCT ON (r."hotelId") r."hotelId", t.topic, COALESCE(t."otherLabel", '') AS label, COUNT(*)::int AS n
          FROM hotel_review_topics t JOIN hotel_reviews r ON r.id = t."reviewId"
-        WHERE ${whc} AND t.sentiment = 'negative' AND r."publishedAt" >= $${hcp.length - 1} AND r."publishedAt" < $${hcp.length}
+        WHERE ${whc} AND ${activeTopicSql(cfg)} AND t.sentiment = 'negative' AND r."publishedAt" >= $${hcp.length - 1} AND r."publishedAt" < $${hcp.length}
         GROUP BY r."hotelId", t.topic, COALESCE(t."otherLabel", '')
         ORDER BY r."hotelId", n DESC`,
       hcp,
     );
 
-    // динамика по выбранному периоду (шаг — дни/недели/месяцы)
+    // динамика по выбранному периоду (шаг — дни/недели/месяцы) и тот же ряд за предыдущий такой же период
     const series = await this.series(tenantId, q, from, to, negBelow);
+    const prevSeries = await this.series(tenantId, q, prevFrom, prevTo, negBelow, series.granularity);
+    const countries = await this.countries(tenantId, q, from, to, negBelow);
+    // номера с жалобами — только если в CRM ведутся брони (иначе связать отзыв с номером нечем)
+    let rooms: Awaited<ReturnType<ReputationReservationsService['roomsStats']>> | null = null;
+    if (await this.stays.enabled(tenantId)) {
+      const selHotels = listParam(q.hotelId, 'uuid');
+      const selBrands = listParam(q.brandId, 'uuid');
+      const all = await this.hotels.find({ where: { tenantId } });
+      const ids = all.filter((h: any) => (!selHotels.length || selHotels.includes(h.id)) && (!selBrands.length || selBrands.includes(h.brandId))).map((h) => h.id);
+      rooms = ids.length ? await this.stays.roomsStats(tenantId, { hotelIds: ids, from, to, negBelow }) : null;
+    }
 
     // распределение оценок
     const dp: any[] = [];
@@ -318,6 +366,10 @@ export class ReputationAnalyticsService {
     const delta = (a: number | null, b: number | null) => (a == null || b == null ? null : round(a - b));
     return {
       period: { from: from.toISOString(), to: to.toISOString() },
+      prevPeriod: { from: prevFrom.toISOString(), to: prevTo.toISOString(), mode },
+      prevSeries,
+      countries,
+      rooms,
       kpis: {
         ...cur,
         reputationIndex: idx.total,
@@ -367,7 +419,12 @@ export class ReputationAnalyticsService {
             responseRate: x.replyable ? round((x.replied / x.replyable) * 100, 1) : null,
             medianReplyHours: round(x.median_h, 1),
             openNegative: x.open_neg,
-            topComplaint: top ? { topic: top.topic, label: topicLabel(top.topic, top.label), count: top.n } : null,
+            topComplaint: top ? {
+              topic: top.topic,
+              label: topicLabel(top.topic, top.label),
+              translations: cfg.topicsExtra.find((category) => category.key === top.topic)?.translations,
+              count: top.n,
+            } : null,
           };
         })
         .sort((a: any, b: any) => (b.reputationIndex ?? -1) - (a.reputationIndex ?? -1)),
@@ -390,8 +447,8 @@ export class ReputationAnalyticsService {
               ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '30 days'), 2) AS avg30,
               ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '60 days' AND r."publishedAt" <= now() - interval '30 days'), 2) AS avg_prev30,
               COUNT(*) FILTER (WHERE r."publishedAt" > now() - interval '7 days')::int AS n7,
-              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."rating10" < $2 AND r."publishedAt" > now() - interval '30 days')::int AS open_neg,
-              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."publishedAt" > now() - interval '30 days')::int AS open_all
+              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r."rating10" < $2 AND r."publishedAt" > now() - interval '30 days')::int AS open_neg,
+              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r."publishedAt" > now() - interval '30 days')::int AS open_all
          FROM hotel_reviews r WHERE r."tenantId" = $1 AND r.status <> 'deleted' GROUP BY r."hotelId"`,
       [tenantId, cfg.thresholds.negativeBelow],
     );
@@ -419,7 +476,7 @@ export class ReputationAnalyticsService {
               COUNT(r.id) FILTER (WHERE r.status <> 'deleted')::int AS total,
               COUNT(r.id) FILTER (WHERE r."publishedAt" > now() - interval '90 days' AND r.status <> 'deleted')::int AS n90,
               ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '90 days' AND r.status <> 'deleted'), 2) AS avg90,
-              COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."rating10" < $3 AND r."publishedAt" > now() - interval '30 days' AND r.status <> 'deleted')::int AS open_neg
+              COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r."rating10" < $3 AND r."publishedAt" > now() - interval '30 days' AND r.status <> 'deleted')::int AS open_neg
          FROM hotel_review_sources s LEFT JOIN hotel_reviews r ON r."sourceId" = s.id
         WHERE s."tenantId" = $1 AND s."hotelId" = $2
         GROUP BY s.id ORDER BY total DESC`,
@@ -438,6 +495,108 @@ export class ReputationAnalyticsService {
     };
   }
 
+  /**
+   * Страны гостей: страна профиля (Booking), иначе — по языку отзыва. Для «кто больше жалуется»:
+   * средняя, доля негатива и число негативных отзывов.
+   */
+  private async countries(tenantId: string, q: AnalyticsQuery, from: Date, to: Date, negBelow: number) {
+    const p: any[] = [];
+    const w = this.scope(tenantId, q, p);
+    p.push(from, to, negBelow);
+    const rows = await this.reviews.query(
+      `SELECT r."authorCountry" AS c, LOWER(SPLIT_PART(COALESCE(r.lang, ''), '-', 1)) AS l, COUNT(*)::int AS n,
+              SUM(r."rating10") AS s, COUNT(r."rating10")::int AS rated,
+              COUNT(*) FILTER (WHERE r."rating10" < $${p.length})::int AS neg
+         FROM hotel_reviews r
+        WHERE ${w} AND r."publishedAt" >= $${p.length - 2} AND r."publishedAt" < $${p.length - 1}
+        GROUP BY 1, 2`,
+      p,
+    );
+    const acc = new Map<string, { code: string; byLang: number; total: number; sum: number; rated: number; neg: number }>();
+    let unknown = 0;
+    for (const r of rows) {
+      const c = countryOf(r.c, r.l);
+      if (!c) {
+        unknown += r.n;
+        continue;
+      }
+      const a = acc.get(c.code) || { code: c.code, byLang: 0, total: 0, sum: 0, rated: 0, neg: 0 };
+      a.total += r.n;
+      a.sum += Number(r.s || 0);
+      a.rated += r.rated;
+      a.neg += r.neg;
+      if (c.byLang) a.byLang += r.n;
+      acc.set(c.code, a);
+    }
+    return {
+      unknown,
+      items: [...acc.values()]
+        .map((a) => ({
+          code: a.code,
+          /** Доля отзывов, где страна определена по языку, а не по профилю. */
+          byLangShare: a.total ? round(a.byLang / a.total, 2) : null,
+          count: a.total,
+          avg10: a.rated ? round(a.sum / a.rated) : null,
+          negative: a.neg,
+          negativeShare: a.rated ? round((a.neg / a.rated) * 100, 1) : null,
+        }))
+        .sort((x, y) => y.count - x.count),
+    };
+  }
+
+  /**
+   * Сравнение на одном графике: каждый выбранный отель (dim=hotel) или площадка (dim=platform) — своя линия.
+   * Шаг тот же, что у общего ряда, пустые шаги — null (линия рвётся, а не падает в 0).
+   */
+  async compare(tenantId: string, qIn: AnalyticsQuery, dim: 'hotel' | 'platform') {
+    const q = await this.resolveAll(tenantId, qIn);
+    const { from, to } = this.period(q);
+    const gran = this.granularity(from, to);
+    const p: any[] = [];
+    const w = this.scope(tenantId, q, p);
+    p.push(from, to, gran);
+    const col = dim === 'hotel' ? 'r."hotelId"::text' : 'r.platform';
+    const rows = await this.reviews.query(
+      `SELECT ${col} AS key, to_char(date_trunc($${p.length}, r."publishedAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS bucket,
+              COUNT(*)::int AS count, AVG(r."rating10") AS avg
+         FROM hotel_reviews r
+        WHERE ${w} AND r."publishedAt" >= $${p.length - 2} AND r."publishedAt" < $${p.length - 1}
+        GROUP BY 1, 2`,
+      p,
+    );
+    const keys = dim === 'hotel' ? listParam(q.hotelId, 'uuid') : listParam(q.platform, 'platform');
+    const hotels = dim === 'hotel' ? await this.hotels.find({ where: { tenantId } }) : [];
+    const start = new Date(from);
+    start.setUTCHours(0, 0, 0, 0);
+    if (gran === 'week') start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+    if (gran === 'month') start.setUTCDate(1);
+    const buckets: string[] = [];
+    for (let d = new Date(start); d < to && buckets.length < 400; ) {
+      buckets.push(d.toISOString().slice(0, 10));
+      if (gran === 'day') d.setUTCDate(d.getUTCDate() + 1);
+      else if (gran === 'week') d.setUTCDate(d.getUTCDate() + 7);
+      else d.setUTCMonth(d.getUTCMonth() + 1);
+    }
+    const keyList: string[] = keys.length ? keys : [...new Set<string>(rows.map((r: any) => String(r.key)))];
+    const items = keyList.map((key) => {
+      const mine = rows.filter((r: any) => r.key === key);
+      const total = mine.reduce((a: number, r: any) => a + r.count, 0);
+      const sum = mine.reduce((a: number, r: any) => a + (r.avg != null ? Number(r.avg) * r.count : 0), 0);
+      const rated = mine.reduce((a: number, r: any) => a + (r.avg != null ? r.count : 0), 0);
+      return {
+        key,
+        label: dim === 'hotel' ? hotels.find((h) => h.id === key)?.name || '—' : key,
+        count: total,
+        avg10: rated ? round(sum / rated) : null,
+        points: buckets.map((b) => {
+          const r = mine.find((x: any) => x.bucket === b);
+          return { bucket: b, count: r?.count ?? 0, avg10: r ? round(r.avg) : null };
+        }),
+      };
+    });
+    return { dim, granularity: gran, items };
+  }
+
   /** Сравнение отелей бренда по темам: доля негативных упоминаний темы среди отзывов отеля. */
   async topicMatrix(tenantId: string, qIn: AnalyticsQuery) {
     const q = await this.resolveAll(tenantId, qIn);
@@ -452,7 +611,7 @@ export class ReputationAnalyticsService {
        SELECT b."hotelId", t.topic, COUNT(*) FILTER (WHERE t.sentiment = 'negative')::int AS neg,
               COUNT(*) FILTER (WHERE t.sentiment = 'positive')::int AS pos, MAX(tot.n) AS total
          FROM base b JOIN hotel_review_topics t ON t."reviewId" = b.id JOIN tot ON tot."hotelId" = b."hotelId"
-        WHERE t.topic <> 'other'
+        WHERE t.topic <> 'other' AND ${activeTopicSql(cfg)}
         GROUP BY b."hotelId", t.topic`,
       p,
     );
@@ -462,7 +621,11 @@ export class ReputationAnalyticsService {
     for (const r of rows) topicTotals[r.topic] = (topicTotals[r.topic] || 0) + r.neg + r.pos;
     const topics = Object.entries(topicTotals).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k]) => k);
     return {
-      topics: topics.map((k) => ({ topic: k, label: TOPIC_LABELS_RU[k] || cfg.topicsExtra.find((x) => x.key === k)?.label || k })),
+      topics: topics.map((k) => ({
+        topic: k,
+        label: TOPIC_LABELS_RU[k] || cfg.topicsExtra.find((x) => x.key === k)?.label || k,
+        translations: cfg.topicsExtra.find((category) => category.key === k)?.translations,
+      })),
       hotels: hotelIds.map((id) => ({
         hotelId: id,
         name: hotels.find((h) => h.id === id)?.name || '—',
@@ -573,10 +736,10 @@ export class ReputationAnalyticsService {
 ${rep.summary ? `<p style="font-size:14px;line-height:1.55;background:#fafafa;padding:12px 14px;border-radius:10px">${e(rep.summary)}</p>` : ''}
 <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0">
 <tr><td style="padding:6px 0;color:#888">Средняя оценка</td><td style="text-align:right"><b>${f(rep.kpis.avg10)}</b> / 10 (было ${f(rep.prev.avg10)})</td></tr>
-<tr><td style="padding:6px 0;color:#888">Индекс репутации</td><td style="text-align:right"><b>${f(rep.kpis.reputationIndex)}</b> (было ${f(rep.prev.reputationIndex)})</td></tr>
+<tr><td style="padding:6px 0;color:#888">Индекс репутации</td><td style="text-align:right"><b>${f(rep.kpis.reputationIndex)}</b> / 100 (было ${f(rep.prev.reputationIndex)} / 100)</td></tr>
 <tr><td style="padding:6px 0;color:#888">Отзывов</td><td style="text-align:right"><b>${rep.kpis.count}</b> (было ${rep.prev.count})</td></tr>
 <tr><td style="padding:6px 0;color:#888">Доля негатива</td><td style="text-align:right"><b>${f(rep.kpis.negativeShare, 1)}%</b></td></tr>
-<tr><td style="padding:6px 0;color:#888">Response rate</td><td style="text-align:right"><b>${f(rep.kpis.responseRate, 1)}%</b></td></tr>
+<tr><td style="padding:6px 0;color:#888">Доля ответов</td><td style="text-align:right"><b>${f(rep.kpis.responseRate, 1)}%</b></td></tr>
 </table>
 <h3 style="font-size:15px;margin:18px 0 8px">Топ-5 жалоб</h3>
 <ol style="font-size:13px;padding-left:18px;margin:0">${rep.topComplaints.map((c: any) => `<li>${e(c.label)} — ${c.negative} (было ${c.prevNegative})</li>`).join('') || '<li>нет</li>'}</ol>

@@ -32,6 +32,9 @@ import {
   requestRepBackfill,
   APIFY_PRICE_PER_1000,
   verifyRepApify,
+  fetchRepApifyUsage,
+  scanRepDuplicates,
+  matchRepStays,
   type RepAlertKind,
   type RepConfig,
   type RepPlatform,
@@ -40,13 +43,16 @@ import {
   type RepSettings,
   type RepSetup,
   type RepSource,
+  translateRepTopic,
 } from '../../../api/hotelReputation';
-import { ApifyPauseBanner, PLATFORM_META, PlatformBadge, ReputationTabs, fmtDate, useRepT } from './ReputationShared';
+import { ApifyPauseBanner, PLATFORM_META, PlatformBadge, ReputationTabs, TOPIC_KEYS, fmtDate, useRepT } from './ReputationShared';
+import { CompetitorsTab } from './RepCompetitorsSettings';
+import { useTenantComponents } from '../../../hooks/useTenantComponents';
 import '../hotels-design.css';
 import './reputation.css';
 
-type Tab = 'hotels' | 'connections' | 'alerts' | 'ai' | 'log';
-const TABS: Tab[] = ['hotels', 'connections', 'alerts', 'ai', 'log'];
+type Tab = 'hotels' | 'connections' | 'competitors' | 'alerts' | 'ai' | 'log';
+const TABS: Tab[] = ['hotels', 'connections', 'competitors', 'alerts', 'ai', 'log'];
 const ALERT_KINDS: RepAlertKind[] = ['negative', 'no_reply', 'rating_lowered', 'avg_drop', 'topic_spike', 'sync_problem'];
 const emptyRec = (): RepRecipients => ({ emails: [], telegram: [], userIds: [] });
 
@@ -324,7 +330,7 @@ const HistoryFromCard: React.FC<{ value: string | null; save: (b: any) => Promis
 // ============================================================ Подключения
 
 const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) => Promise<void>; reload: () => void }> = ({ settings, setup, save, reload }) => {
-  const { r } = useRepT();
+  const { r, lang } = useRepT();
   const backfill = useBackfill();
   const { showAlert, showConfirm } = useAlertModal();
   const cfg = settings.config;
@@ -335,10 +341,14 @@ const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (
   const [sched, setSched] = useState(cfg.schedule);
   const [hc, setHc] = useState(cfg.holidaycheck);
   const [busy, setBusy] = useState<string | null>(null);
+  const [usage, setUsage] = useState<{ used: number | null; limit: number | null; cycleEnd: string | null } | null>(null);
 
   useEffect(() => {
     if (settings.googleConnected) fetchRepGoogleAccounts().then(setAccounts).catch(() => setAccounts(null));
   }, [settings.googleConnected]);
+  useEffect(() => {
+    if (settings.apifyToken) fetchRepApifyUsage().then(setUsage).catch(() => setUsage(null));
+  }, [settings.apifyToken]);
 
   const act = async (name: string, fn: () => Promise<unknown>, ok?: string) => {
     setBusy(name);
@@ -419,6 +429,16 @@ const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (
           <span className={`rp-status ${settings.apifyToken ? 'ok' : ''}`}>{settings.apifyToken ? r('conn.tokenSet', { k: settings.apifyToken }) : r('conn.tokenMissing')}</span>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--fg-2)', margin: '0 0 12px' }}>{r('conn.apifyText')}</p>
+        {usage?.limit != null && usage.used != null && (
+          <div className={`rp-note${usage.used >= usage.limit * 0.98 ? ' err' : usage.used >= usage.limit * 0.8 ? ' warn' : ''}`} style={{ marginBottom: 12 }}>
+            <b>{r('conn.usage', { used: usage.used.toFixed(2), limit: usage.limit })}</b>{' '}
+            {usage.cycleEnd && r('conn.usageCycle', { d: fmtDate(usage.cycleEnd, lang) })}{' '}
+            {usage.used >= usage.limit * 0.98 && r('conn.usageOver')}
+            <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.08)', marginTop: 8, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%`, height: '100%', background: usage.used >= usage.limit * 0.8 ? '#cc2f47' : '#1f8a5e' }} />
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           <input className="rp-input" type="password" style={{ flex: '1 1 280px' }} value={token} onChange={(e) => setToken(e.target.value)} placeholder="apify_api_…" autoComplete="new-password" />
           <button type="button" className="btn" disabled={!token && !settings.apifyToken} onClick={() => act('v', async () => { const v = await verifyRepApify(token || undefined); showAlert(v.ok ? r('conn.apifyOk', { u: v.username || '—' }) : r('conn.tokenMissing'), { variant: v.ok ? 'success' : 'error' }); })}>
@@ -612,12 +632,127 @@ const AlertsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: an
 
 // ============================================================ ИИ и темы
 
-const AiTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) => Promise<void> }> = ({ settings, setup, save }) => {
+/** Связь отзывов с бронями модуля «Отели» — только если у клиента включены брони. */
+const StaysMatch: React.FC = () => {
   const { r } = useRepT();
+  const { showAlert } = useAlertModal();
+  const { isEnabled } = useTenantComponents();
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ checked: number; auto: number; suggested: number } | null>(null);
+  if (!isEnabled('hotels') || !isEnabled('hotels_reservations')) return null;
+  return (
+    <div className="ha-section">
+      <div className="ha-section-head"><div><h3>{r('stay.settingsTitle')}</h3><div className="sub">{r('stay.settingsSub')}</div></div></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              setRes(await matchRepStays());
+            } catch (e: any) {
+              showAlert(e?.message || r('card.error'), { variant: 'error' });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? r('dup.scanning') : r('stay.matchRun')}
+        </button>
+        {res && <span style={{ fontSize: 12.5, color: 'var(--fg-2)' }}>{r('stay.matchResult', { checked: res.checked, auto: res.auto, suggested: res.suggested })}</span>}
+      </div>
+    </div>
+  );
+};
+
+/** Поиск дубликатов по всей истории (новые отзывы проверяются сами при сборе). */
+const DuplicatesScan: React.FC = () => {
+  const { r } = useRepT();
+  const { showAlert } = useAlertModal();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ checked: number; found: number; suggested: number } | null>(null);
+  return (
+    <div className="ha-section">
+      <div className="ha-section-head"><div><h3>{r('dup.settingsTitle')}</h3><div className="sub">{r('dup.settingsSub')}</div></div></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              setRes(await scanRepDuplicates());
+            } catch (e: any) {
+              showAlert(e?.message || r('card.error'), { variant: 'error' });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? r('dup.scanning') : r('dup.scan')}
+        </button>
+        {res && <span style={{ fontSize: 12.5, color: 'var(--fg-2)' }}>{r('dup.scanResult', { checked: res.checked, found: res.found, suggested: res.suggested })}</span>}
+        {res && res.suggested > 0 && (
+          <button type="button" className="btn btn-sm" onClick={() => navigate('/hotels/reviews?dup=suggested')}>{r('dup.review')} →</button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AiTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) => Promise<void> }> = ({ settings, setup, save }) => {
+  const { r, lang } = useRepT();
   const { showAlert } = useAlertModal();
   const [cfg, setCfg] = useState<RepConfig>(settings.config);
   const [newTopic, setNewTopic] = useState('');
+  const [translatingTopic, setTranslatingTopic] = useState(false);
   useEffect(() => setCfg(settings.config), [settings.config]);
+  const topicLocale = lang.startsWith('tr') ? 'tr' : lang.startsWith('en') ? 'en' : 'ru';
+  const disabledTopics = cfg.topicsDisabled || [];
+  // удалённые темы: история их отметок цела, вернуть можно в один клик (сохраняется кнопкой «Сохранить»)
+  const removedCustom = [...(cfg.topicsArchive || []), ...settings.config.topicsExtra]
+    .filter((x, i, all) => !cfg.topicsExtra.some((y) => y.key === x.key) && all.findIndex((y) => y.key === x.key) === i);
+  const restoreCustom = (x: RepConfig['topicsExtra'][number]) => setCfg({ ...cfg, topicsExtra: [...cfg.topicsExtra, x] });
+  const addTopic = async () => {
+    const label = newTopic.trim();
+    if (!label || translatingTopic) return;
+    // такая тема уже была и удалена — возвращаем её вместе с историей, а не заводим новую
+    const lower = label.toLocaleLowerCase();
+    const archived = removedCustom.find((x) => [x.label, x.translations?.ru, x.translations?.en, x.translations?.tr].some((v) => v?.toLocaleLowerCase() === lower));
+    if (archived) {
+      restoreCustom(archived);
+      setNewTopic('');
+      return;
+    }
+    setTranslatingTopic(true);
+    try {
+      const translations = await translateRepTopic(label);
+      const base = `x_${label.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '_').replace(/[а-яё]/gi, (c) => c.charCodeAt(0).toString(36))}`.slice(0, 38);
+      const existing = new Set([
+        ...TOPIC_KEYS,
+        ...cfg.topicsExtra.map((topic) => topic.key),
+      ]);
+      let key = base;
+      let suffix = 2;
+      while (existing.has(key) || key === 'other') {
+        const suffixText = `_${suffix++}`;
+        key = `${base.slice(0, 38 - suffixText.length)}${suffixText}`;
+      }
+      setCfg({
+        ...cfg,
+        topicsExtra: [...cfg.topicsExtra, { key, label: translations.ru, translations }],
+      });
+      setNewTopic('');
+    } catch (e: any) {
+      showAlert(e?.message || r('ai.topicTranslateError'), { variant: 'error' });
+    } finally {
+      setTranslatingTopic(false);
+    }
+  };
   return (
     <>
       <div className="ha-section">
@@ -629,26 +764,54 @@ const AiTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) =
       <div className="ha-section">
         <div className="ha-section-head"><div><h3>{r('ai.topicsTitle')}</h3><div className="sub">{r('ai.topicsSub')}</div></div></div>
         <div className="rp-topics" style={{ marginTop: 0, marginBottom: 12 }}>
-          {['cleanliness', 'room', 'bed_sleep', 'noise', 'breakfast', 'food', 'bar', 'all_inclusive', 'pool', 'beach', 'animation', 'staff', 'reception', 'wifi', 'air_conditioning', 'value', 'location', 'transfer', 'spa', 'kids_club'].map((k) => (
-            <span key={k} className="rp-topic">{r(`topics.${k}`)}</span>
+          {TOPIC_KEYS.filter((key) => !disabledTopics.includes(key)).map((key) => (
+            <span key={key} className="rp-topic" title={`RU: ${r(`topics.${key}`, { lng: 'ru' })} · TR: ${r(`topics.${key}`, { lng: 'tr' })} · EN: ${r(`topics.${key}`, { lng: 'en' })}`}>
+              {r(`topics.${key}`)}
+              <button type="button" aria-label={`${r('ai.removeTopic')}: ${r(`topics.${key}`)}`} style={{ background: 'none', border: 0, color: 'inherit', padding: 0, marginLeft: 4, cursor: 'pointer', font: 'inherit' }} onClick={() => setCfg({ ...cfg, topicsDisabled: [...disabledTopics, key] })}>×</button>
+            </span>
           ))}
           {cfg.topicsExtra.map((x) => (
             <span key={x.key} className="rp-topic positive">
-              {x.label} <span style={{ cursor: 'pointer', marginLeft: 4 }} onClick={() => setCfg({ ...cfg, topicsExtra: cfg.topicsExtra.filter((y) => y.key !== x.key) })}>×</span>
+              <span title={`RU: ${x.translations?.ru || x.label} · TR: ${x.translations?.tr || x.label} · EN: ${x.translations?.en || x.label}`}>
+                {x.translations?.[topicLocale] || x.label}
+              </span>
+              <button type="button" aria-label={`${r('ai.removeTopic')}: ${x.label}`} style={{ background: 'none', border: 0, color: 'inherit', padding: 0, marginLeft: 4, cursor: 'pointer', font: 'inherit' }} onClick={() => setCfg({ ...cfg, topicsExtra: cfg.topicsExtra.filter((y) => y.key !== x.key) })}>×</button>
             </span>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="rp-input" value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder={r('ai.topicPh')} />
-          <button type="button" className="btn btn-sm" disabled={!newTopic.trim()} onClick={() => {
-            const label = newTopic.trim();
-            const key = `x_${label.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '_').replace(/[а-яё]/gi, (c) => c.charCodeAt(0).toString(36))}`.slice(0, 38);
-            setCfg({ ...cfg, topicsExtra: [...cfg.topicsExtra, { key, label }] });
-            setNewTopic('');
-          }}><Ic d={HTL_ICON.plus} size={12} />{r('ai.addTopic')}</button>
+          <button type="button" className="btn btn-sm" disabled={!newTopic.trim() || translatingTopic} onClick={() => void addTopic()}>
+            <Ic d={HTL_ICON.plus} size={12} />{translatingTopic ? r('ai.translatingTopic') : r('ai.addTopic')}
+          </button>
         </div>
+        {(disabledTopics.length > 0 || removedCustom.length > 0) && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', marginBottom: 6 }}>{r('ai.removedTitle')}</div>
+            <div className="rp-topics" style={{ marginTop: 0 }}>
+              {disabledTopics.map((key) => (
+                <span key={key} className="rp-topic" style={{ opacity: 0.7 }}>
+                  <s>{r(`topics.${key}`)}</s>
+                  <button type="button" style={{ background: 'none', border: 0, color: 'var(--ink)', padding: 0, marginLeft: 6, cursor: 'pointer', font: 'inherit', fontWeight: 600 }} onClick={() => setCfg({ ...cfg, topicsDisabled: disabledTopics.filter((k) => k !== key) })}>
+                    ↺ {r('ai.restoreTopic')}
+                  </button>
+                </span>
+              ))}
+              {removedCustom.map((x) => (
+                <span key={x.key} className="rp-topic" style={{ opacity: 0.7 }}>
+                  <s>{x.translations?.[topicLocale] || x.label}</s>
+                  <button type="button" style={{ background: 'none', border: 0, color: 'var(--ink)', padding: 0, marginLeft: 6, cursor: 'pointer', font: 'inherit', fontWeight: 600 }} onClick={() => restoreCustom(x)}>
+                    ↺ {r('ai.restoreTopic')}
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="rp-src-meta" style={{ marginTop: 10 }}>{r('ai.topicsNote')}</div>
       </div>
+      <DuplicatesScan />
+      <StaysMatch />
       <div className="ha-section">
         <div className="ha-section-head"><div><h3>{r('ai.signTitle')}</h3><div className="sub">{r('ai.signSub')}</div></div></div>
         <div className="rp-set-grid">
@@ -667,7 +830,7 @@ const AiTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) =
         </div>
       </div>
       <div className="rp-save-bar">
-        <button type="button" className="btn btn-primary" onClick={() => save({ translateTo: cfg.translateTo, topicsExtra: cfg.topicsExtra, signatures: cfg.signatures, monthlyReport: cfg.monthlyReport }).then(() => showAlert(r('settings.saved'), { variant: 'success' })).catch((e) => showAlert(e.message, { variant: 'error' }))}>
+        <button type="button" className="btn btn-primary" onClick={() => save({ translateTo: cfg.translateTo, topicsExtra: cfg.topicsExtra, topicsDisabled: disabledTopics, signatures: cfg.signatures, monthlyReport: cfg.monthlyReport }).then(() => showAlert(r('settings.saved'), { variant: 'success' })).catch((e) => showAlert(e.message, { variant: 'error' }))}>
           {r('settings.save')}
         </button>
       </div>
@@ -854,6 +1017,8 @@ export const ReviewsSettingsPage: React.FC = () => {
           <HotelsTab setup={setup} settings={settings} reload={reload} />
         ) : tab === 'connections' ? (
           <ConnectionsTab key={settings.config.google.accountName || 'x'} settings={settings} setup={setup} save={save} reload={reload} />
+        ) : tab === 'competitors' ? (
+          <CompetitorsTab settings={settings} setup={setup} save={save} />
         ) : tab === 'alerts' ? (
           <AlertsTab settings={settings} setup={setup} save={save} />
         ) : tab === 'ai' ? (

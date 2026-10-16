@@ -9,7 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelReview, HotelReviewAlert, HotelReviewSource } from './reputation.entities';
-import { AlertKind, REPLY_MODE, ReputationConfig, Recipients, TOPIC_LABELS_RU } from './reputation.constants';
+import { AlertKind, REPLY_MODE, ReputationConfig, Recipients, TOPIC_LABELS_RU, activeTopicSql, reviewHasTextSql } from './reputation.constants';
 import { ReputationEventsService } from './reputation-events.service';
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -173,6 +173,7 @@ export class ReputationAlertsService {
       .createQueryBuilder('r')
       .where('r.tenantId = :tenantId', { tenantId })
       .andWhere('r.hasReply = false AND r.status <> :del', { del: 'deleted' })
+      .andWhere(reviewHasTextSql('r'))
       .andWhere(`r.platform IN (:...pl)`, { pl: Object.entries(REPLY_MODE).filter(([, m]) => m !== 'none').map(([p]) => p) })
       .andWhere('r.publishedAt < :limit AND r.publishedAt > :floor', { limit: new Date(Date.now() - h * 36e5), floor: new Date(Date.now() - (h + 24 * 14) * 36e5) })
       .andWhere(`r.firstSeenAt - r.publishedAt < interval '4 days'`)
@@ -235,7 +236,7 @@ export class ReputationAlertsService {
       `SELECT "hotelId", topic, COALESCE("otherLabel", '') AS label, COUNT(*) AS n,
               (array_agg(quote ORDER BY "publishedAt" DESC))[1:3] AS quotes
          FROM hotel_review_topics
-        WHERE "tenantId" = $1 AND sentiment = 'negative' AND "publishedAt" >= now() - ($2 || ' days')::interval
+        WHERE "tenantId" = $1 AND ${activeTopicSql(cfg, '')} AND sentiment = 'negative' AND "publishedAt" >= now() - ($2 || ' days')::interval
         GROUP BY "hotelId", topic, COALESCE("otherLabel", '')
        HAVING COUNT(*) >= $3`,
       [tenantId, String(d), cfg.thresholds.topicRepeatCount],

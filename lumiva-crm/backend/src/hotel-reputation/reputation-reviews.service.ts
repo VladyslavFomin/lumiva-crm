@@ -11,8 +11,10 @@ import {
   HotelReviewTopic,
   HotelReviewVersion,
 } from './reputation.entities';
-import { PLATFORM_REPLY_HOME, REPLY_MODE, REPUTATION_PLATFORMS, historyFloor } from './reputation.constants';
+import { PLATFORM_REPLY_HOME, REPLY_MODE, activeTopicKeys, historyFloor, listParam, reviewHasTextSql } from './reputation.constants';
 import { ReputationSettingsService } from './reputation-settings.service';
+import { ReputationDuplicatesService } from './reputation-duplicates.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
 import { GoogleBusinessService } from './google-business.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
@@ -34,6 +36,8 @@ export interface FeedQuery {
   status?: string; // active (по умолчанию: без удалённых) | deleted | all
   q?: string;
   sort?: string; // new | priority | rating_asc | rating_desc
+  /** suggested — есть непроверенный кандидат в дубликаты; confirmed — помечен дубликатом. */
+  dup?: string;
   offset?: string;
   limit?: string;
 }
@@ -59,11 +63,15 @@ export class ReputationReviewsService {
     private readonly ai: ReputationAiService,
     private readonly alerts: ReputationAlertsService,
     private readonly events: ReputationEventsService,
+    private readonly duplicates: ReputationDuplicatesService,
+    private readonly stays: ReputationReservationsService,
   ) {}
 
-  private toRow(r: HotelReview, topics: HotelReviewTopic[], negBelow: number) {
+  private toRow(r: HotelReview, topics: HotelReviewTopic[], negBelow: number, cfg: Awaited<ReturnType<ReputationSettingsService['config']>>) {
     const r10 = r.rating10 != null ? Number(r.rating10) : null;
     const replyMode = REPLY_MODE[r.platform];
+    const hasReplyText = [r.title, r.textOriginal].some((text) => !!text?.trim());
+    const replyEligible = replyMode !== 'none' && hasReplyText;
     return {
       id: r.id,
       hotelId: r.hotelId,
@@ -74,6 +82,9 @@ export class ReputationReviewsService {
       title: r.title,
       text: r.textOriginal,
       textTranslated: r.textTranslated,
+      authorCountry: r.authorCountry,
+      /** Подтверждённый дубликат отзыва с другой площадки (в аналитике не считается). */
+      duplicateOfId: r.duplicateOfId,
       ratingRaw: r.ratingRaw != null ? Number(r.ratingRaw) : null,
       ratingScale: r.ratingScale,
       rating10: r10,
@@ -85,11 +96,17 @@ export class ReputationReviewsService {
       repliedAt: r.repliedAt?.toISOString() ?? null,
       replyMode,
       /** Подсветка: негатив без ответа. */
-      urgent: !r.hasReply && replyMode !== 'none' && r10 != null && r10 < negBelow && r.status !== 'deleted',
+      replyEligible: hasReplyText,
+      urgent: replyEligible && !r.hasReply && r10 != null && r10 < negBelow && r.status !== 'deleted',
       /** Черновик ответа готов (подготовил ИИ-менеджер отзывов или кто-то в карточке) — осталось отправить человеку. */
-      draftReady: !r.hasReply && replyMode !== 'none' && !!r.aiDraft,
+      draftReady: replyEligible && !r.hasReply && !!r.aiDraft,
       draftByAgent: !!r.aiDraftAgentId,
-      topics: topics.map((t) => ({ topic: t.topic, label: t.otherLabel, sentiment: t.sentiment })),
+      topics: topics.map((t) => ({
+        topic: t.topic,
+        label: t.otherLabel,
+        sentiment: t.sentiment,
+        translations: cfg.topicsExtra.find((category) => category.key === t.topic)?.translations,
+      })),
       reviewUrl: r.reviewUrl,
     };
   }
@@ -97,22 +114,30 @@ export class ReputationReviewsService {
   async feed(tenantId: string, q: FeedQuery) {
     const cfg = await this.settings.config(tenantId);
     const qb = this.reviews.createQueryBuilder('r').where('r.tenantId = :tenantId', { tenantId });
-    if (q.brandId) qb.andWhere('r.hotelId IN (SELECT h.id FROM hotels h WHERE h."brandId" = :brandId)', { brandId: q.brandId });
-    if (q.hotelId) qb.andWhere('r.hotelId = :hotelId', { hotelId: q.hotelId });
-    if (q.platform && REPUTATION_PLATFORMS.includes(q.platform as any)) qb.andWhere('r.platform = :platform', { platform: q.platform });
+    // мультивыбор: «id1,id2» — любой из списка
+    const brands = listParam(q.brandId, 'uuid');
+    const hotels = listParam(q.hotelId, 'uuid');
+    const platforms = listParam(q.platform, 'platform');
+    const topicKeys = String(q.topic || '').split(',').map((x) => x.trim()).filter((x) => /^[a-z0-9_]{1,40}$/.test(x)).slice(0, 60);
+    if (brands.length) qb.andWhere('r.hotelId IN (SELECT h.id FROM hotels h WHERE h."brandId" IN (:...brands))', { brands });
+    if (hotels.length) qb.andWhere('r.hotelId IN (:...hotels)', { hotels });
+    if (platforms.length) qb.andWhere('r.platform IN (:...platforms)', { platforms });
     if (q.from) qb.andWhere('r.publishedAt >= :from', { from: new Date(q.from) });
     if (q.to) qb.andWhere('r.publishedAt < :to', { to: new Date(new Date(q.to).getTime() + 864e5) });
     if (q.ratingMin) qb.andWhere('r.rating10 >= :rmin', { rmin: Number(q.ratingMin) });
     if (q.ratingMax) qb.andWhere('r.rating10 <= :rmax', { rmax: Number(q.ratingMax) });
     if (q.lang) qb.andWhere('r.lang = :lang', { lang: q.lang });
     if (q.sentiment) qb.andWhere('r.sentiment = :sent', { sent: q.sentiment });
-    if (q.topic) {
+    if (topicKeys.length) {
       qb.andWhere(
-        `EXISTS (SELECT 1 FROM hotel_review_topics t WHERE t."reviewId" = r.id AND t.topic = :topic${q.topicSentiment ? ' AND t.sentiment = :tsent' : ''})`,
-        { topic: q.topic, tsent: q.topicSentiment },
+        `EXISTS (SELECT 1 FROM hotel_review_topics t WHERE t."reviewId" = r.id AND t.topic IN (:...topicKeys)${q.topicSentiment ? ' AND t.sentiment = :tsent' : ''})`,
+        { topicKeys, tsent: q.topicSentiment },
       );
     }
-    if (q.reply === 'none') qb.andWhere(`r.hasReply = false AND r.platform <> 'check24'`);
+    if (q.dup === 'suggested') {
+      qb.andWhere(`r."duplicateOfId" IS NULL AND EXISTS (SELECT 1 FROM hotel_review_duplicates d WHERE d.status = 'suggested' AND (d."reviewId" = r.id OR d."candidateId" = r.id))`);
+    } else if (q.dup === 'confirmed') qb.andWhere(`r."duplicateOfId" IS NOT NULL`);
+    if (q.reply === 'none') qb.andWhere(`r.hasReply = false AND r.platform <> 'check24' AND ${reviewHasTextSql('r')}`);
     if (q.reply === 'replied') qb.andWhere('r.hasReply = true');
     if (q.status === 'deleted') qb.andWhere(`r.status = 'deleted'`);
     else if (q.status !== 'all') qb.andWhere(`r.status <> 'deleted'`);
@@ -122,7 +147,7 @@ export class ReputationReviewsService {
     }
     const total = await qb.getCount();
     if (q.sort === 'priority') {
-      qb.orderBy(`CASE WHEN r.hasReply = false AND r.platform <> 'check24' AND r.rating10 < ${Number(cfg.thresholds.negativeBelow)} THEN 0 ELSE 1 END`, 'ASC')
+      qb.orderBy(`CASE WHEN r.hasReply = false AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r.rating10 < ${Number(cfg.thresholds.negativeBelow)} THEN 0 ELSE 1 END`, 'ASC')
         .addOrderBy('r.publishedAt', 'DESC', 'NULLS LAST');
     } else if (q.sort === 'rating_asc') qb.orderBy('r.rating10', 'ASC', 'NULLS LAST').addOrderBy('r.publishedAt', 'DESC');
     else if (q.sort === 'rating_desc') qb.orderBy('r.rating10', 'DESC', 'NULLS LAST').addOrderBy('r.publishedAt', 'DESC');
@@ -134,7 +159,7 @@ export class ReputationReviewsService {
     const negBelow = cfg.thresholds.negativeBelow;
     const unansweredNegative = await this.reviews
       .createQueryBuilder('r')
-      .where(`r.tenantId = :tenantId AND r.hasReply = false AND r.platform <> 'check24' AND r.status <> 'deleted' AND r.rating10 < :nb`, { tenantId, nb: negBelow })
+      .where(`r.tenantId = :tenantId AND r.hasReply = false AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r.status <> 'deleted' AND r.rating10 < :nb`, { tenantId, nb: negBelow })
       .getCount();
     return {
       total,
@@ -142,7 +167,13 @@ export class ReputationReviewsService {
       limit,
       unansweredNegative,
       ai: await this.aiStatus(tenantId),
-      items: rows.map((r) => this.toRow(r, topics.filter((t) => t.reviewId === r.id), negBelow)),
+      duplicatesSuggested: await this.duplicates.suggestedCount(tenantId),
+      duplicatesExact: await this.duplicates.exactCount(tenantId),
+      items: await (async () => {
+        const dupSet = await this.duplicates.suggestedAmong(tenantId, rows.filter((r) => !r.duplicateOfId).map((r) => r.id));
+        const active = new Set(activeTopicKeys(cfg));
+        return rows.map((r) => ({ ...this.toRow(r, topics.filter((t) => t.reviewId === r.id && active.has(t.topic)), negBelow, cfg), duplicateSuggested: dupSet.has(r.id) }));
+      })(),
     };
   }
 
@@ -173,7 +204,8 @@ export class ReputationReviewsService {
     if (!r) throw new NotFoundException('Review not found');
     const cfg = await this.settings.config(tenantId);
     const [topics, versions, replies, hotel, source] = await Promise.all([
-      this.topics.find({ where: { reviewId: r.id } }),
+      // удалённые из справочника темы не показываем (в истории они остаются — вернут тему, вернутся и отметки)
+      this.topics.find({ where: { reviewId: r.id, topic: In(activeTopicKeys(cfg)) } }),
       this.versions.find({ where: { reviewId: r.id }, order: { capturedAt: 'ASC' } }),
       this.replies.find({ where: { reviewId: r.id }, order: { createdAt: 'ASC' } }),
       this.hotels.findOne({ where: { id: r.hotelId } }),
@@ -185,9 +217,12 @@ export class ReputationReviewsService {
     const hcApi = r.platform === 'holidaycheck' && !!cfg.holidaycheck.replyUrlTemplate && !!source?.apiKeyEnc;
     const apiReady = r.platform === 'google' ? googleApi : r.platform === 'holidaycheck' ? hcApi : false;
     return {
-      ...this.toRow(r, topics, cfg.thresholds.negativeBelow),
+      ...this.toRow(r, topics, cfg.thresholds.negativeBelow, cfg),
       translatedLang: r.translatedLang,
       translateTo: cfg.translateTo,
+      duplicates: await this.duplicates.cardInfo(tenantId, r),
+      /** Бронь гостя (номер, даты) — только если у отеля есть брони в CRM. */
+      stay: await this.stays.cardInfo(tenantId, r),
       subRatings: r.subRatings,
       replyText: r.replyText,
       replyMarkedManually: r.replyMarkedManually,
@@ -202,7 +237,13 @@ export class ReputationReviewsService {
       replyHome: PLATFORM_REPLY_HOME[r.platform],
       /** api: отправка из CRM доступна сейчас; иначе — черновик + переход на площадку. */
       replyApiReady: apiReady,
-      topics: topics.map((t) => ({ topic: t.topic, label: t.otherLabel, sentiment: t.sentiment, quote: t.quote })),
+      topics: topics.map((t) => ({
+        topic: t.topic,
+        label: t.otherLabel,
+        sentiment: t.sentiment,
+        quote: t.quote,
+        translations: cfg.topicsExtra.find((category) => category.key === t.topic)?.translations,
+      })),
       versions: versions.map((v) => ({ rating10: v.rating10 != null ? Number(v.rating10) : null, ratingRaw: v.ratingRaw != null ? Number(v.ratingRaw) : null, text: v.text, capturedAt: v.capturedAt.toISOString() })),
       replies: replies.map((x) => ({
         id: x.id,
@@ -239,12 +280,12 @@ export class ReputationReviewsService {
   }
 
   /** Перевод одного отзыва на рабочий язык — по кнопке в карточке, с кэшем. */
-  async translate(tenantId: string, id: string) {
+  async translate(tenantId: string, id: string, target?: string) {
     const r = await this.reviews.findOne({ where: { id, tenantId } });
     if (!r) throw new NotFoundException('Review not found');
     const cfg = await this.settings.config(tenantId);
     try {
-      await this.ai.translate(r, cfg.translateTo);
+      await this.ai.translate(r, target || cfg.translateTo);
     } catch (e: any) {
       throw new BadRequestException(e?.message || 'Translation failed');
     }

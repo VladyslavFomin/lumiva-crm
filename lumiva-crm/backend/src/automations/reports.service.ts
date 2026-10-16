@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import PDFDocument from 'pdfkit';
+import { activeTopicSql, mergeConfig } from '../hotel-reputation/reputation.constants';
 import ExcelJS from 'exceljs';
 import { resolveUnicodePdfFont } from '../common/pdf-font.util';
 
@@ -239,6 +240,8 @@ export class ReportsService {
     f: { brandId?: string; hotelId?: string; platform?: string } = {},
   ): Promise<ReportPayload> {
     const q = (sql: string, p: unknown[]) => this.leadRepo.manager.query(sql, p);
+    // справочник тем модуля отзывов: удалённые темы в отчёт не попадают
+    const [cfgRow] = await q(`SELECT config FROM hotel_reputation_settings WHERE "tenantId" = $1`, [tenantId]);
     const p: unknown[] = [tenantId, range.from, range.to];
     let w = `r."tenantId" = $1 AND r.status <> 'deleted' AND r."publishedAt" >= $2 AND r."publishedAt" < $3`;
     if (f.brandId) { p.push(f.brandId); w += ` AND r."hotelId" IN (SELECT id FROM hotels WHERE "brandId" = $${p.length})`; }
@@ -264,7 +267,7 @@ export class ReportsService {
     const topics = await q(
       `SELECT CASE WHEN t.topic = 'other' THEN COALESCE(t."otherLabel", 'other') ELSE t.topic END AS label, t.sentiment, COUNT(*)::int AS n
          FROM hotel_review_topics t JOIN hotel_reviews r ON r.id = t."reviewId"
-        WHERE ${w} AND t.sentiment IN ('negative', 'positive')
+        WHERE ${w} AND t.sentiment IN ('negative', 'positive') AND ${activeTopicSql(mergeConfig(cfgRow?.config))}
         GROUP BY 1, 2 ORDER BY n DESC`,
       p,
     );

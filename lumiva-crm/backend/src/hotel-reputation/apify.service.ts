@@ -57,6 +57,17 @@ export class ApifyService {
     return out;
   }
 
+  /** Расход за текущий платёжный цикл и месячный лимит аккаунта (USD). */
+  async limits(token: string): Promise<{ usedUsd: number | null; limitUsd: number | null; cycleEnd: string | null }> {
+    const res = await axios.get(`${BASE}/users/me/limits`, { params: { token }, timeout: 15_000 });
+    const d = res.data?.data || {};
+    return {
+      usedUsd: d.current?.monthlyUsageUsd ?? null,
+      limitUsd: d.limits?.maxMonthlyUsageUsd ?? null,
+      cycleEnd: d.monthlyUsageCycle?.endAt ?? null,
+    };
+  }
+
   async verifyToken(token: string): Promise<{ username: string | null }> {
     try {
       const res = await axios.get(`${BASE}/users/me`, { params: { token }, timeout: 15_000 });

@@ -68,6 +68,43 @@ export const TOPIC_LABELS_RU: Record<string, string> = {
   spa: 'спа', kids_club: 'детский клуб', other: 'прочее',
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** «a,b,c» → список (мультивыбор в фильтрах); id — только валидные uuid, площадки — только известные. */
+export function listParam(v: string | string[] | undefined, kind: 'uuid' | 'platform'): string[] {
+  const raw = (Array.isArray(v) ? v.join(',') : String(v || '')).split(',').map((x) => x.trim()).filter(Boolean);
+  const ok = kind === 'uuid' ? raw.filter((x) => UUID_RE.test(x)) : raw.filter((x) => x in REPLY_MODE);
+  return [...new Set(ok)].slice(0, 200);
+}
+
+/**
+ * Темы, которые сейчас в справочнике (+ «прочее»). Удалённая тема не стирается из истории — её отметки
+ * просто не показываются, пока тему не вернут.
+ */
+export function activeTopicKeys(cfg: Pick<ReputationConfig, 'topicsDisabled' | 'topicsExtra'>): string[] {
+  const off = new Set(cfg.topicsDisabled || []);
+  return [...TOPIC_KEYS.filter((k) => !off.has(k)), ...(cfg.topicsExtra || []).map((x) => x.key), 'other'].filter((k) => /^[a-z0-9_]{1,40}$/.test(k));
+}
+/** SQL-условие «тема активна» (ключи — только [a-z0-9_], поэтому безопасно вставлять литералами). */
+export const activeTopicSql = (cfg: Pick<ReputationConfig, 'topicsDisabled' | 'topicsExtra'>, alias = 't') =>
+  `${alias ? `${alias}.` : ''}topic IN (${activeTopicKeys(cfg).map((k) => `'${k}'`).join(', ')})`;
+
+/** Rating-only reviews remain in review KPIs but cannot require a reply. */
+export const reviewHasTextSql = (alias = 'r') =>
+  `(NULLIF(BTRIM(COALESCE(${alias}."textOriginal", '')), '') IS NOT NULL OR NULLIF(BTRIM(COALESCE(${alias}.title, '')), '') IS NOT NULL)`;
+
+export interface TopicTranslations {
+  ru: string;
+  tr: string;
+  en: string;
+}
+
+export interface CustomReviewTopic {
+  key: string;
+  label: string;
+  translations?: Partial<TopicTranslations>;
+}
+
 export type AlertKind = 'negative' | 'no_reply' | 'rating_lowered' | 'avg_drop' | 'topic_spike' | 'sync_problem';
 export const ALERT_KINDS: AlertKind[] = ['negative', 'no_reply', 'rating_lowered', 'avg_drop', 'topic_spike', 'sync_problem'];
 
@@ -157,7 +194,16 @@ export interface ReputationConfig {
     bodyField: string;
   };
   /** Дополнительные темы (расширение справочника по итогам месячного разбора «прочего»). */
-  topicsExtra: Array<{ key: string; label: string }>;
+  topicsExtra: CustomReviewTopic[];
+  topicsDisabled: string[];
+  /** Удалённые свои темы: отметки в истории не трогаем, тему можно вернуть вместе с историей. */
+  topicsArchive: CustomReviewTopic[];
+  /**
+   * Сбор отзывов конкурентов (только для сравнения). Ничего не собирается, пока конкурент не добавлен.
+   * everyDays — как часто; historyMonths / firstLoadMax — глубина и потолок первой загрузки на площадку;
+   * maxPerRun — потолок планового запуска; ai — разбирать ли темы (токены ИИ).
+   */
+  competitors: { everyDays: number; historyMonths: number; firstLoadMax: number; maxPerRun: number; ai: boolean };
   /** Брать только отзывы не старше этой даты (YYYY-MM-DD); null — без ограничения. */
   historyFrom: string | null;
   /** Сбор через Apify на паузе: кончился месячный бюджет тарифа (повтор раз в 3 часа или вручную). */
@@ -233,6 +279,9 @@ export function defaultConfig(): ReputationConfig {
     google: { accountName: null, accountEmail: null, pubsubTopic: null, notificationsOk: false, notificationsError: null, connectedAt: null },
     holidaycheck: { replyUrlTemplate: '', method: 'POST', authHeader: 'Authorization', authPrefix: 'Bearer ', bodyField: 'text' },
     topicsExtra: [],
+    topicsDisabled: [],
+    topicsArchive: [],
+    competitors: { everyDays: 7, historyMonths: 6, firstLoadMax: 100, maxPerRun: 30, ai: true },
     monthlyReport: { enabled: true },
     apifyPause: { reason: null, at: null },
     historyFrom: null,
@@ -261,6 +310,9 @@ export function mergeConfig(saved: any): ReputationConfig {
     google: { ...d.google, ...(s.google || {}) },
     holidaycheck: { ...d.holidaycheck, ...(s.holidaycheck || {}) },
     topicsExtra: Array.isArray(s.topicsExtra) ? s.topicsExtra : [],
+    topicsDisabled: Array.isArray(s.topicsDisabled) ? s.topicsDisabled : [],
+    topicsArchive: Array.isArray(s.topicsArchive) ? s.topicsArchive : [],
+    competitors: { ...d.competitors, ...(s.competitors || {}) },
     monthlyReport: { ...d.monthlyReport, ...(s.monthlyReport || {}) },
     apifyPause: { ...d.apifyPause, ...(s.apifyPause || {}) },
     historyFrom: typeof s.historyFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.historyFrom) ? s.historyFrom : null,

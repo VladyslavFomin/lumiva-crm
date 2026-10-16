@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchRepFeed, fetchRepHotelSummary, fetchRepHotelTasks, type RepFeed, type RepHotelSummary, type RepHotelTasks } from '../../../api/hotelReputation';
-import { Delta, PlatformBadge, Score, fmtDate, fmtHours, topicLabel, useRepT } from './ReputationShared';
+import { Delta, PlatformBadge, Score, fmtDate, fmtHours, fmtRepIndex, topicLabel, useRepT } from './ReputationShared';
 import './reputation.css';
 
 /** Вкладка «Отзывы» в карточке отеля: репутация отеля за 90 дней, площадки, темы, последние отзывы. */
@@ -40,7 +40,7 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
     <div>
       <div className="rp-kpis">
         <div className="ha-kpi"><div className="l">{r('dash.kpi.avg')}</div><div className="v">{k.avg10 ?? '—'}<small>/10</small></div><div className="d"><Delta v={k.delta?.avg10} /></div></div>
-        <div className="ha-kpi"><div className="l">{r('dash.kpi.index')}</div><div className="v">{k.reputationIndex ?? '—'}<small>/10</small></div></div>
+        <div className="ha-kpi"><div className="l">{r('dash.kpi.index')}</div><div className="v">{fmtRepIndex(k.reputationIndex, lang)}<small>/100</small></div></div>
         <div className="ha-kpi"><div className="l">{r('hotelTab.reviews90')}</div><div className="v">{k.count}</div></div>
         <div className="ha-kpi"><div className="l">{r('dash.kpi.neg')}</div><div className="v">{k.negativeShare ?? '—'}<small>%</small></div></div>
         <div className="ha-kpi"><div className="l">{r('dash.kpi.response')}</div><div className="v">{k.responseRate ?? '—'}<small>%</small></div></div>
@@ -91,7 +91,7 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
             <div className="rp-topics" style={{ marginTop: 0 }}>
               {sum.complaints.map((t) => (
                 <span key={t.topic + t.label} className="rp-topic negative" title={t.negQuotes.map((q) => `«${q}»`).join('\n')} style={{ cursor: 'pointer' }} onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&topic=${t.topic}`)}>
-                  {topicLabel({ topic: t.topic, label: t.label }, r)} · {t.negative}
+                  {topicLabel(t, r, lang)} · {t.negative}
                 </span>
               ))}
             </div>
@@ -103,7 +103,7 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
             <div className="rp-topics" style={{ marginTop: 0 }}>
               {sum.praises.map((t) => (
                 <span key={t.topic + t.label} className="rp-topic positive" title={t.posQuotes.map((q) => `«${q}»`).join('\n')}>
-                  {topicLabel({ topic: t.topic, label: t.label }, r)} · {t.positive}
+                  {topicLabel(t, r, lang)} · {t.positive}
                 </span>
               ))}
             </div>
@@ -159,7 +159,7 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
               </div>
               <div className="rp-row-right">
                 <Score rating10={x.rating10} raw={x.ratingRaw} scale={x.ratingScale} negBelow={nb} />
-                {x.replyMode === 'none' ? <span className="rp-pill muted">{r('reply.notPublished')}</span> : x.hasReply ? <span className="rp-pill replied">{r('reply.replied')}</span> : <span className="rp-pill noreply">{r('reply.none')}</span>}
+                {(x.replyEligible || x.hasReply) && (x.replyMode === 'none' ? <span className="rp-pill muted">{r('reply.notPublished')}</span> : x.hasReply ? <span className="rp-pill replied">{r('reply.replied')}</span> : <span className="rp-pill noreply">{r('reply.none')}</span>)}
                 {x.draftReady && <span className="rp-pill draft">✎ {r('feed.draftReady')}</span>}
               </div>
             </div>

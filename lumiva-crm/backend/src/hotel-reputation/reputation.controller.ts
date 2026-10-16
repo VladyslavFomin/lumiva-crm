@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Logger, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Logger, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,6 +14,11 @@ import { ReputationAlertsService } from './reputation-alerts.service';
 import { GoogleBusinessService } from './google-business.service';
 import { ApifyService } from './apify.service';
 import { ReputationAgentService } from './reputation-agent.service';
+import { ReputationAiService } from './reputation-ai.service';
+import { ReputationDuplicatesService } from './reputation-duplicates.service';
+import { ReportRequest, ReputationReportService } from './reputation-report.service';
+import { CompetitorAnalyticsQuery, ReputationCompetitorsService } from './reputation-competitors.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HotelReviewSource, HotelReviewSyncRun } from './reputation.entities';
@@ -32,6 +37,11 @@ export class ReputationController {
     private readonly google: GoogleBusinessService,
     private readonly apify: ApifyService,
     private readonly agent: ReputationAgentService,
+    private readonly ai: ReputationAiService,
+    private readonly duplicates: ReputationDuplicatesService,
+    private readonly report: ReputationReportService,
+    private readonly competitors: ReputationCompetitorsService,
+    private readonly stays: ReputationReservationsService,
     @InjectRepository(HotelReviewSyncRun) private readonly runs: Repository<HotelReviewSyncRun>,
     @InjectRepository(HotelReviewSource) private readonly sources: Repository<HotelReviewSource>,
   ) {}
@@ -84,8 +94,66 @@ export class ReputationController {
 
   @Post('reviews/:id/translate')
   @RequirePermission('hotels', 'read')
-  translate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
-    return this.reviews.translate(u.tenantId, id);
+  translate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { lang?: string }) {
+    return this.reviews.translate(u.tenantId, id, b?.lang);
+  }
+
+  // ---------------------------------------------------------------- бронь гостя
+
+  @Get('reviews/:id/stay-candidates')
+  stayCandidates(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    return this.stays.candidates(u.tenantId, id);
+  }
+
+  /** action: link (reservationId) | confirm | reject | unlink. */
+  @Post('reviews/:id/stay')
+  @RequirePermission('hotels', 'write')
+  async stayDecide(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { action?: string; reservationId?: string }) {
+    await this.stays.decide(u.tenantId, id, b);
+    return this.reviews.card(u.tenantId, id);
+  }
+
+  /** Подобрать брони для всех непроверенных отзывов (без внешних запросов). */
+  @Post('stays/match')
+  @RequirePermission('hotels', 'write')
+  matchStays(@CurrentUser() u: CurrentUserPayload) {
+    return this.stays.matchReviews(u.tenantId);
+  }
+
+  // ---------------------------------------------------------------- дубликаты
+
+  @Get('reviews/:id/duplicate-candidates')
+  duplicateCandidates(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    return this.duplicates.candidates(u.tenantId, id);
+  }
+
+  /** «Это дубликат отзыва ofId» (ofId=null — снять отметку). */
+  @Post('reviews/:id/duplicate')
+  @RequirePermission('hotels', 'write')
+  async markDuplicate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { ofId?: string | null }) {
+    await this.duplicates.mark(u.tenantId, (u.userId ?? u.id ?? u.sub) || null, id, b?.ofId || null);
+    return this.reviews.card(u.tenantId, id);
+  }
+
+  @Post('duplicates/:pairId/dismiss')
+  @RequirePermission('hotels', 'write')
+  async dismissDuplicate(@CurrentUser() u: CurrentUserPayload, @Param('pairId') pairId: string, @Body() b: { reviewId?: string }) {
+    await this.duplicates.dismiss(u.tenantId, (u.userId ?? u.id ?? u.sub) || null, pairId);
+    return b?.reviewId ? this.reviews.card(u.tenantId, b.reviewId) : { ok: true };
+  }
+
+  /** Подтвердить разом все пары с дословно тем же текстом. */
+  @Post('duplicates/confirm-exact')
+  @RequirePermission('hotels', 'write')
+  confirmExactDuplicates(@CurrentUser() u: CurrentUserPayload) {
+    return this.duplicates.confirmExact(u.tenantId, (u.userId ?? u.id ?? u.sub) || null);
+  }
+
+  /** Поиск дубликатов по всей истории (с даты «Отзывы с»). */
+  @Post('duplicates/scan')
+  @RequirePermission('hotels', 'write')
+  scanDuplicates(@CurrentUser() u: CurrentUserPayload) {
+    return this.duplicates.scanTenant(u.tenantId);
   }
 
   @Post('replies/:id/retry')
@@ -116,6 +184,67 @@ export class ReputationController {
     return this.analytics.hotelSummary(u.tenantId, hotelId);
   }
 
+  /** Сравнение на графике: несколько отелей (dim=hotel) или площадок (dim=platform). */
+  @Get('analytics/compare')
+  compare(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery & { dim?: string }) {
+    return this.analytics.compare(u.tenantId, q, q.dim === 'platform' ? 'platform' : 'hotel');
+  }
+
+  /** PDF-отчёт по текущим фильтрам дашборда на выбранном языке — скачать. */
+  @Post('analytics/report/pdf')
+  async reportPdf(@CurrentUser() u: CurrentUserPayload, @Body() b: ReportRequest, @Res() res: Response) {
+    const { buffer, filename } = await this.report.build(u.tenantId, b);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  /** Тот же PDF — письмом на указанные адреса. */
+  @Post('analytics/report/send')
+  @RequirePermission('hotels', 'write')
+  reportSend(@CurrentUser() u: CurrentUserPayload, @Body() b: ReportRequest & { emails?: string[]; message?: string }) {
+    return this.report.send(u.tenantId, b);
+  }
+
+  /** Мы против конкурентов: по каждому отелю в срезе, у которого добавлены конкуренты. */
+  @Get('analytics/competitors')
+  competitorsCompare(@CurrentUser() u: CurrentUserPayload, @Query() q: CompetitorAnalyticsQuery) {
+    return this.competitors.compare(u.tenantId, q);
+  }
+
+  // ---------------------------------------------------------------- конкуренты (настройки)
+
+  @Get('competitors')
+  listCompetitors(@CurrentUser() u: CurrentUserPayload, @Query('hotelId') hotelId?: string) {
+    return this.competitors.list(u.tenantId, hotelId || undefined);
+  }
+
+  @Post('competitors')
+  @RequirePermission('hotels', 'write')
+  createCompetitor(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+    return this.competitors.create(u.tenantId, b);
+  }
+
+  @Patch('competitors/:id')
+  @RequirePermission('hotels', 'write')
+  updateCompetitor(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: any) {
+    return this.competitors.update(u.tenantId, id, b);
+  }
+
+  @Delete('competitors/:id')
+  @RequirePermission('hotels', 'write')
+  removeCompetitor(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    return this.competitors.remove(u.tenantId, id);
+  }
+
+  /** «Собрать сейчас» по одной площадке конкурента — с теми же ограничениями объёма и бюджета. */
+  @Post('competitors/sources/:id/sync')
+  @RequirePermission('hotels', 'write')
+  async syncCompetitorSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    const src = await this.competitors.sourceForTenant(u.tenantId, id);
+    return this.sync.startCompetitorApify(src, true);
+  }
+
   @Get('analytics/topic-matrix')
   matrix(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery) {
     return this.analytics.topicMatrix(u.tenantId, q);
@@ -137,6 +266,14 @@ export class ReputationController {
   @RequirePermission('hotels', 'write')
   updateSettings(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
     return this.settings.updateSettings(u.tenantId, b);
+  }
+
+  @Post('settings/topics/translate')
+  @RequirePermission('hotels', 'write')
+  translateTopic(@CurrentUser() u: CurrentUserPayload, @Body() b: { label?: string }) {
+    const label = String(b?.label || '').trim();
+    if (!label) throw new BadRequestException('Category name is required');
+    return this.ai.translateTopicLabel(u.tenantId, label);
   }
 
   @Get('setup')
@@ -275,6 +412,12 @@ export class ReputationController {
   }
 
   // ---------------------------------------------------------------- подключения
+
+  /** Расход Apify за текущий платёжный цикл (из самого Apify). */
+  @Get('apify/usage')
+  apifyUsage(@CurrentUser() u: CurrentUserPayload) {
+    return this.sync.apifyUsage(u.tenantId, true);
+  }
 
   @Post('apify/verify')
   @RequirePermission('hotels', 'write')

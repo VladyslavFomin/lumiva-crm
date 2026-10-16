@@ -19,6 +19,42 @@ export interface NormalizedReview {
   platformUpdatedAt: Date | null;
   reviewUrl: string | null;
   reply: { text: string; at: Date | null } | null;
+  /** Страна автора ISO-2, если площадка её отдаёт. */
+  authorCountry?: string | null;
+}
+
+let countryIndex: Map<string, string> | null = null;
+/** «Israel» / «Германия» / «Türkiye» → IL / DE / TR (названия стран из профиля гостя на площадке). */
+export function countryCodeOf(name: unknown): string | null {
+  const s = str(name)?.toLowerCase();
+  if (!s) return null;
+  if (/^[a-z]{2}$/.test(s)) return s.toUpperCase();
+  if (!countryIndex) {
+    countryIndex = new Map();
+    const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (const loc of ['en', 'ru', 'tr', 'de']) {
+      let dn: Intl.DisplayNames;
+      try {
+        dn = new Intl.DisplayNames([loc], { type: 'region' });
+      } catch {
+        continue;
+      }
+      for (const a of A) {
+        for (const b of A) {
+          const code = a + b;
+          try {
+            const n = dn.of(code);
+            if (n && n !== code) countryIndex.set(n.toLowerCase(), code);
+          } catch {
+            /* не регион */
+          }
+        }
+      }
+    }
+    for (const [k, v] of Object.entries({ turkey: 'TR', usa: 'US', 'united states of america': 'US', uk: 'GB', england: 'GB', scotland: 'GB', russia: 'RU', 'czech republic': 'CZ' })) countryIndex.set(k, v);
+  }
+  // «Berlin, Germany» → последняя часть
+  return countryIndex.get(s) || countryIndex.get(s.split(',').pop()!.trim()) || null;
 }
 
 const str = (v: unknown): string | null => {
@@ -145,7 +181,11 @@ export function normalizeApifyItem(platform: ReputationPlatform, it: any): Norma
   const partsText = parts
     ? [str(parts.Liked ?? parts.liked) && `+ ${str(parts.Liked ?? parts.liked)}`, str(parts.Disliked ?? parts.disliked) && `− ${str(parts.Disliked ?? parts.disliked)}`].filter(Boolean).join('\n') || null
     : null;
-  const textMain = partsText || str(pick(it, ['text', 'reviewText', 'content', 'body', 'review', 'comment', 'description']));
+  // Booking (voyager): likedText / dislikedText
+  const liked = str(it.likedText);
+  const disliked = str(it.dislikedText);
+  const likedText = liked || disliked ? [liked && `+ ${liked}`, disliked && `− ${disliked}`].filter(Boolean).join('\n') : null;
+  const textMain = partsText || likedText || str(pick(it, ['text', 'reviewText', 'content', 'body', 'review', 'comment', 'description']));
   const advice = str(it.textAdvice);
   const text = textMain && advice ? `${textMain}\n\n${advice}` : textMain || advice;
   let id = str(pick(it, ['reviewId', 'id', 'review_id', 'reviewID', 'uuid']));
@@ -167,7 +207,7 @@ export function normalizeApifyItem(platform: ReputationPlatform, it: any): Norma
   const replyAt = date(pick(it, ['ownerResponse.respondedAt', 'ownerResponse.publishedDate', 'responseFromOwnerDate', 'businessCommentDate', 'managementResponse.date', 'hotelResponse.date']));
   const platformTranslation = str(it.textTranslated) && it.textTranslated !== textMain ? str(it.textTranslated) : null;
 
-  let lang = str(pick(it, ['originalLocale', 'originalLanguage', 'textLanguage', 'lang', 'language', 'locale']));
+  let lang = str(pick(it, ['originalLocale', 'originalLanguage', 'reviewLanguage', 'textLanguage', 'lang', 'language', 'locale']));
   if (lang && lang.length > 8) lang = null;
   return {
     externalReviewId: String(id).slice(0, 300),
@@ -182,12 +222,28 @@ export function normalizeApifyItem(platform: ReputationPlatform, it: any): Norma
     ratingScale: scale,
     subRatings: subRatingsOf(it),
     travelDate: (() => {
-      const d = date(pick(it, ['travelDate', 'stayDate', 'visitedIn', 'tripDate']));
+      const d = date(pick(it, ['travelDate', 'stayDate', 'visitedIn', 'tripDate', 'checkInDate']));
       return d ? d.toISOString().slice(0, 10) : null;
     })(),
     publishedAt: date(pick(it, ['entryDate', 'publishedDate', 'publishedAtDate', 'publishedAt', 'reviewDate', 'date', 'createdAt', 'submissionTime', 'reviewDate'])),
     platformUpdatedAt: date(pick(it, ['updatedAt', 'updateTime', 'editedAt'])),
     reviewUrl: str(pick(it, ['reviewUrl', 'url', 'link', 'reviewLink'])),
     reply: replyText ? { text: replyText, at: replyAt } : null,
+    authorCountry: countryCodeOf(platform === 'booking' ? it.userLocation : pick(it, ['user.userLocation.country', 'reviewerCountry', 'authorCountry'])),
   };
+}
+
+/**
+ * Общий рейтинг и число отзывов объекта на площадке — скрейперы кладут их в каждый элемент выдачи
+ * (Google: totalScore/reviewsCount, Tripadvisor: placeInfo.rating/numberOfReviews, Booking: hotelRating/hotelReviews).
+ */
+export function placeStatsOf(platform: ReputationPlatform, it: any): { rating: number | null; count: number | null } {
+  if (!it || typeof it !== 'object') return { rating: null, count: null };
+  const rating = num(
+    platform === 'google' ? it.totalScore : platform === 'tripadvisor' ? it.placeInfo?.rating : platform === 'booking' ? it.hotelRating : pick(it, ['hotelRating', 'placeRating', 'overallRating']),
+  );
+  const count = num(
+    platform === 'google' ? it.reviewsCount : platform === 'tripadvisor' ? it.placeInfo?.numberOfReviews : platform === 'booking' ? it.hotelReviews : pick(it, ['hotelReviews', 'reviewsCount', 'numberOfReviews']),
+  );
+  return { rating: rating != null && rating > 0 && rating <= 10 ? rating : null, count: count != null && count >= 0 ? Math.round(count) : null };
 }

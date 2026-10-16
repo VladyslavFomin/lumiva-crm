@@ -88,7 +88,15 @@ export const HotelReservationsPage: React.FC = () => {
 
   const load = () => {
     fetchReservations()
-      .then(setReservations)
+      .then((list) => {
+        setReservations(list);
+        // ?reservation=<id> — открыть бронь сразу (ссылка из карточки отзыва)
+        const want = new URLSearchParams(window.location.search).get('reservation');
+        if (want) {
+          const found = list.find((x) => x.id === want);
+          if (found) setSelected((cur) => cur || found);
+        }
+      })
       .catch((e) => showAlert(e.message || t('crm.hotels.reservations.loadError'), { variant: 'error' }));
   };
 

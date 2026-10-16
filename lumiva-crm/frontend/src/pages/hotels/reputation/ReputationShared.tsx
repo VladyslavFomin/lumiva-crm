@@ -60,6 +60,12 @@ export function fmtDate(iso: string | null | undefined, lang: string, withTime =
   });
 }
 
+export function fmtRepIndex(value: number | null | undefined, lang: string) {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const locale = lang.startsWith('tr') ? 'tr-TR' : lang.startsWith('en') ? 'en-GB' : 'ru-RU';
+  return new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(value);
+}
+
 export function fmtHours(h: number | null | undefined, r: (k: string, o?: any) => string) {
   if (h == null) return '—';
   if (h < 1) return r('units.minutes', { n: Math.max(1, Math.round(h * 60)) });
@@ -133,8 +139,15 @@ export const AiStatusBanner: React.FC<{ status: RepAiStatus | null | undefined }
   return <div className="rp-note" style={{ margin: '12px 0' }}>{r('ai.status.pending', { n: status.pending })}</div>;
 };
 
-export function topicLabel(tp: { topic: string; label?: string | null }, r: (k: string) => string) {
+export function topicLabel(
+  tp: { topic: string; label?: string | null; translations?: Partial<Record<'ru' | 'tr' | 'en', string>> },
+  r: (k: string) => string,
+  lang = 'ru',
+) {
   if (tp.topic === 'other') return tp.label || r('topics.other');
+  const locale = lang.startsWith('tr') ? 'tr' : lang.startsWith('en') ? 'en' : 'ru';
+  const translated = tp.translations?.[locale];
+  if (translated) return translated;
   const k = `topics.${tp.topic}`;
   const v = r(k);
   return v.endsWith(k) ? tp.label || tp.topic : v;

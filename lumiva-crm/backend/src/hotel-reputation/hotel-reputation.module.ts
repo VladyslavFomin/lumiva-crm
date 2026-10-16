@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Hotel } from '../hotels/hotel.entity';
+import { HotelReservation } from '../hotels/hotel-reservation.entity';
+import { HotelRoomUnit } from '../hotels/hotel-room-unit.entity';
+import { HotelRoomType } from '../hotels/hotel-room-type.entity';
 import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
 import { User } from '../users/user.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
@@ -15,7 +18,11 @@ import {
   HotelReputationSettings,
   HotelReview,
   HotelReviewAlert,
+  HotelReviewDuplicate,
   HotelReviewReply,
+  HotelCompetitor,
+  HotelCompetitorSource,
+  HotelCompetitorReview,
   HotelReviewSource,
   HotelReviewSyncRun,
   HotelReviewTopic,
@@ -32,6 +39,10 @@ import { ReputationSyncService } from './reputation-sync.service';
 import { ReputationReviewsService } from './reputation-reviews.service';
 import { ReputationAnalyticsService } from './reputation-analytics.service';
 import { ReputationScheduler } from './reputation.scheduler';
+import { ReputationDuplicatesService } from './reputation-duplicates.service';
+import { ReputationReportService } from './reputation-report.service';
+import { ReputationCompetitorsService } from './reputation-competitors.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
 import { ReputationController, ReputationPublicController } from './reputation.controller';
 
 /**
@@ -50,7 +61,14 @@ import { ReputationController, ReputationPublicController } from './reputation.c
       HotelReviewSyncRun,
       HotelReputationSettings,
       HotelReviewAlert,
+      HotelReviewDuplicate,
+      HotelCompetitor,
+      HotelCompetitorSource,
+      HotelCompetitorReview,
       Hotel,
+      HotelReservation,
+      HotelRoomUnit,
+      HotelRoomType,
       TelegramBot,
       User,
       IntegrationConnection,
@@ -74,6 +92,10 @@ import { ReputationController, ReputationPublicController } from './reputation.c
     ReputationSyncService,
     ReputationReviewsService,
     ReputationAnalyticsService,
+    ReputationDuplicatesService,
+    ReputationReportService,
+    ReputationCompetitorsService,
+    ReputationReservationsService,
     ReputationScheduler,
   ],
 })

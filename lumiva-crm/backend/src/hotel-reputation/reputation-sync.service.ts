@@ -10,13 +10,17 @@ import {
   HotelReviewVersion,
 } from './reputation.entities';
 import { APIFY_PLATFORMS, ReputationConfig, historyFloor, toRating10 } from './reputation.constants';
-import { NormalizedReview, normalizeApifyItem, normalizeGoogleApiReview } from './reputation-normalize.util';
+import { NormalizedReview, normalizeApifyItem, normalizeGoogleApiReview, placeStatsOf } from './reputation-normalize.util';
+import { ReputationCompetitorsService } from './reputation-competitors.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
+import { HotelCompetitorSource } from './reputation.entities';
 import { ReputationSettingsService } from './reputation-settings.service';
 import { GoogleBusinessService } from './google-business.service';
 import { ApifyService } from './apify.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
 import { ReputationEventsService } from './reputation-events.service';
+import { ReputationDuplicatesService } from './reputation-duplicates.service';
 
 type IngestResult = { fetched: number; created: number; updated: number; createdIds: string[] };
 
@@ -28,6 +32,17 @@ const RUN_TIMEOUT_MS = 3 * 36e5;
 const RETRY_AI_MS = 30 * 60_000;
 /** Сколько отзывов разбирать параллельно (gpt-4o-mini/Haiku легко держат такой поток). */
 const AI_PARALLEL = 6;
+/**
+ * Нахлёст окна «только новое» (от последнего собранного отзыва назад). Google показывает отзыв сразу —
+ * хватит суток; остальные площадки публикуют после модерации задним числом — 3 дня.
+ */
+const SINCE_OVERLAP_DAYS: Partial<Record<string, number>> = { google: 1 };
+/** Кончился месячный бюджет Apify (при старте или прогон оборван посередине). */
+const APIFY_BUDGET_RE = /usage hard limit|monthly usage|maximum usage|billing cycle|not enough (credit|usage)|insufficient|payment required|402/i;
+/** Временный сбой Apify (5xx, сеть) — не сбой площадки: повтор через 20 минут, без алерта. */
+const APIFY_TRANSIENT_RE = /status code 5\d\d|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|timeout of \d+ms/i;
+/** Как часто сверяться с расходом Apify (минуты): перед запуском плановых прогонов. */
+const USAGE_CHECK_MIN = 15;
 
 /** Сбор отзывов со всех площадок в одну базу: нормализация, версии, ответы, удалённые, сверка. */
 @Injectable()
@@ -47,6 +62,9 @@ export class ReputationSyncService {
     private readonly ai: ReputationAiService,
     private readonly alerts: ReputationAlertsService,
     private readonly events: ReputationEventsService,
+    private readonly duplicates: ReputationDuplicatesService,
+    private readonly competitors: ReputationCompetitorsService,
+    private readonly stays: ReputationReservationsService,
   ) {}
 
   // ---------------------------------------------------------------- запись
@@ -104,6 +122,7 @@ export class ReputationSyncService {
             repliedAt: it.reply ? it.reply.at || new Date() : null,
             replyText: it.reply?.text ?? null,
             firstSeenAt: new Date(),
+            authorCountry: it.authorCountry ?? null,
           }),
         );
         await this.versions.insert({ reviewId: row.id, rating10: row.rating10, ratingRaw: row.ratingRaw, text: row.textOriginal } as any);
@@ -118,6 +137,13 @@ export class ReputationSyncService {
       }
 
       let changed = false;
+      // Booking: до исправления разбора текст (likedText/dislikedText) не сохранялся — это дозаполнение, а не правка гостем
+      if (ex.platform === 'booking' && !ex.textOriginal && it.textOriginal) {
+        ex.textOriginal = it.textOriginal;
+        ex.analyzedAt = null;
+        ex.analysisHash = null;
+        changed = true;
+      }
       const textChanged = (ex.textOriginal || '') !== (it.textOriginal || '') && !!(it.textOriginal || ex.textOriginal);
       const ratingChanged = rating10 != null && ex.rating10 != null && Number(ex.rating10) !== rating10;
       if (textChanged || ratingChanged) {
@@ -158,7 +184,7 @@ export class ReputationSyncService {
         }
         changed = true;
       }
-      for (const k of ['author', 'authorPhoto', 'reviewUrl', 'travelDate', 'lang'] as const) {
+      for (const k of ['author', 'authorPhoto', 'reviewUrl', 'travelDate', 'lang', 'authorCountry'] as const) {
         if (!ex[k] && it[k]) {
           (ex as any)[k] = it[k];
           changed = true;
@@ -193,6 +219,10 @@ export class ReputationSyncService {
     for (const r of fresh) await this.alerts.negative(r, cfg).catch((e) => this.log.warn(`alert negative: ${e?.message}`));
     // автоматизации и ИИ-сотрудники: только по свежим отзывам (не по загрузке истории)
     for (const r of rows) await this.events.reviewCreated(r, cfg.thresholds.negativeBelow);
+    // гость из брони модуля «Отели» (номер, даты) — бесплатно, без внешних запросов
+    await this.stays.matchReviews(source.tenantId, createdIds).catch((e) => this.log.warn(`stay match: ${e?.message}`));
+    // тот же отзыв гостя на другой площадке — предложить человеку пометить дубликатом
+    await this.duplicates.detectFor(source.tenantId, createdIds).catch((e) => this.log.warn(`duplicates: ${e?.message}`));
     // разбор — небольшими порциями здесь, остальное подберёт фоновая очередь
     for (const r of rows.slice(0, 30)) await this.ai.analyze(r, cfg);
   }
@@ -350,9 +380,10 @@ export class ReputationSyncService {
     // только новое: от последнего собранного отзыва минус 3 дня (площадки индексируют отзывы с задержкой)
     // дозагрузка истории: фильтра «до даты» у скрейперов нет — берём N самых свежих целиком, уже собранные отбросятся как дубли
     const floor = historyFloor(cfg);
-    const sinceTs = first || opts.backfill ? floor : Math.max(floor, (latest!.publishedAt?.getTime() ?? Date.now()) - 3 * DAY);
+    const overlap = SINCE_OVERLAP_DAYS[source.platform] ?? 3;
+    const sinceTs = first || opts.backfill ? floor : Math.max(floor, (latest!.publishedAt?.getTime() ?? Date.now()) - overlap * DAY);
     const lim = cfg.apifyActors[source.platform];
-    const max = opts.backfill ?? opts.max ?? (first ? lim.firstLoadMax : await this.plannedMax(source, actor.input, lim.maxPerRun));
+    const max = opts.backfill ?? opts.max ?? (first ? lim.firstLoadMax : await this.plannedMax(source, lim.maxPerRun));
     const input = this.apify.buildInput(actor.input, { url: source.url, max, since: new Date(sinceTs).toISOString().slice(0, 10) });
     const run = await this.openRun(source, opts.test ? 'test' : opts.backfill ? 'backfill' : trigger, actor.id);
     try {
@@ -373,12 +404,18 @@ export class ReputationSyncService {
         return { queued: true };
       }
       // кончился месячный бюджет тарифа Apify — это не сбой площадки: весь сбор на паузу, один алерт, источники остаются в очереди
-      if (/usage hard limit|monthly usage|not enough (credit|usage)|insufficient|payment required|402/i.test(msg)) {
+      if (APIFY_BUDGET_RE.test(msg)) {
         await this.runs.delete({ id: run.id });
         await this.sources.update({ id: source.id }, { lastSyncAt: null });
-        await this.settings.patchConfig(source.tenantId, { apifyPause: { reason: msg.slice(0, 300), at: new Date().toISOString() } } as any);
-        await this.alerts.apifyBudget(source.tenantId, msg, cfg).catch(() => undefined);
+        await this.pauseForBudget(source.tenantId, msg, cfg);
         throw new BadRequestException({ code: 'APIFY_BUDGET', message: 'Apify monthly usage limit reached — raise the limit or upgrade the plan in Apify (Billing). Collection is paused and resumes automatically.' });
+      }
+      // 5xx / сеть у самого Apify — площадка ни при чём: тихий повтор через 20 минут (плановый запуск)
+      if (!opts.test && trigger === 'schedule' && APIFY_TRANSIENT_RE.test(msg)) {
+        await this.runs.delete({ id: run.id });
+        await this.sources.update({ id: source.id }, { lastSyncAt: new Date(Date.now() - this.intervalMs(source, cfg) + 20 * 60_000) });
+        this.log.warn(`apify start ${source.platform}/${source.hotelId}: ${msg} — retry in 20 min`);
+        return { queued: true };
       }
       await this.failSource(source, run, msg, cfg);
       throw e;
@@ -386,17 +423,44 @@ export class ReputationSyncService {
   }
 
   /**
-   * Сколько отзывов просить за плановый запуск. Если площадка умеет фильтр по дате ({{since}} во входе) —
-   * потолок не страшен, платим только за новые. Если не умеет — берём «ожидаемый поток × 2 + запас»,
-   * чтобы не оплачивать каждый раз одни и те же старые отзывы.
+   * Сколько отзывов просить за плановый запуск. Скрейперы берут оплату за каждый отданный отзыв, а фильтр
+   * по дате ({{since}}) с нахлёстом всё равно возвращает уже собранные — поэтому просим «ожидаемый поток × 2
+   * + запас» (выдача отсортирована от новых). Прошлый прогон упёрся в потолок новыми — значит, поток вырос:
+   * сразу полный потолок, чтобы ничего не пропустить.
    */
-  private async plannedMax(source: HotelReviewSource, input: string, cap: number): Promise<number> {
-    if (input.includes('{{since}}') || source.platform === 'otelpuan') return cap; // Otelpuan не сортирует по дате — фиксированный потолок
-    const last = await this.runs.find({ where: { sourceId: source.id, status: 'ok' }, order: { startedAt: 'DESC' }, take: 5 });
-    const scheduled = last.filter((r) => r.trigger !== 'test');
-    if (scheduled.length < 2) return cap;
-    const avgNew = scheduled.reduce((a, r) => a + r.newCount, 0) / scheduled.length;
-    return Math.max(5, Math.min(cap, Math.ceil(avgNew * 2) + 5));
+  private async plannedMax(source: HotelReviewSource, cap: number): Promise<number> {
+    if (source.platform === 'otelpuan') return cap; // Otelpuan не сортирует по дате — фиксированный потолок
+    const last = await this.runs.find({ where: { sourceId: source.id, status: 'ok' }, order: { startedAt: 'DESC' }, take: 6 });
+    // первая загрузка и «догрузка истории» — не поток, в оценку не берём
+    const regular = last.filter((r) => r.trigger !== 'test' && r.trigger !== 'backfill' && r.newCount <= cap);
+    if (regular.length < 2) return cap;
+    if (regular[0].newCount > 0 && regular[0].newCount >= regular[0].fetched) return cap;
+    const avgNew = regular.reduce((a, r) => a + r.newCount, 0) / regular.length;
+    return Math.max(3, Math.min(cap, Math.ceil(avgNew * 2) + 3));
+  }
+
+  /** Бюджет кончился: весь сбор тенанта на паузу (повтор раз в 3 часа или по кнопке), один алерт. */
+  private async pauseForBudget(tenantId: string, msg: string, cfg: ReputationConfig) {
+    await this.settings.patchConfig(tenantId, { apifyPause: { reason: msg.slice(0, 300), at: new Date().toISOString() } } as any);
+    await this.alerts.apifyBudget(tenantId, msg, cfg).catch(() => undefined);
+  }
+
+  private usageCache = new Map<string, { at: number; used: number | null; limit: number | null; cycleEnd: string | null }>();
+
+  /** Расход Apify за текущий цикл (кэш 15 мин) — не запускаем прогоны, которые Apify всё равно оборвёт, взяв плату за старт. */
+  async apifyUsage(tenantId: string, fresh = false) {
+    const c = this.usageCache.get(tenantId);
+    if (!fresh && c && Date.now() - c.at < USAGE_CHECK_MIN * 60_000) return c;
+    const token = await this.settings.secret(tenantId, 'apifyToken');
+    if (!token) return null;
+    try {
+      const l = await this.apify.limits(token);
+      const v = { at: Date.now(), used: l.usedUsd, limit: l.limitUsd, cycleEnd: l.cycleEnd };
+      this.usageCache.set(tenantId, v);
+      return v;
+    } catch {
+      return c || null;
+    }
   }
 
   private runningApifyCount(tenantId: string) {
@@ -409,6 +473,10 @@ export class ReputationSyncService {
   async pollApifyRuns() {
     const running = await this.runs.find({ where: { status: 'running', externalRunId: Not(IsNull()) }, take: 50 });
     for (const run of running) {
+      if (run.trigger === 'competitor') {
+        await this.pollCompetitorRun(run).catch((e) => this.log.warn(`competitor poll ${run.id}: ${e?.message || e}`));
+        continue;
+      }
       const source = run.sourceId ? await this.sources.findOne({ where: { id: run.sourceId } }) : null;
       if (!source) {
         await this.closeRun(run, { error: 'source removed' });
@@ -427,7 +495,15 @@ export class ReputationSyncService {
           continue;
         }
         if (st.status !== 'SUCCEEDED') {
-          await this.failSource(source, run, `Apify run ${st.status}${st.statusMessage ? `: ${st.statusMessage}` : ''}`, cfg);
+          const why = `Apify run ${st.status}${st.statusMessage ? `: ${st.statusMessage}` : ''}`;
+          // Apify оборвал прогон из-за бюджета — площадка ни при чём: пауза, источник в очередь, без переключения на запасной
+          if (APIFY_BUDGET_RE.test(why)) {
+            await this.closeRun(run, { error: why });
+            await this.sources.update({ id: source.id }, { lastSyncAt: null });
+            if (!cfg.apifyPause.reason) await this.pauseForBudget(run.tenantId, why, cfg);
+            continue;
+          }
+          await this.failSource(source, run, why, cfg);
           await this.maybeSwitchToFallback(source, cfg);
           continue;
         }
@@ -445,6 +521,14 @@ export class ReputationSyncService {
         }
         const res = await this.ingest(source, items, cfg);
         await this.closeRun(run, res);
+        // общий рейтинг и число отзывов на площадке (скрейпер кладёт их в каждый элемент) — для колонки «На площадке»
+        const place = placeStatsOf(source.platform, raw[0]);
+        if (place.rating != null || place.count != null) {
+          await this.sources.update(
+            { id: source.id },
+            { ...(place.rating != null ? { platformRating: String(place.rating) } : {}), ...(place.count != null ? { platformCount: place.count } : {}) },
+          );
+        }
       } catch (e: any) {
         this.log.warn(`apify poll ${run.id}: ${e?.message || e}`);
         if (Date.now() - run.startedAt.getTime() > RUN_TIMEOUT_MS) await this.failSource(source, run, e?.message || String(e), cfg);
@@ -497,28 +581,166 @@ export class ReputationSyncService {
   /** Раз в несколько минут: Apify-площадки (и Google, пока API не подключён), у которых подошёл срок. */
   async scheduleDue() {
     const all = await this.sources.find({ where: { active: true } });
-    const tenants = [...new Set(all.map((s) => s.tenantId))];
+    const compTenants: Array<{ tenantId: string }> = await this.sources.query(`SELECT DISTINCT "tenantId" FROM hotel_competitor_sources WHERE active`);
+    const tenants = [...new Set([...all.map((s) => s.tenantId), ...compTenants.map((x) => x.tenantId)])];
     for (const tenantId of tenants) {
       const cfg = await this.settings.config(tenantId);
-      // бюджет Apify кончился — не стучимся, повтор раз в 3 часа (или сразу после ручного «Собрать»)
-      if (cfg.apifyPause.at && Date.now() - Date.parse(cfg.apifyPause.at) < 3 * 36e5) continue;
       const hasToken = !!(await this.settings.secret(tenantId, 'apifyToken'));
+      // расход уже у лимита — Apify оборвёт прогон, но плату за старт возьмёт; ставим на паузу заранее.
+      // Лимит в Apify подняли (расход снова ниже) — снимаем паузу сразу, не ждём 3 часа.
+      const usage = hasToken ? await this.apifyUsage(tenantId) : null;
+      const known = !!usage?.limit && usage.used != null;
+      const overBudget = known && usage!.used! >= usage!.limit! * 0.98;
+      if (overBudget) {
+        if (!cfg.apifyPause.reason) await this.pauseForBudget(tenantId, `Apify monthly usage $${usage!.used!.toFixed(2)} of $${usage!.limit} limit`, cfg);
+        continue;
+      }
+      if (cfg.apifyPause.reason && known) await this.settings.patchConfig(tenantId, { apifyPause: { reason: null, at: null } } as any);
+      // расход неизвестен — по-старому: при паузе повтор раз в 3 часа (или сразу после ручного «Собрать»)
+      else if (cfg.apifyPause.at && Date.now() - Date.parse(cfg.apifyPause.at) < 3 * 36e5) continue;
       const googleApi = await this.google.isConnected(tenantId);
       // сначала ожидающие в очереди (lastSyncAt = null), потом самые давние; дальше лимита параллельных запусков не идём
       const mine = all
         .filter((x) => x.tenantId === tenantId)
         .sort((a, b) => (a.lastSyncAt?.getTime() ?? 0) - (b.lastSyncAt?.getTime() ?? 0));
+      let budgetHit = false;
+      let ownWaiting = false;
       for (const s of mine) {
-        if ((await this.runningApifyCount(tenantId)) >= cfg.schedule.maxConcurrentRuns) break;
         const viaApify = APIFY_PLATFORMS.includes(s.platform) || (s.platform === 'google' && (!googleApi || !s.externalId));
         if (!viaApify || !hasToken || !s.url) continue;
         if (!s.backfillMax && s.lastSyncAt && Date.now() - s.lastSyncAt.getTime() < this.intervalMs(s, cfg) - 60_000) continue;
+        if ((await this.runningApifyCount(tenantId)) >= cfg.schedule.maxConcurrentRuns) {
+          ownWaiting = true;
+          break;
+        }
         try {
-          await this.startApify(s, 'schedule', s.backfillMax ? { backfill: s.backfillMax } : {});
+          const r: any = await this.startApify(s, 'schedule', s.backfillMax ? { backfill: s.backfillMax } : {});
+          if (r?.queued) ownWaiting = true;
         } catch (e: any) {
-          if (e?.getResponse?.()?.code === 'APIFY_BUDGET') break;
+          if (e?.getResponse?.()?.code === 'APIFY_BUDGET') {
+            budgetHit = true;
+            break;
+          }
           this.log.warn(`apify start ${s.platform}/${s.hotelId}: ${e?.message || e}`);
         }
+      }
+      // конкуренты — только когда свои отели не ждут очереди (свои всегда важнее), по их редкому расписанию
+      if (budgetHit || ownWaiting || !hasToken) continue;
+      for (const cs of await this.competitors.dueSources(tenantId, cfg)) {
+        if ((await this.runningApifyCount(tenantId)) >= cfg.schedule.maxConcurrentRuns) break;
+        try {
+          await this.startCompetitorApify(cs, false);
+        } catch (e: any) {
+          if (e?.getResponse?.()?.code === 'APIFY_BUDGET') break;
+          this.log.warn(`competitor start ${cs.platform}/${cs.competitorId}: ${e?.message || e}`);
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- конкуренты
+
+  /**
+   * Запуск скрейпера по площадке конкурента. Тот же актор, что для своих отелей; объём — по плану
+   * (первая загрузка ограничена, дальше только новое). Ручной запуск («Собрать сейчас») — те же ограничения.
+   */
+  async startCompetitorApify(src: HotelCompetitorSource, manual: boolean) {
+    const cfg = await this.settings.config(src.tenantId);
+    const token = await this.settings.secret(src.tenantId, 'apifyToken');
+    if (!token) throw new BadRequestException({ code: 'APIFY_NO_TOKEN', message: 'Apify token is not set (Settings → Connections)' });
+    const a = cfg.apifyActors[src.platform];
+    if (!a?.primary) throw new BadRequestException(`No Apify actor configured for ${src.platform}`);
+    const running = await this.runs.findOne({ where: { sourceId: src.id, status: 'running' } });
+    if (running && Date.now() - running.startedAt.getTime() < RUN_TIMEOUT_MS) return { alreadyRunning: true };
+    if ((await this.runningApifyCount(src.tenantId)) >= cfg.schedule.maxConcurrentRuns) {
+      if (manual) throw new BadRequestException({ code: 'APIFY_BUSY', message: `All ${cfg.schedule.maxConcurrentRuns} Apify slots are busy — try again in a couple of minutes` });
+      return { queued: true };
+    }
+    if (manual) {
+      // вручную — тоже не в обход бюджета
+      const usage = await this.apifyUsage(src.tenantId, true);
+      if (usage?.limit && usage.used != null && usage.used >= usage.limit * 0.98) {
+        throw new BadRequestException({ code: 'APIFY_BUDGET', message: `Apify monthly usage $${usage.used.toFixed(2)} of $${usage.limit} limit — raise the limit in Apify (Billing)` });
+      }
+    }
+    const comp = await this.competitors.competitorOf(src.competitorId);
+    if (!comp) throw new NotFoundException('Competitor not found');
+    const plan = await this.competitors.plan(src, cfg);
+    const input = this.apify.buildInput(a.input, { url: src.url, max: plan.max, since: plan.since });
+    const run = await this.runs.save(
+      this.runs.create({ tenantId: src.tenantId, platform: src.platform, hotelId: comp.hotelId, sourceId: src.id, trigger: 'competitor', status: 'running', actorId: a.primary, startedAt: new Date() }),
+    );
+    try {
+      const started = await this.apify.startRun(token, a.primary, input);
+      run.externalRunId = started.runId;
+      await this.runs.save(run);
+      await this.competitors.markSynced(src.id, { lastSyncAt: new Date() });
+      return { runId: run.id, max: plan.max, firstLoad: plan.first };
+    } catch (e: any) {
+      const msg = e?.getResponse?.()?.message || e?.message || String(e);
+      await this.runs.delete({ id: run.id });
+      if (APIFY_BUDGET_RE.test(msg)) {
+        await this.pauseForBudget(src.tenantId, msg, cfg);
+        throw new BadRequestException({ code: 'APIFY_BUDGET', message: 'Apify monthly usage limit reached — raise the limit in Apify (Billing).' });
+      }
+      if (/concurrent|memory limit|exceed/i.test(msg) || APIFY_TRANSIENT_RE.test(msg)) {
+        // повтор через ~20 минут, без ошибки на площадке
+        await this.competitors.markSynced(src.id, { lastSyncAt: new Date(Date.now() - cfg.competitors.everyDays * DAY + 20 * 60_000) });
+        if (manual) throw new BadRequestException({ code: 'APIFY_BUSY', message: msg });
+        return { queued: true };
+      }
+      await this.competitors.markSynced(src.id, { lastSyncAt: new Date(), lastError: String(msg).slice(0, 500) });
+      throw e;
+    }
+  }
+
+  /** Опрос прогона конкурента: готов — пишем отзывы конкурента (отдельно от своих), упал — ошибка на площадке конкурента. */
+  private async pollCompetitorRun(run: HotelReviewSyncRun) {
+    const src = run.sourceId ? await this.competitors.source(run.sourceId) : null;
+    if (!src) {
+      await this.closeRun(run, { error: 'competitor removed' });
+      return;
+    }
+    const cfg = await this.settings.config(run.tenantId);
+    const token = await this.settings.secret(run.tenantId, 'apifyToken');
+    if (!token) {
+      await this.closeRun(run, { error: 'Apify token removed' });
+      return;
+    }
+    try {
+      const st = await this.apify.runStatus(token, run.externalRunId!);
+      if (st.status === 'READY' || st.status === 'RUNNING') {
+        if (Date.now() - run.startedAt.getTime() > RUN_TIMEOUT_MS) {
+          await this.closeRun(run, { error: 'Apify run timed out' });
+          await this.competitors.markSynced(src.id, { lastError: 'Apify run timed out' });
+        }
+        return;
+      }
+      if (st.status !== 'SUCCEEDED') {
+        const why = `Apify run ${st.status}${st.statusMessage ? `: ${st.statusMessage}` : ''}`;
+        await this.closeRun(run, { error: why });
+        if (APIFY_BUDGET_RE.test(why)) {
+          if (!cfg.apifyPause.reason) await this.pauseForBudget(run.tenantId, why, cfg);
+          // бюджет — не вина площадки: в очередь заново
+          await this.competitors.markSynced(src.id, { lastSyncAt: null });
+        } else await this.competitors.markSynced(src.id, { lastError: why.slice(0, 500) });
+        return;
+      }
+      const raw = await this.apify.datasetItems(token, st.datasetId, 2000);
+      const items = raw.map((x) => normalizeApifyItem(src.platform, x)).filter(Boolean) as NormalizedReview[];
+      if (raw.length && !items.length) {
+        const err = `Apify returned ${raw.length} items but none could be parsed as reviews — check the link`;
+        await this.closeRun(run, { error: err });
+        await this.competitors.markSynced(src.id, { lastError: err });
+        return;
+      }
+      const res = await this.competitors.ingest(src, items, cfg, placeStatsOf(src.platform, raw[0]));
+      await this.closeRun(run, res);
+    } catch (e: any) {
+      this.log.warn(`competitor poll ${run.id}: ${e?.message || e}`);
+      if (Date.now() - run.startedAt.getTime() > RUN_TIMEOUT_MS) {
+        await this.closeRun(run, { error: e?.message || String(e) });
+        await this.competitors.markSynced(src.id, { lastError: String(e?.message || e).slice(0, 500) });
       }
     }
   }

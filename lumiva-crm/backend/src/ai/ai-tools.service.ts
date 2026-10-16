@@ -7168,7 +7168,7 @@ ${JSON.stringify(snapshot).slice(0, 24000)}`,
     return {
       ok: true,
       period: d.period,
-      scale: '0–10 for all platforms',
+      scale: 'ratings 0–10 for all platforms; reputation index 0–100',
       kpis: d.kpis,
       byHotel: d.byHotel.slice(0, 20).map((h: any) => ({ hotel: h.name, brand: h.brand, reviews: h.count, avg10: h.avg10, change: h.delta, index: h.reputationIndex, negativePct: h.negativeShare, responseRatePct: h.responseRate, unansweredNegative: h.openNegative, topComplaint: h.topComplaint?.label })),
       byPlatform: d.byPlatform,

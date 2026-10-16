@@ -12,6 +12,7 @@ import {
   ReputationConfig,
   ReputationPlatform,
   Recipients,
+  TOPIC_KEYS,
   mergeConfig,
 } from './reputation.constants';
 import { decryptSecret, encryptSecret, maskSecret } from './reputation-crypto.util';
@@ -108,6 +109,7 @@ export class ReputationSettingsService {
   async updateSettings(tenantId: string, body: any) {
     const s = await this.row(tenantId);
     const cur = mergeConfig(s.config);
+    const previousExtra = [...cur.topicsExtra];
     const b = body || {};
     if (b.thresholds) {
       const t = b.thresholds;
@@ -192,13 +194,47 @@ export class ReputationSettingsService {
       }
     }
     if (Array.isArray(b.topicsExtra)) {
+      const builtinKeys = new Set<string>(TOPIC_KEYS);
+      const seen = new Set<string>();
       cur.topicsExtra = b.topicsExtra
         .map((x: any) => ({
           key: String(x?.key || x?.label || '').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').slice(0, 38),
           label: String(x?.label || '').trim().slice(0, 60),
+          translations: {
+            ru: String(x?.translations?.ru || x?.label || '').trim().slice(0, 60),
+            tr: String(x?.translations?.tr || x?.label || '').trim().slice(0, 60),
+            en: String(x?.translations?.en || x?.label || '').trim().slice(0, 60),
+          },
         }))
-        .filter((x: any) => x.key && x.label)
+        .filter((x: any) => {
+          if (!x.key || !x.label || x.key === 'other' || builtinKeys.has(x.key) || seen.has(x.key)) return false;
+          seen.add(x.key);
+          return true;
+        })
         .slice(0, 40);
+    }
+    if (Array.isArray(b.topicsExtra)) {
+      // удалённые свои темы — в архив (история отметок остаётся, тему можно вернуть); вернули — из архива
+      const now = new Set(cur.topicsExtra.map((x) => x.key));
+      const archive = (cur.topicsArchive || []).filter((x) => !now.has(x.key));
+      for (const x of previousExtra) if (!now.has(x.key) && !archive.some((a) => a.key === x.key)) archive.push(x);
+      cur.topicsArchive = archive.slice(-60);
+    }
+    if (Array.isArray(b.topicsDisabled)) {
+      const allowed = new Set<string>(TOPIC_KEYS);
+      const disabled = new Set<string>((b.topicsDisabled as unknown[]).map((key) => String(key)));
+      cur.topicsDisabled = [...disabled].filter((key) => allowed.has(key));
+    }
+    if (b.competitors && typeof b.competitors === 'object') {
+      const c = b.competitors;
+      const clamp = (v: any, lo: number, hi: number, d: number) => (Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : d);
+      cur.competitors = {
+        everyDays: clamp(c.everyDays, 1, 60, cur.competitors.everyDays),
+        historyMonths: clamp(c.historyMonths, 1, 24, cur.competitors.historyMonths),
+        firstLoadMax: clamp(c.firstLoadMax, 10, 500, cur.competitors.firstLoadMax),
+        maxPerRun: clamp(c.maxPerRun, 5, 100, cur.competitors.maxPerRun),
+        ai: c.ai === undefined ? cur.competitors.ai : !!c.ai,
+      };
     }
     if (b.monthlyReport) cur.monthlyReport = { enabled: !!b.monthlyReport.enabled };
     if (b.historyFrom !== undefined) {

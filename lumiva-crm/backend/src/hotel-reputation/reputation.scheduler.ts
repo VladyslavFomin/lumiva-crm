@@ -6,6 +6,8 @@ import { ReputationAlertsService } from './reputation-alerts.service';
 import { ReputationAnalyticsService } from './reputation-analytics.service';
 import { ReputationSettingsService } from './reputation-settings.service';
 import { ReputationAgentService } from './reputation-agent.service';
+import { ReputationCompetitorsService } from './reputation-competitors.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
 
 /** Расписание модуля отзывов. Каждая задача — со своим флагом «уже идёт», чтобы не наслаивались. */
 @Injectable()
@@ -20,6 +22,8 @@ export class ReputationScheduler {
     private readonly analytics: ReputationAnalyticsService,
     private readonly settings: ReputationSettingsService,
     private readonly agent: ReputationAgentService,
+    private readonly competitors: ReputationCompetitorsService,
+    private readonly stays: ReputationReservationsService,
   ) {}
 
   private async once(name: string, fn: () => Promise<unknown>) {
@@ -52,6 +56,7 @@ export class ReputationScheduler {
   fiveMinutes() {
     void this.once('ai', () => this.sync.analyzeBacklog());
     void this.once('agent', () => this.agent.tick(new Date().getMinutes()));
+    void this.once('competitors-ai', () => this.competitors.analyzeBacklog());
   }
 
   /** Алерты: без ответа, повторяющиеся жалобы — раз в час; падение средней и «тихий» скрейпер — тоже. */
@@ -76,6 +81,10 @@ export class ReputationScheduler {
         await this.alerts.checkAvgDrop(tenantId, await this.settings.config(tenantId));
       }
       await this.sync.cleanupOldRuns();
+      // брони могли появиться позже отзывов (импорт, ручной ввод) — дотягиваем связи по непроверенным отзывам
+      for (const tenantId of await this.settings.tenantsWithModule()) {
+        await this.stays.matchReviews(tenantId).catch((e) => this.log.warn(`stay match ${tenantId}: ${e?.message}`));
+      }
     });
   }
 

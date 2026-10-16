@@ -4,7 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Hotel } from '../hotels/hotel.entity';
 import { HotelBrand, HotelReview, HotelReviewAlert, HotelReviewTopic } from './reputation.entities';
-import { REPLY_MODE, TOPIC_LABELS_RU } from './reputation.constants';
+import { REPLY_MODE, TOPIC_LABELS_RU, activeTopicKeys, mergeConfig } from './reputation.constants';
+import { reservationsComponentOn } from './reputation-reservations.service';
 
 type AutomationsService = import('../automations/automations.service').AutomationsService;
 
@@ -50,7 +51,10 @@ export class ReputationEventsService {
   async tokens(r: HotelReview, extra: Record<string, unknown> = {}) {
     const hotel = await this.hotels.findOne({ where: { id: r.hotelId } });
     const brand = hotel?.brandId ? await this.brands.findOne({ where: { id: hotel.brandId } }) : null;
-    const topics = await this.topics.find({ where: { reviewId: r.id } });
+    // удалённые из справочника темы в токены не идут
+    const [cfgRow] = await this.topics.query(`SELECT config FROM hotel_reputation_settings WHERE "tenantId" = $1`, [r.tenantId]);
+    const active = new Set(activeTopicKeys(mergeConfig(cfgRow?.config)));
+    const topics = (await this.topics.find({ where: { reviewId: r.id } })).filter((t) => active.has(t.topic));
     const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
     const r10 = r.rating10 != null ? Number(r.rating10) : null;
     return {
@@ -82,6 +86,13 @@ export class ReputationEventsService {
       reply_mode: REPLY_MODE[r.platform],
       review_url: r.reviewUrl || '',
       crm_url: `${frontend}/hotels/reviews?review=${r.id}`,
+      // номер и даты проживания, если отзыв связан с бронью
+      room: r.reservationId && r.reservationMatch !== 'rejected' && r.reservationMatch !== 'suggested' && (await reservationsComponentOn((sql, p) => this.topics.query(sql, p), r.tenantId))
+        ? ((await this.topics.query(
+            `SELECT u.label FROM hotel_reservations x LEFT JOIN hotel_room_units u ON u.id = x."roomUnitId" WHERE x.id = $1`,
+            [r.reservationId],
+          ))[0]?.label ?? '')
+        : '',
       ...extra,
     };
   }

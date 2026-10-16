@@ -9,10 +9,11 @@ import { Hotel } from '../hotels/hotel.entity';
 import { MailService } from '../mail/mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelBrand, HotelReview, HotelReviewAlert, HotelReviewSource } from './reputation.entities';
-import { REPLY_MODE, ReputationConfig, TOPIC_LABELS_RU } from './reputation.constants';
+import { REPLY_MODE, ReputationConfig, TOPIC_LABELS_RU, activeTopicSql, reviewHasTextSql } from './reputation.constants';
 import { ReputationSettingsService } from './reputation-settings.service';
 import { ReputationReviewsService } from './reputation-reviews.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
+import { ReputationReservationsService } from './reputation-reservations.service';
 import { PLATFORM_LABEL } from './reputation-events.service';
 
 type AiEmployeesService = import('../ai-employees/ai-employees.service').AiEmployeesService;
@@ -124,6 +125,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
     private readonly alerts: ReputationAlertsService,
     private readonly mail: MailService,
     private readonly moduleRef: ModuleRef,
+    private readonly stays: ReputationReservationsService,
   ) {}
 
   private employeesCache: AiEmployeesService | null = null;
@@ -267,6 +269,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
     const w = agent ? this.work(agent) : defaultReviewsWork();
     const hotelIds = await this.scopeHotelIds(tenantId, w);
     if (!hotelIds.length) return null;
+    const topicCfg = await this.settings.config(tenantId);
     const q = (sql: string, p: unknown[]) => this.reviewsRepo.query(sql, p);
     const perHotel = await q(
       `SELECT h.name AS hotel, r.platform,
@@ -274,7 +277,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
               ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '7 days'), 2) AS avg7,
               COUNT(*) FILTER (WHERE r."publishedAt" > now() - interval '30 days')::int AS n30,
               ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '30 days'), 2) AS avg30,
-              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."publishedAt" > now() - interval '30 days')::int AS open30
+              COUNT(*) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r."publishedAt" > now() - interval '30 days')::int AS open30
          FROM hotel_reviews r JOIN hotels h ON h.id = r."hotelId"
         WHERE r."tenantId" = $1 AND r."hotelId" = ANY($2) AND r.status <> 'deleted'
         GROUP BY h.name, r.platform HAVING COUNT(*) FILTER (WHERE r."publishedAt" > now() - interval '30 days') > 0
@@ -285,7 +288,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
       `SELECT r.id, h.name AS hotel, r.platform, r."rating10", r.author, r.lang, r."publishedAt"::date AS date,
               LEFT(COALESCE(r."textTranslated", r."textOriginal", ''), 240) AS excerpt
          FROM hotel_reviews r JOIN hotels h ON h.id = r."hotelId"
-        WHERE r."tenantId" = $1 AND r."hotelId" = ANY($2) AND r.status <> 'deleted' AND NOT r."hasReply"
+        WHERE r."tenantId" = $1 AND r."hotelId" = ANY($2) AND r.status <> 'deleted' AND NOT r."hasReply" AND ${reviewHasTextSql('r')}
           AND r.platform <> 'check24' AND r."rating10" < 6 AND r."publishedAt" > now() - interval '30 days'
         ORDER BY r."publishedAt" DESC LIMIT 12`,
       [tenantId, hotelIds],
@@ -296,7 +299,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
               COUNT(*) FILTER (WHERE t."publishedAt" > now() - interval '35 days' AND t."publishedAt" <= now() - interval '7 days')::int AS prev4w,
               (array_agg(t.quote ORDER BY t."publishedAt" DESC) FILTER (WHERE t.quote IS NOT NULL))[1:2] AS quotes
          FROM hotel_review_topics t JOIN hotels h ON h.id = t."hotelId"
-        WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND t.sentiment = 'negative' AND t."publishedAt" > now() - interval '35 days'
+        WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND ${activeTopicSql(topicCfg)} AND t.sentiment = 'negative' AND t."publishedAt" > now() - interval '35 days'
         GROUP BY h.name, t.topic, COALESCE(t."otherLabel", '')
         HAVING COUNT(*) FILTER (WHERE t."publishedAt" > now() - interval '7 days') > 0
         ORDER BY week DESC LIMIT 15`,
@@ -332,7 +335,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
     const qb = this.reviewsRepo
       .createQueryBuilder('r')
       .where('r.tenantId = :t AND r.hotelId IN (:...h)', { t: agent.tenantId, h: hotelIds })
-      .andWhere(`r.status <> 'deleted' AND NOT r."hasReply" AND r."aiDraft" IS NULL AND r.platform <> 'check24'`)
+      .andWhere(`r.status <> 'deleted' AND NOT r."hasReply" AND ${reviewHasTextSql('r')} AND r."aiDraft" IS NULL AND r.platform <> 'check24'`)
       .andWhere(`r."firstSeenAt" > now() - interval '3 days' AND r."publishedAt" > now() - interval '10 days'`)
       .andWhere('r."analyzedAt" IS NOT NULL')
       .orderBy('r.publishedAt', 'DESC')
@@ -362,6 +365,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
     const r = await this.reviewsRepo.findOne({ where: { id: reviewId, tenantId } });
     if (!r) throw new NotFoundException('Review not found');
     if (REPLY_MODE[r.platform] === 'none') throw new BadRequestException('This platform does not publish hotel replies');
+    if (![r.title, r.textOriginal].some((text) => !!text?.trim())) throw new BadRequestException('A rating-only review does not require a reply');
     const cfg = await this.settings.config(tenantId);
     const hotel = await this.hotels.findOne({ where: { id: r.hotelId } });
     const signature = cfg.signatures[r.hotelId] || hotel?.name || '';
@@ -407,7 +411,7 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
     const qb = this.reviewsRepo
       .createQueryBuilder('r')
       .where('r.tenantId = :t AND r.hotelId IN (:...h)', { t: agent.tenantId, h: hotelIds })
-      .andWhere(`r.status <> 'deleted' AND NOT r."hasReply" AND r.platform <> 'check24'`)
+      .andWhere(`r.status <> 'deleted' AND NOT r."hasReply" AND ${reviewHasTextSql('r')} AND r.platform <> 'check24'`)
       .andWhere(`r."firstSeenAt" > now() - interval '14 days' AND r."firstSeenAt" - r."publishedAt" < interval '4 days'`)
       .andWhere(`r."publishedAt" < now() - (:h1 || ' hours')::interval`, { h1: String(w.reminders.firstHours) })
       .orderBy('r.publishedAt', 'ASC')
@@ -451,6 +455,8 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
       const projectId = await this.ensureProject(agent.tenantId, r.hotelId, hotel?.name || '');
       if (!projectId) continue;
       const recips = cfg.recipients.hotels[r.hotelId];
+      // номер и даты проживания (если отзыв связан с бронью) — службе номеров не нужно искать гостя
+      const room = await this.stays.roomLine(agent.tenantId, r).catch(() => null);
       const title = `${L.escalate}: ${PLATFORM_LABEL[r.platform]} ${r.rating10 ?? '—'}/10 — ${r.author || '—'} (${hotel?.name || ''})`.slice(0, 250);
       await e
         .proposeModuleAction(agent.tenantId, agent.id, {
@@ -462,7 +468,7 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
           payload: {
             projectId,
             title,
-            description: `${(r.textOriginal || '').slice(0, 1500)}${r.textTranslated ? `\n\n— ${r.textTranslated.slice(0, 1500)}` : ''}${r.aiDraft ? `\n\nDraft:\n${r.aiDraft}` : ''}\n\n${frontend}/hotels/reviews?review=${r.id}`,
+            description: `${room ? `${room}\n\n` : ''}${(r.textOriginal || '').slice(0, 1500)}${r.textTranslated ? `\n\n— ${r.textTranslated.slice(0, 1500)}` : ''}${r.aiDraft ? `\n\nDraft:\n${r.aiDraft}` : ''}\n\n${frontend}/hotels/reviews?review=${r.id}`,
             priority: r.rating10 != null && Number(r.rating10) < cfg.thresholds.negativeBelow ? 'high' : 'medium',
             dueDate: new Date(Date.now() + DAY).toISOString().slice(0, 10),
             ...(recips?.userIds?.[0] ? { assignedUserId: recips.userIds[0] } : {}),
@@ -589,8 +595,8 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
                   ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" >= $3 AND r."publishedAt" < $4), 2) AS avg,
                   COUNT(r.id) FILTER (WHERE r."publishedAt" >= $3 AND r."publishedAt" < $4 AND r."rating10" < $5)::int AS neg,
                   COUNT(r.id) FILTER (WHERE r."repliedAt" >= $3 AND r."repliedAt" < $4)::int AS replied,
-                  COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."publishedAt" > now() - interval '30 days')::int AS open,
-                  COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND r."rating10" < $5 AND r."publishedAt" > now() - interval '30 days')::int AS open_neg,
+                  COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r."publishedAt" > now() - interval '30 days')::int AS open,
+                  COUNT(r.id) FILTER (WHERE NOT r."hasReply" AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r."rating10" < $5 AND r."publishedAt" > now() - interval '30 days')::int AS open_neg,
                   ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '7 days'), 2) AS avg7,
                   ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '14 days' AND r."publishedAt" <= now() - interval '7 days'), 2) AS avg_prev7
              FROM hotels h LEFT JOIN hotel_reviews r ON r."hotelId" = h.id AND r.status <> 'deleted'
@@ -612,7 +618,7 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
           `SELECT h.name AS hotel, t.topic, COALESCE(t."otherLabel", '') AS label, COUNT(*)::int AS n,
                   (array_agg(t.quote ORDER BY t."publishedAt" DESC) FILTER (WHERE t.quote IS NOT NULL))[1:2] AS quotes
              FROM hotel_review_topics t JOIN hotels h ON h.id = t."hotelId"
-            WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND t.sentiment = 'negative' AND t."publishedAt" >= $3 AND t."publishedAt" < $4
+            WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND ${activeTopicSql(cfg)} AND t.sentiment = 'negative' AND t."publishedAt" >= $3 AND t."publishedAt" < $4
             GROUP BY h.name, t.topic, COALESCE(t."otherLabel", '') ORDER BY n DESC LIMIT 8`,
           [tenantId, hotelIds, start, end],
         )
@@ -621,7 +627,7 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
       ? await q(
           `SELECT r.id, h.name AS hotel, r.platform, r."rating10", r.author, EXTRACT(EPOCH FROM (now() - r."publishedAt")) / 3600 AS hours
              FROM hotel_reviews r JOIN hotels h ON h.id = r."hotelId"
-            WHERE r."tenantId" = $1 AND r."hotelId" = ANY($2) AND r.status <> 'deleted' AND NOT r."hasReply" AND r.platform <> 'check24'
+            WHERE r."tenantId" = $1 AND r."hotelId" = ANY($2) AND r.status <> 'deleted' AND NOT r."hasReply" AND ${reviewHasTextSql('r')} AND r.platform <> 'check24'
               AND r."rating10" < $3 AND r."publishedAt" > now() - interval '30 days'
             ORDER BY r."publishedAt" ASC LIMIT 8`,
           [tenantId, hotelIds, nb],
@@ -797,7 +803,7 @@ ${f.complaintsYesterday.length ? `<h3 style="font-size:15px;margin:18px 0 8px">$
                   COUNT(*) FILTER (WHERE t."publishedAt" > now() - interval '35 days' AND t."publishedAt" <= now() - interval '7 days')::int AS prev,
                   (array_agg(t.quote ORDER BY t."publishedAt" DESC) FILTER (WHERE t.quote IS NOT NULL AND t."publishedAt" > now() - interval '7 days'))[1:3] AS quotes
              FROM hotel_review_topics t JOIN hotels h ON h.id = t."hotelId"
-            WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND t.sentiment = 'negative' AND t."publishedAt" > now() - interval '35 days'
+            WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND ${activeTopicSql(cfg)} AND t.sentiment = 'negative' AND t."publishedAt" > now() - interval '35 days'
             GROUP BY t."hotelId", h.name, t.topic, COALESCE(t."otherLabel", '')
            HAVING COUNT(*) FILTER (WHERE t."publishedAt" > now() - interval '7 days') >= 2`,
           [tenantId, hotelIds],
@@ -811,7 +817,7 @@ ${f.complaintsYesterday.length ? `<h3 style="font-size:15px;margin:18px 0 8px">$
     const praise = hotelIds.length
       ? await q(
           `SELECT h.name AS hotel, t.topic, COUNT(*)::int AS n FROM hotel_review_topics t JOIN hotels h ON h.id = t."hotelId"
-            WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND t.sentiment = 'positive' AND t."publishedAt" > now() - interval '7 days'
+            WHERE t."tenantId" = $1 AND t."hotelId" = ANY($2) AND ${activeTopicSql(cfg)} AND t.sentiment = 'positive' AND t."publishedAt" > now() - interval '7 days'
             GROUP BY h.name, t.topic ORDER BY n DESC LIMIT 8`,
           [tenantId, hotelIds],
         )

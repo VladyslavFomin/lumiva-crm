@@ -81,8 +81,34 @@ export class HotelReview {
   @Column({ type: 'text', nullable: true }) analysisError: string | null;
   @Column({ type: 'timestamptz' }) firstSeenAt: Date;
   @Column({ type: 'timestamptz', nullable: true }) deletedAt: Date | null;
+  /** Подтверждённый дубликат отзыва с другой площадки — в аналитике не считается (ответ на своей площадке всё равно нужен). */
+  @Column({ type: 'uuid', nullable: true }) duplicateOfId: string | null;
+  /** Страна автора (ISO-2), если площадка её отдаёт (Booking — из профиля гостя). */
+  @Column({ type: 'varchar', length: 2, nullable: true }) authorCountry: string | null;
+  /** Бронь гостя, оставившего отзыв (номер, даты проживания). */
+  @Column({ type: 'uuid', nullable: true }) reservationId: string | null;
+  /** auto — найдено системой уверенно; suggested — ждёт подтверждения; confirmed / rejected — решение человека. */
+  @Column({ type: 'varchar', length: 12, nullable: true }) reservationMatch: 'auto' | 'suggested' | 'confirmed' | 'rejected' | null;
   @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
   @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;
+}
+
+export type DuplicateStatus = 'suggested' | 'confirmed' | 'dismissed';
+
+/** Пара «похоже на один и тот же отзыв на разных площадках» (reviewId < candidateId). */
+@Entity('hotel_review_duplicates')
+export class HotelReviewDuplicate {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) hotelId: string;
+  @Column({ type: 'uuid' }) reviewId: string;
+  @Column({ type: 'uuid' }) candidateId: string;
+  @Column({ type: 'numeric', precision: 4, scale: 3 }) score: string;
+  @Column({ type: 'varchar', length: 40 }) reason: string;
+  @Column({ type: 'varchar', length: 12, default: 'suggested' }) status: DuplicateStatus;
+  @Column({ type: 'uuid', nullable: true }) decidedBy: string | null;
+  @Column({ type: 'timestamptz', nullable: true }) decidedAt: Date | null;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
 }
 
 @Entity('hotel_review_versions')
@@ -171,4 +197,57 @@ export class HotelReviewAlert {
   @Column({ type: 'text', nullable: true }) body: string | null;
   @Column({ type: 'jsonb', nullable: true }) channels: Record<string, number> | null;
   @CreateDateColumn({ type: 'timestamptz' }) sentAt: Date;
+}
+
+/** Конкурент отеля — только для сравнения (без ответов, алертов и задач). */
+@Entity('hotel_competitors')
+export class HotelCompetitor {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) hotelId: string;
+  @Column({ type: 'varchar', length: 160 }) name: string;
+  @Column({ type: 'boolean', default: true }) active: boolean;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+}
+
+@Entity('hotel_competitor_sources')
+export class HotelCompetitorSource {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) competitorId: string;
+  @Column({ type: 'varchar', length: 24 }) platform: ReputationPlatform;
+  @Column({ type: 'text' }) url: string;
+  @Column({ type: 'boolean', default: true }) active: boolean;
+  @Column({ type: 'timestamptz', nullable: true }) lastSyncAt: Date | null;
+  @Column({ type: 'timestamptz', nullable: true }) lastSuccessAt: Date | null;
+  @Column({ type: 'text', nullable: true }) lastError: string | null;
+  @Column({ type: 'numeric', precision: 4, scale: 2, nullable: true }) platformRating: string | null;
+  @Column({ type: 'integer', nullable: true }) platformCount: number | null;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+}
+
+export interface CompetitorTopic { topic: string; label: string | null; sentiment: ReviewSentiment; quote: string | null }
+
+@Entity('hotel_competitor_reviews')
+export class HotelCompetitorReview {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) competitorId: string;
+  @Column({ type: 'uuid' }) sourceId: string;
+  @Column({ type: 'varchar', length: 24 }) platform: ReputationPlatform;
+  @Column({ type: 'varchar', length: 300 }) externalReviewId: string;
+  @Column({ type: 'varchar', length: 255, nullable: true }) author: string | null;
+  @Column({ type: 'varchar', length: 8, nullable: true }) lang: string | null;
+  @Column({ type: 'text', nullable: true }) title: string | null;
+  @Column({ type: 'text', nullable: true }) textOriginal: string | null;
+  @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true }) ratingRaw: string | null;
+  @Column({ type: 'smallint', nullable: true }) ratingScale: number | null;
+  @Column({ type: 'numeric', precision: 4, scale: 2, nullable: true }) rating10: string | null;
+  @Column({ type: 'timestamptz', nullable: true }) publishedAt: Date | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) authorCountry: string | null;
+  @Column({ type: 'varchar', length: 10, nullable: true }) sentiment: ReviewSentiment | null;
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" }) topics: CompetitorTopic[];
+  @Column({ type: 'timestamptz', nullable: true }) analyzedAt: Date | null;
+  @Column({ type: 'text', nullable: true }) analysisError: string | null;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
 }
