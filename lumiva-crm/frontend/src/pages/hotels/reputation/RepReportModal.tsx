@@ -3,6 +3,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import { downloadRepReport, sendRepReport, type RepAnalyticsQuery } from '../../../api/hotelReputation';
 import { useRepT } from './ReputationShared';
+import { Btn, Seg } from './rvui';
 import { TenantMailNotice, useNotificationSender } from '../../../components/mail/TenantMailNotice';
 
 const LANGS = [
@@ -57,14 +58,12 @@ export const RepReportModal: React.FC<{ open: boolean; onClose: () => void; quer
 
   return (
     <Modal open={open} onClose={onClose} title={r('report.title')} size="lg">
-      <div className="rp-report-modal">
+      <div className="rp-report-modal rv-portal">
         <div className="scope">{scopeText}</div>
         <div className="rp-modal-row">
           <label>{r('report.lang')}</label>
-          <div className="langs">
-            {LANGS.map(([code, name]) => (
-              <button key={code} type="button" className={lang === code ? 'on' : ''} onClick={() => setLang(code)}>{name}</button>
-            ))}
+          <div>
+            <Seg value={lang} onChange={(v) => setLang(v as Lang)} opts={LANGS.map(([code, name]) => [code, name])} />
           </div>
         </div>
         <div className="rp-modal-row">
@@ -85,12 +84,12 @@ export const RepReportModal: React.FC<{ open: boolean; onClose: () => void; quer
         )}
         <div className="hint">{r('report.contents')}</div>
         <div className="acts">
-          <button type="button" className="btn-secondary" disabled={!!busy} onClick={download}>
+          <Btn icon="download" disabled={!!busy} onClick={download}>
             {busy === 'pdf' ? r('report.building') : r('report.download')}
-          </button>
-          <button type="button" className="btn-primary" disabled={!!busy || !list.length || bad.length > 0 || (!!sender && !sender.account)} onClick={send}>
+          </Btn>
+          <Btn pri icon="send" disabled={!!busy || !list.length || bad.length > 0 || (!!sender && !sender.account)} onClick={send}>
             {busy === 'send' ? r('report.sending') : r('report.send', { n: list.length || '' })}
-          </button>
+          </Btn>
         </div>
       </div>
     </Modal>

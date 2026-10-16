@@ -4,7 +4,6 @@ import { MainLayout } from '../../../layout/MainLayout';
 import { PageHelpButton } from '../../../components/help/PageHelpButton';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import { HotelsSubnav } from '../HotelsSubnav';
-import { Ic, HTL_ICON } from '../HotelIcons';
 import {
   REP_PLATFORMS,
   fetchRepAiStatus,
@@ -26,146 +25,204 @@ import {
   type RepSetup,
   type RepTopicStat,
 } from '../../../api/hotelReputation';
-import { AiStatusBanner, Delta, PLATFORM_META, PlatformBadge, ReputationTabs, Score, fmtHours, fmtRepIndex, scoreClass, topicLabel, useRepT } from './ReputationShared';
+import { AiStatusBanner, PLATFORM_META, fmtHours, fmtRepIndex, topicLabel, useRepT } from './ReputationShared';
+import { Btn, CardHead, CountUp, Delta, Frame, PlatformBadge, RvHead, RvTabs, Score, Seg, Sel, Track, cx, scoreClass, useNumFmt } from './rvui';
 import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../../components/ui/DateRangePicker';
-import { RepMultiSelect, joinParam, splitParam } from './RepMultiSelect';
+import { joinParam, splitParam } from './RepMultiSelect';
 import { RepReportModal } from './RepReportModal';
 import '../hotels-design.css';
 import './reputation.css';
 
-const INK = '#222';
-const NEG = '#cc2f47';
-const POS = '#1f8a5e';
-const PREV = '#b9bcc4';
-/** Цвета линий сравнения: различимы между собой и на белом фоне. */
-const SERIES = ['#222222', '#2f6fde', '#d9822b', '#1f8a5e', '#9b4dca', '#cc2f47', '#0f9fb0', '#8a6d3b'];
-const fmt = (v: number | null | undefined, d = 2) => (v == null ? '—' : v.toFixed(d));
+const ACC = '#5980a6';
+const ACC9 = '#1d2d3d';
+const PREV = '#b7b7ba';
+const NEG = '#c23a4e';
+const POS = '#2b7a57';
+const MID = '#c9822b';
+const GRID = '#e7e7ea';
+const AX = '#98989b';
+/** Цвета линий сравнения: первая — «мы» / первый выбранный, дальше различимые на белом. */
+const SERIES = [ACC9, ACC, '#c9822b', POS, '#9b4dca', NEG, '#0f9fb0', '#8a6d3b'];
 
-/** Подпись шага: день/неделя — «13.10», месяц — «10.26». Подписей не больше ~12, чтобы не слипались. */
+/** Подпись шага: день/неделя — «13.10», месяц — «10.26». Подписей не больше ~10, чтобы не слипались. */
 function bucketLabel(b: string, g: 'day' | 'week' | 'month') {
   const [y, m, d] = b.split('-');
   return g === 'month' ? `${m}.${y.slice(2)}` : `${d}.${m}`;
 }
-function tickEvery(n: number) {
-  return Math.max(1, Math.ceil(n / 12));
-}
+const tickEvery = (n: number) => Math.max(1, Math.ceil(n / 10));
+const locOf = (lang: string) => (lang.startsWith('en') ? 'en-GB' : lang.startsWith('tr') ? 'tr-TR' : 'ru-RU');
 function bucketTitle(b: string, g: 'day' | 'week' | 'month', lang: string, r: (k: string, o?: any) => string) {
-  const loc = lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU';
+  const loc = locOf(lang);
   const d = new Date(`${b}T00:00:00Z`);
   if (g === 'month') return d.toLocaleDateString(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' });
   if (g === 'week') return r('dash.weekOf', { d: d.toLocaleDateString(loc, { day: 'numeric', month: 'short', timeZone: 'UTC' }) });
   return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-/** Средняя оценка 0–10 по шагам выбранного периода (одна ось, одна серия). */
-const AvgLine: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['prevSeries'] | null; negBelow: number }> = ({ series, prev, negBelow }) => {
-  const { r, lang } = useRepT();
-  const [hover, setHover] = useState<number | null>(null);
-  const rows = series.points;
-  const g = series.granularity;
-  const W = 560;
-  const H = 150;
-  const pts = rows.map((m, i) => ({ ...m, x: rows.length > 1 ? 24 + (i / (rows.length - 1)) * (W - 40) : W / 2, prev: prev?.points[i] ?? null }));
-  const vals = pts.flatMap((p) => [p.avg10, p.prev?.avg10 ?? null]).filter((v): v is number => v != null);
-  if (!vals.length) return <div className="rp-empty">{r('dash.noData')}</div>;
-  const lo = Math.max(0, Math.floor(Math.min(...vals, negBelow) - 0.5));
-  const hi = Math.min(10, Math.ceil(Math.max(...vals, 8) + 0.3));
-  const y = (v: number) => 10 + (1 - (v - lo) / Math.max(0.1, hi - lo)) * (H - 30);
-  const line = pts.filter((p) => p.avg10 != null).map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${y(p.avg10!).toFixed(1)}`).join(' ');
-  const prevLine = pts.filter((p) => p.prev?.avg10 != null).map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${y(p.prev!.avg10!).toFixed(1)}`).join(' ');
-  const every = tickEvery(pts.length);
-  const step = pts.length > 1 ? (W - 40) / (pts.length - 1) : 40;
+/** Тёмная подсказка над графиком: строки текста, первая — заголовок. */
+const Tip: React.FC<{ x: number; W: number; lines: Array<{ t: string; c?: string; b?: boolean }> }> = ({ x, W, lines }) => {
+  const w = 210;
+  const cx_ = Math.min(W - w / 2 - 2, Math.max(w / 2 + 2, x));
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart" onMouseLeave={() => setHover(null)}>
-      {[lo, (lo + hi) / 2, hi].map((gv) => (
-        <g key={gv}>
-          <line x1={24} x2={W - 16} y1={y(gv)} y2={y(gv)} stroke="#f0f0f0" />
-          <text x={0} y={y(gv) + 3} fontSize="9" fill="#b5b5b5">{gv.toFixed(1)}</text>
-        </g>
+    <g pointerEvents="none" className="rv-tip">
+      <rect x={cx_ - w / 2} y={2} width={w} height={8 + lines.length * 14} fill={ACC9} />
+      {lines.map((l, i) => (
+        <text key={i} x={cx_} y={16 + i * 14} fontSize="11.5" fill={l.c || '#fff'} textAnchor="middle" fontWeight={l.b ? 600 : 400}>{l.t}</text>
       ))}
-      {negBelow > lo && negBelow < hi && <line x1={24} x2={W - 16} y1={y(negBelow)} y2={y(negBelow)} stroke={NEG} strokeDasharray="3 4" strokeOpacity={0.5} />}
-      {prev && prevLine && <path d={prevLine} fill="none" stroke={PREV} strokeWidth={1.6} strokeDasharray="4 4" strokeLinejoin="round" />}
-      <path d={line} fill="none" stroke={INK} strokeWidth={2} strokeLinejoin="round" />
-      {pts.map((p, i) => (
-        <g key={p.bucket} onMouseEnter={() => setHover(i)}>
-          <rect x={p.x - step / 2} y={0} width={Math.max(step, 6)} height={H} fill="transparent" />
-          {p.avg10 != null && <circle cx={p.x} cy={y(p.avg10)} r={hover === i ? 5 : pts.length > 40 ? 2.5 : 4} fill={INK} stroke="#fff" strokeWidth={pts.length > 40 ? 1 : 2} />}
-          {i % every === 0 && <text x={p.x} y={H - 2} fontSize="9" fill="#888" textAnchor="middle">{bucketLabel(p.bucket, g)}</text>}
-        </g>
-      ))}
-      {hover != null && pts[hover] && (() => {
-        const p = pts[hover];
-        const cx = Math.min(W - 90, Math.max(90, p.x));
-        const withPrev = !!prev && !!p.prev;
-        return (
-          <g pointerEvents="none">
-            <rect x={cx - 90} y={2} width={180} height={withPrev ? 47 : 34} rx={6} fill="#222" />
-            <text x={cx} y={16} fontSize="10" fill="#fff" textAnchor="middle">{bucketTitle(p.bucket, g, lang, r)}</text>
-            <text x={cx} y={29} fontSize="10" fill="#fff" textAnchor="middle">{p.avg10 != null ? `${fmt(p.avg10)} / 10` : '—'} · {r('dash.tipReviews', { n: p.count })}</text>
-            {withPrev && (
-              <text x={cx} y={42} fontSize="9.5" fill="#c9cbd1" textAnchor="middle">
-                {r('dash.tipPrev', { d: bucketTitle(p.prev!.bucket, g, lang, r), v: p.prev!.avg10 != null ? fmt(p.prev!.avg10) : '—', n: p.prev!.count })}
-              </text>
-            )}
-          </g>
-        );
-      })()}
+    </g>
+  );
+};
+
+const Spark: React.FC<{ vals: Array<number | null>; color?: string }> = ({ vals, color = ACC }) => {
+  const v = vals.filter((x): x is number => x != null);
+  if (v.length < 2) return null;
+  const w = 56;
+  const h = 18;
+  const mn = Math.min(...v);
+  const mx = Math.max(...v);
+  const d = v.map((x, i) => `${i ? 'L' : 'M'}${((i / (v.length - 1)) * w).toFixed(1)},${(h - ((x - mn) / Math.max(0.01, mx - mn)) * h).toFixed(1)}`).join(' ');
+  return (
+    <svg className="spark" width={w} height={h} aria-hidden="true">
+      <path d={d} fill="none" stroke={color} strokeWidth="1.3" pathLength={1} className="rv-draw" />
     </svg>
   );
 };
 
-/** Число отзывов по шагам выбранного периода (отдельный график — без второй оси). */
-const CountBars: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['prevSeries'] | null }> = ({ series, prev }) => {
+const Kpi: React.FC<{ l: React.ReactNode; title?: string; v: number | null | undefined; d?: number; suf?: string; text?: string; delta?: React.ReactNode; vs?: string; spark?: React.ReactNode }> = ({ l, title, v, d = 0, suf, text, delta, vs, spark }) => (
+  <div className="rv-kpi">
+    {spark}
+    <div className="l" title={title}>{l}</div>
+    <div className="v">{text != null ? <span style={{ fontSize: 30 }}>{text}</span> : <CountUp v={v} d={d} />}{suf && v != null && text == null && <small>{suf}</small>}</div>
+    <div className="d">{delta}{delta && vs ? <span>{vs}</span> : null}</div>
+  </div>
+);
+
+/** Средняя оценка 0–10 по шагам периода, с заливкой и пунктиром прошлого периода. */
+const AvgLine: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['prevSeries'] | null; negBelow: number }> = ({ series, prev, negBelow }) => {
   const { r, lang } = useRepT();
-  const [hover, setHover] = useState<number | null>(null);
+  const fmt = useNumFmt();
+  const [hv, setHv] = useState<number | null>(null);
   const rows = series.points;
   const g = series.granularity;
-  const W = 560;
-  const H = 130;
+  const W = 440;
+  const H = 170;
+  const pts = rows.map((m, i) => ({ ...m, x: rows.length > 1 ? 28 + (i / (rows.length - 1)) * (W - 44) : W / 2, prev: prev?.points[i] ?? null }));
+  const vals = pts.flatMap((p) => [p.avg10, p.prev?.avg10 ?? null]).filter((v): v is number => v != null);
+  if (!vals.length) return <div className="rv-empty-s">{r('dash.noData')}</div>;
+  const lo = Math.max(0, Math.floor(Math.min(...vals, negBelow) - 0.3));
+  const hi = Math.min(10, Math.ceil(Math.max(...vals, 8) + 0.2));
+  const y = (v: number) => 10 + (1 - (v - lo) / Math.max(0.1, hi - lo)) * (H - 34);
+  const own = pts.filter((p) => p.avg10 != null);
+  const line = own.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${y(p.avg10!).toFixed(1)}`).join(' ');
+  const area = own.length > 1 ? `${line} L${own[own.length - 1].x.toFixed(1)},${H - 24} L${own[0].x.toFixed(1)},${H - 24} Z` : '';
+  const prevLine = pts.filter((p) => p.prev?.avg10 != null).map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${y(p.prev!.avg10!).toFixed(1)}`).join(' ');
+  const every = tickEvery(pts.length);
+  const step = pts.length > 1 ? (W - 44) / (pts.length - 1) : 40;
+  const small = pts.length > 30;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="rv-chart" onMouseLeave={() => setHv(null)}>
+      <defs>
+        <linearGradient id="rvAvgArea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={ACC} stopOpacity=".22" />
+          <stop offset="1" stopColor={ACC} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[lo, (lo + hi) / 2, hi].map((gv) => (
+        <g key={gv}>
+          <line x1={28} x2={W - 16} y1={y(gv)} y2={y(gv)} stroke={GRID} />
+          <text x={0} y={y(gv) + 3} fontSize="11.5" fill={AX}>{fmt(gv, 1)}</text>
+        </g>
+      ))}
+      {negBelow > lo && negBelow < hi && <line x1={28} x2={W - 16} y1={y(negBelow)} y2={y(negBelow)} stroke={NEG} strokeDasharray="3 4" strokeOpacity={0.45} />}
+      {area && <path d={area} fill="url(#rvAvgArea)" style={{ animation: 'rvFade 1.2s .6s both' }} />}
+      {prev && prevLine && <path d={prevLine} fill="none" stroke={PREV} strokeWidth="1.4" strokeDasharray="4 4" />}
+      <path d={line} fill="none" stroke={ACC9} strokeWidth="2" pathLength={1} className="rv-draw" />
+      {pts.map((p, i) => (
+        <g key={p.bucket} onMouseEnter={() => setHv(i)}>
+          <rect x={p.x - step / 2} y={0} width={Math.max(step, 6)} height={H} fill="transparent" />
+          {p.avg10 != null && (
+            <circle cx={p.x} cy={y(p.avg10)} r={hv === i ? 5 : small ? 2 : 3} fill={hv === i ? ACC : '#fff'} stroke={ACC9} strokeWidth="1.5" className="rv-dot-in" style={{ animationDelay: `${0.3 + Math.min(i, 20) * 0.05}s` }} />
+          )}
+          {i % every === 0 && <text x={p.x} y={H - 6} fontSize="11.5" fill={AX} textAnchor="middle">{bucketLabel(p.bucket, g)}</text>}
+        </g>
+      ))}
+      {hv != null && pts[hv] && (
+        <>
+          <line x1={pts[hv].x} x2={pts[hv].x} y1={8} y2={H - 24} stroke={ACC} strokeDasharray="2 3" pointerEvents="none" />
+          <Tip
+            x={pts[hv].x}
+            W={W}
+            lines={[
+              { t: `${bucketTitle(pts[hv].bucket, g, lang, r)} · ${r('dash.tipReviews', { n: pts[hv].count })}` },
+              { t: pts[hv].avg10 != null ? `${fmt(pts[hv].avg10, 2)} / 10` : '—', b: true },
+              ...(prev && pts[hv].prev
+                ? [{ t: r('dash.tipPrev', { d: bucketTitle(pts[hv].prev!.bucket, g, lang, r), v: pts[hv].prev!.avg10 != null ? fmt(pts[hv].prev!.avg10, 2) : '—', n: pts[hv].prev!.count }), c: '#94bce3' }]
+                : []),
+            ]}
+          />
+        </>
+      )}
+    </svg>
+  );
+};
+
+/** Число отзывов по шагам периода: красная часть столбца — негатив. */
+const CountBars: React.FC<{ series: RepDashboard['series']; prev?: RepDashboard['prevSeries'] | null }> = ({ series, prev }) => {
+  const { r, lang } = useRepT();
+  const fmt = useNumFmt();
+  const [hv, setHv] = useState<number | null>(null);
+  const rows = series.points;
+  const g = series.granularity;
+  const W = 440;
+  const H = 170;
   const prevRows = prev?.points || [];
-  const max = Math.max(1, ...rows.map((m) => m.count), ...(prev ? prevRows.map((m) => m.count) : []));
-  const step = (W - 30) / Math.max(1, rows.length);
-  const pair = prev ? 2 : 1;
-  const bw = Math.max(1.5, Math.min(prev ? 16 : 34, (step - (rows.length > 40 ? 2 : 6)) / pair));
+  const mx = Math.max(1, ...rows.map((m) => m.count), ...(prev ? prevRows.map((m) => m.count) : []));
+  const step = (W - 36) / Math.max(1, rows.length);
+  const gap = rows.length > 40 ? 1 : rows.length > 20 ? 3 : 8;
+  const bw = Math.max(1.5, prev ? Math.min(14, (step - gap) / 2) : Math.min(26, step - gap));
   const every = tickEvery(rows.length);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart" onMouseLeave={() => setHover(null)}>
-      {rows.map((m, i) => {
-        const x = 24 + i * step;
-        const h = (m.count / max) * (H - 40);
+    <svg viewBox={`0 0 ${W} ${H}`} className="rv-chart" onMouseLeave={() => setHv(null)}>
+      <line x1={24} x2={W - 8} y1={H - 22} y2={H - 22} stroke="#d4d4d7" />
+      {rows.map((p, i) => {
+        const x0 = 28 + i * step;
+        const h = (p.count / mx) * (H - 46);
         const pm = prev ? prevRows[i] : null;
-        const ph = pm ? (pm.count / max) * (H - 40) : 0;
+        const ph = pm ? (pm.count / mx) * (H - 46) : 0;
+        const nh = (h * (p.negativeShare ?? 0)) / 100;
+        const bx = x0 + (prev ? bw + 1 : 0);
+        const delay = Math.min(i, 30) * 30;
         return (
-          <g key={m.bucket} onMouseEnter={() => setHover(i)}>
-            <rect x={x} y={0} width={step} height={H} fill="transparent" />
-            {prev && <rect x={x} y={H - 14 - ph} width={bw} height={Math.max(pm?.count ? 1 : 0, ph)} rx={Math.min(3, bw / 2)} fill={PREV} />}
-            <rect x={x + (prev ? bw : 0)} y={H - 14 - h} width={bw} height={Math.max(1, h)} rx={Math.min(4, bw / 2)} fill={INK} fillOpacity={hover === i ? 1 : 0.85} />
-            {i % every === 0 && <text x={x + (bw * pair) / 2} y={H - 2} fontSize="9" fill="#888" textAnchor="middle">{bucketLabel(m.bucket, g)}</text>}
+          <g key={p.bucket} onMouseEnter={() => setHv(i)}>
+            <rect x={x0 - 3} y={0} width={step} height={H} fill={hv === i ? '#eef3f8' : 'transparent'} />
+            {prev && ph > 0 && <rect x={x0} y={H - 22 - ph} width={bw} height={ph} fill={PREV} className="rv-bar-in" style={{ animationDelay: `${delay}ms` }} />}
+            {h > 0 && <rect x={bx} y={H - 22 - h} width={bw} height={h} fill={ACC} className="rv-bar-in" style={{ animationDelay: `${120 + delay}ms` }} />}
+            {nh > 0 && <rect x={bx} y={H - 22 - nh} width={bw} height={nh} fill={NEG} className="rv-bar-in" style={{ animationDelay: `${120 + delay}ms` }} />}
+            {i % every === 0 && <text x={x0 + (prev ? bw : bw / 2)} y={H - 7} fontSize="11.5" fill={AX} textAnchor="middle">{bucketLabel(p.bucket, g)}</text>}
           </g>
         );
       })}
-      {hover != null && rows[hover] && (() => {
-        const m = rows[hover];
-        const pm = prev ? prevRows[hover] : null;
-        const cx = Math.min(W - 90, Math.max(90, 24 + hover * step + bw / 2));
-        return (
-          <g pointerEvents="none">
-            <rect x={cx - 90} y={0} width={180} height={pm ? 47 : 34} rx={6} fill="#222" />
-            <text x={cx} y={14} fontSize="10" fill="#fff" textAnchor="middle">{bucketTitle(m.bucket, g, lang, r)} · {r('dash.tipReviews', { n: m.count })}</text>
-            <text x={cx} y={27} fontSize="10" fill="#fff" textAnchor="middle">{r('dash.tipNeg', { n: m.negativeShare ?? '—' })}</text>
-            {pm && <text x={cx} y={40} fontSize="9.5" fill="#c9cbd1" textAnchor="middle">{r('dash.tipPrevCount', { d: bucketTitle(pm.bucket, g, lang, r), n: pm.count })}</text>}
-          </g>
-        );
-      })()}
+      {hv != null && rows[hv] && (
+        <Tip
+          x={28 + hv * step + bw}
+          W={W}
+          lines={[
+            { t: `${bucketTitle(rows[hv].bucket, g, lang, r)} · ${r('dash.tipReviews', { n: rows[hv].count })}` },
+            { t: r('dash.tipNeg', { n: rows[hv].negativeShare != null ? fmt(rows[hv].negativeShare, 1) : '—' }), c: '#ffb3bd' },
+            ...(prev && prevRows[hv] ? [{ t: r('dash.tipPrevCount', { d: bucketTitle(prevRows[hv].bucket, g, lang, r), n: prevRows[hv].count }), c: '#94bce3' }] : []),
+          ]}
+        />
+      )}
     </svg>
   );
 };
 
-/** Несколько отелей или площадок на одном графике: средняя оценка или число отзывов по шагам периода. */
-const CompareChart: React.FC<{ data: RepCompare; negBelow: number }> = ({ data, negBelow }) => {
+/** Несколько линий на одном графике (отели, площадки, мы и конкуренты): средняя или число отзывов. */
+const CompareChart: React.FC<{ data: RepCompare; negBelow: number; legend?: boolean }> = ({ data, negBelow, legend = true }) => {
   const { r, lang } = useRepT();
+  const fmt = useNumFmt();
   const [metric, setMetric] = useState<'avg' | 'count'>('avg');
-  const [hover, setHover] = useState<number | null>(null);
+  const [hv, setHv] = useState<number | null>(null);
   const g = data.granularity;
   const items = data.items.map((it, i) => ({
     ...it,
@@ -173,16 +230,16 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number }> = ({ data, 
     color: data.dim === 'platform' ? PLATFORM_META[it.key as keyof typeof PLATFORM_META]?.bg || SERIES[i % SERIES.length] : SERIES[i % SERIES.length],
   }));
   const buckets = items[0]?.points.map((p) => p.bucket) || [];
-  const W = 560;
+  const W = 440;
   const H = 170;
-  const xOf = (i: number) => (buckets.length > 1 ? 24 + (i / (buckets.length - 1)) * (W - 40) : W / 2);
+  const xOf = (i: number) => (buckets.length > 1 ? 28 + (i / (buckets.length - 1)) * (W - 44) : W / 2);
   const val = (p: { avg10: number | null; count: number }) => (metric === 'avg' ? p.avg10 : p.count);
   const vals = items.flatMap((it) => it.points.map(val)).filter((v): v is number => v != null);
-  const lo = metric === 'avg' ? Math.max(0, Math.floor(Math.min(...vals, negBelow) - 0.5)) : 0;
-  const hi = metric === 'avg' ? Math.min(10, Math.ceil(Math.max(...vals, 8) + 0.3)) : Math.max(1, ...vals);
-  const y = (v: number) => 10 + (1 - (v - lo) / Math.max(0.1, hi - lo)) * (H - 30);
+  const lo = metric === 'avg' ? Math.max(0, Math.floor(Math.min(...vals, negBelow) - 0.3)) : 0;
+  const hi = metric === 'avg' ? Math.min(10, Math.ceil(Math.max(...vals, 8) + 0.2)) : Math.max(1, ...vals);
+  const y = (v: number) => 10 + (1 - (v - lo) / Math.max(0.1, hi - lo)) * (H - 34);
   const every = tickEvery(buckets.length);
-  const step = buckets.length > 1 ? (W - 40) / (buckets.length - 1) : 40;
+  const step = buckets.length > 1 ? (W - 44) / (buckets.length - 1) : 40;
   const path = (pts: Array<{ avg10: number | null; count: number }>) => {
     let out = '';
     let pen = false;
@@ -199,54 +256,53 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number }> = ({ data, 
   };
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
-        <div className="rp-legend">
-          {items.map((it) => (
-            <span key={it.key} style={{ color: it.color }}>
-              <i />
-              <b>{it.name}</b>
-              <small>{fmt(it.avg10)} · {r('dash.tipReviews', { n: it.count })}</small>
-            </span>
-          ))}
-        </div>
-        <div className="rp-seg">
-          <button type="button" className={metric === 'avg' ? 'on' : ''} onClick={() => setMetric('avg')}>{r('dash.cmpAvg')}</button>
-          <button type="button" className={metric === 'count' ? 'on' : ''} onClick={() => setMetric('count')}>{r('dash.cmpCount')}</button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+        {legend ? (
+          <div className="rv-legend">
+            {items.map((it) => (
+              <span key={it.key} style={{ color: it.color }}>
+                <i />
+                <b style={{ color: 'var(--tx)', fontWeight: 500 }}>{it.name}</b>
+                <small>{fmt(it.avg10, 2)} · {r('dash.tipReviews', { n: it.count })}</small>
+              </span>
+            ))}
+          </div>
+        ) : <span />}
+        <Seg value={metric} onChange={(k) => setMetric(k as 'avg' | 'count')} opts={[['avg', r('dash.cmpAvg')], ['count', r('dash.cmpCount')]]} />
       </div>
       {!vals.length ? (
-        <div className="rp-empty">{r('dash.noData')}</div>
+        <div className="rv-empty-s">{r('dash.noData')}</div>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart" onMouseLeave={() => setHover(null)}>
+        <svg key={metric} viewBox={`0 0 ${W} ${H}`} className="rv-chart" onMouseLeave={() => setHv(null)}>
           {[lo, (lo + hi) / 2, hi].map((gv) => (
             <g key={gv}>
-              <line x1={24} x2={W - 16} y1={y(gv)} y2={y(gv)} stroke="#f0f0f0" />
-              <text x={0} y={y(gv) + 3} fontSize="9" fill="#b5b5b5">{metric === 'avg' ? gv.toFixed(1) : Math.round(gv)}</text>
+              <line x1={28} x2={W - 16} y1={y(gv)} y2={y(gv)} stroke={GRID} />
+              <text x={0} y={y(gv) + 3} fontSize="11.5" fill={AX}>{metric === 'avg' ? fmt(gv, 1) : Math.round(gv)}</text>
             </g>
           ))}
-          {metric === 'avg' && negBelow > lo && negBelow < hi && <line x1={24} x2={W - 16} y1={y(negBelow)} y2={y(negBelow)} stroke={NEG} strokeDasharray="3 4" strokeOpacity={0.5} />}
-          {items.map((it) => <path key={it.key} d={path(it.points)} fill="none" stroke={it.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />)}
+          {metric === 'avg' && negBelow > lo && negBelow < hi && <line x1={28} x2={W - 16} y1={y(negBelow)} y2={y(negBelow)} stroke={NEG} strokeDasharray="3 4" strokeOpacity={0.45} />}
+          {items.map((it, i) => <path key={it.key} d={path(it.points)} fill="none" stroke={it.color} strokeWidth={i === 0 ? 2.2 : 1.6} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="rv-draw" />)}
           {buckets.map((b, i) => (
-            <g key={b} onMouseEnter={() => setHover(i)}>
+            <g key={b} onMouseEnter={() => setHv(i)}>
               <rect x={xOf(i) - step / 2} y={0} width={Math.max(step, 6)} height={H} fill="transparent" />
-              {hover === i && <line x1={xOf(i)} x2={xOf(i)} y1={6} y2={H - 16} stroke="#ddd" />}
-              {hover === i && items.map((it) => (val(it.points[i]) != null ? <circle key={it.key} cx={xOf(i)} cy={y(val(it.points[i])!)} r={4} fill={it.color} stroke="#fff" strokeWidth={1.5} /> : null))}
-              {i % every === 0 && <text x={xOf(i)} y={H - 2} fontSize="9" fill="#888" textAnchor="middle">{bucketLabel(b, g)}</text>}
+              {hv === i && <line x1={xOf(i)} x2={xOf(i)} y1={6} y2={H - 24} stroke={ACC} strokeDasharray="2 3" />}
+              {hv === i && items.map((it) => (val(it.points[i]) != null ? <circle key={it.key} cx={xOf(i)} cy={y(val(it.points[i])!)} r={4} fill={it.color} stroke="#fff" strokeWidth={1.5} /> : null))}
+              {i % every === 0 && <text x={xOf(i)} y={H - 6} fontSize="11.5" fill={AX} textAnchor="middle">{bucketLabel(b, g)}</text>}
             </g>
           ))}
-          {hover != null && buckets[hover] && (() => {
-            const lines = items.map((it) => ({ it, p: it.points[hover] }));
-            const bh = 18 + lines.length * 13;
-            const cx = Math.min(W - 100, Math.max(100, xOf(hover)));
+          {hv != null && buckets[hv] && (() => {
+            const lines = items.map((it) => ({ it, p: it.points[hv] }));
+            const w = 220;
+            const cx_ = Math.min(W - w / 2 - 2, Math.max(w / 2 + 2, xOf(hv)));
             return (
               <g pointerEvents="none">
-                <rect x={cx - 100} y={2} width={200} height={bh} rx={6} fill="#222" />
-                <text x={cx} y={15} fontSize="10" fill="#fff" textAnchor="middle">{bucketTitle(buckets[hover], g, lang, r)}</text>
+                <rect x={cx_ - w / 2} y={2} width={w} height={20 + lines.length * 14} fill={ACC9} />
+                <text x={cx_} y={16} fontSize="11.5" fill="#fff" textAnchor="middle">{bucketTitle(buckets[hv], g, lang, r)}</text>
                 {lines.map(({ it, p }, k) => (
                   <g key={it.key}>
-                    <circle cx={cx - 88} cy={25 + k * 13} r={3.5} fill={it.color} />
-                    <text x={cx - 80} y={28 + k * 13} fontSize="9.5" fill="#fff">{it.name.length > 22 ? `${it.name.slice(0, 21)}…` : it.name}</text>
-                    <text x={cx + 92} y={28 + k * 13} fontSize="9.5" fill="#fff" textAnchor="end">{p.avg10 != null ? fmt(p.avg10) : '—'} · {p.count}</text>
+                    <rect x={cx_ - w / 2 + 10} y={23 + k * 14} width={7} height={7} fill={it.color} />
+                    <text x={cx_ - w / 2 + 22} y={30 + k * 14} fontSize="11" fill="#fff">{it.name.length > 22 ? `${it.name.slice(0, 21)}…` : it.name}</text>
+                    <text x={cx_ + w / 2 - 10} y={30 + k * 14} fontSize="11" fill="#fff" textAnchor="end">{p.avg10 != null ? fmt(p.avg10, 2) : '—'} · {p.count}</text>
                   </g>
                 ))}
               </g>
@@ -258,15 +314,10 @@ const CompareChart: React.FC<{ data: RepCompare; negBelow: number }> = ({ data, 
   );
 };
 
-/** 🇩🇪 из «DE»; группы стран (англо-/арабоязычные) — глобус. */
-function flagOf(code: string) {
-  if (!/^[A-Z]{2}$/.test(code)) return '🌐';
-  return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
-}
-
-/** Страны гостей: кто больше жалуется — по оценкам (средняя / доля негатива) или по количеству негативных отзывов. */
-const CountriesBlock: React.FC<{ data: NonNullable<RepDashboard['countries']>; negBelow: number }> = ({ data, negBelow }) => {
+/** Страны гостей: по оценке (средняя / доля негатива) или по количеству негативных отзывов. */
+const CountriesCard: React.FC<{ data: NonNullable<RepDashboard['countries']>; negBelow: number }> = ({ data, negBelow }) => {
   const { r, lang } = useRepT();
+  const fmt = useNumFmt();
   const [mode, setMode] = useState<'rating' | 'count'>('rating');
   const [all, setAll] = useState(false);
   const names = useMemo(() => {
@@ -277,62 +328,44 @@ const CountriesBlock: React.FC<{ data: NonNullable<RepDashboard['countries']>; n
     }
   }, [lang]);
   const nameOf = (c: RepCountryStat) => (c.code === 'x-en' ? r('dash.countryEn') : c.code === 'x-ar' ? r('dash.countryAr') : names?.of(c.code) || c.code);
-  // по оценкам — только страны с выборкой от 5 отзывов, иначе одна «единица» делает страну худшей
+  // по оценке — только страны с выборкой от 5 отзывов, иначе одна «единица» делает страну худшей
   const MIN = 5;
   const rows = mode === 'rating'
-    ? data.items.filter((c) => c.count >= MIN && c.avg10 != null).sort((a, b) => (a.avg10! - b.avg10!) || (b.negativeShare ?? 0) - (a.negativeShare ?? 0))
-    : [...data.items].sort((a, b) => b.negative - a.negative || b.count - a.count);
+    ? data.items.filter((c) => c.count >= MIN && c.avg10 != null).sort((a, b) => a.avg10! - b.avg10! || (b.negativeShare ?? 0) - (a.negativeShare ?? 0))
+    : [...data.items].filter((c) => c.negative > 0).sort((a, b) => b.negative - a.negative || b.count - a.count);
   const shown = all ? rows : rows.slice(0, 10);
-  const maxCount = Math.max(1, ...rows.map((c) => c.count));
+  const maxNeg = Math.max(1, ...rows.map((c) => c.negative));
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{mode === 'rating' ? r('dash.countriesRatingHint', { n: MIN }) : r('dash.countriesCountHint')}</div>
-        <div className="rp-seg">
-          <button type="button" className={mode === 'rating' ? 'on' : ''} onClick={() => setMode('rating')}>{r('dash.countriesByRating')}</button>
-          <button type="button" className={mode === 'count' ? 'on' : ''} onClick={() => setMode('count')}>{r('dash.countriesByCount')}</button>
-        </div>
-      </div>
-      {!rows.length ? (
-        <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('dash.noData')}</div>
-      ) : (
-        shown.map((c) => (
-          <div key={c.code} className="rp-country">
-            <div className="n">
-              <span className="flag" aria-hidden="true">{flagOf(c.code)}</span>
-              <span title={c.byLangShare != null && c.byLangShare >= 0.5 ? `${nameOf(c)} — ${r('dash.byLangHint')}` : nameOf(c)}>{nameOf(c)}</span>
-            </div>
+    <Frame className="rv-card rv-st" style={{ '--i': 6 } as React.CSSProperties} data-tour="rvd-countries">
+      <CardHead title={r('dash.countriesTitle')} sub={mode === 'rating' ? r('dash.countriesRatingHint', { n: MIN }) : r('dash.countriesCountHint')}>
+        <Seg value={mode} onChange={(k) => setMode(k as 'rating' | 'count')} opts={[['rating', r('dash.countriesByRating')], ['count', r('dash.countriesByCount')]]} />
+      </CardHead>
+      <div key={mode}>
+        {!rows.length && <div className="rv-empty-s">{r('dash.noData')}</div>}
+        {shown.map((c, i) => (
+          <div key={c.code} className="rv-country rv-st" style={{ '--i': i } as React.CSSProperties}>
+            <span className="n" title={c.byLangShare != null && c.byLangShare >= 0.5 ? `${nameOf(c)} — ${r('dash.byLangHint')}` : nameOf(c)}>
+              <span className="cc">{c.code.startsWith('x-') ? c.code.slice(2).toUpperCase() : c.code}</span>
+              {nameOf(c)}
+            </span>
             {mode === 'rating' ? (
-              <div className="track" title={`${fmt(c.avg10)} / 10`}>
-                <i style={{ width: `${((c.avg10 ?? 0) / 10) * 100}%`, background: c.avg10 != null && c.avg10 < negBelow ? NEG : c.avg10 != null && c.avg10 < 8 ? '#d9822b' : POS }} />
-              </div>
+              <Track pct={(c.avg10 ?? 0) * 10} color={c.avg10 != null && c.avg10 < negBelow ? NEG : c.avg10 != null && c.avg10 < 8 ? MID : POS} />
             ) : (
-              <div className="track" title={r('dash.countriesBarHint', { neg: c.negative, n: c.count })}>
-                <i style={{ width: `${(c.negative / maxCount) * 100}%`, background: NEG }} />
-                <i style={{ width: `${((c.count - c.negative) / maxCount) * 100}%`, background: '#d5d8de' }} />
-              </div>
+              <Track pct={(c.negative / maxNeg) * 100} color={NEG} />
             )}
-            <div className="v">
+            <span className="v">
               {mode === 'rating' ? (
-                <>
-                  <b>{fmt(c.avg10)}</b> <small>{r('dash.countryNeg', { p: c.negativeShare ?? '—', n: c.count })}</small>
-                </>
+                <><b>{fmt(c.avg10, 2)}</b>{r('dash.countryNeg', { p: c.negativeShare != null ? fmt(c.negativeShare, 1) : '—', n: c.count })}</>
               ) : (
-                <>
-                  <b>{c.negative}</b> <small>{r('dash.countryOf', { n: c.count })}</small>
-                </>
+                <><b>{c.negative}</b>{r('dash.countryOf', { n: c.count })}</>
               )}
-            </div>
+            </span>
           </div>
-        ))
-      )}
-      {rows.length > 10 && (
-        <button type="button" className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setAll((x) => !x)}>
-          {all ? r('dash.showLess') : r('dash.showAll', { n: rows.length })}
-        </button>
-      )}
-      {data.unknown > 0 && <div className="rp-src-meta" style={{ marginTop: 8 }}>{r('dash.countriesUnknown', { n: data.unknown })}</div>}
-    </div>
+        ))}
+      </div>
+      {rows.length > 10 && <Btn sm gh style={{ marginTop: 8 }} onClick={() => setAll((x) => !x)}>{all ? r('dash.showLess') : r('dash.showAll', { n: rows.length })}</Btn>}
+      {data.unknown > 0 && <div style={{ fontSize: 11.5, color: 'var(--n7)', marginTop: 10 }}>{r('dash.countriesUnknown', { n: data.unknown })}</div>}
+    </Frame>
   );
 };
 
@@ -340,14 +373,14 @@ const CountriesBlock: React.FC<{ data: NonNullable<RepDashboard['countries']>; n
 const GapList: React.FC<{ rows: RepCompetitorTopic[]; kind: 'lose' | 'win' }> = ({ rows, kind }) => {
   const { r, lang } = useRepT();
   const max = Math.max(1, ...rows.map((x) => Math.abs(x.gap ?? 0)));
-  if (!rows.length) return <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('comp.noGap')}</div>;
+  if (!rows.length) return <div className="rv-empty-s">{r('comp.noGap')}</div>;
   return (
-    <div className="rp-bars">
-      {rows.map((x) => (
-        <div key={x.topic} className="rp-bar" style={{ gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr) 120px' }}>
-          <span className="n" style={{ cursor: 'default' }}>{topicLabel(x, r, lang)}</span>
-          <span className="track"><span className="fill" style={{ width: `${(Math.abs(x.gap ?? 0) / max) * 100}%`, background: kind === 'lose' ? NEG : POS }} /></span>
-          <span className="v" style={{ fontSize: 11.5 }} title={r('comp.gapHint', { g: Math.abs(x.gap ?? 0) })}>
+    <div className="rv-bars">
+      {rows.map((x, i) => (
+        <div key={x.topic} className="rv-bar rv-st" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) 128px', '--i': i } as React.CSSProperties} title={r('comp.gapHint', { g: Math.abs(x.gap ?? 0) })}>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topicLabel(x, r, lang)}</span>
+          <Track pct={(Math.abs(x.gap ?? 0) / max) * 100} color={kind === 'lose' ? NEG : POS} />
+          <span className="v" style={{ fontSize: 12, fontFamily: 'var(--t)', fontWeight: 400 }}>
             {x.basis === 'praise'
               ? r('comp.praiseShare', { a: Math.round(x.oursPosPct ?? 0), b: Math.round(x.theirsPosPct ?? 0) })
               : r('comp.complaintShare', { a: Math.round(x.oursNegPct ?? 0), b: Math.round(x.theirsNegPct ?? 0) })}
@@ -359,11 +392,12 @@ const GapList: React.FC<{ rows: RepCompetitorTopic[]; kind: 'lose' | 'win' }> = 
 };
 
 /**
- * Мы против конкурентов (если клиент их добавил): средняя и динамика на одних и тех же площадках,
- * место среди конкурентов, темы — где проигрываем и где выигрываем.
+ * Мы и конкуренты — у каждого отеля свой набор конкурентов (выбор отеля сверху): место, таблица,
+ * динамика на одинаковых площадках, темы — где проигрываем и где выигрываем.
  */
-const CompetitorsBlock: React.FC<{ data: RepCompetitorsCompare; negBelow: number }> = ({ data, negBelow }) => {
-  const { r, lang } = useRepT();
+const CompetitorsCard: React.FC<{ data: RepCompetitorsCompare; negBelow: number }> = ({ data, negBelow }) => {
+  const { r } = useRepT();
+  const fmt = useNumFmt();
   const navigate = useNavigate();
   const [hid, setHid] = useState(data.hotels[0]?.hotelId);
   const h = data.hotels.find((x) => x.hotelId === hid) || data.hotels[0];
@@ -376,90 +410,97 @@ const CompetitorsBlock: React.FC<{ data: RepCompetitorsCompare; negBelow: number
       ...h.competitors.map((c) => ({ key: c.id, label: c.name, count: c.count, avg10: c.avg10, points: c.points })),
     ],
   };
-  const onSite = (list: Array<{ platform: string; rating: number | null; count: number | null }>) =>
-    list.filter((x) => x.rating != null).map((x) => (
-      <span key={x.platform} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8, whiteSpace: 'nowrap' }}>
-        <PlatformBadge platform={x.platform as any} compact /> {x.rating!.toFixed(1)}{x.count != null ? <small style={{ color: 'var(--fg-4)' }}> ({x.count})</small> : null}
-      </span>
-    ));
+  const ranked = [h.ours.avg10, ...h.competitors.map((c) => c.avg10)].filter((v): v is number => v != null).sort((a, b) => b - a);
+  const gap = h.rank == null || h.ours.avg10 == null ? null : h.rank === 1 ? (ranked.length > 1 ? h.ours.avg10 - ranked[1] : null) : ranked[0] - h.ours.avg10;
   const errors = h.competitors.flatMap((c) => c.platforms.filter((p) => p.lastError).map((p) => `${c.name} · ${PLATFORM_META[p.platform].label}`));
+  const fewTopics = h.topicsBase.ours < h.topicsBase.min || h.topicsBase.theirs < h.topicsBase.min;
   return (
-    <div data-tour="rvd-competitors" className="ha-section">
-      <div className="ha-section-head" style={{ alignItems: 'flex-start' }}>
-        <div>
-          <h3>{r('comp.title')}</h3>
-          <div className="sub">{r('comp.sub', { p: h.platforms.map((p) => PLATFORM_META[p].label).join(', ') })}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {data.hotels.length > 1 && (
-            <select value={h.hotelId} onChange={(e) => setHid(e.target.value)} style={{ padding: '6px 10px', border: '1px solid var(--line-2)', borderRadius: 9, font: 'inherit', fontSize: 12.5, background: '#fff' }}>
-              {data.hotels.map((x) => <option key={x.hotelId} value={x.hotelId}>{x.name}</option>)}
-            </select>
-          )}
-          <button type="button" className="btn btn-sm" onClick={() => navigate('/hotels/reviews/settings?tab=competitors')}>{r('comp.manage')}</button>
+    <Frame className="rv-card rv-st" style={{ '--i': 8, marginBottom: 22 } as React.CSSProperties} data-tour="rvd-competitors">
+      <CardHead title={r('rv.comp.title')} sub={r('rv.comp.sub', { name: h.name, n: h.competitors.length, p: h.platforms.map((p) => PLATFORM_META[p].label).join(', ') })}>
+        {data.hotels.length > 1 && (
+          <select className="rv-in" style={{ width: 220, height: 30 }} value={h.hotelId} onChange={(e) => setHid(e.target.value)} aria-label={r('dash.col.hotel')}>
+            {data.hotels.map((x) => <option key={x.hotelId} value={x.hotelId}>{x.name}</option>)}
+          </select>
+        )}
+        <Btn sm onClick={() => navigate(`/hotels/reviews/settings?tab=competitors&hotel=${h.hotelId}`)}>{r('rv.comp.manage')}</Btn>
+      </CardHead>
+      <div key={h.hotelId}>
+        {h.rank != null && h.rankOf != null && (
+          <div className="rv-rank">
+            <span className="num"><CountUp v={h.rank} /><small>/{h.rankOf}</small></span>
+            <div className="t">
+              <b>{h.rank === 1 ? r('rv.comp.rankFirst') : r('rv.comp.rankN', { r: h.rank, n: h.rankOf })}</b>
+              {gap != null && gap > 0 ? r(h.rank === 1 ? 'rv.comp.leadBy' : 'rv.comp.behindBy', { g: fmt(gap, 2) }) : r('rv.comp.byAvg')} {r('comp.rankHint')}
+            </div>
+          </div>
+        )}
+        {errors.length > 0 && <div className="rv-note warn" style={{ marginBottom: 12 }}>{r('comp.sourceErrors', { list: errors.join(', ') })}</div>}
+        <div className="rv-grid3" style={{ marginBottom: 0 }}>
+          <div>
+            <div className="rv-tw">
+              <table className="rv-tbl">
+                <thead><tr><th>{r('dash.col.hotel')}</th><th>{r('dash.col.avg')}</th><th>Δ</th><th>{r('dash.col.count')}</th><th>{r('dash.col.neg')}</th><th>{r('comp.onPlatform')}</th></tr></thead>
+                <tbody>
+                  {[{ id: 'ours', name: r('comp.us', { name: h.name }), ...h.ours, platforms: [] as typeof h.competitors[number]['platforms'] }, ...h.competitors].map((c, i) => (
+                    <tr key={c.id} className={i === 0 ? 'us' : ''}>
+                      <td><b>{c.name}</b></td>
+                      <td><Score v={c.avg10} nb={negBelow} /></td>
+                      <td><Delta v={c.delta} /></td>
+                      <td>{c.count}</td>
+                      <td>{c.negativeShare != null ? `${fmt(c.negativeShare, 1)}%` : '—'}</td>
+                      <td style={{ fontSize: 12 }}>
+                        {i === 0 ? '—' : c.platforms.filter((x) => x.rating != null).map((x) => (
+                          <span key={x.platform} style={{ display: 'inline-flex', gap: 4, marginRight: 8, alignItems: 'center', whiteSpace: 'nowrap' }}>
+                            <PlatformBadge p={x.platform} compact />{fmt(x.rating, 1)}{x.count != null && <small style={{ color: 'var(--n5)' }}>({fmt(x.count)})</small>}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 16 }}><CompareChart data={chart} negBelow={negBelow} /></div>
+          </div>
+          <div>
+            <h4 style={{ fontSize: 14, color: NEG, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 10 }}>{r('comp.losing')}</h4>
+            {fewTopics ? <div className="rv-empty-s">{r('comp.fewTopics', { n: h.topicsBase.min, a: h.topicsBase.ours, b: h.topicsBase.theirs })}</div> : <GapList rows={h.losing} kind="lose" />}
+            {!fewTopics && (
+              <>
+                <h4 style={{ fontSize: 14, color: POS, textTransform: 'uppercase', letterSpacing: '.05em', margin: '20px 0 10px' }}>{r('comp.winning')}</h4>
+                <GapList rows={h.winning} kind="win" />
+              </>
+            )}
+            <div style={{ fontSize: 11.5, color: 'var(--n7)', marginTop: 14, lineHeight: 1.5 }}>{r('comp.topicsNote')}</div>
+          </div>
         </div>
       </div>
-      {h.rank != null && <div className="rp-note" style={{ marginBottom: 12 }}><b>{r('comp.rank', { r: h.rank, n: h.rankOf })}</b> {r('comp.rankHint')}</div>}
-      {errors.length > 0 && <div className="rp-note warn" style={{ marginBottom: 12 }}>{r('comp.sourceErrors', { list: errors.join(', ') })}</div>}
-      <div className="pace-table-wrap" style={{ marginBottom: 14 }}>
-        <table className="pace-table">
-          <thead><tr><th>{r('dash.col.hotel')}</th><th>{r('dash.col.avg')}</th><th>Δ</th><th>{r('dash.col.count')}</th><th>{r('dash.col.neg')}</th><th>{r('comp.onPlatform')}</th></tr></thead>
-          <tbody>
-            {[{ id: 'ours', name: r('comp.us', { name: h.name }), ...h.ours, platforms: [] as any[] }, ...h.competitors].map((c, i) => (
-              <tr key={c.id} style={i === 0 ? { background: 'var(--bg-muted)' } : undefined}>
-                <td><b>{c.name}</b></td>
-                <td><Score rating10={c.avg10} negBelow={negBelow} /></td>
-                <td><Delta v={c.delta} /></td>
-                <td>{c.count}</td>
-                <td>{c.negativeShare != null ? `${c.negativeShare}%` : '—'}</td>
-                <td style={{ fontSize: 12 }}>{i === 0 ? '—' : onSite(c.platforms)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="rp-grid2" style={{ marginBottom: 0, alignItems: 'start' }}>
-        <CompareChart data={chart} negBelow={negBelow} />
-        <div>
-          <h4 style={{ margin: '0 0 8px', fontSize: 13, color: NEG }}>{r('comp.losing')}</h4>
-          {h.topicsBase.ours < h.topicsBase.min || h.topicsBase.theirs < h.topicsBase.min
-            ? <div style={{ color: 'var(--fg-4)', fontSize: 12.5 }}>{r('comp.fewTopics', { n: h.topicsBase.min, a: h.topicsBase.ours, b: h.topicsBase.theirs })}</div>
-            : <GapList rows={h.losing} kind="lose" />}
-          {h.topicsBase.ours >= h.topicsBase.min && h.topicsBase.theirs >= h.topicsBase.min && (
-            <>
-              <h4 style={{ margin: '16px 0 8px', fontSize: 13, color: POS }}>{r('comp.winning')}</h4>
-              <GapList rows={h.winning} kind="win" />
-            </>
-          )}
-        </div>
-      </div>
-      <div className="rp-src-meta" style={{ marginTop: 10 }}>{r('comp.topicsNote')}</div>
-    </div>
+    </Frame>
   );
 };
 
-/** Номера с жалобами: негативные отзывы, связанные с бронью гостя (номер, даты проживания). */
-const RoomsBlock: React.FC<{ data: NonNullable<RepDashboard['rooms']>; hotelName: (id: string) => string; negBelow: number }> = ({ data, hotelName, negBelow }) => {
+/** Номера с жалобами: негативные отзывы, связанные с бронью гостя. */
+const RoomsCard: React.FC<{ data: NonNullable<RepDashboard['rooms']>; hotelName: (id: string) => string; negBelow: number }> = ({ data, hotelName, negBelow }) => {
   const { r } = useRepT();
   const navigate = useNavigate();
   return (
-    <div data-tour="rvd-rooms" className="ha-section">
-      <div className="ha-section-head"><div><h3>{r('rooms.title')}</h3><div className="sub">{r('rooms.sub', { n: data.linked, s: data.suggested })}</div></div></div>
+    <Frame className="rv-card rv-st" style={{ '--i': 7 } as React.CSSProperties} data-tour="rvd-rooms">
+      <CardHead title={r('rooms.title')} sub={r('rooms.sub', { n: data.linked, s: data.suggested })} />
       {!data.rooms.length ? (
-        <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('rooms.none')}</div>
+        <div className="rv-empty-s">{r('rooms.none')}</div>
       ) : (
-        <div className="pace-table-wrap">
-          <table className="pace-table">
+        <div className="rv-tw">
+          <table className="rv-tbl">
             <thead><tr><th>{r('rooms.room')}</th><th>{r('dash.col.hotel')}</th><th>{r('rooms.negative')}</th><th>{r('dash.col.avg')}</th><th /></tr></thead>
             <tbody>
               {data.rooms.map((x) => (
                 <tr key={`${x.hotelId}-${x.roomUnitId || x.roomType}`}>
-                  <td><b>{x.room ? `№ ${x.room}` : r('rooms.noUnit')}</b>{x.roomType && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{x.roomType}</div>}</td>
+                  <td><b>{x.room ? `№ ${x.room}` : r('rooms.noUnit')}</b>{x.roomType && <div style={{ fontSize: 11, color: 'var(--n7)' }}>{x.roomType}</div>}</td>
                   <td>{hotelName(x.hotelId)}</td>
-                  <td><span className="ha-risk-pill bad">{x.negative}</span> <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>{r('rooms.of', { n: x.reviews })}</span></td>
-                  <td><Score rating10={x.avg10} negBelow={negBelow} /></td>
+                  <td><span className="rv-pill noreply">{x.negative}</span> <span style={{ fontSize: 12, color: 'var(--n7)' }}>{r('rooms.of', { n: x.reviews })}</span></td>
+                  <td><Score v={x.avg10} nb={negBelow} /></td>
                   <td style={{ textAlign: 'right' }}>
-                    {x.negativeReviewIds[0] && <button type="button" className="btn btn-sm" onClick={() => navigate(`/hotels/reviews?review=${x.negativeReviewIds[0]}`)}>{r('rooms.open')}</button>}
+                    {x.negativeReviewIds[0] && <Btn sm gh icon="arrow" aria-label={r('rooms.open')} title={r('rooms.open')} onClick={() => navigate(`/hotels/reviews?review=${x.negativeReviewIds[0]}`)} />}
                   </td>
                 </tr>
               ))}
@@ -467,24 +508,24 @@ const RoomsBlock: React.FC<{ data: NonNullable<RepDashboard['rooms']>; hotelName
           </table>
         </div>
       )}
-    </div>
+    </Frame>
   );
 };
 
 const TopicBars: React.FC<{ rows: RepTopicStat[]; kind: 'negative' | 'positive'; onPick: (topic: string) => void }> = ({ rows, kind, onPick }) => {
   const { r, lang } = useRepT();
   const max = Math.max(1, ...rows.map((t) => t[kind]));
-  if (!rows.length) return <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('dash.noTopics')}</div>;
+  if (!rows.length) return <div className="rv-empty-s">{r('dash.noTopics')}</div>;
   return (
-    <div className="rp-bars">
-      {rows.map((t) => {
+    <div className="rv-bars">
+      {rows.map((t, i) => {
         const quotes = kind === 'negative' ? t.negQuotes : t.posQuotes;
         return (
-          <div key={`${t.topic}-${t.label}`} className="rp-bar" title={quotes.map((q) => `«${q}»`).join('\n')}>
+          <div key={`${t.topic}-${t.label}`} className="rv-bar rv-st" style={{ '--i': i } as React.CSSProperties} title={quotes.map((q) => `«${q}»`).join('\n')}>
             <span className="n" onClick={() => onPick(t.topic)}>{topicLabel(t, r, lang)}</span>
-            <span className="track"><span className="fill" style={{ width: `${(t[kind] / max) * 100}%`, background: kind === 'negative' ? NEG : POS }} /></span>
+            <Track pct={(t[kind] / max) * 100} color={kind === 'negative' ? NEG : POS} h={8} />
             <span className="v">
-              {t[kind]}
+              <CountUp v={t[kind]} />
               {kind === 'negative' && <small><Delta v={t.negative - t.prevNegative} invert digits={0} /></small>}
             </span>
           </div>
@@ -494,9 +535,49 @@ const TopicBars: React.FC<{ rows: RepTopicStat[]; kind: 'negative' | 'positive';
   );
 };
 
+type Matrix = Awaited<ReturnType<typeof fetchRepTopicMatrix>>;
+/** Темы по отелям: красный — жалобы, зелёный — похвалы; число — отзывов с темой; клик — лента. */
+const Heat: React.FC<{ m: Matrix; onPick: (topic: string, hotelId: string) => void }> = ({ m, onPick }) => {
+  const { r, lang } = useRepT();
+  const max = Math.max(1, ...m.hotels.flatMap((h) => h.cells.map((c) => Math.max(c.negative, c.positive))));
+  let k = 0;
+  return (
+    <div className="rv-tw">
+      <div className="rv-heat" style={{ gridTemplateColumns: `160px repeat(${m.topics.length}, minmax(44px,1fr))`, minWidth: 160 + m.topics.length * 46 }}>
+        <div />
+        {m.topics.map((t) => <div key={t.topic} className="hd" title={topicLabel(t, r, lang)}>{topicLabel(t, r, lang)}</div>)}
+        {m.hotels.map((h) => (
+          <React.Fragment key={h.hotelId}>
+            <div className="rh" title={h.name}>{h.name}</div>
+            {h.cells.map((c, j) => {
+              const negSide = c.negative >= c.positive;
+              const n = negSide ? c.negative : c.positive;
+              const pct = n ? Math.round(18 + (n / max) * 67) : 0;
+              const bg = !n ? 'var(--n1, #f4f4f5)' : `color-mix(in oklab, ${negSide ? NEG : POS} ${pct}%, #fff)`;
+              const t = m.topics[j];
+              return (
+                <div
+                  key={c.topic}
+                  className="cell"
+                  style={{ '--i': k++, background: bg, color: pct > 55 ? '#fff' : 'var(--tx)' } as React.CSSProperties}
+                  title={r('rv.dash.cellTip', { hotel: h.name, topic: t ? topicLabel(t, r, lang) : c.topic, neg: c.negative, pos: c.positive })}
+                  onClick={() => onPick(c.topic, h.hotelId)}
+                >
+                  {n || '·'}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /** Отели → Отзывы → Дашборд: как меняется рейтинг и на что конкретно жалуются гости. */
 export const ReviewsDashboardPage: React.FC = () => {
   const { r, t, lang } = useRepT();
+  const fmt = useNumFmt();
   const { showAlert } = useAlertModal();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -510,7 +591,7 @@ export const ReviewsDashboardPage: React.FC = () => {
   const [setup, setSetup] = useState<RepSetup | null>(null);
   const [negBelow, setNegBelow] = useState(6);
   const [data, setData] = useState<RepDashboard | null>(null);
-  const [matrix, setMatrix] = useState<Awaited<ReturnType<typeof fetchRepTopicMatrix>> | null>(null);
+  const [matrix, setMatrix] = useState<Matrix | null>(null);
   const [report, setReport] = useState<RepMonthlyReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<RepAiStatus | null>(null);
@@ -532,13 +613,13 @@ export const ReviewsDashboardPage: React.FC = () => {
   // период: пресет (7/14/30/90/365/all) или свой диапазон — как в продажах
   const preset = params.get('preset') || (params.get('from') ? 'custom' : '90');
   const q = useMemo((): RepAnalyticsQuery => {
+    // мультивыбор: в URL и в API — через запятую
     const base = {
       brandId: params.get('brand') || undefined,
       hotelId: params.get('hotel') || undefined,
       platform: params.get('platform') || undefined,
       compare: params.get('cmp') === 'yoy' ? ('yoy' as const) : undefined,
     };
-    // мультивыбор: в URL и в API — через запятую
     if (preset === 'all') return { ...base, all: '1' };
     if (preset === 'custom') return { ...base, from: params.get('from') || undefined, to: params.get('to') || undefined };
     return { ...base, from: toIsoDate(lastDays(Number(preset)).from!), to: undefined };
@@ -621,381 +702,371 @@ export const ReviewsDashboardPage: React.FC = () => {
     }
     setParams(p, { replace: true });
   };
+  const loc = locOf(lang);
+  const dayFmt = (iso: string, endExclusive = false, year = true) =>
+    new Date(new Date(iso).getTime() - (endExclusive ? 864e5 : 0)).toLocaleDateString(loc, { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}) });
   const nameList = (ids: string[], all: string, of: (id: string) => string) => (ids.length ? ids.map(of).join(', ') : all);
-  const scopeText = [
-    nameList(selBrands, r('filters.allBrands'), (id) => setup?.brands.find((b) => b.id === id)?.name || '—'),
-    nameList(selHotels, r('filters.allHotels'), (id) => hotels.find((h) => h.id === id)?.name || '—'),
-    nameList(selPlatforms, r('filters.allPlatforms'), (id) => PLATFORM_META[id as keyof typeof PLATFORM_META]?.label || id),
-    data ? `${new Date(data.period.from).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU')} — ${new Date(new Date(data.period.to).getTime() - 864e5).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU')}` : '',
-  ].filter(Boolean).join(' · ');
+
+  // месячный отчёт — PDF/отправка по тем же правилам, что и обзор: бренд + границы месяца
+  const monthEnd = (m: string) => {
+    const d = new Date(`${m}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    d.setUTCDate(0);
+    return d.toISOString().slice(0, 10);
+  };
+  const reportQuery: RepAnalyticsQuery = view === 'report' ? { brandId: reportBrand || undefined, from: `${reportMonth}-01`, to: monthEnd(reportMonth) } : q;
+  const monthTitle = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const scopeText =
+    view === 'report'
+      ? [setup?.brands.find((b) => b.id === reportBrand)?.name || r('filters.allBrands'), monthTitle(reportMonth)].join(' · ')
+      : [
+          nameList(selBrands, r('filters.allBrands'), (id) => setup?.brands.find((b) => b.id === id)?.name || '—'),
+          nameList(selHotels, r('filters.allHotels'), (id) => hotels.find((h) => h.id === id)?.name || '—'),
+          nameList(selPlatforms, r('filters.allPlatforms'), (id) => PLATFORM_META[id as keyof typeof PLATFORM_META]?.label || id),
+          data ? `${dayFmt(data.period.from)} — ${dayFmt(data.period.to, true)}` : '',
+        ].filter(Boolean).join(' · ');
+  const vs = cmpMode === 'yoy' ? r('rv.dash.vsYoy') : r('rv.dash.vsPrev');
+  const pts = data?.series.points || [];
+  const summaryParts = (report?.summary || '').split(/\n\s*\n|\n/).map((s) => s.trim()).filter(Boolean);
 
   return (
     <MainLayout>
       <PageHelpButton topic="hotelReviewsDashboard" />
       <div className="px-scope">
         <HotelsSubnav active="reviews" />
-        <div className="htl-hero">
-          <div>
-            <div className="kicker"><span className="dot" />{r('kicker')}</div>
-            <h1>{r('dash.title')}</h1>
-            <p className="sub">{r('dash.subtitle')}</p>
-          </div>
-          <div className="htl-hero-r">
+        <div className="rv">
+          <RvHead title={r('dash.title')} sub={r('dash.subtitle')} />
+          <RvTabs active="dashboard" />
+
+          <div className="rv-view">
+            <div className="rv-cmpbar" style={{ marginTop: 0 }} data-tour="rvd-view">
+              <Seg value={view} onChange={(v) => set('view', v === 'report' ? 'report' : null)} opts={[['overview', r('dash.viewOverview')], ['report', r('dash.viewReport')]]} />
+              <Btn icon="download" onClick={() => setReportOpen(true)} disabled={view === 'overview' ? !data : !report}>{r('report.button')}</Btn>
+            </div>
+
             {view === 'overview' && (
-              <button type="button" className="btn" onClick={() => setReportOpen(true)} disabled={!data}>
-                <Ic d={HTL_ICON.download} />{r('report.button')}
-              </button>
-            )}
-            <div data-tour="rvd-view" className="hotel-select-tabs">
-              <div className={`hotel-select-tab${view === 'overview' ? ' active' : ''}`} onClick={() => set('view', null)}>{r('dash.viewOverview')}</div>
-              <div className={`hotel-select-tab${view === 'report' ? ' active' : ''}`} onClick={() => set('view', 'report')}>{r('dash.viewReport')}</div>
-            </div>
-          </div>
-        </div>
-        <ReputationTabs active="dashboard" />
-
-        {view === 'overview' && (
-          <>
-            <div data-tour="rvd-filters" className="rp-filters">
-              <RepMultiSelect allLabel={r('filters.allBrands')} value={selBrands} onChange={setBrands} options={(setup?.brands || []).map((b) => ({ value: b.id, label: b.name }))} />
-              <RepMultiSelect allLabel={r('filters.allHotels')} value={selHotels} onChange={(v) => set('hotel', joinParam(v))} options={hotelOptions} />
-              <RepMultiSelect
-                allLabel={r('filters.allPlatforms')}
-                value={selPlatforms}
-                onChange={(v) => set('platform', joinParam(v))}
-                options={REP_PLATFORMS.map((p) => ({ value: p, label: PLATFORM_META[p].label, icon: <PlatformBadge platform={p} compact /> }))}
-              />
-              <DateRangePicker
-                value={preset === 'all' ? { from: null, to: null } : preset === 'custom' ? { from: fromIsoDate(params.get('from')), to: fromIsoDate(params.get('to')) } : lastDays(Number(preset))}
-                presetId={preset === 'custom' ? null : preset}
-                presets={periodPresets}
-                maxDate={new Date()}
-                onChange={(v) => {
-                  const p = new URLSearchParams(params);
-                  p.delete('days');
-                  if (v.presetId) {
-                    p.set('preset', v.presetId);
-                    p.delete('from');
-                    p.delete('to');
-                  } else {
-                    p.set('preset', 'custom');
-                    v.from ? p.set('from', toIsoDate(v.from)) : p.delete('from');
-                    v.to ? p.set('to', toIsoDate(v.to)) : p.delete('to');
-                  }
-                  setParams(p, { replace: true });
-                }}
-              />
-            </div>
-
-            {!data ? (
-              <div className="rp-empty">{r('card.loading')}</div>
-            ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '0 0 10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{r('dash.compareWith')}</span>
-                    <div className="rp-seg">
-                      <button type="button" className={cmpMode === 'prev' ? 'on' : ''} onClick={() => set('cmp', null)}>{r('dash.cmpPrev')}</button>
-                      <button type="button" className={cmpMode === 'yoy' ? 'on' : ''} onClick={() => set('cmp', 'yoy')}>{r('dash.cmpYoy')}</button>
-                      <button type="button" className={cmpMode === 'off' ? 'on' : ''} onClick={() => set('cmp', '0')}>{r('dash.cmpOff')}</button>
-                    </div>
-                  </div>
-                  {showPrev && data.prevPeriod && (
-                    <div className="rp-legend" style={{ margin: 0 }}>
-                      <span style={{ color: INK }}><i />{r('dash.legendCurrent')}</span>
-                      <span style={{ color: PREV }}>
-                        <i className="dash" />
-                        {r(cmpMode === 'yoy' ? 'dash.legendYoy' : 'dash.legendPrev', {
-                          from: new Date(data.prevPeriod.from).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU', { day: 'numeric', month: 'short' }),
-                          to: new Date(new Date(data.prevPeriod.to).getTime() - 864e5).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }),
-                        })}
-                      </span>
+                <div data-tour="rvd-filters" className="rv-filters">
+                  {(setup?.brands.length || 0) > 0 && (
+                    <Sel allLabel={r('filters.allBrands')} value={selBrands} onChange={setBrands} options={(setup?.brands || []).map((b) => ({ value: b.id, label: b.name }))} />
+                  )}
+                  <Sel allLabel={r('filters.allHotels')} value={selHotels} onChange={(v) => set('hotel', joinParam(v))} options={hotelOptions} />
+                  <Sel
+                    allLabel={r('filters.allPlatforms')}
+                    value={selPlatforms}
+                    onChange={(v) => set('platform', joinParam(v))}
+                    options={REP_PLATFORMS.map((p) => ({ value: p, label: PLATFORM_META[p].label, icon: <PlatformBadge p={p} compact /> }))}
+                  />
+                  <DateRangePicker
+                    value={preset === 'all' ? { from: null, to: null } : preset === 'custom' ? { from: fromIsoDate(params.get('from')), to: fromIsoDate(params.get('to')) } : lastDays(Number(preset))}
+                    presetId={preset === 'custom' ? null : preset}
+                    presets={periodPresets}
+                    maxDate={new Date()}
+                    onChange={(v) => {
+                      const p = new URLSearchParams(params);
+                      p.delete('days');
+                      if (v.presetId) {
+                        p.set('preset', v.presetId);
+                        p.delete('from');
+                        p.delete('to');
+                      } else {
+                        p.set('preset', 'custom');
+                        v.from ? p.set('from', toIsoDate(v.from)) : p.delete('from');
+                        v.to ? p.set('to', toIsoDate(v.to)) : p.delete('to');
+                      }
+                      setParams(p, { replace: true });
+                    }}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--n7)', marginLeft: 8 }}>{r('dash.compareWith')}</span>
+                  <Seg value={cmpMode} onChange={(v) => set('cmp', v === 'prev' ? null : v === 'off' ? '0' : 'yoy')} opts={[['prev', r('dash.cmpPrev')], ['yoy', r('dash.cmpYoy')], ['off', r('dash.cmpOff')]]} />
+                  <span style={{ flex: 1 }} />
+                  {data && showPrev && data.prevPeriod && (
+                    <div className="rv-legend">
+                      <span style={{ color: ACC9 }}><i />{`${dayFmt(data.period.from, false, false)} — ${dayFmt(data.period.to, true)}`}</span>
+                      <span style={{ color: PREV }}><i className="dash" />{`${dayFmt(data.prevPeriod.from, false, false)} — ${dayFmt(data.prevPeriod.to, true)}`}</span>
                     </div>
                   )}
                 </div>
-                {cmpMode === 'yoy' && k!.delta && k!.count > 0 && k!.count - k!.delta.count < k!.count * 0.5 && (
-                  <div className="rp-note warn" style={{ marginBottom: 12 }}>{r('dash.yoyPartial', { prev: k!.count - k!.delta.count, cur: k!.count })}</div>
-                )}
-                <div data-tour="rvd-kpis" className="rp-kpis">
-                  <div className="ha-kpi">
-                    <div className="l"><span title={r('dash.kpi.avgHint')}>{r('dash.kpi.avg')}</span></div>
-                    <div className="v">{fmt(k!.avg10)}<small>/10</small></div>
-                    <div className="d"><Delta v={k!.delta?.avg10} /></div>
-                  </div>
-                  <div className="ha-kpi">
-                    <div className="l"><span title={r('dash.kpi.indexHint')}>{r('dash.kpi.index')}</span></div>
-                    <div className="v">{fmtRepIndex(k!.reputationIndex, lang)}<small>/100</small></div>
-                    <div className="d"><Delta v={k!.delta?.reputationIndex} /></div>
-                  </div>
-                  <div className="ha-kpi">
-                    <div className="l">{r('dash.kpi.count')}</div>
-                    <div className="v">{k!.count}</div>
-                    <div className="d"><Delta v={k!.delta?.count} digits={0} /></div>
-                  </div>
-                  <div className="ha-kpi">
-                    <div className="l"><span title={r('dash.kpi.negHint', { n: negBelow })}>{r('dash.kpi.neg')}</span></div>
-                    <div className="v">{fmt(k!.negativeShare, 1)}<small>%</small></div>
-                    <div className="d"><Delta v={k!.delta?.negativeShare} invert suffix={` ${r('units.pp')}`} digits={1} /></div>
-                  </div>
-                  <div className="ha-kpi">
-                    <div className="l"><span title={r('dash.kpi.responseHint')}>{r('dash.kpi.response')}</span></div>
-                    <div className="v">{fmt(k!.responseRate, 1)}<small>%</small></div>
-                    <div className="d"><Delta v={k!.delta?.responseRate} suffix={` ${r('units.pp')}`} digits={1} /></div>
-                  </div>
-                  <div className="ha-kpi">
-                    <div className="l"><span title={r('dash.kpi.replyTimeHint')}>{r('dash.kpi.replyTime')}</span></div>
-                    <div className="v" style={{ fontSize: 20 }}>{fmtHours(k!.medianReplyHours, r)}</div>
-                    <div className="d"><Delta v={k!.delta?.medianReplyHours} invert suffix={` ${r('units.h')}`} digits={1} /></div>
-                  </div>
-                </div>
 
-                {k!.count === 0 && <div className="rp-note" style={{ marginBottom: 16 }}>{r('dash.noData')}</div>}
-                <AiStatusBanner status={aiStatus} />
+                {!data ? (
+                  <div className="rv-empty-s" style={{ padding: '40px 0', textAlign: 'center' }}>{r('card.loading')}</div>
+                ) : (
+                  <div key={JSON.stringify(q)}>
+                    {cmpMode === 'yoy' && k!.delta && k!.count > 0 && k!.count - k!.delta.count < k!.count * 0.5 && (
+                      <div className="rv-note warn" style={{ marginBottom: 14 }}>{r('dash.yoyPartial', { prev: k!.count - k!.delta.count, cur: k!.count })}</div>
+                    )}
+                    <Frame className="rv-kpis" data-tour="rvd-kpis">
+                      <Kpi l={r('dash.kpi.avg')} title={r('dash.kpi.avgHint')} v={k!.avg10} d={2} suf="/10" delta={<Delta v={k!.delta?.avg10} />} vs={vs} spark={<Spark vals={pts.map((p) => p.avg10)} />} />
+                      <Kpi l={r('dash.kpi.index')} title={r('dash.kpi.indexHint')} v={k!.reputationIndex} d={1} suf="/100" text={k!.reputationIndex == null ? fmtRepIndex(null, lang) : undefined} delta={<Delta v={k!.delta?.reputationIndex} digits={1} />} vs={vs} />
+                      <Kpi l={r('dash.kpi.count')} v={k!.count} delta={<Delta v={k!.delta?.count} digits={0} />} vs={vs} spark={<Spark vals={pts.map((p) => p.count)} />} />
+                      <Kpi l={r('rv.dash.negKpi', { n: negBelow })} title={r('dash.kpi.negHint', { n: negBelow })} v={k!.negativeShare} d={1} suf="%" delta={<Delta v={k!.delta?.negativeShare} invert suffix={` ${r('units.pp')}`} digits={1} />} vs={vs} spark={<Spark vals={pts.map((p) => p.negativeShare)} color={NEG} />} />
+                      <Kpi l={r('dash.kpi.response')} title={r('dash.kpi.responseHint')} v={k!.responseRate} d={1} suf="%" delta={<Delta v={k!.delta?.responseRate} suffix={` ${r('units.pp')}`} digits={1} />} vs={vs} />
+                      <Kpi l={r('dash.kpi.replyTime')} title={r('dash.kpi.replyTimeHint')} v={k!.medianReplyHours} text={fmtHours(k!.medianReplyHours, r)} delta={<Delta v={k!.delta?.medianReplyHours} invert suffix={` ${r('units.h')}`} digits={1} />} vs={vs} />
+                    </Frame>
 
-                <div data-tour="rvd-trend" className="rp-grid2">
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3><Ic d={HTL_ICON.chart} size={15} />{r('dash.trendTitleP')}</h3><div className="sub">{r('dash.trendSub', { n: negBelow, step: r(`dash.step.${data.series.granularity}`) })}</div></div></div>
-                    {data.series.points.length ? <AvgLine series={data.series} prev={showPrev ? data.prevSeries : null} negBelow={negBelow} /> : <div className="rp-empty">{r('dash.noData')}</div>}
-                  </div>
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3><Ic d={HTL_ICON.calendar} size={15} />{r('dash.countTitleP')}</h3><div className="sub">{r('dash.countSub', { step: r(`dash.step.${data.series.granularity}`) })}</div></div></div>
-                    {data.series.points.length ? <CountBars series={data.series} prev={showPrev ? data.prevSeries : null} /> : <div className="rp-empty">{r('dash.noData')}</div>}
-                  </div>
-                </div>
+                    {k!.count === 0 && <div className="rv-note" style={{ marginBottom: 16 }}>{r('dash.noData')}</div>}
+                    <AiStatusBanner status={aiStatus} />
 
-                {(selHotels.length > 1 || selPlatforms.length > 1) && (
-                  <div className={selHotels.length > 1 && selPlatforms.length > 1 ? 'rp-grid2' : ''}>
-                    {selHotels.length > 1 && (
-                      <div className="ha-section">
-                        <div className="ha-section-head"><div><h3><Ic d={HTL_ICON.chart} size={15} />{r('dash.cmpHotelsTitle')}</h3><div className="sub">{r('dash.cmpSub', { step: r(`dash.step.${data.series.granularity}`) })}</div></div></div>
-                        {cmpHotels ? <CompareChart data={cmpHotels} negBelow={negBelow} /> : <div className="rp-empty">{r('card.loading')}</div>}
+                    <div className="rv-grid2" data-tour="rvd-trend">
+                      <Frame className="rv-card rv-st" style={{ '--i': 1 } as React.CSSProperties}>
+                        <CardHead title={r('dash.trendTitleP')} sub={r('dash.trendSub', { n: negBelow, step: r(`dash.step.${data.series.granularity}`) })} />
+                        {pts.length ? <AvgLine series={data.series} prev={showPrev ? data.prevSeries : null} negBelow={negBelow} /> : <div className="rv-empty-s">{r('dash.noData')}</div>}
+                      </Frame>
+                      <Frame className="rv-card rv-st" style={{ '--i': 2 } as React.CSSProperties}>
+                        <CardHead title={r('dash.countTitleP')} sub={`${r('dash.countSub', { step: r(`dash.step.${data.series.granularity}`) })} ${r('rv.dash.countNegNote')}`} />
+                        {pts.length ? <CountBars series={data.series} prev={showPrev ? data.prevSeries : null} /> : <div className="rv-empty-s">{r('dash.noData')}</div>}
+                      </Frame>
+                    </div>
+
+                    {(selHotels.length > 1 || selPlatforms.length > 1) && (
+                      <div className={cx(selHotels.length > 1 && selPlatforms.length > 1 && 'rv-grid2')} style={selHotels.length > 1 && selPlatforms.length > 1 ? undefined : { marginBottom: 22 }}>
+                        {selHotels.length > 1 && (
+                          <Frame className="rv-card rv-st">
+                            <CardHead title={r('dash.cmpHotelsTitle')} sub={r('dash.cmpSub', { step: r(`dash.step.${data.series.granularity}`) })} />
+                            {cmpHotels ? <CompareChart data={cmpHotels} negBelow={negBelow} /> : <div className="rv-empty-s">{r('card.loading')}</div>}
+                          </Frame>
+                        )}
+                        {selPlatforms.length > 1 && (
+                          <Frame className="rv-card rv-st">
+                            <CardHead title={r('dash.cmpPlatformsTitle')} sub={r('dash.cmpSub', { step: r(`dash.step.${data.series.granularity}`) })} />
+                            {cmpPlatforms ? <CompareChart data={cmpPlatforms} negBelow={negBelow} /> : <div className="rv-empty-s">{r('card.loading')}</div>}
+                          </Frame>
+                        )}
                       </div>
                     )}
-                    {selPlatforms.length > 1 && (
-                      <div className="ha-section">
-                        <div className="ha-section-head"><div><h3><Ic d={HTL_ICON.chart} size={15} />{r('dash.cmpPlatformsTitle')}</h3><div className="sub">{r('dash.cmpSub', { step: r(`dash.step.${data.series.granularity}`) })}</div></div></div>
-                        {cmpPlatforms ? <CompareChart data={cmpPlatforms} negBelow={negBelow} /> : <div className="rp-empty">{r('card.loading')}</div>}
+
+                    <div className="rv-grid2" data-tour="rvd-topics">
+                      <Frame className="rv-card rv-st" style={{ '--i': 3 } as React.CSSProperties}>
+                        <CardHead title={r('dash.complaints')} cls="neg" sub={r('dash.complaintsSub')} />
+                        <TopicBars rows={data.complaints} kind="negative" onPick={(tp) => toFeed({ topic: tp, sentiment: 'negative' })} />
+                      </Frame>
+                      <Frame className="rv-card rv-st" style={{ '--i': 4 } as React.CSSProperties}>
+                        <CardHead title={r('dash.praises')} cls="pos" sub={r('dash.praisesSub')} />
+                        <TopicBars rows={data.praises} kind="positive" onPick={(tp) => toFeed({ topic: tp })} />
+                      </Frame>
+                    </div>
+
+                    <Frame className="rv-card rv-st" style={{ '--i': 5, marginBottom: 22 } as React.CSSProperties}>
+                      <CardHead title={r('dash.platformsTitle')} sub={r('dash.platformsSub')} />
+                      <div className="rv-tw">
+                        <table className="rv-tbl">
+                          <thead>
+                            <tr><th>{r('dash.col.platform')}</th><th>{r('dash.col.onPlatform')}</th><th>{r('dash.col.inCrm')}</th><th>{r('dash.col.periodCount')}</th><th>{r('dash.col.avg')}</th><th>{r('dash.col.neg')}</th><th>{r('dash.col.response')}</th></tr>
+                          </thead>
+                          <tbody>
+                            {data.byPlatform.map((p) => {
+                              const s = data.sources.find((x) => x.platform === p.platform);
+                              return (
+                                <tr key={p.platform} className="click" onClick={() => set('platform', p.platform)}>
+                                  <td><PlatformBadge p={p.platform} />{s?.failing ? <span className="rv-pill noreply" style={{ marginLeft: 8 }}>{r('dash.failing')}</span> : null}</td>
+                                  <td>{p.platformCount != null ? <>{p.platformRating != null && <b className="num" style={{ marginRight: 6 }}>{fmt(p.platformRating, 1)}</b>}<span style={{ color: 'var(--n7)' }}>{fmt(p.platformCount)}</span></> : '—'}</td>
+                                  <td>{s ? fmt(s.inCrm) : '—'}</td>
+                                  <td>{p.count}</td>
+                                  <td><Score v={p.avg10} nb={negBelow} /></td>
+                                  <td>{p.negativeShare != null ? `${fmt(p.negativeShare, 1)}%` : '—'}</td>
+                                  <td>{p.responseRate != null ? `${fmt(p.responseRate, 1)}%` : <span style={{ color: 'var(--n5)' }}>{r('dash.noReplies')}</span>}</td>
+                                </tr>
+                              );
+                            })}
+                            {!data.byPlatform.length && <tr><td colSpan={7} className="rv-empty-s">{r('dash.noData')}</td></tr>}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Frame>
+
+                    {matrix && matrix.hotels.length > 1 && matrix.topics.length > 0 && (
+                      <Frame className="rv-card rv-st" style={{ '--i': 6, marginBottom: 22 } as React.CSSProperties}>
+                        <CardHead title={r('dash.matrixTitle')} sub={r('rv.dash.matrixSub')}>
+                          <div className="rv-legend">
+                            <span style={{ color: NEG }}><i style={{ height: 8 }} />{r('rv.dash.legendNeg')}</span>
+                            <span style={{ color: POS }}><i style={{ height: 8 }} />{r('rv.dash.legendPos')}</span>
+                          </div>
+                        </CardHead>
+                        <Heat m={matrix} onPick={(tp, hid) => toFeed({ topic: tp, hotelId: hid })} />
+                      </Frame>
+                    )}
+
+                    {(data.countries || (data.rooms && (data.rooms.linked > 0 || data.rooms.suggested > 0))) && (
+                      <div className={cx(data.countries && data.rooms && (data.rooms.linked > 0 || data.rooms.suggested > 0) && 'rv-grid2')} style={{ marginBottom: 22 }}>
+                        {data.countries && <CountriesCard data={data.countries} negBelow={negBelow} />}
+                        {data.rooms && (data.rooms.linked > 0 || data.rooms.suggested > 0) && (
+                          <RoomsCard data={data.rooms} negBelow={negBelow} hotelName={(id) => hotels.find((x) => x.id === id)?.name || '—'} />
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                <div data-tour="rvd-topics" className="rp-grid2">
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3 style={{ color: NEG }}>{r('dash.complaints')}</h3><div className="sub">{r('dash.complaintsSub')}</div></div></div>
-                    <TopicBars rows={data.complaints} kind="negative" onPick={(t) => toFeed({ topic: t, sentiment: 'negative' })} />
-                  </div>
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3 style={{ color: POS }}>{r('dash.praises')}</h3><div className="sub">{r('dash.praisesSub')}</div></div></div>
-                    <TopicBars rows={data.praises} kind="positive" onPick={(t) => toFeed({ topic: t })} />
-                  </div>
-                </div>
+                    {competitors && competitors.hotels.length > 0 && <CompetitorsCard data={competitors} negBelow={negBelow} />}
 
-                {data.countries && (
-                  <div data-tour="rvd-countries" className="ha-section">
-                    <div className="ha-section-head"><div><h3>{r('dash.countriesTitle')}</h3><div className="sub">{r('dash.countriesSub')}</div></div></div>
-                    <CountriesBlock data={data.countries} negBelow={negBelow} />
-                  </div>
-                )}
-
-                {competitors && competitors.hotels.length > 0 && <CompetitorsBlock data={competitors} negBelow={negBelow} />}
-
-                {data.rooms && (data.rooms.linked > 0 || data.rooms.suggested > 0) && (
-                  <RoomsBlock data={data.rooms} negBelow={negBelow} hotelName={(id) => hotels.find((x) => x.id === id)?.name || '—'} />
-                )}
-
-                <div data-tour="rvd-hotels" className="ha-section">
-                  <div className="ha-section-head"><div><h3><Ic d={HTL_ICON.check} size={15} />{r('dash.hotelsTitle')}</h3><div className="sub">{r('dash.hotelsSub')}</div></div></div>
-                  <div className="pace-table-wrap">
-                    <table className="pace-table">
-                      <thead>
-                        <tr>
-                          <th>{r('dash.col.hotel')}</th><th>{r('dash.col.index')}</th><th>{r('dash.col.avg')}</th><th>{r('dash.col.count')}</th>
-                          <th>{r('dash.col.neg')}</th><th>{r('dash.col.response')}</th><th>{r('dash.col.replyTime')}</th><th>{r('dash.col.open')}</th><th>{r('dash.col.topComplaint')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.byHotel.map((h) => (
-                          <tr key={h.hotelId} style={{ cursor: 'pointer' }} onClick={() => set('hotel', h.hotelId)}>
-                            <td><b>{h.name}</b>{h.brand && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{h.brand}</div>}</td>
-                            <td><span className="rp-score"><b className={scoreClass(h.reputationIndex != null ? h.reputationIndex / 10 : null, negBelow)}>{fmtRepIndex(h.reputationIndex, lang)}</b></span></td>
-                            <td>{fmt(h.avg10)} <Delta v={h.delta} /></td>
-                            <td>{h.count}</td>
-                            <td>{h.negativeShare != null ? `${h.negativeShare}%` : '—'}</td>
-                            <td>{h.responseRate != null ? `${h.responseRate}%` : '—'}</td>
-                            <td>{fmtHours(h.medianReplyHours, r)}</td>
-                            <td>
-                              {h.openNegative ? (
-                                <span className="ha-risk-pill bad" onClick={(e) => { e.stopPropagation(); toFeed({ hotelId: h.hotelId, reply: 'none', ratingMax: (negBelow - 0.01).toFixed(2) }); }}>{h.openNegative}</span>
-                              ) : '0'}
-                            </td>
-                            <td style={{ fontSize: 12 }}>{h.topComplaint ? `${topicLabel(h.topComplaint, r, lang)} · ${h.topComplaint.count}` : '—'}</td>
-                          </tr>
-                        ))}
-                        {!data.byHotel.length && <tr><td colSpan={9} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{r('dash.noData')}</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="ha-section">
-                  <div className="ha-section-head"><div><h3><Ic d={HTL_ICON.chart} size={15} />{r('dash.platformsTitle')}</h3><div className="sub">{r('dash.platformsSub')}</div></div></div>
-                  <div className="pace-table-wrap">
-                    <table className="pace-table">
-                      <thead>
-                        <tr><th>{r('dash.col.platform')}</th><th>{r('dash.col.periodCount')}</th><th>{r('dash.col.avg')}</th><th>{r('dash.col.neg')}</th><th>{r('dash.col.response')}</th><th>{r('dash.col.onPlatform')}</th><th>{r('dash.col.inCrm')}</th></tr>
-                      </thead>
-                      <tbody>
-                        {data.byPlatform.map((p) => {
-                          const s = data.sources.find((x) => x.platform === p.platform);
-                          return (
-                            <tr key={p.platform} style={{ cursor: 'pointer' }} onClick={() => set('platform', p.platform)}>
-                              <td><PlatformBadge platform={p.platform} /></td>
-                              <td>{p.count}</td>
-                              <td><Score rating10={p.avg10} negBelow={negBelow} /></td>
-                              <td>{p.negativeShare != null ? `${p.negativeShare}%` : '—'}</td>
-                              <td>{p.responseRate != null ? `${p.responseRate}%` : <span style={{ color: 'var(--fg-4)' }}>{r('dash.noReplies')}</span>}</td>
-                              <td>{p.platformCount != null ? `${p.platformCount}${p.platformRating != null ? ` · ★ ${p.platformRating}` : ''}` : '—'}</td>
-                              <td>{s ? s.inCrm : '—'}{s?.failing ? <span className="ha-risk-pill bad" style={{ marginLeft: 6 }}>{r('dash.failing')}</span> : null}</td>
+                    <Frame className="rv-card rv-st" style={{ '--i': 9, marginBottom: 22 } as React.CSSProperties} data-tour="rvd-hotels">
+                      <CardHead title={r('dash.hotelsTitle')} sub={r('dash.hotelsSub')} />
+                      <div className="rv-tw">
+                        <table className="rv-tbl">
+                          <thead>
+                            <tr>
+                              <th>{r('dash.col.hotel')}</th><th>{r('dash.col.index')}</th><th>{r('dash.col.avg')}</th><th>{r('dash.col.count')}</th>
+                              <th>{r('dash.col.neg')}</th><th>{r('dash.col.response')}</th><th>{r('dash.col.replyTime')}</th><th>{r('dash.col.open')}</th><th>{r('dash.col.topComplaint')}</th>
                             </tr>
-                          );
-                        })}
-                        {!data.byPlatform.length && <tr><td colSpan={7} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{r('dash.noData')}</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                          </thead>
+                          <tbody>
+                            {data.byHotel.map((h) => (
+                              <tr key={h.hotelId} className="click" onClick={() => set('hotel', h.hotelId)}>
+                                <td><b>{h.name}</b>{h.brand && <div style={{ fontSize: 11, color: 'var(--n7)' }}>{h.brand}</div>}</td>
+                                <td><span className="rv-score"><b className={scoreClass(h.reputationIndex != null ? h.reputationIndex / 10 : null, negBelow)}>{fmtRepIndex(h.reputationIndex, lang)}</b></span></td>
+                                <td><Score v={h.avg10} nb={negBelow} /> <Delta v={h.delta} /></td>
+                                <td>{h.count}</td>
+                                <td>{h.negativeShare != null ? `${fmt(h.negativeShare, 1)}%` : '—'}</td>
+                                <td>{h.responseRate != null ? `${fmt(h.responseRate, 1)}%` : '—'}</td>
+                                <td>{fmtHours(h.medianReplyHours, r)}</td>
+                                <td>
+                                  {h.openNegative ? (
+                                    <button type="button" className="rv-pill urg" style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); toFeed({ hotelId: h.hotelId, reply: 'none', ratingMax: (negBelow - 0.01).toFixed(2) }); }}>
+                                      {h.openNegative} · {r('rv.dash.open')}
+                                    </button>
+                                  ) : <span style={{ color: 'var(--n5)' }}>0</span>}
+                                </td>
+                                <td style={{ fontSize: 12 }}>{h.topComplaint ? `${topicLabel(h.topComplaint, r, lang)} · ${h.topComplaint.count}` : '—'}</td>
+                              </tr>
+                            ))}
+                            {!data.byHotel.length && <tr><td colSpan={9} className="rv-empty-s">{r('dash.noData')}</td></tr>}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Frame>
 
-                {matrix && matrix.hotels.length > 1 && (
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3>{r('dash.matrixTitle')}</h3><div className="sub">{r('dash.matrixSub')}</div></div></div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="rp-matrix">
-                        <thead><tr><th>{r('dash.col.hotel')}</th>{matrix.topics.map((t) => <th key={t.topic}>{topicLabel(t, r, lang)}</th>)}</tr></thead>
-                        <tbody>
-                          {matrix.hotels.map((h) => (
-                            <tr key={h.hotelId}>
-                              <td>{h.name}</td>
-                              {h.cells.map((c) => {
-                                const a = Math.min(1, c.negativePct / 25);
-                                return (
-                                  <td key={c.topic} title={`${c.negative} − · ${c.positive} +`} style={{ background: c.negative ? `rgba(204,47,71,${0.08 + a * 0.55})` : 'var(--bg-muted)', color: a > 0.6 ? '#fff' : 'var(--ink)' }}>
-                                    {c.negative ? `${c.negativePct}%` : '·'}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="rv-grid2">
+                      <Frame className="rv-card rv-st" style={{ '--i': 10 } as React.CSSProperties}>
+                        <CardHead title={r('dash.managersTitle')} sub={r('dash.managersSub')} />
+                        {data.managers.length ? (
+                          <table className="rv-tbl">
+                            <thead><tr><th>{r('dash.col.manager')}</th><th>{r('dash.col.replies')}</th><th>{r('dash.col.replyTime')}</th></tr></thead>
+                            <tbody>{data.managers.map((m) => <tr key={m.userId}><td>{m.name || '—'}</td><td>{m.replies}</td><td>{fmtHours(m.medianReplyHours, r)}</td></tr>)}</tbody>
+                          </table>
+                        ) : <div className="rv-empty-s">{r('dash.noManagers')}</div>}
+                      </Frame>
+                      <Frame className="rv-card rv-st" style={{ '--i': 11 } as React.CSSProperties}>
+                        <CardHead title={r('dash.otherTitle')} sub={r('dash.otherSub')} />
+                        {data.otherTopics.length ? (
+                          <div className="rv-topics" style={{ marginTop: 0 }}>
+                            {data.otherTopics.map((tp) => <span key={tp.label} className="rv-topic">{tp.label} · {tp.negative + tp.positive + tp.neutral}</span>)}
+                          </div>
+                        ) : <div className="rv-empty-s">{r('dash.noOther')}</div>}
+                        <Btn sm style={{ marginTop: 12 }} onClick={() => navigate('/hotels/reviews/settings?tab=ai')}>{r('dash.extendDictionary')}</Btn>
+                      </Frame>
                     </div>
                   </div>
                 )}
-
-                <div className="rp-grid2">
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3>{r('dash.managersTitle')}</h3><div className="sub">{r('dash.managersSub')}</div></div></div>
-                    {data.managers.length ? (
-                      <table className="pace-table">
-                        <thead><tr><th>{r('dash.col.manager')}</th><th>{r('dash.col.replies')}</th><th>{r('dash.col.replyTime')}</th></tr></thead>
-                        <tbody>{data.managers.map((m) => <tr key={m.userId}><td>{m.name || '—'}</td><td>{m.replies}</td><td>{fmtHours(m.medianReplyHours, r)}</td></tr>)}</tbody>
-                      </table>
-                    ) : <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('dash.noManagers')}</div>}
-                  </div>
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3>{r('dash.otherTitle')}</h3><div className="sub">{r('dash.otherSub')}</div></div></div>
-                    {data.otherTopics.length ? (
-                      <div className="rp-topics" style={{ marginTop: 0 }}>
-                        {data.otherTopics.map((t) => <span key={t.label} className="rp-topic">{t.label} · {t.negative + t.positive + t.neutral}</span>)}
-                      </div>
-                    ) : <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('dash.noOther')}</div>}
-                    <button type="button" className="btn btn-sm" style={{ marginTop: 12 }} onClick={() => navigate('/hotels/reviews/settings?tab=ai')}>{r('dash.extendDictionary')}</button>
-                  </div>
-                </div>
               </>
             )}
-          </>
-        )}
 
-        <RepReportModal open={reportOpen} onClose={() => setReportOpen(false)} query={q} scopeText={scopeText} />
-
-        {view === 'report' && (
-          <>
-            <div className="rp-filters">
-              <select value={reportBrand} onChange={(e) => set('rbrand', e.target.value)}>
-                {!setup?.brands.length && <option value="">{r('filters.allBrands')}</option>}
-                {setup?.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <select value={reportMonth} onChange={(e) => set('month', e.target.value)}>
-                {months.map((m) => <option key={m} value={m}>{new Date(`${m}-01T00:00:00Z`).toLocaleDateString(lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU', { month: 'long', year: 'numeric' })}</option>)}
-              </select>
-              <button type="button" className="btn" onClick={() => window.print()}><Ic d={HTL_ICON.download} />{r('dash.print')}</button>
-            </div>
-            {reportLoading || !report ? (
-              <div className="rp-empty">{r('dash.reportLoading')}</div>
-            ) : (
-              <div className="rp-report">
-                <div className="kicker"><span className="dot" />{r('dash.reportKicker')}</div>
-                <h2>{report.brand?.name || r('filters.allBrands')} · {report.month}</h2>
-                {report.summary && <div className="sum">{report.summary}</div>}
-                {report.brandHotels === 0 ? (
-                  <div className="rp-note warn">
-                    {r('dash.brandNoHotels')}{' '}
-                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('/hotels/reviews/settings'); }}>{r('dash.assignBrand')}</a>
-                  </div>
-                ) : !report.kpis.count && <div className="rp-note">{r('dash.reportEmpty')}</div>}
-                <div className="rp-kpis" style={{ gridTemplateColumns: 'repeat(5, minmax(0,1fr))' }}>
-                  <div className="ha-kpi"><div className="l">{r('dash.kpi.avg')}</div><div className="v">{fmt(report.kpis.avg10)}</div><div className="d"><Delta v={report.kpis.avg10 != null && report.prev.avg10 != null ? report.kpis.avg10 - report.prev.avg10 : null} /></div></div>
-                  <div className="ha-kpi"><div className="l">{r('dash.kpi.index')}</div><div className="v">{fmtRepIndex(report.kpis.reputationIndex, lang)}<small>/100</small></div><div className="d"><Delta v={report.kpis.reputationIndex != null && report.prev.reputationIndex != null ? report.kpis.reputationIndex - report.prev.reputationIndex : null} /></div></div>
-                  <div className="ha-kpi"><div className="l">{r('dash.kpi.count')}</div><div className="v">{report.kpis.count}</div><div className="d"><Delta v={report.kpis.count - report.prev.count} digits={0} /></div></div>
-                  <div className="ha-kpi"><div className="l">{r('dash.kpi.neg')}</div><div className="v">{fmt(report.kpis.negativeShare, 1)}<small>%</small></div></div>
-                  <div className="ha-kpi"><div className="l">{r('dash.kpi.response')}</div><div className="v">{fmt(report.kpis.responseRate, 1)}<small>%</small></div></div>
+            {view === 'report' && (
+              <>
+                <div className="rv-filters">
+                  <Sel
+                    single
+                    allLabel={r('filters.allBrands')}
+                    value={reportBrand ? [reportBrand] : []}
+                    onChange={(v) => set('rbrand', v[0] || null)}
+                    options={(setup?.brands || []).map((b) => ({ value: b.id, label: b.name }))}
+                  />
+                  <select className="rv-in" style={{ width: 190 }} value={reportMonth} onChange={(e) => set('month', e.target.value)} aria-label={r('rv.report.month')}>
+                    {months.map((m) => <option key={m} value={m}>{monthTitle(m)}</option>)}
+                  </select>
+                  <span style={{ flex: 1 }} />
+                  <Btn icon="download" disabled={!report} onClick={() => setReportOpen(true)}>PDF</Btn>
+                  <Btn pri icon="send" disabled={!report} onClick={() => setReportOpen(true)}>{r('rv.report.send')}</Btn>
                 </div>
-                <div className="rp-grid2">
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3 style={{ color: NEG }}>{r('dash.top5')}</h3><div className="sub">{r('dash.top5Sub')}</div></div></div>
-                    <TopicBars rows={report.topComplaints} kind="negative" onPick={(t) => toFeed({ topic: t, sentiment: 'negative', brandId: reportBrand })} />
-                  </div>
-                  <div className="ha-section">
-                    <div className="ha-section-head"><div><h3>{r('dash.dropped')}</h3><div className="sub">{r('dash.droppedSub')}</div></div></div>
-                    {report.droppedHotels.length ? (
-                      <div className="rp-bars">
-                        {report.droppedHotels.map((h) => (
-                          <div key={h.hotelId} className="rp-bar" style={{ gridTemplateColumns: '1fr 70px 60px' }}>
-                            <span className="n">{h.name}</span>
-                            <span className="v">{fmt(h.avg10)}</span>
-                            <span className="v"><Delta v={h.delta} /></span>
-                          </div>
-                        ))}
+                {reportLoading || !report ? (
+                  <div className="rv-empty-s" style={{ padding: '40px 0', textAlign: 'center' }}>{r('dash.reportLoading')}</div>
+                ) : (
+                  <div key={`${reportBrand}-${reportMonth}`}>
+                    <Frame className="rv-card" style={{ marginBottom: 22 }}>
+                      <div className="kick rv-kick" style={{ marginBottom: 10 }}><span className="dot" />{r('rv.report.kick', { name: report.brand?.name || r('filters.allBrands'), month: monthTitle(reportMonth) })}</div>
+                      <div className="rv-sum">
+                        <div>
+                          {report.brandHotels === 0 ? (
+                            <div className="rv-note warn">
+                              {r('dash.brandNoHotels')} <a href="#" onClick={(e) => { e.preventDefault(); navigate('/hotels/reviews/settings'); }}>{r('dash.assignBrand')}</a>
+                            </div>
+                          ) : !report.kpis.count ? (
+                            <div className="rv-note">{r('dash.reportEmpty')}</div>
+                          ) : summaryParts.length ? (
+                            <>
+                              <div className="h big rv-st">{summaryParts[0]}</div>
+                              {summaryParts.slice(1).map((s, i) => <p key={i} className="rv-st" style={{ '--i': i + 1 } as React.CSSProperties}>{s}</p>)}
+                            </>
+                          ) : (
+                            <p className="rv-st" style={{ color: 'var(--n7)' }}>{r('rv.report.noSummary')}</p>
+                          )}
+                        </div>
+                        <div className="rv-kpis" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))', border: '1px solid var(--ln)', alignSelf: 'start', marginBottom: 0 }}>
+                          {(
+                            [
+                              [r('dash.kpi.avg'), report.kpis.avg10, 2, '/10', report.kpis.avg10 != null && report.prev.avg10 != null ? report.kpis.avg10 - report.prev.avg10 : null, false],
+                              [r('dash.kpi.count'), report.kpis.count, 0, '', report.kpis.count - report.prev.count, false],
+                              [r('dash.kpi.neg'), report.kpis.negativeShare, 1, '%', report.kpis.negativeShare != null && report.prev.negativeShare != null ? report.kpis.negativeShare - report.prev.negativeShare : null, true],
+                              [r('dash.kpi.response'), report.kpis.responseRate, 1, '%', report.kpis.responseRate != null && report.prev.responseRate != null ? report.kpis.responseRate - report.prev.responseRate : null, false],
+                            ] as Array<[string, number | null, number, string, number | null, boolean]>
+                          ).map(([l, v, d, s, dl, inv], i) => (
+                            <div key={l} className="rv-kpi" style={i % 2 === 0 ? { borderLeft: 0 } : undefined}>
+                              <div className="l">{l}</div>
+                              <div className="v" style={{ fontSize: 34 }}><CountUp v={v} d={d} />{s && v != null && <small>{s}</small>}</div>
+                              <div className="d"><Delta v={dl} invert={inv} digits={d} />{dl != null && <span>{r('rv.report.vsPrevMonth')}</span>}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ) : <div style={{ color: 'var(--fg-4)', fontSize: 12.5, fontStyle: 'italic' }}>{r('dash.noDropped')}</div>}
+                    </Frame>
+                    <div className="rv-grid2">
+                      <Frame className="rv-card rv-st" style={{ '--i': 1 } as React.CSSProperties}>
+                        <CardHead title={r('dash.top5')} cls="neg" sub={r('dash.top5Sub')} />
+                        <TopicBars rows={report.topComplaints} kind="negative" onPick={(tp) => toFeed({ topic: tp, sentiment: 'negative', brandId: reportBrand })} />
+                      </Frame>
+                      <Frame className="rv-card rv-st" style={{ '--i': 2 } as React.CSSProperties}>
+                        <CardHead title={r('dash.dropped')} sub={r('dash.droppedSub')} />
+                        {report.droppedHotels.length ? (
+                          <div className="rv-bars">
+                            {report.droppedHotels.map((h) => (
+                              <div key={h.hotelId} className="rv-bar" style={{ gridTemplateColumns: 'minmax(0,1fr) 70px 70px' }}>
+                                <span>{h.name}</span>
+                                <span className="v"><Score v={h.avg10} nb={negBelow} /></span>
+                                <span className="v" style={{ fontSize: 13 }}><Delta v={h.delta} /></span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : <div className="rv-empty-s">{r('dash.noDropped')}</div>}
+                      </Frame>
+                    </div>
+                    <Frame className="rv-card rv-st" style={{ '--i': 3, marginBottom: 22 } as React.CSSProperties}>
+                      <CardHead title={r('dash.compareTitle')} sub={r('dash.compareSub')} />
+                      <div className="rv-tw">
+                        <table className="rv-tbl">
+                          <thead><tr><th>{r('dash.col.hotel')}</th><th>{r('dash.col.index')}</th><th>Δ</th><th>{r('dash.col.avg')}</th><th>Δ</th><th>{r('dash.col.count')}</th><th>{r('dash.col.neg')}</th><th>{r('dash.col.topComplaint')}</th></tr></thead>
+                          <tbody>
+                            {report.hotels.map((h) => (
+                              <tr key={h.hotelId}>
+                                <td><b>{h.name}</b></td>
+                                <td><span className="rv-score"><b className={scoreClass(h.reputationIndex != null ? h.reputationIndex / 10 : null, negBelow)}>{fmtRepIndex(h.reputationIndex, lang)}</b></span></td>
+                                <td><Delta v={h.indexDelta} digits={1} /></td>
+                                <td><Score v={h.avg10} nb={negBelow} /></td>
+                                <td><Delta v={h.delta} /></td>
+                                <td>{h.count}</td>
+                                <td>{h.negativeShare != null ? `${fmt(h.negativeShare, 1)}%` : '—'}</td>
+                                <td style={{ fontSize: 12 }}>{h.topComplaint ? `${topicLabel(h.topComplaint, r, lang)} · ${h.topComplaint.count}` : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Frame>
+                    <div className="rv-note">{r('dash.reportAutoSend')}</div>
                   </div>
-                </div>
-                <div className="ha-section">
-                  <div className="ha-section-head"><div><h3>{r('dash.compareTitle')}</h3><div className="sub">{r('dash.compareSub')}</div></div></div>
-                  <table className="pace-table">
-                    <thead><tr><th>{r('dash.col.hotel')}</th><th>{r('dash.col.index')}</th><th>Δ</th><th>{r('dash.col.avg')}</th><th>Δ</th><th>{r('dash.col.count')}</th><th>{r('dash.col.neg')}</th><th>{r('dash.col.topComplaint')}</th></tr></thead>
-                    <tbody>
-                      {report.hotels.map((h) => (
-                        <tr key={h.hotelId}>
-                          <td><b>{h.name}</b></td>
-                          <td><span className="rp-score"><b className={scoreClass(h.reputationIndex != null ? h.reputationIndex / 10 : null, negBelow)}>{fmtRepIndex(h.reputationIndex, lang)}</b></span></td>
-                          <td><Delta v={h.indexDelta} /></td>
-                          <td>{fmt(h.avg10)}</td>
-                          <td><Delta v={h.delta} /></td>
-                          <td>{h.count}</td>
-                          <td>{h.negativeShare != null ? `${h.negativeShare}%` : '—'}</td>
-                          <td style={{ fontSize: 12 }}>{h.topComplaint ? `${topicLabel(h.topComplaint, r, lang)} · ${h.topComplaint.count}` : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="rp-note">{r('dash.reportAutoSend')}</div>
-              </div>
+                )}
+              </>
             )}
-          </>
-        )}
+          </div>
+        </div>
+
+        <RepReportModal open={reportOpen} onClose={() => setReportOpen(false)} query={reportQuery} scopeText={scopeText} />
       </div>
     </MainLayout>
   );

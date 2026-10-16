@@ -19403,6 +19403,60 @@
           "settingsSub": "A review is linked to the guest’s reservation by name and stay dates — so you see the room and stay, and AI manager tasks include the room number. Confident matches are linked every night automatically, uncertain ones wait for confirmation in the review card.",
           "matchRun": "Match now",
           "matchResult": "Checked {{checked}}: linked {{auto}}, to confirm {{suggested}}"
+        },
+        "rv": {
+          "kicker": "Hotels · Reputation",
+          "agent": {
+            "drafts": "Preparing reply drafts {{mode}} — you review and send.",
+            "noDrafts": "Reply drafts are off — turn them on in the employee profile.",
+            "digest": "Sending a reviews digest every day at {{time}}.",
+            "noDigest": "Daily digest is off.",
+            "reminders": "Reminding about unanswered negatives after {{h1}} h, after {{h2}} h — a task for the manager.",
+            "live": "Working",
+            "paused": "Paused",
+            "none": "Not hired"
+          },
+          "card": {
+            "booking": "Reservation",
+            "room": "Room",
+            "dates": "Dates",
+            "byAi": "analysed by AI",
+            "chars": "{{n}} characters · review language {{lang}}",
+            "countryLang": "Country · language",
+            "editable": "Draft by {{name}} — edit before sending",
+            "notAnalyzed": "not analysed yet",
+            "onPlatform": "{{v}} on the platform",
+            "platform": "Platform",
+            "published": "Published"
+          },
+          "comp": {
+            "title": "Us vs competitors",
+            "sub": "{{name}} vs its own competitors ({{n}}) · same platforms: {{p}}",
+            "manage": "Competitor set",
+            "rankFirst": "First place among competitors",
+            "rankN": "Place {{r}} of {{n}} among competitors",
+            "byAvg": "By average rating for the period.",
+            "leadBy": "By average rating for the period. Lead over second place — {{g}}.",
+            "behindBy": "By average rating for the period. Behind first place by {{g}}."
+          },
+          "dash": {
+            "vsPrev": "vs previous period",
+            "vsYoy": "vs a year ago",
+            "negKpi": "Negative · below {{n}}",
+            "countNegNote": "The red part of a bar is negative reviews.",
+            "matrixSub": "Red — complaints, green — praise. The number is reviews with the topic in the period. Click a cell to open the feed.",
+            "legendNeg": "complaints",
+            "legendPos": "praise",
+            "cellTip": "{{hotel}} · {{topic}}: {{neg}} complaints, {{pos}} praise",
+            "open": "open"
+          },
+          "report": {
+            "kick": "Monthly report · {{name}} · {{month}}",
+            "month": "Month",
+            "send": "Send to managers",
+            "noSummary": "The AI summary appears once the month has analysed reviews.",
+            "vsPrevMonth": "vs previous month"
+          }
         }
       }
     },

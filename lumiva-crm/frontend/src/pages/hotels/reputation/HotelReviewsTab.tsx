@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchRepFeed, fetchRepHotelSummary, fetchRepHotelTasks, type RepFeed, type RepHotelSummary, type RepHotelTasks } from '../../../api/hotelReputation';
-import { Delta, PlatformBadge, Score, fmtDate, fmtHours, fmtRepIndex, topicLabel, useRepT } from './ReputationShared';
+import { fmtDate, fmtHours, fmtRepIndex, topicLabel, useRepT } from './ReputationShared';
+import { Btn, CardHead, CountUp, Delta, Frame, Ico, PlatformBadge, Score, cx, useNumFmt } from './rvui';
 import './reputation.css';
 
-/** Вкладка «Отзывы» в карточке отеля: репутация отеля за 90 дней, площадки, темы, последние отзывы. */
+/** Вкладка «Отзывы» в карточке отеля: репутация отеля за 90 дней, площадки, темы, задачи, последние отзывы. */
 export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
   const { r, lang } = useRepT();
+  const fmt = useNumFmt();
   const navigate = useNavigate();
   const [sum, setSum] = useState<RepHotelSummary | null>(null);
   const [feed, setFeed] = useState<RepFeed | null>(null);
@@ -19,153 +21,178 @@ export const HotelReviewsTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
     fetchRepHotelTasks(hotelId).then(setTasks).catch(() => undefined);
   }, [hotelId]);
 
-  if (error) return <div className="rp-note err">{error}</div>;
-  if (!sum) return <div className="rp-empty">{r('card.loading')}</div>;
+  if (error) return <div className="rv"><div className="rv-note err">{error}</div></div>;
+  if (!sum) return <div className="rv"><div className="rv-empty">{r('card.loading')}</div></div>;
   const k = sum.kpis;
   const nb = sum.negBelow;
 
   if (!sum.platforms.length) {
     return (
-      <div className="rp-feed">
-        <div className="rp-empty">
+      <div className="rv">
+        <Frame className="rv-empty">
           <h4>{r('hotelTab.emptyTitle')}</h4>
-          <p style={{ margin: '0 0 12px' }}>{r('hotelTab.emptyText')}</p>
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/hotels/reviews/settings')}>{r('feed.setup')}</button>
-        </div>
+          <p style={{ margin: '0 0 14px' }}>{r('hotelTab.emptyText')}</p>
+          <Btn pri onClick={() => navigate('/hotels/reviews/settings')}>{r('feed.setup')}</Btn>
+        </Frame>
       </div>
     );
   }
 
+  const kpi = (l: string, v: number | null | undefined, d: number, suf: string, delta?: React.ReactNode, text?: string) => (
+    <div className="rv-kpi">
+      <div className="l">{l}</div>
+      <div className="v">{text != null ? <span style={{ fontSize: 30 }}>{text}</span> : <CountUp v={v} d={d} />}{suf && v != null && text == null && <small>{suf}</small>}</div>
+      <div className="d">{delta}</div>
+    </div>
+  );
+
   return (
-    <div>
-      <div className="rp-kpis">
-        <div className="ha-kpi"><div className="l">{r('dash.kpi.avg')}</div><div className="v">{k.avg10 ?? '—'}<small>/10</small></div><div className="d"><Delta v={k.delta?.avg10} /></div></div>
-        <div className="ha-kpi"><div className="l">{r('dash.kpi.index')}</div><div className="v">{fmtRepIndex(k.reputationIndex, lang)}<small>/100</small></div></div>
-        <div className="ha-kpi"><div className="l">{r('hotelTab.reviews90')}</div><div className="v">{k.count}</div></div>
-        <div className="ha-kpi"><div className="l">{r('dash.kpi.neg')}</div><div className="v">{k.negativeShare ?? '—'}<small>%</small></div></div>
-        <div className="ha-kpi"><div className="l">{r('dash.kpi.response')}</div><div className="v">{k.responseRate ?? '—'}<small>%</small></div></div>
-        <div className="ha-kpi"><div className="l">{r('dash.kpi.replyTime')}</div><div className="v" style={{ fontSize: 20 }}>{fmtHours(k.medianReplyHours, r)}</div></div>
-      </div>
-
-      <div className="ha-section">
-        <div className="ha-section-head">
-          <div><h3>{r('dash.platformsTitle')}</h3><div className="sub">{r('hotelTab.platformsSub')}</div></div>
+    <div className="rv">
+      <div className="rv-view">
+        <div className="rv-cmpbar" style={{ marginTop: 0 }}>
+          <span style={{ fontSize: 12, color: 'var(--n7)' }}>{r('hotelTab.last90')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn btn-sm" onClick={() => navigate(`/hotels/reviews/dashboard?hotel=${hotelId}`)}>{r('tabs.dashboard')}</button>
-            <button type="button" className="btn btn-sm btn-primary" onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}`)}>{r('hotelTab.openFeed')}</button>
+            <Btn onClick={() => navigate(`/hotels/reviews/dashboard?hotel=${hotelId}`)}>{r('tabs.dashboard')}</Btn>
+            <Btn pri onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}`)}>{r('hotelTab.openFeed')}</Btn>
           </div>
         </div>
-        <div className="pace-table-wrap">
-          <table className="pace-table">
-            <thead>
-              <tr><th>{r('dash.col.platform')}</th><th>{r('dash.col.onPlatform')}</th><th>{r('dash.col.inCrm')}</th><th>{r('hotelTab.n90')}</th><th>{r('dash.col.avg')}</th><th>{r('dash.col.open')}</th></tr>
-            </thead>
-            <tbody>
-              {sum.platforms.map((p) => (
-                <tr key={p.platform}>
-                  <td>
-                    <PlatformBadge platform={p.platform} />
-                    {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8, fontSize: 11 }}>↗</a>}
-                    {p.failing && <span className="ha-risk-pill bad" style={{ marginLeft: 6 }}>{r('dash.failing')}</span>}
-                  </td>
-                  <td>{p.platformCount != null ? `${p.platformCount}${p.platformRating != null ? ` · ★ ${p.platformRating}` : ''}` : '—'}</td>
-                  <td>{p.total}</td>
-                  <td>{p.n90}</td>
-                  <td><Score rating10={p.avg90} negBelow={nb} /></td>
-                  <td>
-                    {p.unansweredNegative ? (
-                      <span className="ha-risk-pill bad" style={{ cursor: 'pointer' }} onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&platform=${p.platform}&reply=none&ratingMax=${(nb - 0.01).toFixed(2)}`)}>{p.unansweredNegative}</span>
-                    ) : '0'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-      <div className="rp-grid2">
-        <div className="ha-section">
-          <div className="ha-section-head"><div><h3 style={{ color: '#cc2f47' }}>{r('dash.complaints')}</h3><div className="sub">{r('hotelTab.last90')}</div></div></div>
-          {sum.complaints.length ? (
-            <div className="rp-topics" style={{ marginTop: 0 }}>
-              {sum.complaints.map((t) => (
-                <span key={t.topic + t.label} className="rp-topic negative" title={t.negQuotes.map((q) => `«${q}»`).join('\n')} style={{ cursor: 'pointer' }} onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&topic=${t.topic}`)}>
-                  {topicLabel(t, r, lang)} · {t.negative}
-                </span>
-              ))}
-            </div>
-          ) : <div style={{ color: 'var(--fg-4)', fontSize: 12.5 }}>{r('dash.noTopics')}</div>}
-        </div>
-        <div className="ha-section">
-          <div className="ha-section-head"><div><h3 style={{ color: '#1f8a5e' }}>{r('dash.praises')}</h3><div className="sub">{r('hotelTab.last90')}</div></div></div>
-          {sum.praises.length ? (
-            <div className="rp-topics" style={{ marginTop: 0 }}>
-              {sum.praises.map((t) => (
-                <span key={t.topic + t.label} className="rp-topic positive" title={t.posQuotes.map((q) => `«${q}»`).join('\n')}>
-                  {topicLabel(t, r, lang)} · {t.positive}
-                </span>
-              ))}
-            </div>
-          ) : <div style={{ color: 'var(--fg-4)', fontSize: 12.5 }}>{r('dash.noTopics')}</div>}
-        </div>
-      </div>
+        <Frame className="rv-kpis">
+          {kpi(r('dash.kpi.avg'), k.avg10, 2, '/10', <Delta v={k.delta?.avg10} />)}
+          {kpi(r('dash.kpi.index'), k.reputationIndex, 1, '/100', null, k.reputationIndex == null ? fmtRepIndex(null, lang) : undefined)}
+          {kpi(r('hotelTab.reviews90'), k.count, 0, '')}
+          {kpi(r('dash.kpi.neg'), k.negativeShare, 1, '%')}
+          {kpi(r('dash.kpi.response'), k.responseRate, 1, '%')}
+          {kpi(r('dash.kpi.replyTime'), k.medianReplyHours, 1, '', null, fmtHours(k.medianReplyHours, r))}
+        </Frame>
 
-      {tasks && (
-        <div className="ha-section">
-          <div className="ha-section-head">
-            <div>
-              <h3>{r('hotelTab.tasksTitle')}</h3>
-              <div className="sub">{tasks.projectId ? r('hotelTab.tasksSub', { open: tasks.open.length, done: tasks.done }) : r('hotelTab.tasksNone')}</div>
-            </div>
-            {tasks.projectId && (
-              <button type="button" className="btn btn-sm" onClick={() => navigate(`/projects/${tasks.projectId}`)}>{r('hotelTab.openProject')}</button>
+        <Frame className="rv-card rv-st" style={{ '--i': 1, marginBottom: 22 } as React.CSSProperties}>
+          <CardHead title={r('dash.platformsTitle')} sub={r('hotelTab.platformsSub')} />
+          <div className="rv-tw">
+            <table className="rv-tbl">
+              <thead>
+                <tr><th>{r('dash.col.platform')}</th><th>{r('dash.col.onPlatform')}</th><th>{r('dash.col.inCrm')}</th><th>{r('hotelTab.n90')}</th><th>{r('dash.col.avg')}</th><th>{r('dash.col.open')}</th></tr>
+              </thead>
+              <tbody>
+                {sum.platforms.map((p) => (
+                  <tr key={p.platform}>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <PlatformBadge p={p.platform} />
+                        {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--n5)', display: 'inline-flex' }} aria-label={r('card.viewOnPlatform')}><Ico n="ext" s={12} /></a>}
+                        {p.failing && <span className="rv-pill noreply">{r('dash.failing')}</span>}
+                      </span>
+                    </td>
+                    <td>{p.platformCount != null ? <>{p.platformRating != null && <b className="num" style={{ marginRight: 6 }}>{fmt(p.platformRating, 1)}</b>}<span style={{ color: 'var(--n7)' }}>{fmt(p.platformCount)}</span></> : '—'}</td>
+                    <td>{fmt(p.total)}</td>
+                    <td>{p.n90}</td>
+                    <td><Score v={p.avg90} nb={nb} /></td>
+                    <td>
+                      {p.unansweredNegative ? (
+                        <button type="button" className="rv-pill urg" style={{ cursor: 'pointer' }} onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&platform=${p.platform}&reply=none&ratingMax=${(nb - 0.01).toFixed(2)}`)}>
+                          {p.unansweredNegative} · {r('rv.dash.open')}
+                        </button>
+                      ) : <span style={{ color: 'var(--n5)' }}>0</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Frame>
+
+        <div className="rv-grid2">
+          <Frame className="rv-card rv-st" style={{ '--i': 2 } as React.CSSProperties}>
+            <CardHead title={r('dash.complaints')} cls="neg" sub={r('hotelTab.last90')} />
+            {sum.complaints.length ? (
+              <div className="rv-topics" style={{ marginTop: 0 }}>
+                {sum.complaints.map((t) => (
+                  <span key={t.topic + t.label} className="rv-topic negative click" title={t.negQuotes.map((q) => `«${q}»`).join('\n')} onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&topic=${t.topic}`)}>
+                    {topicLabel(t, r, lang)} · {t.negative}
+                  </span>
+                ))}
+              </div>
+            ) : <div className="rv-empty-s">{r('dash.noTopics')}</div>}
+          </Frame>
+          <Frame className="rv-card rv-st" style={{ '--i': 3 } as React.CSSProperties}>
+            <CardHead title={r('dash.praises')} cls="pos" sub={r('hotelTab.last90')} />
+            {sum.praises.length ? (
+              <div className="rv-topics" style={{ marginTop: 0 }}>
+                {sum.praises.map((t) => (
+                  <span key={t.topic + t.label} className="rv-topic positive" title={t.posQuotes.map((q) => `«${q}»`).join('\n')}>
+                    {topicLabel(t, r, lang)} · {t.positive}
+                  </span>
+                ))}
+              </div>
+            ) : <div className="rv-empty-s">{r('dash.noTopics')}</div>}
+          </Frame>
+        </div>
+
+        {tasks && (
+          <Frame className="rv-card rv-st" style={{ '--i': 4, marginBottom: 22 } as React.CSSProperties}>
+            <CardHead title={r('hotelTab.tasksTitle')} sub={tasks.projectId ? r('hotelTab.tasksSub', { open: tasks.open.length, done: tasks.done }) : r('hotelTab.tasksNone')}>
+              {tasks.projectId && <Btn sm onClick={() => navigate(`/projects/${tasks.projectId}`)}>{r('hotelTab.openProject')}</Btn>}
+            </CardHead>
+            {tasks.pending.length > 0 && (
+              <div className="rv-note warn" style={{ marginBottom: 10 }}>
+                <span>{r('hotelTab.tasksPending', { n: tasks.pending.length })}</span>
+                <span className="sp" />
+                {tasks.agentId && <Btn sm onClick={() => navigate(`/ai-employees/${tasks.agentId}?tab=journal`)}>{r('hotelTab.reviewPending')}</Btn>}
+              </div>
             )}
-          </div>
-          {tasks.pending.length > 0 && (
-            <div className="rp-note warn" style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span>{r('hotelTab.tasksPending', { n: tasks.pending.length })}</span>
-              {tasks.agentId && (
-                <button type="button" className="btn btn-sm" onClick={() => navigate(`/ai-employees/${tasks.agentId}?tab=journal`)}>{r('hotelTab.reviewPending')}</button>
-              )}
-            </div>
-          )}
-          {tasks.open.length > 0 && (
-            <div className="rp-task-list">
-              {tasks.open.slice(0, 8).map((x) => (
-                <div key={x.id} className="rp-task" onClick={() => navigate(`/projects/${tasks.projectId}`)}>
-                  <span className="rp-task-title">{x.byAi && <span className="rp-task-ai">AI</span>}{x.title}</span>
-                  <span className="rp-task-meta">{x.status}{x.deadline ? ` · ${fmtDate(x.deadline, lang)}` : ''}</span>
-                </div>
-              ))}
-              {tasks.open.length > 8 && <div className="rp-task-more">+{tasks.open.length - 8}</div>}
-            </div>
-          )}
-        </div>
-      )}
+            {tasks.open.length > 0 && (
+              <div className="rv-tasks">
+                {tasks.open.slice(0, 8).map((x) => (
+                  <div key={x.id} className="rv-task" onClick={() => navigate(`/projects/${tasks.projectId}`)}>
+                    {x.byAi && <span className="ai">AI</span>}
+                    <span>{x.title}</span>
+                    <span className="m">{x.status}{x.deadline ? ` · ${fmtDate(x.deadline, lang)}` : ''}</span>
+                  </div>
+                ))}
+                {tasks.open.length > 8 && <div style={{ fontSize: 12, color: 'var(--n7)', paddingTop: 8 }}>+{tasks.open.length - 8}</div>}
+              </div>
+            )}
+          </Frame>
+        )}
 
-      <div className="ha-section">
-        <div className="ha-section-head"><div><h3>{r('hotelTab.latest')}</h3></div></div>
-        <div className="rp-feed">
-          {feed?.items.map((x) => (
-            <div key={x.id} className={`rp-row${x.urgent ? ' urgent' : ''}`} onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&review=${x.id}`)}>
-              <div className="rp-row-meta">
-                <PlatformBadge platform={x.platform} />
-                <span className="rp-row-date">{fmtDate(x.publishedAt, lang)}</span>
+        <Frame className="rv-card rv-st" style={{ '--i': 5 } as React.CSSProperties}>
+          <CardHead title={r('hotelTab.latest')} />
+          <div className="rv-feed">
+            {feed?.items.map((x, i) => (
+              <div
+                key={x.id}
+                className={cx('rv-row', 'rv-st', x.urgent && 'urgent', x.status === 'deleted' && 'deleted')}
+                style={{ '--i': Math.min(i, 12) } as React.CSSProperties}
+                onClick={() => navigate(`/hotels/reviews?hotelId=${hotelId}&review=${x.id}`)}
+              >
+                <div className="rv-row-meta">
+                  <PlatformBadge p={x.platform} />
+                  <span>{fmtDate(x.publishedAt, lang)}</span>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="rv-row-head">
+                    <span className="rv-row-author">{x.author || r('card.anonymous')}</span>
+                    {x.lang && <span className="rv-lang">{x.lang}</span>}
+                  </div>
+                  <div className={cx('rv-row-text', !x.text && 'empty')}>{x.text || r('card.noText')}</div>
+                </div>
+                <div className="rv-row-right">
+                  <Score v={x.rating10} raw={x.ratingRaw} scale={x.ratingScale} nb={nb} />
+                  {(x.replyEligible || x.hasReply) &&
+                    (x.replyMode === 'none' ? (
+                      <span className="rv-pill">{r('reply.notPublished')}</span>
+                    ) : x.hasReply ? (
+                      <span className="rv-pill replied"><Ico n="check" s={11} />{r('reply.replied')}</span>
+                    ) : (
+                      <span className="rv-pill noreply">{r('reply.none')}</span>
+                    ))}
+                  {x.draftReady && <span className="rv-pill draft">{r('feed.draftReady')}</span>}
+                </div>
               </div>
-              <div className="rp-row-body">
-                <div className="rp-row-head"><span className="rp-row-author">{x.author || r('card.anonymous')}</span>{x.lang && <span className="rp-lang">{x.lang}</span>}</div>
-                <div className={`rp-row-text${x.text ? '' : ' empty'}`}>{x.text || r('card.noText')}</div>
-              </div>
-              <div className="rp-row-right">
-                <Score rating10={x.rating10} raw={x.ratingRaw} scale={x.ratingScale} negBelow={nb} />
-                {(x.replyEligible || x.hasReply) && (x.replyMode === 'none' ? <span className="rp-pill muted">{r('reply.notPublished')}</span> : x.hasReply ? <span className="rp-pill replied">{r('reply.replied')}</span> : <span className="rp-pill noreply">{r('reply.none')}</span>)}
-                {x.draftReady && <span className="rp-pill draft">✎ {r('feed.draftReady')}</span>}
-              </div>
-            </div>
-          ))}
-          {feed && !feed.items.length && <div className="rp-empty">{r('feed.emptyText')}</div>}
-        </div>
+            ))}
+            {feed && !feed.items.length && <div className="rv-empty">{r('feed.emptyText')}</div>}
+          </div>
+        </Frame>
       </div>
     </div>
   );

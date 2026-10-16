@@ -19385,6 +19385,60 @@
           "settingsSub": "Yorum, ad ve konaklama tarihlerine göre misafirin rezervasyonuna bağlanır — böylece oda ve konaklama görünür, yapay zekâ yöneticisinin görevlerinde oda numarası yer alır. Kesin eşleşmeler her gece otomatik bağlanır, emin olunmayanlar yorum kartında onay bekler.",
           "matchRun": "Şimdi eşleştir",
           "matchResult": "{{checked}} kontrol edildi: {{auto}} bağlandı, {{suggested}} onay bekliyor"
+        },
+        "rv": {
+          "kicker": "Oteller · İtibar",
+          "agent": {
+            "drafts": "Yanıt taslakları hazırlıyorum: {{mode}} — siz kontrol edip gönderiyorsunuz.",
+            "noDrafts": "Yanıt taslakları kapalı — çalışan profilinden açın.",
+            "digest": "Her gün {{time}} saatinde yorum özeti gönderiyorum.",
+            "noDigest": "Günlük özet kapalı.",
+            "reminders": "Yanıtsız olumsuz yorumları {{h1}} saat sonra hatırlatıyorum, {{h2}} saat sonra yöneticiye görev.",
+            "live": "Çalışıyor",
+            "paused": "Duraklatıldı",
+            "none": "İşe alınmadı"
+          },
+          "card": {
+            "booking": "Rezervasyon",
+            "room": "Oda",
+            "dates": "Tarihler",
+            "byAi": "YZ tarafından analiz edildi",
+            "chars": "{{n}} karakter · yorum dili {{lang}}",
+            "countryLang": "Ülke · dil",
+            "editable": "{{name}} taslağı — göndermeden önce düzenleyebilirsiniz",
+            "notAnalyzed": "henüz analiz edilmedi",
+            "onPlatform": "platformda {{v}}",
+            "platform": "Platform",
+            "published": "Yayınlandı"
+          },
+          "comp": {
+            "title": "Biz ve rakipler",
+            "sub": "{{name}} kendi rakiplerine karşı ({{n}}) · aynı platformlar: {{p}}",
+            "manage": "Rakip listesi",
+            "rankFirst": "Rakipler arasında birinci",
+            "rankN": "Rakipler arasında {{n}} içinde {{r}}.",
+            "byAvg": "Dönem ortalama puanına göre.",
+            "leadBy": "Dönem ortalama puanına göre. İkinciye fark — {{g}}.",
+            "behindBy": "Dönem ortalama puanına göre. Birinciliğe {{g}} kaldı."
+          },
+          "dash": {
+            "vsPrev": "önceki döneme göre",
+            "vsYoy": "geçen yıla göre",
+            "negKpi": "Olumsuz · {{n}} altı",
+            "countNegNote": "Sütunun kırmızı kısmı olumsuz yorumlardır.",
+            "matrixSub": "Kırmızı — şikâyet, yeşil — övgü. Sayı, dönemde bu konuyu içeren yorumlardır. Akışı açmak için hücreye tıklayın.",
+            "legendNeg": "şikâyetler",
+            "legendPos": "övgüler",
+            "cellTip": "{{hotel}} · {{topic}}: {{neg}} şikâyet, {{pos}} övgü",
+            "open": "aç"
+          },
+          "report": {
+            "kick": "Aylık rapor · {{name}} · {{month}}",
+            "month": "Ay",
+            "send": "Yöneticilere gönder",
+            "noSummary": "Ay içinde analiz edilmiş yorumlar olduğunda YZ özeti görünür.",
+            "vsPrevMonth": "önceki aya göre"
+          }
         }
       }
     },

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import {
   APIFY_PRICE_PER_1000,
@@ -36,7 +37,9 @@ export const CompetitorsTab: React.FC<{ settings: RepSettings; setup: RepSetup; 
   const { r, lang } = useRepT();
   const { showAlert, showConfirm } = useAlertModal();
   const hotels = setup.hotels;
-  const [hotelId, setHotelId] = useState(hotels[0]?.id || '');
+  // со ссылки дашборда «Состав конкурентов» — сразу нужный отель (у каждого свой набор)
+  const [params] = useSearchParams();
+  const [hotelId, setHotelId] = useState(hotels.find((h) => h.id === params.get('hotel'))?.id || hotels[0]?.id || '');
   const [list, setList] = useState<RepCompetitor[] | null>(null);
   const [all, setAll] = useState<RepCompetitor[]>([]);
   const [cfg, setCfg] = useState(settings.config.competitors);

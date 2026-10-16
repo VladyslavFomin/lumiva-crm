@@ -45,7 +45,8 @@ import {
   type RepSource,
   translateRepTopic,
 } from '../../../api/hotelReputation';
-import { ApifyPauseBanner, PLATFORM_META, PlatformBadge, ReputationTabs, TOPIC_KEYS, fmtDate, useRepT } from './ReputationShared';
+import { ApifyPauseBanner, PlatformBadge, TOPIC_KEYS, fmtDate, useRepT } from './ReputationShared';
+import { RvHead, RvTabs } from './rvui';
 import { CompetitorsTab } from './RepCompetitorsSettings';
 import { TenantMailNotice } from '../../../components/mail/TenantMailNotice';
 import { useTenantComponents } from '../../../hooks/useTenantComponents';
@@ -54,7 +55,6 @@ import './reputation.css';
 
 type Tab = 'hotels' | 'connections' | 'competitors' | 'alerts' | 'ai' | 'log';
 const TABS: Tab[] = ['hotels', 'connections', 'competitors', 'alerts', 'ai', 'log'];
-const ALERT_KINDS: RepAlertKind[] = ['negative', 'no_reply', 'rating_lowered', 'avg_drop', 'topic_spike', 'sync_problem'];
 const emptyRec = (): RepRecipients => ({ emails: [], telegram: [], userIds: [] });
 
 // ============================================================ Дозагрузка истории
@@ -999,35 +999,38 @@ export const ReviewsSettingsPage: React.FC = () => {
       <PageHelpButton topic="hotelReviewsSettings" />
       <div className="px-scope">
         <HotelsSubnav active="reviews" />
-        <div className="htl-hero">
-          <div>
-            <div className="kicker"><span className="dot" />{r('kicker')}</div>
-            <h1>{r('settings.title')}</h1>
-            <p className="sub">{r('settings.subtitle')}</p>
+        <div className="rv">
+          <RvHead title={r('settings.title')} sub={r('settings.subtitle')} />
+          <RvTabs active="settings" />
+          <ApifyPauseBanner pause={settings?.config.apifyPause} />
+          <div className="rv-view rv-set">
+            <nav data-tour="rvs-tabs" className="rv-set-nav" aria-label={r('settings.title')}>
+              {TABS.map((t, i) => (
+                <button key={t} type="button" className={tab === t ? 'on' : ''} aria-current={tab === t ? 'page' : undefined} onClick={() => setParams({ tab: t }, { replace: true })}>
+                  <span className="no">{String(i + 1).padStart(2, '0')}</span>
+                  {r(`settings.tabs.${t}`)}
+                </button>
+              ))}
+            </nav>
+            <div key={tab} className="rv-set-body" style={{ minWidth: 0, animation: 'rvIn .4s cubic-bezier(.2,.8,.2,1) both' }}>
+              {!settings || !setup ? (
+                <div className="rv-empty-s">{r('card.loading')}</div>
+              ) : tab === 'hotels' ? (
+                <HotelsTab setup={setup} settings={settings} reload={reload} />
+              ) : tab === 'connections' ? (
+                <ConnectionsTab key={settings.config.google.accountName || 'x'} settings={settings} setup={setup} save={save} reload={reload} />
+              ) : tab === 'competitors' ? (
+                <CompetitorsTab settings={settings} setup={setup} save={save} />
+              ) : tab === 'alerts' ? (
+                <AlertsTab settings={settings} setup={setup} save={save} />
+              ) : tab === 'ai' ? (
+                <AiTab settings={settings} setup={setup} save={save} />
+              ) : (
+                <LogTab setup={setup} />
+              )}
+            </div>
           </div>
         </div>
-        <ReputationTabs active="settings" />
-        <ApifyPauseBanner pause={settings?.config.apifyPause} />
-        <div data-tour="rvs-tabs" className="hotel-select-tabs" style={{ display: 'inline-flex', marginBottom: 16, flexWrap: 'wrap' }}>
-          {TABS.map((t) => (
-            <div key={t} className={`hotel-select-tab${tab === t ? ' active' : ''}`} onClick={() => setParams({ tab: t }, { replace: true })}>{r(`settings.tabs.${t}`)}</div>
-          ))}
-        </div>
-        {!settings || !setup ? (
-          <div className="rp-empty">{r('card.loading')}</div>
-        ) : tab === 'hotels' ? (
-          <HotelsTab setup={setup} settings={settings} reload={reload} />
-        ) : tab === 'connections' ? (
-          <ConnectionsTab key={settings.config.google.accountName || 'x'} settings={settings} setup={setup} save={save} reload={reload} />
-        ) : tab === 'competitors' ? (
-          <CompetitorsTab settings={settings} setup={setup} save={save} />
-        ) : tab === 'alerts' ? (
-          <AlertsTab settings={settings} setup={setup} save={save} />
-        ) : tab === 'ai' ? (
-          <AiTab settings={settings} setup={setup} save={save} />
-        ) : (
-          <LogTab setup={setup} />
-        )}
       </div>
     </MainLayout>
   );
