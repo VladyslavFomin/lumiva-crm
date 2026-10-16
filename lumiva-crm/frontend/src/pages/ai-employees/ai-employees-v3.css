@@ -225,3 +225,6 @@
   .e3p .e2-id{padding:22px 16px}.e3p .e2-id h1{font-size:30px}.e3p .e3-av-xl{width:110px;margin:0;padding-top:24px}
 }
 @media (prefers-reduced-motion:reduce){.e3 *,.e3p *{animation:none !important}}
+/* метрики внутри панели («Итог по доступам») — часть панели, а не вложенная карточка: без своей рамки и скруглений */
+.e2-panel .e2-metrics,.e3p .e2-panel .e2-metrics{grid-template-columns:repeat(3,1fr);border:0;border-bottom:1px solid var(--line-2);border-radius:0;animation:none;background:transparent}
+.e2-panel .e2-metric{background:transparent}

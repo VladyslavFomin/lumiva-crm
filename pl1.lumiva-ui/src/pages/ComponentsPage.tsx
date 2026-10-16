@@ -26,6 +26,24 @@ const COMPONENTS: ComponentDef[] = [
     key: "leads",
     name: "Лиды",
     icon: "🧲",
+    children: [
+      { key: "leads_create", name: "Создать лид" },
+      { key: "leads_lost", name: "Утраченные лиды" },
+      { key: "leads_archive", name: "Архив лидов" },
+      { key: "leads_trash", name: "Корзина лидов" },
+      { key: "leads_analytics", name: "Аналитика лидов" },
+      { key: "leads_roi", name: "ROI" },
+    ],
+  },
+  {
+    key: "team_calendar",
+    name: "Календарь команды",
+    icon: "🗓️",
+  },
+  {
+    key: "analytics",
+    name: "Аналитика",
+    icon: "📊",
   },
   {
     key: "contacts",
@@ -66,8 +84,17 @@ const COMPONENTS: ComponentDef[] = [
     name: "Маркетинг",
     icon: "📣",
     children: [
-      { key: "marketing_campaigns", name: "Кампании" },
-      { key: "marketing_analytics", name: "Аналитика маркетинга" },
+      { key: "marketing_traffic", name: "Трафик" },
+      { key: "marketing_campaigns", name: "Кампании (ROAS)" },
+      { key: "marketing_roi", name: "ROI по клиентам" },
+      { key: "marketing_broadcasts", name: "Рассылки" },
+      { key: "marketing_utms", name: "UTM-метки" },
+      { key: "marketing_utm_links", name: "Ссылки с метками" },
+      { key: "marketing_segments", name: "Сегменты" },
+      { key: "marketing_channels", name: "Каналы и площадки" },
+      { key: "marketing_seo", name: "SEO и контент" },
+      { key: "marketing_smm", name: "SMM / соцсети" },
+      { key: "marketing_integrations", name: "Интеграции маркетинга" },
     ],
   },
   {
@@ -75,8 +102,14 @@ const COMPONENTS: ComponentDef[] = [
     name: "Инструменты",
     icon: "🛠️",
     children: [
-      { key: "tools_integrations", name: "Интеграции" },
       { key: "tools_automation", name: "Автоматизация" },
+      { key: "tools_approvals", name: "Ожидают подтверждения" },
+      { key: "tools_web_forms", name: "Формы для сайта" },
+      { key: "tools_web_forms_settings", name: "Настройки веб-форм" },
+      { key: "tools_integrations", name: "Интеграции" },
+      { key: "telegram", name: "Telegram" },
+      { key: "tools_telegram_inbox", name: "Telegram · Диалоги" },
+      { key: "whatsapp", name: "WhatsApp · Диалоги" },
       { key: "tools_settings", name: "Настройки" },
       { key: "custom_objects", name: "No-code Workspace" },
     ],
@@ -87,14 +120,44 @@ const COMPONENTS: ComponentDef[] = [
     icon: "📧",
   },
   {
-    key: "telegram",
-    name: "Telegram",
-    icon: "✈️",
-  },
-  {
     key: "chat",
     name: "Чат",
     icon: "💬",
+  },
+  {
+    key: "helpdesk",
+    name: "Поддержка",
+    icon: "🛟",
+  },
+  {
+    key: "esign",
+    name: "Электронная подпись",
+    icon: "✍️",
+  },
+  {
+    key: "phone_system",
+    name: "Телефония",
+    icon: "☎️",
+  },
+  {
+    key: "ai_office",
+    name: "ИИ-офис",
+    icon: "✨",
+  },
+  {
+    key: "ai_employees",
+    name: "ИИ-сотрудники",
+    icon: "🤖",
+  },
+  {
+    key: "aura",
+    name: "Aura",
+    icon: "🔮",
+  },
+  {
+    key: "team",
+    name: "Команда",
+    icon: "👥",
   },
   {
     key: "client_accounts",
@@ -125,6 +188,14 @@ const COMPONENTS: ComponentDef[] = [
     key: "hotels",
     name: "Система резервации",
     icon: "🏨",
+    children: [
+      { key: "hotels_reservations", name: "Брони" },
+      { key: "hotels_frontdesk", name: "Сегодня" },
+      { key: "hotels_pricing", name: "Цены" },
+      { key: "hotels_calendar", name: "Календарь номеров" },
+      { key: "hotels_analytics", name: "Аналитика" },
+      { key: "hotels_reviews", name: "Отзывы" },
+    ],
   },
 ];
 

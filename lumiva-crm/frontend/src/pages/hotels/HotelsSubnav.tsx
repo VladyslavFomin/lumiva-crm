@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useTenantComponents } from '../../hooks/useTenantComponents';
 
 type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'frontdesk' | 'pricing' | 'calendar' | 'analytics' | 'reviews';
 
@@ -52,21 +53,22 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
 export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { isEnabled } = useTenantComponents();
 
-  const items: Array<{ key: SubnavKey; label: string; path: string }> = [
-    { key: 'overview', label: t('crm.hotels.nav.overview'), path: '/hotels' },
-    { key: 'hotels', label: t('crm.hotels.nav.hotels'), path: '/hotels/list' },
-    { key: 'reservations', label: t('crm.hotels.nav.reservations'), path: '/hotels/reservations' },
-    { key: 'frontdesk', label: t('crm.hotels.nav.frontdesk'), path: '/hotels/frontdesk' },
-    { key: 'pricing', label: t('crm.hotels.nav.pricing'), path: '/hotels/pricing' },
-    { key: 'calendar', label: t('crm.hotels.nav.calendar'), path: '/hotels/calendar' },
-    { key: 'analytics', label: t('crm.hotels.nav.analytics'), path: '/hotels/analytics' },
-    { key: 'reviews', label: t('crm.hotels.nav.reviews'), path: '/hotels/reviews' },
+  const items: Array<{ key: SubnavKey; label: string; path: string; component: string }> = [
+    { key: 'overview', label: t('crm.hotels.nav.overview'), path: '/hotels', component: 'hotels' },
+    { key: 'hotels', label: t('crm.hotels.nav.hotels'), path: '/hotels/list', component: 'hotels' },
+    { key: 'reservations', label: t('crm.hotels.nav.reservations'), path: '/hotels/reservations', component: 'hotels_reservations' },
+    { key: 'frontdesk', label: t('crm.hotels.nav.frontdesk'), path: '/hotels/frontdesk', component: 'hotels_frontdesk' },
+    { key: 'pricing', label: t('crm.hotels.nav.pricing'), path: '/hotels/pricing', component: 'hotels_pricing' },
+    { key: 'calendar', label: t('crm.hotels.nav.calendar'), path: '/hotels/calendar', component: 'hotels_calendar' },
+    { key: 'analytics', label: t('crm.hotels.nav.analytics'), path: '/hotels/analytics', component: 'hotels_analytics' },
+    { key: 'reviews', label: t('crm.hotels.nav.reviews'), path: '/hotels/reviews', component: 'hotels_reviews' },
   ];
 
   return (
     <div data-tour="hotels-subnav" className="px-subnav">
-      {items.map((item) => (
+      {items.filter((item) => isEnabled('hotels') && isEnabled(item.component)).map((item) => (
         <button
           key={item.key}
           type="button"

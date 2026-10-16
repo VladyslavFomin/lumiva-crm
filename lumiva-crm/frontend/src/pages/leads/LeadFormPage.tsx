@@ -31,6 +31,7 @@ import type { AiLeadScoreResult } from '../../api/ai';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { getStoredUser } from '../../auth/session';
 import { usePermission } from '../../hooks/usePermission';
+import { useTenantComponents } from '../../hooks/useTenantComponents';
 import { splitTextWithMentions, isTextMentioning } from '../projects/mentions';
 import { ccpApi, type CcpClient, type CcpSite } from '../../api/ccp';
 import { fetchCompanies, createCompany, type Company } from '../../api/companies';
@@ -256,6 +257,12 @@ export const LeadFormPage: React.FC = () => {
 
   const { t, i18n } = useTranslation();
   const { showConfirm } = useAlertModal();
+  const { isEnabled: isTenantComponentEnabled } = useTenantComponents();
+  const showContacts = isTenantComponentEnabled('contacts');
+  const showCompanies = isTenantComponentEnabled('companies');
+  const showProjects = isTenantComponentEnabled('projects');
+  const showSales = isTenantComponentEnabled('sales');
+  const showBookings = isTenantComponentEnabled('bookings');
   const locale = resolveLocale(i18n.language || 'ru');
   const navigate = useNavigate();
 
@@ -455,11 +462,11 @@ export const LeadFormPage: React.FC = () => {
       | { kind: 'project'; activity: ProjectActivity };
     const rows: Row[] = [
       ...history.map((activity) => ({ kind: 'lead' as const, activity })),
-      ...projectActivities.map((activity) => ({ kind: 'project' as const, activity })),
+      ...(showProjects ? projectActivities.map((activity) => ({ kind: 'project' as const, activity })) : []),
     ];
     rows.sort((a, b) => new Date(b.activity.createdAt).getTime() - new Date(a.activity.createdAt).getTime());
     return rows;
-  }, [history, projectActivities]);
+  }, [history, projectActivities, showProjects]);
 
   const leadMeetings = useMemo(() => readMeetings(lead), [lead]);
   const sortedLeadMeetings = useMemo(
@@ -713,7 +720,7 @@ export const LeadFormPage: React.FC = () => {
 
   // Проекты, привязанные к лиду (API: ?leadId=)
   useEffect(() => {
-    if (isNew || !id) {
+    if (!showProjects || isNew || !id) {
       setLeadProjects([]);
       setLeadProjectsError(null);
       setLeadProjectsLoading(false);
@@ -739,12 +746,12 @@ export const LeadFormPage: React.FC = () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isNew, t]);
+  }, [id, isNew, showProjects, t]);
 
   /** Продажи CRM по лиду. Показываем блок, только если у лида реально ЕСТЬ заказы — ошибка загрузки
    * (например 403 без доступа к «Продажам») блок не показывает. */
   useEffect(() => {
-    if (isNew || !id) {
+    if (!showSales || isNew || !id) {
       setLeadSales([]);
       return;
     }
@@ -760,11 +767,11 @@ export const LeadFormPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [id, isNew]);
+  }, [id, isNew, showSales]);
 
   /** Брони модуля "Бронирования" по лиду — модуль может быть не включён у тенанта, это не ошибка карточки. */
   useEffect(() => {
-    if (isNew || !id) {
+    if (!showBookings || isNew || !id) {
       setLeadReservations([]);
       return;
     }
@@ -779,7 +786,7 @@ export const LeadFormPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [id, isNew]);
+  }, [id, isNew, showBookings]);
 
   // CCP client lookup when lead has ClientCabinet source
   useEffect(() => {
@@ -826,7 +833,14 @@ export const LeadFormPage: React.FC = () => {
 
   // История по всем проектам этого лида (как на странице проекта)
   useEffect(() => {
-    if (isNew || !id || leadProjectsLoading) return;
+    if (!showProjects || isNew || !id || leadProjectsLoading) {
+      if (!showProjects) {
+        setProjectActivities([]);
+        setProjectActivitiesError(null);
+        setProjectActivitiesLoading(false);
+      }
+      return;
+    }
     if (leadProjects.length === 0) {
       setProjectActivities([]);
       setProjectActivitiesError(null);
@@ -853,7 +867,7 @@ export const LeadFormPage: React.FC = () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isNew, leadProjects, leadProjectsLoading, t]);
+  }, [id, isNew, leadProjects, leadProjectsLoading, showProjects, t]);
 
   const dirty = !isNew && !loading && editableSnapshot(lead) !== baselineSnap;
 
@@ -1076,9 +1090,11 @@ export const LeadFormPage: React.FC = () => {
         fetchLeadHistory(lead.id)
           .then((items) => setHistory(items ?? []))
           .catch((e) => console.error('history reload error', e));
-        fetchProjects({ leadId: lead.id })
-          .then((res) => setLeadProjects(res.items))
-          .catch((e) => console.error('projects reload error', e));
+        if (showProjects) {
+          fetchProjects({ leadId: lead.id })
+            .then((res) => setLeadProjects(res.items))
+            .catch((e) => console.error('projects reload error', e));
+        }
       }
     } catch (e: any) {
       console.error(e);
@@ -1644,7 +1660,7 @@ export const LeadFormPage: React.FC = () => {
             <div className="ld-grid">
               {/* ════ LEFT ════════════════════════════════════════ */}
               <aside data-tour="lead-info" className="ld-left">
-                <Sec title={t('crm.leadCard.sec.contact')}>
+                {showContacts && <Sec title={t('crm.leadCard.sec.contact')}>
                   <div className="ld-fs">
                     <label className="ld-f w">
                       <span className="l">{t('crm.leads.form.fields.namePlaceholder')}</span>
@@ -1688,7 +1704,7 @@ export const LeadFormPage: React.FC = () => {
                       )}
                     </div>
                   )}
-                </Sec>
+                </Sec>}
 
                 <Sec title={t('crm.leadCard.sec.deal')}>
                   <div className="ld-fs">
@@ -1729,83 +1745,95 @@ export const LeadFormPage: React.FC = () => {
                   </div>
                 </Sec>
 
-                <Sec title={t('crm.leadCard.sec.links')}>
+                {(showContacts || showCompanies || showProjects || showSales || showBookings) && <Sec title={t('crm.leadCard.sec.links')}>
                   <div className="ld-links">
-                    <div className="lh">
-                      <span className="kick">{t('crm.leads.form.fields.company')}</span>
-                      <button type="button" className="lk" onClick={handleCreateCompany}>
-                        + {t('crm.leads.form.fields.createCompany')}
-                      </button>
-                    </div>
-                    <CompanySelect
-                      value={lead.companyId ?? null}
-                      onChange={handleCompanyPicked}
-                      placeholder={t('crm.leads.form.fields.companyPlaceholder')}
-                      className="w-full"
-                      allowCreate={true}
-                      onCompanyCreated={(company) => {
-                        setCompanies((l) => [company, ...l]);
-                        setLead((prev) => ({ ...prev, companyId: company.id }));
-                      }}
-                    />
-
-                    <div className="lh">
-                      <span className="kick">{t('crm.leads.form.fields.contact')}</span>
-                      <div>
-                        {lead.contactId && (
-                          <button type="button" className="lk" onClick={() => navigate(`/contacts/${lead.contactId}`)}>
-                            ↗ {t('crm.leads.form.fields.openContact')}
+                    {showCompanies && (
+                      <>
+                        <div className="lh">
+                          <span className="kick">{t('crm.leads.form.fields.company')}</span>
+                          <button type="button" className="lk" onClick={handleCreateCompany}>
+                            + {t('crm.leads.form.fields.createCompany')}
                           </button>
-                        )}
-                        <button type="button" className="lk" onClick={handleCreateContactFromLead}>
-                          + {t('crm.leads.form.fields.createContact')}
-                        </button>
-                      </div>
-                    </div>
-                    <ContactSelect
-                      value={lead.contactId ?? null}
-                      companyId={lead.companyId ?? null}
-                      onChange={(contactId, contact) => {
-                        setLead((prev) => ({
-                          ...prev,
-                          contactId,
-                          name:
-                            prev.name?.trim().length > 0
-                              ? prev.name
-                              : contact?.fullName || `${contact?.firstName || ''} ${contact?.lastName || ''}`.trim() || prev.name,
-                          email: prev.email?.trim().length > 0 ? prev.email : contact?.email || prev.email,
-                          phone: prev.phone?.trim().length > 0 ? prev.phone : contact?.phone || prev.phone,
-                          companyId: prev.companyId || contact?.companyId || null,
-                        }));
-                      }}
-                      placeholder={t('crm.leads.form.fields.selectContact')}
-                      className="w-full"
-                      allowCreate={true}
-                    />
-
-                    <div className="lh">
-                      <span className="kick">{t('crm.leads.form.sections.projectsTitle')}</span>
-                      {!isNew && (
-                        <button type="button" className="lk" onClick={() => navigate('/projects')}>
-                          {t('crm.leadCard.links.all')} ↗
-                        </button>
-                      )}
-                    </div>
-                    {isNew && <div className="ld-empty">{t('crm.leads.form.sections.projectsNeedSave')}</div>}
-                    {!isNew && leadProjectsLoading && <div className="ld-empty">{t('crm.leads.form.sections.projectsLoading')}</div>}
-                    {leadProjectsError && <div className="ld-err">{leadProjectsError}</div>}
-                    {!isNew && !leadProjectsLoading && !leadProjectsError && leadProjects.length === 0 && (
-                      <div className="ld-empty">{t('crm.leads.form.sections.projectsEmpty')}</div>
+                        </div>
+                        <CompanySelect
+                          value={lead.companyId ?? null}
+                          onChange={handleCompanyPicked}
+                          placeholder={t('crm.leads.form.fields.companyPlaceholder')}
+                          className="w-full"
+                          allowCreate={true}
+                          onCompanyCreated={(company) => {
+                            setCompanies((l) => [company, ...l]);
+                            setLead((prev) => ({ ...prev, companyId: company.id }));
+                          }}
+                        />
+                      </>
                     )}
-                    {leadProjects.map((p) => (
-                      <button key={p.id} type="button" className="ld-link" onClick={() => navigate(`/projects/${p.id}`)}>
-                        <span className="mono mut">#{String(p.id).slice(0, 6)}</span>
-                        <span className="nm">{p.name}</span>
-                        <em>{p.status}</em>
-                      </button>
-                    ))}
 
-                    {leadSales.length > 0 && (
+                    {showContacts && (
+                      <>
+                        <div className="lh">
+                          <span className="kick">{t('crm.leads.form.fields.contact')}</span>
+                          <div>
+                            {lead.contactId && (
+                              <button type="button" className="lk" onClick={() => navigate(`/contacts/${lead.contactId}`)}>
+                                ↗ {t('crm.leads.form.fields.openContact')}
+                              </button>
+                            )}
+                            <button type="button" className="lk" onClick={handleCreateContactFromLead}>
+                              + {t('crm.leads.form.fields.createContact')}
+                            </button>
+                          </div>
+                        </div>
+                        <ContactSelect
+                          value={lead.contactId ?? null}
+                          companyId={lead.companyId ?? null}
+                          onChange={(contactId, contact) => {
+                            setLead((prev) => ({
+                              ...prev,
+                              contactId,
+                              name:
+                                prev.name?.trim().length > 0
+                                  ? prev.name
+                                  : contact?.fullName || `${contact?.firstName || ''} ${contact?.lastName || ''}`.trim() || prev.name,
+                              email: prev.email?.trim().length > 0 ? prev.email : contact?.email || prev.email,
+                              phone: prev.phone?.trim().length > 0 ? prev.phone : contact?.phone || prev.phone,
+                              companyId: prev.companyId || contact?.companyId || null,
+                            }));
+                          }}
+                          placeholder={t('crm.leads.form.fields.selectContact')}
+                          className="w-full"
+                          allowCreate={true}
+                        />
+                      </>
+                    )}
+
+                    {showProjects && (
+                      <>
+                        <div className="lh">
+                          <span className="kick">{t('crm.leads.form.sections.projectsTitle')}</span>
+                          {!isNew && (
+                            <button type="button" className="lk" onClick={() => navigate('/projects')}>
+                              {t('crm.leadCard.links.all')} ↗
+                            </button>
+                          )}
+                        </div>
+                        {isNew && <div className="ld-empty">{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                        {!isNew && leadProjectsLoading && <div className="ld-empty">{t('crm.leads.form.sections.projectsLoading')}</div>}
+                        {leadProjectsError && <div className="ld-err">{leadProjectsError}</div>}
+                        {!isNew && !leadProjectsLoading && !leadProjectsError && leadProjects.length === 0 && (
+                          <div className="ld-empty">{t('crm.leads.form.sections.projectsEmpty')}</div>
+                        )}
+                        {leadProjects.map((p) => (
+                          <button key={p.id} type="button" className="ld-link" onClick={() => navigate(`/projects/${p.id}`)}>
+                            <span className="mono mut">#{String(p.id).slice(0, 6)}</span>
+                            <span className="nm">{p.name}</span>
+                            <em>{p.status}</em>
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {showSales && leadSales.length > 0 && (
                       <>
                         <div className="lh">
                           <span className="kick">{t('crm.leadCard.links.sales')}</span>
@@ -1842,7 +1870,7 @@ export const LeadFormPage: React.FC = () => {
                       </>
                     )}
 
-                    {leadReservations.length > 0 && (
+                    {showBookings && leadReservations.length > 0 && (
                       <>
                         <div className="lh">
                           <span className="kick">{t('crm.leadCard.links.bookings')}</span>
@@ -1862,7 +1890,7 @@ export const LeadFormPage: React.FC = () => {
                       </>
                     )}
                   </div>
-                </Sec>
+                </Sec>}
 
                 {!isNew && (ccpClient || ccpClientLoading) && (
                   <Sec
@@ -2136,11 +2164,11 @@ export const LeadFormPage: React.FC = () => {
 
                       {tab === 'history' && (
                         <div className="ld-pane">
-                          {(historyLoading || (leadProjects.length > 0 && projectActivitiesLoading)) && (
+                          {(historyLoading || (showProjects && leadProjects.length > 0 && projectActivitiesLoading)) && (
                             <div className="ld-empty">{t('crm.leads.form.sections.historyLoading')}</div>
                           )}
                           {historyError && <div className="ld-err">{historyError}</div>}
-                          {projectActivitiesError && <div className="ld-err">{projectActivitiesError}</div>}
+                          {showProjects && projectActivitiesError && <div className="ld-err">{projectActivitiesError}</div>}
                           {!historyLoading && mergedTimeline.length === 0 && <div className="ld-empty">{t('crm.leads.form.sections.historyEmpty')}</div>}
                           {mergedTimeline.length > 0 && (
                             <ol className="ld-hist">

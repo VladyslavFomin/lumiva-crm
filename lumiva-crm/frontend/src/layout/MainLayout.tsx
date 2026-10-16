@@ -58,6 +58,7 @@ import {
 
 const DEFAULT_SIDEBAR_LOGO = '/lumiva-default-logo.svg';
 import { useTranslation } from 'react-i18next';
+import { useTenantDomain } from '../auth/useTenantDomain';
 import { setAppLanguage } from '../i18n';
 import { auraApi, AURA_MENU_CHANGED_EVENT } from '../api/aura';
 import { BillingPage } from '../pages/BillingPage';
@@ -167,6 +168,7 @@ function itemMatchScore(pathname: string, item: NavItem): number {
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = false }) => {
+  useTenantDomain();
   const { t, i18n } = useTranslation();
   const [, bumpSessionUser] = useReducer((n: number) => n + 1, 0);
   const user = getStoredUser();
@@ -1309,7 +1311,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.marketingSegments'), path: '/app/marketing/segments' },
           { label: t('crm.nav.marketingChannels'), path: '/app/marketing/channels' },
           { label: t('crm.nav.marketingSeo'), path: '/app/marketing/seo' },
-          { label: t('crm.nav.marketingReviews'), path: '/app/marketing/reviews' },
           { label: t('crm.nav.marketingSmm'), path: '/app/marketing/smm' },
           { label: t('crm.nav.marketingIntegrations'), path: '/app/integrations-hub?tab=marketing' },
         ],
@@ -1493,19 +1494,48 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   // Маппинг путей к ключам компонентов (после редиректа /app → короткие пути)
   const componentKeyForPath = (path: string): string | null => {
     const p = normalizeLayoutPath(path);
+    if (p.startsWith('/leads/new')) return 'leads_create';
+    if (p.startsWith('/leads/lost')) return 'leads_lost';
+    if (p.startsWith('/leads/archive')) return 'leads_archive';
+    if (p.startsWith('/leads/trash')) return 'leads_trash';
+    if (p.startsWith('/leads/analytics')) return 'leads_analytics';
+    if (p.startsWith('/leads/roi')) return 'leads_roi';
     if (p.startsWith('/leads')) return 'leads';
+    if (p.startsWith('/calendar')) return 'team_calendar';
+    if (p.startsWith('/bi') || p.startsWith('/analytics')) return 'analytics';
+    if (p.startsWith('/aura')) return 'aura';
+    if (p.startsWith('/ai-office')) return 'ai_office';
+    if (p.startsWith('/ai-employees')) return 'ai_employees';
+    if (p.startsWith('/helpdesk')) return 'helpdesk';
+    if (p.startsWith('/esign')) return 'esign';
+    if (p.startsWith('/staff') || p.startsWith('/departments')) return 'team';
     if (p.startsWith('/projects/analytics')) return 'projects_analytics';
+    if (p.startsWith('/projects/board')) return 'projects_kanban';
+    if (p.startsWith('/projects/calendar')) return 'projects_calendar';
     if (p.startsWith('/projects')) return 'projects';
     if (p.startsWith('/sales')) return 'sales';
+    if (p.startsWith('/marketing/traffic')) return 'marketing_traffic';
     if (p.startsWith('/marketing/campaigns')) return 'marketing_campaigns';
+    if (p.startsWith('/marketing/roi')) return 'marketing_roi';
+    if (p.startsWith('/marketing/broadcasts')) return 'marketing_broadcasts';
+    if (p.startsWith('/marketing/utms')) return 'marketing_utms';
+    if (p.startsWith('/marketing/utm-links')) return 'marketing_utm_links';
+    if (p.startsWith('/marketing/segments')) return 'marketing_segments';
+    if (p.startsWith('/marketing/channels')) return 'marketing_channels';
+    if (p.startsWith('/marketing/seo')) return 'marketing_seo';
+    if (p.startsWith('/marketing/smm')) return 'marketing_smm';
     if (p.startsWith('/marketing')) return 'marketing';
+    if (p.startsWith('/integrations-hub?tab=marketing')) return 'marketing_integrations';
     if (p.startsWith('/contacts/duplicates')) return 'deduplication';
     if (p.startsWith('/contacts')) return 'contacts';
     if (p.startsWith('/companies')) return 'companies';
+    if (p.startsWith('/automations/pending-approvals')) return 'tools_approvals';
     if (p.startsWith('/automations')) return 'tools_automation';
-    if (p.startsWith('/web-forms')) return 'tools_automation';
-    if (p.startsWith('/integrations-hub')) return 'tools_automation';
+    if (p.startsWith('/web-forms/settings')) return 'tools_web_forms_settings';
+    if (p.startsWith('/web-forms')) return 'tools_web_forms';
+    if (p.startsWith('/integrations-hub')) return 'tools_integrations';
     if (p.startsWith('/email')) return 'email';
+    if (p.startsWith('/telegram/inbox')) return 'tools_telegram_inbox';
     if (p.startsWith('/telegram')) return 'telegram';
     if (p.startsWith('/whatsapp')) return 'whatsapp';
     if (p.startsWith('/settings')) return 'tools_settings';
@@ -1515,9 +1545,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/workspace')) return 'custom_objects';
     if (p.startsWith('/products')) return 'products';
     if (p.startsWith('/bookings')) return 'bookings';
+    if (p.startsWith('/hotels/reservations')) return 'hotels_reservations';
+    if (p.startsWith('/hotels/frontdesk')) return 'hotels_frontdesk';
+    if (p.startsWith('/hotels/pricing')) return 'hotels_pricing';
+    if (p.startsWith('/hotels/calendar')) return 'hotels_calendar';
+    if (p.startsWith('/hotels/analytics')) return 'hotels_analytics';
+    if (p.startsWith('/hotels/reviews')) return 'hotels_reviews';
     if (p.startsWith('/hotels')) return 'hotels';
     if (p.startsWith('/telephony/sms')) return 'sms';
     if (p.startsWith('/sms')) return 'sms';
+    if (p.startsWith('/telephony')) return 'phone_system';
     return null;
   };
 
@@ -1526,6 +1563,28 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (!componentKey) return true; // Если нет ключа компонента, разрешаем доступ
     if (!componentsLoaded) return true; // Пока загружаются, разрешаем доступ
     if (tenantComponents.length === 0) return true; // Если компоненты не загружены (ошибка), разрешаем доступ
+    if (componentKey.startsWith('hotels_')) {
+      const hotels = tenantComponents.find((c) => c.key === 'hotels');
+      if (hotels && !hotels.enabled) return false;
+    }
+    if (componentKey.startsWith('projects_')) {
+      const projects = tenantComponents.find((c) => c.key === 'projects');
+      if (projects && !projects.enabled) return false;
+    }
+    if (componentKey.startsWith('leads_')) {
+      const leads = tenantComponents.find((c) => c.key === 'leads');
+      if (leads && !leads.enabled) return false;
+    }
+    if (componentKey.startsWith('marketing_')) {
+      const marketing = tenantComponents.find((c) => c.key === 'marketing');
+      if (marketing && !marketing.enabled) return false;
+    }
+    if (
+      ['tools_automation', 'tools_approvals', 'tools_web_forms', 'tools_web_forms_settings', 'tools_integrations', 'tools_telegram_inbox', 'telegram', 'whatsapp'].includes(componentKey)
+    ) {
+      const tools = tenantComponents.find((c) => c.key === 'tools');
+      if (tools && !tools.enabled) return false;
+    }
     const component = tenantComponents.find((c) => c.key === componentKey);
     // Если компонент не найден в списке, разрешаем доступ (новый компонент)
     // Если найден, проверяем его статус
@@ -1627,7 +1686,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   // нельзя видеть раздел в меню, прямой переход по ссылке на него тоже не должен открывать
   // страницу (и, тем более, слать её собственные API-запросы, которые вернут сырой 403).
   const currentRoutePerm = permissionForPath(location.pathname);
-  const currentRouteComponentKey = componentKeyForPath(location.pathname);
+  const currentRouteComponentKey = componentKeyForPath(location.pathname + location.search);
   const routeAllowed =
     isComponentEnabled(currentRouteComponentKey) && canAccess(currentRoutePerm);
 
@@ -1646,7 +1705,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
   const filteredNav = NAV.map((item) => {
     // Проверка компонента
-    const componentKey = componentKeyForPath(item.path);
+    const componentKey = item.path === '/app/automations' ? 'tools' : componentKeyForPath(item.path);
     if (!isComponentEnabled(componentKey)) return null;
 
     // Проверка прав доступа
@@ -1662,7 +1721,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       });
     
     // Если у родителя есть дочерние элементы, но все они отфильтрованы, скрываем родителя
-    if (item.children && item.children.length > 0 && (!children || children.length === 0)) {
+    if (
+      item.children &&
+      item.children.length > 0 &&
+      (!children || children.length === 0) &&
+      componentKey !== 'leads' &&
+      componentKey !== 'marketing'
+    ) {
       return null;
     }
 

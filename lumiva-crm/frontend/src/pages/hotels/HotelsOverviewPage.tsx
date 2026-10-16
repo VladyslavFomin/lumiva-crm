@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+import { useTenantComponents } from '../../hooks/useTenantComponents';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
 import { fetchHotels, fetchHotelsOverviewKpis, type Hotel, type HotelsOverviewKpis } from '../../api/hotels';
@@ -23,6 +24,10 @@ function money(v: number, currency: string | undefined, locale?: string) {
 export const HotelsOverviewPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const repSummary = useRepHotelsSummary();
+  const { isEnabled, loaded: componentsLoaded } = useTenantComponents();
+  const showReservationStats = isEnabled('hotels_reservations') || isEnabled('hotels_frontdesk');
+  const showFinancialStats = isEnabled('hotels_pricing') || isEnabled('hotels_analytics');
+  const showReviews = isEnabled('hotels_reviews');
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -30,7 +35,11 @@ export const HotelsOverviewPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([fetchHotels(), fetchHotelsOverviewKpis()])
+    if (!componentsLoaded) return;
+    Promise.all([
+      fetchHotels(),
+      showReservationStats || showFinancialStats ? fetchHotelsOverviewKpis() : Promise.resolve(null),
+    ])
       .then(([h, k]) => {
         setHotels(h);
         setKpis(k);
@@ -38,7 +47,7 @@ export const HotelsOverviewPage: React.FC = () => {
       .catch((e) => showAlert(e.message || t('crm.hotels.overview.error'), { variant: 'error' }))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [componentsLoaded, showReservationStats, showFinancialStats]);
 
   const totalRooms = hotels.reduce((s, h) => s + h.roomsCount, 0);
 
@@ -54,21 +63,23 @@ export const HotelsOverviewPage: React.FC = () => {
             <p className="sub">{t('crm.hotels.overview.subtitle')}</p>
           </div>
           <div className="htl-hero-r">
-            <button data-tour="hotels-pricing" className="btn" onClick={() => navigate('/hotels/pricing')}>
-              <Ic d={HTL_ICON.settings} size={14} />{t('crm.hotels.overview.pricingBtn')}
-            </button>
+            {isEnabled('hotels_pricing') && (
+              <button data-tour="hotels-pricing" className="btn" onClick={() => navigate('/hotels/pricing')}>
+                <Ic d={HTL_ICON.settings} size={14} />{t('crm.hotels.overview.pricingBtn')}
+              </button>
+            )}
             <button data-tour="hotels-create" className="btn btn-primary" onClick={() => navigate('/hotels/list')}>
               <Ic d={HTL_ICON.plus} size={14} />{t('crm.hotels.overview.newHotelBtn')}
             </button>
           </div>
         </div>
 
-        {kpis && (
+        {kpis && (showReservationStats || showFinancialStats) && (
           <div data-tour="hotels-kpis" className="htl-kpis">
-            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.occupancyToday')}</div><div className="v">{kpis.occupancyToday}%</div></div>
-            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.adr')}</div><div className="v">{money(kpis.adr, kpis.currency, i18n.language)}</div></div>
-            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.bookings30d')}</div><div className="v">{kpis.bookings30d}</div></div>
-            <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.revenue30d')}</div><div className="v">{money(kpis.revenue30d, kpis.currency, i18n.language)}</div></div>
+            {showReservationStats && <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.occupancyToday')}</div><div className="v">{kpis.occupancyToday}%</div></div>}
+            {showFinancialStats && <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.adr')}</div><div className="v">{money(kpis.adr, kpis.currency, i18n.language)}</div></div>}
+            {showReservationStats && <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.bookings30d')}</div><div className="v">{kpis.bookings30d}</div></div>}
+            {showFinancialStats && <div className="htl-kpi"><div className="l">{t('crm.hotels.overview.kpis.revenue30d')}</div><div className="v">{money(kpis.revenue30d, kpis.currency, i18n.language)}</div></div>}
           </div>
         )}
 
@@ -102,10 +113,10 @@ export const HotelsOverviewPage: React.FC = () => {
                 <div className="htl-card-loc"><Ic d={HTL_ICON.calendar} size={12} />{[h.city, h.country].filter(Boolean).join(', ')}</div>
                 <div className="htl-card-stats">
                   <span><b>{h.roomsCount}</b> {t('crm.hotels.overview.card.rooms')}</span>
-                  <span><b>{h.occupancyToday}%</b> {t('crm.hotels.overview.card.occupancy')}</span>
-                  <span><b>{money(h.adr, h.currency, i18n.language)}</b> ADR</span>
+                  {showReservationStats && <span><b>{h.occupancyToday}%</b> {t('crm.hotels.overview.card.occupancy')}</span>}
+                  {showFinancialStats && <span><b>{money(h.adr, h.currency, i18n.language)}</b> ADR</span>}
                 </div>
-                <HotelRepLine summary={repSummary} hotelId={h.id} />
+                {showReviews && <HotelRepLine summary={repSummary} hotelId={h.id} />}
               </div>
             </div>
           ))}
