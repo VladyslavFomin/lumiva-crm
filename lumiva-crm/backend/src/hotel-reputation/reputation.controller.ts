@@ -19,6 +19,7 @@ import { ReputationDuplicatesService } from './reputation-duplicates.service';
 import { ReportRequest, ReputationReportService } from './reputation-report.service';
 import { CompetitorAnalyticsQuery, ReputationCompetitorsService } from './reputation-competitors.service';
 import { ReputationReservationsService } from './reputation-reservations.service';
+import { tenantFrontend } from './reputation-tenant.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HotelReviewSource, HotelReviewSyncRun } from './reputation.entities';
@@ -472,8 +473,11 @@ export class ReputationPublicController {
 
   @Get('google/callback')
   async callback(@Query('code') code: string, @Query('state') state: string, @Query('error') error: string, @Res() res: Response) {
-    const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
-    const r = error || !code ? { ok: false, error: error || 'no_code' } : await this.google.completeOAuth(code, state);
+    const r: { ok: boolean; error?: string; tenantId?: string } = error || !code ? { ok: false, error: error || 'no_code' } : await this.google.completeOAuth(code, state);
+    // вернуть пользователя в его CRM (свой домен клиента, если подключён)
+    const frontend = r.tenantId
+      ? await tenantFrontend((sql, p) => this.sync.rawQuery(sql, p), r.tenantId)
+      : (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
     res.redirect(`${frontend}/hotels/reviews/settings?tab=connections&google=${r.ok ? 'connected' : `error&reason=${encodeURIComponent(r.error || '')}`}`);
   }
 

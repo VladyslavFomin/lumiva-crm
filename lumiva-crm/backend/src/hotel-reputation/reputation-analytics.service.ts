@@ -9,6 +9,7 @@ import { REPLY_MODE, TOPIC_LABELS_RU, activeTopicSql, listParam, reviewHasTextSq
 import { ReputationSettingsService } from './reputation-settings.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationReservationsService } from './reputation-reservations.service';
+import { tenantFrontend } from './reputation-tenant.util';
 
 export interface AnalyticsQuery {
   /** Один id или несколько через запятую (мультивыбор в фильтрах). */
@@ -716,7 +717,7 @@ export class ReputationAnalyticsService {
         try {
           const rep = await this.monthlyReportWithSummary(tenantId, b.id);
           if (!rep.kpis.count) continue;
-          const html = this.reportHtml(rep);
+          const html = this.reportHtml(rep, await tenantFrontend((sql, p) => this.reviews.query(sql, p), tenantId));
           for (const to of emails) await this.mail.sendMail({ to, subject: `Репутация ${b.name} · ${rep.month}`, html });
         } catch (e: any) {
           this.log.warn(`monthly reputation report ${b.id}: ${e?.message || e}`);
@@ -725,11 +726,10 @@ export class ReputationAnalyticsService {
     }
   }
 
-  private reportHtml(rep: any): string {
+  private reportHtml(rep: any, frontend: string): string {
     const e = escapeMailHtml;
     const f = (v: any, d = 2) => (v == null ? '—' : Number(v).toFixed(d));
     const sign = (v: any) => (v == null ? '' : v > 0 ? `+${f(v)}` : f(v));
-    const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
     return `<div style="font-family:Inter,Arial,sans-serif;max-width:640px;color:#222">
 <h2 style="margin:0 0 4px;font-size:20px">${e(rep.brand?.name || '')} · ${e(rep.month)}</h2>
 <p style="margin:0 0 16px;color:#888;font-size:13px">Ежемесячный отчёт по репутации</p>

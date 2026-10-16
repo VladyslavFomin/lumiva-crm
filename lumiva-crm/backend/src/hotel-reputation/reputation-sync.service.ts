@@ -863,6 +863,11 @@ export class ReputationSyncService {
     await this.runs.delete({ startedAt: LessThan(new Date(Date.now() - 120 * DAY)) as any });
   }
 
+  /** Сырой запрос — для общих утилит (адрес CRM клиента в публичном контроллере). */
+  rawQuery(sql: string, params: unknown[]) {
+    return this.reviews.query(sql, params);
+  }
+
   hotelName(hotelId: string) {
     return this.hotels.findOne({ where: { id: hotelId } }).then((h) => h?.name || '');
   }

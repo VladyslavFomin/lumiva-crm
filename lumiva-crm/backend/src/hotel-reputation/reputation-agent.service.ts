@@ -14,6 +14,7 @@ import { ReputationSettingsService } from './reputation-settings.service';
 import { ReputationReviewsService } from './reputation-reviews.service';
 import { ReputationAlertsService } from './reputation-alerts.service';
 import { ReputationReservationsService } from './reputation-reservations.service';
+import { tenantFrontend } from './reputation-tenant.util';
 import { PLATFORM_LABEL } from './reputation-events.service';
 
 type AiEmployeesService = import('../ai-employees/ai-employees.service').AiEmployeesService;
@@ -418,7 +419,7 @@ Write the reply in ${lang} only: ${text ? '3–6 sentences' : '1–2 sentences'}
       .take(200);
     if (w.reminders.negativeOnly) qb.andWhere('r."rating10" < :nb', { nb: cfg.thresholds.negativeBelow });
     const rows = await qb.getMany();
-    const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
+    const frontend = await tenantFrontend((sql, p) => this.reviewsRepo.query(sql, p), agent.tenantId);
     let reminded = 0;
     let escalated = 0;
 
@@ -677,7 +678,7 @@ Plain text, bullets start with "• ". Copy numbers exactly.`,
       this.log.warn(`reviews digest summary failed: ${err?.message || err}`);
     }
 
-    const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
+    const frontend = await tenantFrontend((sql, p) => this.reviewsRepo.query(sql, p), tenantId);
     const md = this.digestMarkdown(L, day, facts, summary);
     const report = await this.reports.save(
       this.reports.create({

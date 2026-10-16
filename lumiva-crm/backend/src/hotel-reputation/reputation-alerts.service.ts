@@ -11,6 +11,7 @@ import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelReview, HotelReviewAlert, HotelReviewSource } from './reputation.entities';
 import { AlertKind, REPLY_MODE, ReputationConfig, Recipients, TOPIC_LABELS_RU, activeTopicSql, reviewHasTextSql } from './reputation.constants';
 import { ReputationEventsService } from './reputation-events.service';
+import { tenantFrontend } from './reputation-tenant.util';
 
 const PLATFORM_LABEL: Record<string, string> = {
   google: 'Google', holidaycheck: 'HolidayCheck', tripadvisor: 'Tripadvisor', yandex: 'Яндекс', expedia: 'Expedia', check24: 'Check24', otelpuan: 'Otelpuan', booking: 'Booking.com',
@@ -38,8 +39,9 @@ export class ReputationAlertsService {
     private readonly events: ReputationEventsService,
   ) {}
 
-  private link(path: string) {
-    return `${(process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '')}${path}`;
+  /** Ссылка в CRM клиента (его домен, если подключён). */
+  private async link(tenantId: string, path: string) {
+    return `${await tenantFrontend((sql, p) => this.reviews.query(sql, p), tenantId)}${path}`;
   }
 
   /** Записать алерт (если такого ключа ещё не было) и разослать. */
@@ -75,7 +77,7 @@ export class ReputationAlertsService {
     const tg = [...new Set(rec.telegram)];
     let userIds = [...new Set(rec.userIds)];
     const sent: Record<string, number> = { telegram: 0, email: 0, inapp: 0 };
-    const url = this.link(a.path);
+    const url = await this.link(tenantId, a.path);
 
     if (a.channels.includes('telegram') && tg.length && cfg.telegramBotId) {
       const bot = await this.bots.findOne({ where: { id: cfg.telegramBotId, tenantId } as any });

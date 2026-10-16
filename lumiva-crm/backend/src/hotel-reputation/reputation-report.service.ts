@@ -15,6 +15,7 @@ import { ReputationReviewsService } from './reputation-reviews.service';
 import { ReputationSettingsService } from './reputation-settings.service';
 import { ReputationAiService } from './reputation-ai.service';
 import { ReputationCompetitorsService } from './reputation-competitors.service';
+import { tenantBranding } from './reputation-tenant.util';
 
 export type ReportLang = 'ru' | 'en' | 'tr';
 export interface ReportRequest extends AnalyticsQuery {
@@ -125,9 +126,10 @@ class ReportPdf {
   y = M;
   private readonly loc: string;
 
-  constructor(readonly t: Record<string, string>, readonly lang: ReportLang) {
+  /** brand — название клиента (тенанта): в шапке, колонтитуле и свойствах файла, не Lumiva. */
+  constructor(readonly t: Record<string, string>, readonly lang: ReportLang, readonly brand: string) {
     this.loc = lang === 'en' ? 'en-GB' : lang === 'tr' ? 'tr-TR' : 'ru-RU';
-    this.doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true, info: { Title: t.kicker, Producer: 'Lumiva CRM' } });
+    this.doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true, info: { Title: `${t.kicker} · ${brand}`, Author: brand, Producer: brand, Creator: brand } });
     const dir = fontsDir();
     const fallback = resolveUnicodePdfFont();
     const reg = (name: string, file: string) => {
@@ -192,8 +194,10 @@ class ReportPdf {
     d.rect(0, 0, PAGE_W, h).fill('#14161b');
     // тонкая полоса-акцент
     d.rect(0, h - 3, PAGE_W, 3).fill('#2f6fde');
-    this.text('LUMIVA', M, 30, { size: 8, font: 'B', color: '#ffffff', opacity: 0.55 });
-    this.text(this.t.kicker.toUpperCase(), M + 52, 30, { size: 8, font: 'SB', color: '#ffffff', opacity: 0.55 });
+    const brand = this.brand.toUpperCase().slice(0, 60);
+    const bw = this.doc.font('B').fontSize(8).widthOfString(brand);
+    this.text(brand, M, 30, { size: 8, font: 'B', color: '#ffffff', opacity: 0.55 });
+    this.text(this.t.kicker.toUpperCase(), M + bw + 18, 30, { size: 8, font: 'SB', color: '#ffffff', opacity: 0.55 });
     this.text(`${this.t.generated}: ${generated}`, M, 30, { size: 8, color: '#ffffff', opacity: 0.55, width: CW, align: 'right' });
     this.text(title, M, 50, { size: 22, font: 'B', color: '#ffffff', width: CW, height: 30 });
     let y = 82;
@@ -515,7 +519,9 @@ export class ReputationReportService {
       const bs = await this.brands.find({ where: { tenantId, id: In(brandIds) } });
       title = bs.map((b) => b.name).join(', ') || t.allHotels;
     }
-    const pdf = new ReportPdf(t, lang);
+    const branding = await tenantBranding((sql, p) => this.hotels.query(sql, p), tenantId);
+    const brandName = branding.name?.trim() || 'Lumiva CRM';
+    const pdf = new ReportPdf(t, lang, brandName);
     const periodTo = new Date(new Date(dash.period.to).getTime() - 864e5);
     const prevTo = new Date(new Date(dash.prevPeriod.to).getTime() - 864e5);
     const periodLine = `${t.period}: ${pdf.date(dash.period.from)} — ${pdf.date(periodTo)}  ·  ${t.vs} ${pdf.date(dash.prevPeriod.from)} — ${pdf.date(prevTo)}`;
@@ -713,7 +719,7 @@ export class ReputationReportService {
       }
     }
 
-    pdf.footer(`Lumiva CRM · ${t.kicker} · ${title}`.slice(0, 120));
+    pdf.footer(`${brandName} · ${t.kicker} · ${title}`.slice(0, 120));
     const buffer = await pdf.finish();
     const stamp = new Date().toISOString().slice(0, 10);
     return { buffer, filename: `reputation-report-${stamp}.pdf`, title, period: periodLine };
@@ -725,7 +731,9 @@ export class ReputationReportService {
     const lang = this.lang(req.lang);
     const t = T[lang];
     const { buffer, filename, title, period } = await this.build(tenantId, req);
-    const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
+    // ссылка — в CRM клиента (его домен, если подключён), подпись — его название
+    const branding = await tenantBranding((sql, p) => this.hotels.query(sql, p), tenantId);
+    const frontend = branding.frontend;
     const e = escapeMailHtml;
     const html = renderMailShell({
       headline: `${t.mailSubject} · ${e(title)}`,
@@ -733,7 +741,7 @@ export class ReputationReportService {
         req.message?.trim() ? `<p style="margin:0 0 6px;white-space:pre-wrap">${e(req.message.trim().slice(0, 2000))}</p>` : ''
       }`,
       cta: { label: t.mailOpen, href: `${frontend}/hotels/reviews/dashboard` },
-      footerHtml: `© ${new Date().getFullYear()} Lumiva CRM`,
+      footerHtml: `© ${new Date().getFullYear()} ${escapeMailHtml(branding.name?.trim() || 'Lumiva CRM')}`,
     });
     const results: Array<{ email: string; ok: boolean; error?: string }> = [];
     for (const to of emails) {

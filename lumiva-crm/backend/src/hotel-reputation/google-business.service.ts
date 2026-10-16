@@ -68,7 +68,7 @@ export class GoogleBusinessService {
   }
 
   /** OAuth callback: сохраняем refresh-токен (зашифрованным), почту аккаунта и первый аккаунт GBP. */
-  async completeOAuth(code: string, state: string): Promise<{ ok: boolean; error?: string }> {
+  async completeOAuth(code: string, state: string): Promise<{ ok: boolean; error?: string; tenantId?: string }> {
     const tenantId = this.verifyState(state);
     if (!tenantId) return { ok: false, error: 'bad_state' };
     const { clientId, clientSecret } = await this.platformSettings.getGoogleOAuthConfig();
@@ -79,7 +79,7 @@ export class GoogleBusinessService {
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 20_000 },
       );
       const refresh = res.data?.refresh_token as string | undefined;
-      if (!refresh) return { ok: false, error: 'no_refresh_token' };
+      if (!refresh) return { ok: false, error: 'no_refresh_token', tenantId };
       await this.settings.setSecret(tenantId, 'googleRefreshToken', refresh);
       this.tokenCache.set(tenantId, { token: res.data.access_token, exp: Date.now() + (Number(res.data.expires_in || 3000) - 60) * 1000 });
       let email: string | null = null;
@@ -100,10 +100,10 @@ export class GoogleBusinessService {
       await this.settings.patchConfig(tenantId, {
         google: { ...cfg.google, accountEmail: email, accountName, connectedAt: new Date().toISOString() },
       } as any);
-      return { ok: true };
+      return { ok: true, tenantId };
     } catch (e: any) {
       this.log.warn(`GBP OAuth exchange failed: ${e?.response?.data?.error || e?.message}`);
-      return { ok: false, error: 'exchange_failed' };
+      return { ok: false, error: 'exchange_failed', tenantId };
     }
   }
 

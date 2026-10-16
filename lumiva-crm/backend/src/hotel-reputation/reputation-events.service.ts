@@ -6,6 +6,7 @@ import { Hotel } from '../hotels/hotel.entity';
 import { HotelBrand, HotelReview, HotelReviewAlert, HotelReviewTopic } from './reputation.entities';
 import { REPLY_MODE, TOPIC_LABELS_RU, activeTopicKeys, mergeConfig } from './reputation.constants';
 import { reservationsComponentOn } from './reputation-reservations.service';
+import { tenantFrontend } from './reputation-tenant.util';
 
 type AutomationsService = import('../automations/automations.service').AutomationsService;
 
@@ -55,7 +56,7 @@ export class ReputationEventsService {
     const [cfgRow] = await this.topics.query(`SELECT config FROM hotel_reputation_settings WHERE "tenantId" = $1`, [r.tenantId]);
     const active = new Set(activeTopicKeys(mergeConfig(cfgRow?.config)));
     const topics = (await this.topics.find({ where: { reviewId: r.id } })).filter((t) => active.has(t.topic));
-    const frontend = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
+    const frontend = await tenantFrontend((sql, p) => this.topics.query(sql, p), r.tenantId);
     const r10 = r.rating10 != null ? Number(r.rating10) : null;
     return {
       entityType: 'hotel_review',
