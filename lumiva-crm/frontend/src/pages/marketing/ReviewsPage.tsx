@@ -31,6 +31,7 @@ import { cl, Ic } from '../contacts/CrmListShared';
 import '../contacts/crm-lists-design.css';
 import './seo-design.css';
 import './reviews-ai.css';
+import { TenantMailNotice } from '../../components/mail/TenantMailNotice';
 
 type Filter = 'open' | 'negative' | 'all' | 'replied';
 
@@ -628,6 +629,7 @@ const PlaceSettings: React.FC<{
           <span className="l">{k('recipients')}</span>
           <input className="seo-input" value={d.recipients} onChange={(e) => setD({ ...d, recipients: e.target.value })} placeholder="owner@hotel.com" />
           <div className="seo-hint">{k('recipientsHint')}</div>
+          <TenantMailNotice style={{ marginTop: 6 }} />
         </div>
         <div className="seo-field">
           <span className="l">{k('context')}</span>

@@ -47,6 +47,7 @@ import {
 } from '../../../api/hotelReputation';
 import { ApifyPauseBanner, PLATFORM_META, PlatformBadge, ReputationTabs, TOPIC_KEYS, fmtDate, useRepT } from './ReputationShared';
 import { CompetitorsTab } from './RepCompetitorsSettings';
+import { TenantMailNotice } from '../../../components/mail/TenantMailNotice';
 import { useTenantComponents } from '../../../hooks/useTenantComponents';
 import '../hotels-design.css';
 import './reputation.css';
@@ -585,6 +586,7 @@ const AlertsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: an
 
   return (
     <>
+      <TenantMailNotice style={{ marginBottom: 12 }} />
       <div className="ha-section">
         <div className="ha-section-head"><div><h3>{r('alerts.rulesTitle')}</h3><div className="sub">{r('alerts.rulesSub')}</div></div></div>
         {rows.map(({ k, extra }) => (

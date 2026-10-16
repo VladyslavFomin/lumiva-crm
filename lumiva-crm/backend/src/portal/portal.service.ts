@@ -7,6 +7,8 @@ import { Contact } from '../contacts/contact.entity';
 import { Reservation } from '../bookings/reservation.entity';
 import { Sale } from '../sales/sale.entity';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
+import { tenantFrontend } from '../common/tenant-branding.util';
 import {
   signPortalMagicLinkToken,
   signPortalSessionToken,
@@ -21,6 +23,7 @@ export class PortalService {
     @InjectRepository(Reservation) private readonly reservationRepo: Repository<Reservation>,
     @InjectRepository(Sale) private readonly saleRepo: Repository<Sale>,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
   ) {}
 
   private get secret(): string {
@@ -44,10 +47,12 @@ export class PortalService {
     if (!contact) return { ok: true };
 
     const token = signPortalMagicLinkToken(contact.id, tenant.id, this.secret);
-    const loginUrl = `${(process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '')}/portal/${tenant.clientKey}/verify?token=${token}`;
+    // ссылка — на домен компании, если он подключён
+    const loginUrl = `${await tenantFrontend((sql, p) => this.tenantRepo.query(sql, p), tenant.id)}/portal/${tenant.clientKey}/verify?token=${token}`;
     const displayName = contact.fullName || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'клиент';
 
-    await this.mail.sendMail({
+    // с почты компании; не подключена или не отправила — с адреса платформы: без письма клиент не войдёт в кабинет
+    await this.tenantMail.send(tenant.id, {
       to: contact.email!,
       subject: `Вход в личный кабинет — ${tenant.name}`,
       html: `<!doctype html><html><body style="font-family:sans-serif;color:#0f172a;padding:24px;">
@@ -56,7 +61,7 @@ export class PortalService {
         <p><a href="${loginUrl}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:8px;text-decoration:none;">Войти в личный кабинет</a></p>
         <p style="font-size:12px;color:#64748b;">Если вы не запрашивали вход, просто проигнорируйте это письмо.</p>
       </body></html>`,
-    });
+    }, { fallbackToPlatform: true });
 
     return { ok: true };
   }

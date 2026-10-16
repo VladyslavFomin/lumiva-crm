@@ -108,6 +108,10 @@ export class EmailAccount {
   syncFolder: string | null; // Папка для синхронизации (INBOX по умолчанию)
 
   // ==== META ====
+  /** С этого ящика CRM отправляет уведомления, отчёты и письма клиентам тенанта (один на тенанта). */
+  @Column({ type: 'boolean', default: false })
+  useForNotifications: boolean;
+
   @Column({ type: 'jsonb', nullable: true })
   meta: any | null;
 

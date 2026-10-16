@@ -18,6 +18,7 @@ import { Project } from '../projects/project.entity';
 import { HelpdeskTicket } from '../helpdesk/helpdesk-ticket.entity';
 import { MarketingService } from '../marketing/marketing.service';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { EmailService } from '../email/email.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 
@@ -108,6 +109,7 @@ export class AiAnalystReportService {
     private readonly employees: AiEmployeesService,
     private readonly marketing: MarketingService,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly email: EmailService,
   ) {}
 
@@ -393,9 +395,14 @@ export class AiAnalystReportService {
         const headline = `${L.title} · ${day}`;
         try {
           const wrapped = await this.email.wrapHtmlInCompanyDesign(tenantId, { headline, innerHtml: inner });
+          // с почты клиента; не подключена — письмо не уходит (отчёт остаётся в CRM)
           for (const to of cfg.recipients) {
-            await this.mail.sendMail({ to, subject: `${headline} — ${agent.name}`, html: wrapped?.htmlBody || inner });
-            sentTo.push(to);
+            const r = await this.tenantMail.send(tenantId, { to, subject: `${headline} — ${agent.name}`, html: wrapped?.htmlBody || inner });
+            if (r.ok) sentTo.push(to);
+            else {
+              this.log.warn(`Analyst email not sent agent=${agent.id} (${r.code}): ${r.error}`);
+              if (r.code === 'NO_MAILBOX') break;
+            }
           }
         } catch (e: any) {
           this.log.warn(`Analyst email failed agent=${agent.id}: ${e?.message || e}`);

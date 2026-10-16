@@ -18,6 +18,7 @@ import { LeadActivity } from '../leads/lead-activity.entity';
 import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { TenantLogsService } from '../tenants/tenant-logs.service';
@@ -54,6 +55,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     private readonly departmentRepo: Repository<Department>,
 
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly tenantLogs: TenantLogsService,
 
     private readonly userSessions: UserSessionsService,
@@ -366,6 +368,16 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       : null;
   }
 
+  /**
+   * Приглашение сотрудника — с почты компании (подключённой в CRM); почты нет или она не отправила —
+   * с адреса платформы: без письма сотрудник не попадёт в CRM.
+   */
+  private async sendInvite(tenantId: string, to: string, p: { fullName: string; tenantName?: string; link: string; loginUrl: string; productName?: string }) {
+    const { subject, html } = this.mail.renderTeamInviteEmail(p);
+    const r = await this.tenantMail.send(tenantId, { to, subject, html }, { fallbackToPlatform: true });
+    if (!r.ok) throw new BadRequestException(`Invitation email could not be sent: ${r.error}`);
+  }
+
   private buildSetPasswordLink(token: string, customBase: string | null): string {
     const baseUrl = customBase
       ? `${customBase}/set-password`
@@ -460,12 +472,12 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
     const saved = await this.repo.save(staff);
 
-    await this.mail.sendTeamInviteEmail({
-      to: email,
+    await this.sendInvite(tenantId, email, {
       fullName: saved.fullName || email,
       tenantName,
       link: this.buildSetPasswordLink(token, customBase),
       loginUrl: this.loginPageUrl(customBase),
+      productName: customBase && tenantName ? `${tenantName} CRM` : undefined,
     });
 
     if (this.tenantLogs) {
@@ -517,12 +529,12 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     const saved = await this.repo.save(staff);
 
     const customBase = await this.tenantCustomBase(tenant);
-    await this.mail.sendTeamInviteEmail({
-      to: staff.email,
+    await this.sendInvite(tenantId, staff.email, {
       fullName: saved.fullName || staff.email,
       tenantName: tenant?.name,
       link: this.buildSetPasswordLink(token, customBase),
       loginUrl: this.loginPageUrl(customBase),
+      productName: customBase && tenant?.name ? `${tenant.name} CRM` : undefined,
     });
 
     if (this.tenantLogs) {

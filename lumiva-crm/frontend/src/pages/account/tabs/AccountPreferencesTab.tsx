@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../../../i18n';
 import { fetchMe } from '../../../api/users';
 import { updatePreferences } from '../../../api/account';
+import { TenantMailNotice } from '../../../components/mail/TenantMailNotice';
 
 const THEMES: Array<{ id: string; t: string; d: string; sw: string[] }> = [
   { id: 'light', t: 'Светлая', d: 'Основной вид CRM', sw: ['#fff', '#fafafa', '#e7e7e7'] },
@@ -169,6 +170,7 @@ export const AccountPreferencesTab: React.FC = () => {
           <div className="acc-card-head">
             <div>
               <h3>Уведомления</h3>
+              <TenantMailNotice showOk={false} style={{ margin: '6px 0 10px' }} />
               <div className="sub">Что присылать лично вам.</div>
             </div>
           </div>

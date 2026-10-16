@@ -15,6 +15,7 @@ import { ProjectsService } from '../projects/projects.service';
 import { ProjectStatusesService } from '../projects/project-statuses.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { EmailService } from '../email/email.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 
@@ -45,6 +46,7 @@ export class ReviewsAiService {
     private readonly projectStatuses: ProjectStatusesService,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly email: EmailService,
   ) {}
 
@@ -587,7 +589,13 @@ ${r.aiReply ? `<div style="margin-top:10px;font-size:12px;color:#71717a;">${e(L.
 <p style="margin:14px 0 0;font-size:12px;color:#71717a;">${e(L.by(agent.name))}</p>`;
       try {
         const wrapped = await this.email.wrapHtmlInCompanyDesign(place.tenantId, { headline: title, innerHtml: inner });
-        for (const to of place.recipients) await this.mail.sendMail({ to, subject: title, html: wrapped?.htmlBody || inner });
+        for (const to of place.recipients) {
+          const r = await this.tenantMail.send(place.tenantId, { to, subject: title, html: wrapped?.htmlBody || inner });
+          if (!r.ok) {
+            this.log.warn(`review alert email not sent (${r.code}): ${r.error}`);
+            if (r.code === 'NO_MAILBOX') break;
+          }
+        }
       } catch (err: any) {
         this.log.warn(`review alert email failed: ${err?.message || err}`);
       }

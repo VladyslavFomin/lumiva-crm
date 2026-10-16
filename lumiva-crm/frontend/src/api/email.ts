@@ -2,6 +2,10 @@
 import { api } from './client';
 
 export interface EmailAccount {
+  /** Личный ящик сотрудника (null — общий ящик компании). */
+  userId?: string | null;
+  /** С этого ящика CRM отправляет уведомления и отчёты. */
+  useForNotifications?: boolean;
   id: string;
   tenantId: string;
   email: string;

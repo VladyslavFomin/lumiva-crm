@@ -6,7 +6,7 @@ import { AiAgent } from '../ai-employees/ai-agent.entity';
 import { AiAgentReport } from '../ai-employees/ai-agent-report.entity';
 import { readAiAgentConfig } from '../ai-employees/ai-employee-triggers';
 import { Hotel } from '../hotels/hotel.entity';
-import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelBrand, HotelReview, HotelReviewAlert, HotelReviewSource } from './reputation.entities';
 import { REPLY_MODE, ReputationConfig, TOPIC_LABELS_RU, activeTopicSql, reviewHasTextSql } from './reputation.constants';
@@ -124,7 +124,7 @@ export class ReputationAgentService implements OnApplicationBootstrap {
     private readonly settings: ReputationSettingsService,
     private readonly reviews: ReputationReviewsService,
     private readonly alerts: ReputationAlertsService,
-    private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly moduleRef: ModuleRef,
     private readonly stays: ReputationReservationsService,
   ) {}
@@ -698,11 +698,11 @@ Plain text, bullets start with "• ". Copy numbers exactly.`,
       const headline = `${L.digest} · ${day}`;
       const html = this.digestHtml(L, agent.name, day, facts, summary, `${frontend}/hotels/reviews`);
       for (const to of w.digest.recipients) {
-        try {
-          await this.mail.sendMail({ to, subject: `${headline} — ${agent.name}`, html });
-          sentTo.push(to);
-        } catch (err: any) {
-          this.log.warn(`reviews digest email failed: ${err?.message || err}`);
+        const r = await this.tenantMail.send(tenantId, { to, subject: `${headline} — ${agent.name}`, html });
+        if (r.ok) sentTo.push(to);
+        else {
+          this.log.warn(`reviews digest email not sent (${r.code}): ${r.error}`);
+          if (r.code === 'NO_MAILBOX') break;
         }
       }
       if (w.digest.telegram.length && cfg.telegramBotId) {
@@ -891,11 +891,11 @@ Return JSON: {"summary":"2–3 sentences in ${this.langName(lang)}","recommendat
         }
       }
       await e.notifyOwners(tenantId, `${L.insights} · ${weekKey}`, (summary || md).slice(0, 500), { link: '/hotels/reviews/dashboard', kind: 'reviews_insights' }).catch(() => undefined);
-      const recipients = w.digest.recipients;
-      for (const to of recipients) {
-        await this.mail
-          .sendMail({ to, subject: `${L.insights} · ${weekKey} — ${agent.name}`, html: `<div style="font-family:Inter,Arial,sans-serif;max-width:660px;white-space:pre-line;font-size:14px;line-height:1.6">${escapeMailHtml(md)}</div>` })
-          .catch(() => undefined);
+      const recipients: string[] = [];
+      for (const to of w.digest.recipients) {
+        const r = await this.tenantMail.send(tenantId, { to, subject: `${L.insights} · ${weekKey} — ${agent.name}`, html: `<div style="font-family:Inter,Arial,sans-serif;max-width:660px;white-space:pre-line;font-size:14px;line-height:1.6">${escapeMailHtml(md)}</div>` });
+        if (r.ok) recipients.push(to);
+        else if (r.code === 'NO_MAILBOX') break;
       }
       if (w.digest.telegram.length && cfg.telegramBotId) await this.sendTelegram(tenantId, cfg, w.digest.telegram, `💡 ${L.insights}\n\n${md.replace(/[#*]/g, '').slice(0, 3500)}`);
       await this.reports.update({ id: report.id }, { status: 'sent', sentTo: ['in_app', ...recipients] } as any);

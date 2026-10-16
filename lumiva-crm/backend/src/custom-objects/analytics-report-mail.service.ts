@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { MAIL_BORDER, MAIL_MUTED, escapeMailHtml, renderMailShell } from '../mail/mail-template.util';
 import { CustomObjectsService } from './custom-objects.service';
 
@@ -19,6 +20,7 @@ const MAX_TOTAL_IMAGE_BYTES = 15 * 1024 * 1024;
 export class AnalyticsReportMailService {
   constructor(
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly objects: CustomObjectsService,
   ) {}
 
@@ -127,7 +129,8 @@ export class AnalyticsReportMailService {
 
     const results: Array<{ to: string; ok: boolean; error?: string }> = [];
     for (const recipient of to) {
-      const res = await this.mail.sendMailNow({ to: recipient, subject, html, attachments });
+      const res = await this.tenantMail.send(tenantId, { to: recipient, subject, html, attachments });
+      if (!res.ok && res.code === 'NO_MAILBOX') await this.tenantMail.sendOrThrow(tenantId, { to: recipient, subject, html });
       results.push(res.ok ? { to: recipient, ok: true } : { to: recipient, ok: false, error: res.error });
     }
     return { ok: results.every((r) => r.ok), results, blocks: attachments.length };

@@ -23,6 +23,8 @@ import { Product } from '../products/product.entity';
 import { BookingService } from '../bookings/booking-service.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
+import { tenantFrontend } from '../common/tenant-branding.util';
 import { renderEsignPdf, type PdfHeader } from './esign-pdf.util';
 import { signEsignToken, verifyEsignToken } from './esign-token.util';
 import { extractRelativePathFromPublicUrl, joinUploadsAbsolute } from '../common/uploads-root.util';
@@ -66,6 +68,7 @@ export class EsignService {
     @InjectRepository(BookingService) private readonly bookingServiceRepo: Repository<BookingService>,
     @InjectRepository(StaffUser) private readonly staffUserRepo: Repository<StaffUser>,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly storageQuota: StorageQuotaService,
     private readonly moduleRef: ModuleRef,
   ) {}
@@ -710,10 +713,11 @@ export class EsignService {
     const tenant = await this.tenantRepo.findOne({ where: { id: doc.tenantId } });
 
     const token = signEsignToken(doc.id, this.secret);
-    const signUrl = `${(process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '')}/esign/${token}`;
+    const signUrl = `${await tenantFrontend((sql, p) => this.tenantRepo.query(sql, p), doc.tenantId)}/esign/${token}`;
     const subjectPrefix = isReminder ? 'Напоминание: документ на подпись' : 'Документ на подпись';
 
-    await this.mail.sendMail({
+    // документ клиенту — с почты компании; не подключена — понятная ошибка вместо письма от платформы
+    await this.tenantMail.sendOrThrow(doc.tenantId, {
       to: doc.signerEmail,
       subject: `${subjectPrefix}: ${doc.title} — ${tenant?.name || ''}`,
       html: `<!doctype html><html><body style="font-family:sans-serif;color:#0f172a;padding:24px;">

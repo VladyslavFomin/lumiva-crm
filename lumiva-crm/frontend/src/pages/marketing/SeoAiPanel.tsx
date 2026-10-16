@@ -26,6 +26,7 @@ import { fetchProjects } from '../../api/projects';
 import { fetchStaff } from '../../api/staff';
 import { getLocale } from '../../i18n/utils';
 import { cl, Ic } from '../contacts/CrmListShared';
+import { TenantMailNotice } from '../../components/mail/TenantMailNotice';
 
 const TONE = { good: '#1f8a5e', ok: '#c08319', poor: '#cc2f47' } as const;
 const tone = (v: number) => TONE[v >= 80 ? 'good' : v >= 50 ? 'ok' : 'poor'];
@@ -1082,6 +1083,7 @@ const SeoAiPanel: React.FC<{ site: string | null; employee: SeoAiEmployee }> = (
                   {k('settings.recipients')}
                 </label>
                 <input id="sai-to" className="seo-input" value={draft.recipients} onChange={(e) => setDraft({ ...draft, recipients: e.target.value })} placeholder="name@company.com" inputMode="email" autoCapitalize="off" />
+                <TenantMailNotice style={{ marginTop: 6 }} />
               </div>
               <div className="seo-field">
                 <span className="l">{k('settings.schedule')}</span>

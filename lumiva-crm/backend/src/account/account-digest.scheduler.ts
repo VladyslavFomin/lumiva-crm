@@ -6,6 +6,8 @@ import { User } from '../users/user.entity';
 import { Tenant } from '../tenants/tenant.entity';
 import { InAppNotification } from '../notifications/in-app-notification.entity';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
+import { tenantFrontend } from '../common/tenant-branding.util';
 import { renderMailShell } from '../mail/mail-template.util';
 
 /**
@@ -24,6 +26,7 @@ export class AccountDigestScheduler {
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(InAppNotification) private readonly notifRepo: Repository<InAppNotification>,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
   ) {}
 
   private localHour(timezone: string): number | null {
@@ -82,11 +85,9 @@ export class AccountDigestScheduler {
 <p style="margin:0;font-size:13px;color:#71717a;">Непрочитанных уведомлений: <strong>${unread}</strong>. Отключить сводку можно в Аккаунт → Интерфейс.</p>`,
     });
 
-    await this.mail.sendMail({
-      to: user.email,
-      subject: 'Сводка за день — Lumiva CRM',
-      html,
-    });
+    // с почты компании; не подключена — сводка не уходит (уведомления остаются в CRM)
+    const r = await this.tenantMail.send(user.tenantId, { to: user.email, subject: `Сводка за день — ${tenant?.name || 'Lumiva CRM'}`, html });
+    if (!r.ok) this.logger.warn(`Digest for user ${user.id} not sent (${r.code}): ${r.error}`);
   }
 }
 

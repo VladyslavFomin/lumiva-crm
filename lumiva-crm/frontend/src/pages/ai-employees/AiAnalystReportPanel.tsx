@@ -12,6 +12,7 @@ import {
   type AnalystReportConfig,
 } from '../../api/aiEmployees';
 import { getLocale } from '../../i18n/utils';
+import { TenantMailNotice } from '../../components/mail/TenantMailNotice';
 
 const BLOCKS: AnalystBlock[] = ['sales', 'payments', 'discounts', 'leads', 'bookings', 'hotels', 'reviews', 'tasks', 'helpdesk', 'marketing'];
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
@@ -142,6 +143,7 @@ export function AiAnalystReportPanel({ agentId }: { agentId: string }) {
             <div>
               <div className="lbl">{k('recipients')}</div>
               <input className="ai-input" value={recipients} onChange={(e) => setRecipients(e.target.value)} placeholder="owner@company.com, cfo@company.com" />
+              <TenantMailNotice style={{ marginTop: 6 }} />
             </div>
             <label className="ai-analyst-row">
               <input type="checkbox" checked={cfg.inApp} onChange={(e) => setCfg({ ...cfg, inApp: e.target.checked })} />

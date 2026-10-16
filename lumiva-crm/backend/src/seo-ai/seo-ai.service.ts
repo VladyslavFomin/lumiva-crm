@@ -17,6 +17,7 @@ import { AiAssistantService } from '../ai/ai-assistant.service';
 import { AiQuotaService } from '../ai/ai-quota.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { EmailService } from '../email/email.service';
 import { SeoAiSignalsService } from './seo-ai-signals.service';
 import { escapeMailHtml, renderMailShell } from '../mail/mail-template.util';
@@ -63,6 +64,7 @@ export class SeoAiService {
     private readonly quota: AiQuotaService,
     private readonly platformSettings: PlatformSettingsService,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly email: EmailService,
     private readonly signals: SeoAiSignalsService,
   ) {}
@@ -776,7 +778,8 @@ Give 6–12 recommendations, up to 8 keyword opportunities (only from real queri
     if (!recipients.length) throw new BadRequestException({ code: 'SEO_AI_NO_RECIPIENTS', message: 'No recipients' });
     const lang = (LANGS.includes(agent.language as Lang) ? agent.language : 'ru') as Lang;
     const { subject, html } = await this.renderEmail(tenantId, r, lang);
-    for (const email of recipients) await this.mail.sendMail({ to: email, subject, html });
+    // кнопка «Отправить» — с почты клиента; не подключена или не отправилось — понятная ошибка
+    for (const email of recipients) await this.tenantMail.sendOrThrow(tenantId, { to: email, subject, html });
     const emailedTo = [...new Set([...(r.emailedTo || []), ...recipients])];
     await this.reports.update({ id: r.id }, { emailedTo });
     return { ok: true, emailedTo };

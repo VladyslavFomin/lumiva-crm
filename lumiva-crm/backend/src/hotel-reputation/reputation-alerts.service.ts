@@ -6,7 +6,7 @@ import { Hotel } from '../hotels/hotel.entity';
 import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
 import { User } from '../users/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
-import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelReview, HotelReviewAlert, HotelReviewSource } from './reputation.entities';
 import { AlertKind, REPLY_MODE, ReputationConfig, Recipients, TOPIC_LABELS_RU, activeTopicSql, reviewHasTextSql } from './reputation.constants';
@@ -35,7 +35,7 @@ export class ReputationAlertsService {
     @InjectRepository(TelegramBot) private readonly bots: Repository<TelegramBot>,
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly notifications: NotificationsService,
-    private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly events: ReputationEventsService,
   ) {}
 
@@ -103,12 +103,13 @@ export class ReputationAlertsService {
 <h2 style="font-size:17px;margin:0 0 10px;color:#18181b">${e(a.title)}</h2>
 <div style="font-size:14px;line-height:1.55;color:#3f3f46;white-space:pre-line">${e(a.body)}</div>
 <p style="margin:18px 0 0"><a href="${url}" style="display:inline-block;padding:11px 22px;background:#222;color:#fff;text-decoration:none;border-radius:10px;font-weight:600;font-size:14px">Открыть в CRM</a></p></div>`;
+      // с почты клиента; не подключена — письма не уходят (Telegram и уведомления в CRM работают)
       for (const to of emails) {
-        try {
-          await this.mail.sendMail({ to, subject: a.title, html });
-          sent.email++;
-        } catch (err: any) {
-          this.log.warn(`reputation email alert failed: ${err?.message}`);
+        const r = await this.tenantMail.send(tenantId, { to, subject: a.title, html });
+        if (r.ok) sent.email++;
+        else {
+          this.log.warn(`reputation email alert not sent (${r.code}): ${r.error}`);
+          if (r.code === 'NO_MAILBOX') break;
         }
       }
     }

@@ -1,4 +1,5 @@
 // src/email/email.module.ts
+import { MailModule } from '../mail/mail.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EmailController } from './email.controller';
@@ -51,6 +52,7 @@ import { EmailNotificationsService } from './email-notifications.service';
     ]),
     RbacModule,
     PlatformSettingsModule,
+    MailModule,
     NotificationsModule,
     StaffUsersModule,
     forwardRef(() => AutomationsModule),

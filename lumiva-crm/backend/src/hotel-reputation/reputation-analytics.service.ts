@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Hotel } from '../hotels/hotel.entity';
-import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { HotelBrand, HotelReview } from './reputation.entities';
 import { REPLY_MODE, TOPIC_LABELS_RU, activeTopicSql, listParam, reviewHasTextSql } from './reputation.constants';
@@ -55,7 +55,7 @@ export class ReputationAnalyticsService {
     @InjectRepository(HotelBrand) private readonly brands: Repository<HotelBrand>,
     private readonly settings: ReputationSettingsService,
     private readonly ai: ReputationAiService,
-    private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly stays: ReputationReservationsService,
   ) {}
 
@@ -718,7 +718,13 @@ export class ReputationAnalyticsService {
           const rep = await this.monthlyReportWithSummary(tenantId, b.id);
           if (!rep.kpis.count) continue;
           const html = this.reportHtml(rep, await tenantFrontend((sql, p) => this.reviews.query(sql, p), tenantId));
-          for (const to of emails) await this.mail.sendMail({ to, subject: `Репутация ${b.name} · ${rep.month}`, html });
+          for (const to of emails) {
+            const r = await this.tenantMail.send(tenantId, { to, subject: `Репутация ${b.name} · ${rep.month}`, html });
+            if (!r.ok) {
+              this.log.warn(`monthly reputation report not sent (${r.code}): ${r.error}`);
+              if (r.code === 'NO_MAILBOX') break;
+            }
+          }
         } catch (e: any) {
           this.log.warn(`monthly reputation report ${b.id}: ${e?.message || e}`);
         }

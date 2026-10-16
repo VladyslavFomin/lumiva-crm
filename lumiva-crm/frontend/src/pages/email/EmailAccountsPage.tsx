@@ -3,6 +3,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { TenantMailNotice } from '../../components/mail/TenantMailNotice';
+import { chooseNotificationSender, fetchNotificationSender, type NotificationSender } from '../../api/tenantMail';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchEmailAccounts,
@@ -542,6 +544,54 @@ function DeliveryLogTab() {
 
 // ---------- Main page ----------
 
+/**
+ * Ящик, с которого CRM отправляет уведомления, отчёты и письма клиентам компании (не с адреса платформы).
+ * Не выбран — берётся единственный общий ящик; иначе письма не уходят, пока не выберут.
+ */
+const NotificationSenderPanel: React.FC<{ accounts: EmailAccount[] }> = ({ accounts }) => {
+  const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
+  const [st, setSt] = useState<NotificationSender | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    fetchNotificationSender(true).then(setSt).catch(() => setSt(null));
+  }, [accounts]);
+  if (!st) return null;
+  const chosen = accounts.find((a) => a.useForNotifications)?.id || '';
+  return (
+    <div className="em-panel" style={{ padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ minWidth: 240, flex: '1 1 320px' }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{t('crm.tenantMail.panelTitle')}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--fg-3, #6b7280)', marginTop: 2 }}>{t('crm.tenantMail.panelSub')}</div>
+        </div>
+        <select
+          value={chosen}
+          disabled={busy}
+          onChange={async (e) => {
+            setBusy(true);
+            try {
+              setSt(await chooseNotificationSender(e.target.value || null));
+              showAlert(t('crm.tenantMail.saved'), { variant: 'success' });
+            } catch (err: any) {
+              showAlert(err?.message || t('crm.tenantMail.saveError'), { variant: 'error' });
+            } finally {
+              setBusy(false);
+            }
+          }}
+          style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--line-2, #e3e5ea)', font: 'inherit', fontSize: 13, minWidth: 260 }}
+        >
+          <option value="">{t('crm.tenantMail.auto')}</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>{a.email}{a.userId ? ` · ${t('crm.tenantMail.personal')}` : ''}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ marginTop: 10 }}><TenantMailNotice /></div>
+    </div>
+  );
+};
+
 export const EmailAccountsPage: React.FC = () => {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
@@ -779,6 +829,8 @@ export const EmailAccountsPage: React.FC = () => {
             <Ic d={EM_ICON.ext} size={12} />
           </Link>
         </div>
+
+        {accounts.length > 0 && <NotificationSenderPanel accounts={accounts} />}
 
         {error && (
           <div className="em-err" style={{ marginBottom: 14 }}>

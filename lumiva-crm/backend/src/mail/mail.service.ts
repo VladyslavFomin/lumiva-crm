@@ -156,6 +156,32 @@ export class MailService {
     await this.sendMail({ to, subject, html });
   }
 
+  /**
+   * Письмо-приглашение сотрудника. productName — как называть CRM в письме (у клиента со своим доменом —
+   * его название, не Lumiva). Отправляет StaffUsersService через TenantMailService (с почты клиента).
+   */
+  renderTeamInviteEmail(params: { fullName: string; tenantName?: string; link: string; loginUrl: string; productName?: string }) {
+    const { fullName, tenantName, link, loginUrl } = params;
+    const product = escapeMailHtml(params.productName || 'Lumiva CRM');
+    const safeName = escapeMailHtml(fullName);
+    const safeTenant = tenantName ? escapeMailHtml(tenantName) : '';
+    const subject = `Приглашение в команду — ${params.productName || 'Lumiva CRM'}`;
+    const html = renderMailShell({
+      headline: `Приглашение в ${product}`,
+      bodyHtml: `<p style="margin:0 0 16px;">Здравствуйте, ${safeName}!</p>
+<p style="margin:0 0 20px;">${
+        safeTenant
+          ? `Компания <strong>${safeTenant}</strong> приглашает вас в рабочее пространство ${product}.`
+          : `Вам открыт доступ к рабочему пространству ${product}.`
+      } Нажмите кнопку ниже, чтобы задать пароль и активировать учётную запись.</p>
+<p style="margin:0 0 16px;"><a href="${loginUrl}" style="color:#222222;font-weight:600;text-decoration:underline;">Уже есть пароль? Войти в аккаунт</a></p>
+<p style="margin:0;font-size:13px;color:#71717a;">Ссылка для пароля действует <strong>48 часов</strong> и одноразовая. Если вы не ожидали это письмо, проигнорируйте его.</p>`,
+      cta: { label: 'Задать пароль и войти', href: link },
+      ...(params.productName ? { footerHtml: `© ${new Date().getFullYear()} ${product}` } : {}),
+    });
+    return { subject, html };
+  }
+
   async sendTeamInviteEmail(params: {
     to: string;
     fullName: string;
@@ -163,26 +189,8 @@ export class MailService {
     link: string;
     loginUrl: string;
   }) {
-    const { to, fullName, tenantName, link, loginUrl } = params;
-    const safeName = escapeMailHtml(fullName);
-    const safeTenant = tenantName ? escapeMailHtml(tenantName) : '';
-
-    const subject = 'Приглашение в команду — Lumiva CRM';
-
-    const html = renderMailShell({
-      headline: 'Приглашение в Lumiva CRM',
-      bodyHtml: `<p style="margin:0 0 16px;">Здравствуйте, ${safeName}!</p>
-<p style="margin:0 0 20px;">${
-        safeTenant
-          ? `Компания <strong>${safeTenant}</strong> приглашает вас в рабочее пространство Lumiva CRM.`
-          : 'Вам открыт доступ к рабочему пространству Lumiva CRM.'
-      } Нажмите кнопку ниже, чтобы задать пароль и активировать учётную запись.</p>
-<p style="margin:0 0 16px;"><a href="${loginUrl}" style="color:#222222;font-weight:600;text-decoration:underline;">Уже есть пароль? Войти в аккаунт</a></p>
-<p style="margin:0;font-size:13px;color:#71717a;">Ссылка для пароля действует <strong>48 часов</strong> и одноразовая. Если вы не ожидали это письмо, проигнорируйте его.</p>`,
-      cta: { label: 'Задать пароль и войти', href: link },
-    });
-
-    await this.sendMail({ to, subject, html });
+    const { subject, html } = this.renderTeamInviteEmail(params);
+    await this.sendMail({ to: params.to, subject, html });
   }
 
   /**

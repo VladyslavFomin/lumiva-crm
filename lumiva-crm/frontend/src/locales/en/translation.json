@@ -1194,7 +1194,9 @@
       "accessDeniedTitle": "Access denied",
       "accessDeniedText": "Ask your owner or administrator to grant access to this section.",
       "inlineForbidden": "You don't have access to this data. Ask the assignee for access.",
-      "storageFull": "Company storage is full. Delete unneeded files or buy more space in Company settings → Storage."
+      "storageFull": "Company storage is full. Delete unneeded files or buy more space in Company settings → Storage.",
+      "tenantMailNotConnected": "Email not sent: the company mailbox is not connected. Connect one in Email — emails are sent from your address.",
+      "tenantMailSendFailed": "Your mailbox could not send the email: {{error}}"
     },
     "nav": {
       "dashboard": "Home",
@@ -22398,6 +22400,23 @@
       "startHint": "A short walkthrough of this page — {{count}} steps with tips right next to the buttons.",
       "videoGuide": "Video guide",
       "dontShow": "Don't show tips automatically"
+    },
+    "tenantMail": {
+      "okLine": "Emails are sent from {{email}}.",
+      "change": "Change",
+      "offTitle": "Emails are not being sent:",
+      "reason": {
+        "none": "the company mailbox is not connected — connect one in Email.",
+        "choose": "several shared mailboxes are connected — choose which one sends notifications.",
+        "personal_only": "only employees’ personal mailboxes are connected — choose one for notifications or connect a shared mailbox."
+      },
+      "setup": "Set up email",
+      "panelTitle": "Mailbox for CRM notifications",
+      "panelSub": "The CRM sends notifications, reports and emails to your customers from this address: review alerts, PDF reports, guest invoices, documents for signature, staff invitations. Only system emails — sign-up, password reset, security, billing — come from the platform address.",
+      "auto": "Automatic — the only shared mailbox",
+      "personal": "personal",
+      "saved": "Notification mailbox saved",
+      "saveError": "Could not save"
     }
   },
   "landing": {

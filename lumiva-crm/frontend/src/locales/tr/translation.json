@@ -3457,7 +3457,9 @@
       "accessDeniedTitle": "Erişim reddedildi",
       "accessDeniedText": "Bu bölüme erişim için sahibinizden veya yöneticinizden izin isteyin.",
       "inlineForbidden": "Bu verilere erişiminiz yok. Erişim için sorumlu kişiden talep edin.",
-      "storageFull": "Şirket depolama alanı dolu. Gereksiz dosyaları silin veya Şirket ayarları → Depolama bölümünden ek alan satın alın."
+      "storageFull": "Şirket depolama alanı dolu. Gereksiz dosyaları silin veya Şirket ayarları → Depolama bölümünden ek alan satın alın.",
+      "tenantMailNotConnected": "E-posta gönderilmedi: şirket e-postası bağlı değil. E-posta bölümünden bir kutu bağlayın — e-postalar sizin adresinizden gönderilir.",
+      "tenantMailSendFailed": "E-posta kutunuz e-postayı gönderemedi: {{error}}"
     },
     "nav": {
       "dashboard": "Ana sayfa",
@@ -22380,6 +22382,23 @@
       "startHint": "Bu sayfada kısa bir tur — butonların hemen yanında {{count}} adımlık ipuçları.",
       "videoGuide": "Video rehber",
       "dontShow": "İpuçlarını otomatik gösterme"
+    },
+    "tenantMail": {
+      "okLine": "E-postalar {{email}} adresinden gönderilir.",
+      "change": "Değiştir",
+      "offTitle": "E-postalar gönderilmiyor:",
+      "reason": {
+        "none": "şirket e-postası bağlı değil — E-posta bölümünden bir kutu bağlayın.",
+        "choose": "birden fazla ortak kutu bağlı — bildirimlerin hangisinden gönderileceğini seçin.",
+        "personal_only": "yalnızca çalışanların kişisel kutuları bağlı — bildirimler için birini seçin veya ortak bir kutu bağlayın."
+      },
+      "setup": "E-postayı ayarla",
+      "panelTitle": "CRM bildirim kutusu",
+      "panelSub": "CRM bildirimleri, raporları ve müşterilerinize giden e-postaları bu adresten gönderir: yorum uyarıları, PDF raporlar, misafir faturaları, imza belgeleri, çalışan davetleri. Platform adresinden yalnızca sistem e-postaları gider — kayıt, şifre sıfırlama, güvenlik, ödeme.",
+      "auto": "Otomatik — tek ortak kutu",
+      "personal": "kişisel",
+      "saved": "Bildirim kutusu kaydedildi",
+      "saveError": "Kaydedilemedi"
     }
   },
   "landing": {

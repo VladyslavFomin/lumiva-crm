@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { toJpeg } from 'html-to-image';
 import { fetchCustomObject } from '../../api/customObjects';
 import { sendAnalyticsReportEmail } from '../../api/workspaceShare';
+import { TenantMailNotice } from '../mail/TenantMailNotice';
 
 type BlockRef = { id: string; title: string };
 
@@ -177,6 +178,7 @@ export const AnalyticsReportEmailModal: React.FC<{
                   className={inputCls}
                   autoFocus
                 />
+                <TenantMailNotice style={{ marginTop: 6 }} />
               </div>
               <div>
                 <label className={labelCls}>{t('crm.workspace.report.subject')}</label>

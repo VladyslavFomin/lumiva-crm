@@ -9,6 +9,7 @@ import { AiOfficeTask } from './ai-office-task.entity';
 import { AiAgent } from '../ai-employees/ai-agent.entity';
 import { AiAgentAction } from '../ai-employees/ai-agent-action.entity';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { escapeMailHtml, renderMailShell } from '../mail/mail-template.util';
 import { AiOfficeService } from './ai-office.service';
 import { normalizeMatrix } from './ai-office-catalog';
@@ -36,6 +37,7 @@ export class AiOfficeAutonomyService {
     @InjectRepository(AiAgentAction) private readonly actions: Repository<AiAgentAction>,
     private readonly office: AiOfficeService,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
   ) {}
 
   // ───────────────────────── подписанные ссылки ─────────────────────────
@@ -127,7 +129,11 @@ export class AiOfficeAutonomyService {
         cta: { label: ot(lang, 'mail_open_office'), href: `${front()}/ai-office` },
       });
       for (const o of owners) {
-        await this.mail.sendMail({ to: o.email, subject: ot(lang, 'mail_subject', { n: list.length }), html }).catch((e) => this.log.warn(`mail ${o.email}: ${(e as Error).message}`));
+        const r = await this.tenantMail.send(tenantId, { to: o.email, subject: ot(lang, 'mail_subject', { n: list.length }), html });
+        if (!r.ok) {
+          this.log.warn(`mail ${o.email} not sent (${r.code}): ${r.error}`);
+          if (r.code === 'NO_MAILBOX') break;
+        }
       }
     }
   }
@@ -207,7 +213,13 @@ ${next.length ? `<div style="font-size:12.5px;color:#64748b;margin-top:6px">${es
       [tenantId],
     );
     const html = renderMailShell({ headline: ot(lang, 'dg_title'), bodyHtml: blocks.join(''), cta: { label: ot(lang, 'mail_open_office'), href: `${front()}/ai-office` } });
-    for (const o of owners) await this.mail.sendMail({ to: o.email, subject: ot(lang, 'dg_subject'), html }).catch((e) => this.log.warn(`digest mail ${o.email}: ${(e as Error).message}`));
+    for (const o of owners) {
+      const r = await this.tenantMail.send(tenantId, { to: o.email, subject: ot(lang, 'dg_subject'), html });
+      if (!r.ok) {
+        this.log.warn(`digest mail ${o.email} not sent (${r.code}): ${r.error}`);
+        if (r.code === 'NO_MAILBOX') break;
+      }
+    }
     await this.office.notifyOwners(tenantId, list[0].id, ot(lang, 'dg_title'), lines.join('\n'));
     return true;
   }

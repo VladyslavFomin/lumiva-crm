@@ -5,7 +5,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import PDFDocument from 'pdfkit';
 import { Hotel } from '../hotels/hotel.entity';
-import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { escapeMailHtml, renderMailShell } from '../mail/mail-template.util';
 import { resolveUnicodePdfFont } from '../common/pdf-font.util';
 import { HotelBrand } from './reputation.entities';
@@ -467,7 +467,7 @@ export class ReputationReportService {
     private readonly reviews: ReputationReviewsService,
     private readonly settings: ReputationSettingsService,
     private readonly ai: ReputationAiService,
-    private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly competitors: ReputationCompetitorsService,
   ) {}
 
@@ -730,6 +730,9 @@ export class ReputationReportService {
     if (!emails.length) throw new BadRequestException('At least one valid email is required');
     const lang = this.lang(req.lang);
     const t = T[lang];
+    // письма — с почты клиента; не подключена — сразу понятная ошибка, PDF не строим зря
+    const sender = await this.tenantMail.status(tenantId);
+    if (!sender.account) await this.tenantMail.sendOrThrow(tenantId, { to: emails, subject: '', html: '' });
     const { buffer, filename, title, period } = await this.build(tenantId, req);
     // ссылка — в CRM клиента (его домен, если подключён), подпись — его название
     const branding = await tenantBranding((sql, p) => this.hotels.query(sql, p), tenantId);
@@ -745,11 +748,11 @@ export class ReputationReportService {
     });
     const results: Array<{ email: string; ok: boolean; error?: string }> = [];
     for (const to of emails) {
-      const r = await this.mail.sendMailNow({
+      const r = await this.tenantMail.send(tenantId, {
         to,
         subject: `${t.mailSubject} · ${title}`,
         html,
-        attachments: [{ filename, content: buffer.toString('base64'), contentType: 'application/pdf' }],
+        attachments: [{ filename, content: buffer, contentType: 'application/pdf' }],
       });
       results.push(r.ok ? { email: to, ok: true } : { email: to, ok: false, error: r.error });
       if (!r.ok) this.log.warn(`reputation report to ${to}: ${r.error}`);

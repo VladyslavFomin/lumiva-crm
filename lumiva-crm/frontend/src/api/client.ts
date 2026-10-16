@@ -223,6 +223,14 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
       throw new ApiError(i18n.t('crm.errors.storageFull', { defaultValue: msg }), res.status, data.code, data);
     }
 
+    // письма уходят с почты компании — не подключена / не отправила: понятный текст на языке интерфейса
+    if (data?.code === 'TENANT_MAIL_NOT_CONNECTED') {
+      throw new ApiError(i18n.t('crm.errors.tenantMailNotConnected', { defaultValue: msg }), res.status, data.code, data);
+    }
+    if (data?.code === 'TENANT_MAIL_SEND_FAILED') {
+      throw new ApiError(i18n.t('crm.errors.tenantMailSendFailed', { defaultValue: msg, error: String(msg).replace(/^Your mailbox could not send the email:\s*/, '') }), res.status, data.code, data);
+    }
+
     throw new ApiError(msg, res.status, data?.code, data);
   }
 

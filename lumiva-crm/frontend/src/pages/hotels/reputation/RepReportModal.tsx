@@ -3,6 +3,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import { downloadRepReport, sendRepReport, type RepAnalyticsQuery } from '../../../api/hotelReputation';
 import { useRepT } from './ReputationShared';
+import { TenantMailNotice, useNotificationSender } from '../../../components/mail/TenantMailNotice';
 
 const LANGS = [
   ['ru', 'Русский'],
@@ -20,6 +21,8 @@ export const RepReportModal: React.FC<{ open: boolean; onClose: () => void; quer
   const [emails, setEmails] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState<'pdf' | 'send' | null>(null);
+  // письма уходят с почты компании: не подключена — кнопка «Отправить» недоступна
+  const sender = useNotificationSender();
 
   const list = emails.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean);
   const bad = list.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
@@ -72,6 +75,7 @@ export const RepReportModal: React.FC<{ open: boolean; onClose: () => void; quer
           <label htmlFor="rp-report-emails">{r('report.emails')}</label>
           <input id="rp-report-emails" type="text" value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="gm@hotel.com, marketing@hotel.com" />
           {bad.length > 0 ? <div className="hint" style={{ color: '#cc2f47' }}>{r('report.badEmail', { e: bad.join(', ') })}</div> : <div className="hint">{r('report.emailsHint')}</div>}
+          <TenantMailNotice />
         </div>
         {list.length > 0 && (
           <div className="rp-modal-row">
@@ -84,7 +88,7 @@ export const RepReportModal: React.FC<{ open: boolean; onClose: () => void; quer
           <button type="button" className="btn-secondary" disabled={!!busy} onClick={download}>
             {busy === 'pdf' ? r('report.building') : r('report.download')}
           </button>
-          <button type="button" className="btn-primary" disabled={!!busy || !list.length || bad.length > 0} onClick={send}>
+          <button type="button" className="btn-primary" disabled={!!busy || !list.length || bad.length > 0 || (!!sender && !sender.account)} onClick={send}>
             {busy === 'send' ? r('report.sending') : r('report.send', { n: list.length || '' })}
           </button>
         </div>

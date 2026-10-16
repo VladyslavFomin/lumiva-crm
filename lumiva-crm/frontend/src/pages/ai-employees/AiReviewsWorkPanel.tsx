@@ -20,6 +20,7 @@ import {
   type RepSetup,
 } from '../../api/hotelReputation';
 import { getLocale } from '../../i18n/utils';
+import { TenantMailNotice } from '../../components/mail/TenantMailNotice';
 
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 
@@ -128,6 +129,7 @@ export function AiReviewsWorkPanel({ agentStatus }: { agentStatus: string }) {
             <div>
               <div className="lbl">{k('recipients')}</div>
               <input className="ai-input" value={recipients} onChange={(e) => setRecipients(e.target.value)} placeholder="manager@hotel.com, marketing@hotel.com" />
+              <TenantMailNotice style={{ marginTop: 6 }} />
             </div>
             <div>
               <div className="lbl">{k('telegram')}</div>

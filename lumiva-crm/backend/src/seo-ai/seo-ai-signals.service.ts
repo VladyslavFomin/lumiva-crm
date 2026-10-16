@@ -11,6 +11,7 @@ import { ProjectStatusesService } from '../projects/project-statuses.service';
 import { User } from '../users/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { EmailService } from '../email/email.service';
 import { escapeMailHtml } from '../mail/mail-template.util';
 import { auditPage, auditSite } from './seo-crawler';
@@ -76,6 +77,7 @@ export class SeoAiSignalsService {
     private readonly projectStatuses: ProjectStatusesService,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
     private readonly email: EmailService,
     private readonly marketing: MarketingService,
   ) {}
@@ -330,7 +332,13 @@ export class SeoAiSignalsService {
       try {
         const wrapped = await this.email.wrapHtmlInCompanyDesign(site.tenantId, { headline: title, innerHtml: inner });
         const html = wrapped?.htmlBody || inner;
-        for (const to of site.recipients) await this.mail.sendMail({ to, subject: title, html });
+        for (const to of site.recipients) {
+          const r = await this.tenantMail.send(site.tenantId, { to, subject: title, html });
+          if (!r.ok) {
+            this.log.warn(`SEO alert email not sent (${r.code}): ${r.error}`);
+            if (r.code === 'NO_MAILBOX') break;
+          }
+        }
       } catch (e: any) {
         this.log.warn(`SEO alert email failed: ${e?.message || e}`);
       }

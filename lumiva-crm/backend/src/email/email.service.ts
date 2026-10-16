@@ -55,6 +55,7 @@ export class EmailService {
       id: account.id,
       tenantId: account.tenantId,
       userId: account.userId,
+      useForNotifications: account.useForNotifications,
       email: account.email,
       name: account.name,
       imapHost: account.imapHost,

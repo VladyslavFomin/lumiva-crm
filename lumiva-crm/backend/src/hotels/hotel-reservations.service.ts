@@ -20,6 +20,8 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { HotelAvailabilityService } from './hotel-availability.service';
 import { renderHotelFolioPdf } from './hotel-folio-pdf.util';
 import { MailService } from '../mail/mail.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
+import { tenantFrontend } from '../common/tenant-branding.util';
 
 export interface HotelReservationWriteOptions {
   /** Never populated from the HTTP request body — set only by the reservation-import flow for
@@ -98,6 +100,7 @@ export class HotelReservationsService {
     private readonly auditLog: AuditLogService,
     private readonly availability: HotelAvailabilityService,
     private readonly mail: MailService,
+    private readonly tenantMail: TenantMailService,
   ) {}
 
   /** Проверяет заполняемость типа номера за месяц заезда и, если она достигла/превысила
@@ -505,7 +508,8 @@ export class HotelReservationsService {
     ]);
     const buffer = await renderHotelFolioPdf(reservation, hotel, roomType);
 
-    await this.mail.sendMail({
+    // счёт гостю — с почты отеля; не подключена — понятная ошибка
+    await this.tenantMail.sendOrThrow(tenantId, {
       to: reservation.guestEmail,
       subject: `Счёт по брони — ${hotel?.name || 'отель'}`,
       html: `<p>Здравствуйте, ${reservation.guestName}!</p><p>Во вложении счёт по вашей брони (${reservation.checkIn} — ${reservation.checkOut}).</p>`,

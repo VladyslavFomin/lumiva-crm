@@ -12,9 +12,12 @@ import {
   UseGuards,
   ParseUUIDPipe,
   NotFoundException,
+  Put,
+  ForbiddenException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { EmailService } from './email.service';
+import { TenantMailService } from '../mail/tenant-mail.service';
 import { EmailSyncService } from './email-sync.service';
 import { EmailImapSyncService } from './email-imap-sync.service';
 import { CreateEmailAccountDto } from './dto/create-email-account.dto';
@@ -45,7 +48,25 @@ export class EmailController {
     private readonly emailSync: EmailSyncService,
     private readonly emailImapSync: EmailImapSyncService,
     private readonly emailFolders: EmailFoldersService,
+    private readonly tenantMail: TenantMailService,
   ) {}
+
+  // ==== ЯЩИК ДЛЯ УВЕДОМЛЕНИЙ CRM ====
+  /** С какого ящика CRM шлёт уведомления, отчёты и письма клиентам (или почему не шлёт). Нужен всем модулям — без права «Почта». */
+  @Get('notification-sender')
+  notificationSender(@CurrentUser() user: CurrentUserPayload) {
+    return this.tenantMail.status(user.tenantId);
+  }
+
+  /** Выбрать ящик для уведомлений (только владелец/админ: письма уходят от имени компании). */
+  @Put('notification-sender')
+  @RequirePermission('email', 'write')
+  chooseNotificationSender(@CurrentUser() user: CurrentUserPayload, @Body() body: { accountId?: string | null }) {
+    if (!['owner', 'admin'].includes(String(user.role || '').toLowerCase())) {
+      throw new ForbiddenException('Only the owner or an admin can choose the mailbox for CRM notifications');
+    }
+    return this.tenantMail.choose(user.tenantId, body?.accountId || null);
+  }
 
   private parseBooleanQuery(value: string | undefined): boolean | undefined {
     if (value === undefined) return undefined;
