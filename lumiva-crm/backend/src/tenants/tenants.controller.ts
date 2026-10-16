@@ -60,11 +60,12 @@ export class TenantsController {
     if (!host) {
       throw new BadRequestException('host обязателен');
     }
-    const clientKey = await this.tenantsService.findClientKeyByCustomDomain(host);
-    if (!clientKey) {
+    // companyName — чтобы страница входа на домене клиента показывала его бренд, а не Lumiva.
+    const found = await this.tenantsService.findTenantByCustomDomain(host);
+    if (!found) {
       throw new NotFoundException('Домен не настроен');
     }
-    return { clientKey };
+    return found;
   }
 
   // ---- Получить настройки компании ----

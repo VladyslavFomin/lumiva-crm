@@ -644,12 +644,14 @@ export class TenantsService {
    * только для доменов в статусе active, независимо от того, заблокирован ли сам тенант
    * (блокировку логин всё равно проверит по clientKey при попытке входа).
    */
-  async findClientKeyByCustomDomain(host: string): Promise<string | null> {
+  async findTenantByCustomDomain(
+    host: string,
+  ): Promise<{ clientKey: string; companyName: string } | null> {
     const normalized = host.trim().toLowerCase();
     const tenant = await this.repo.findOne({
       where: { customDomain: normalized, customDomainStatus: 'active' },
     });
-    return tenant?.clientKey ?? null;
+    return tenant ? { clientKey: tenant.clientKey, companyName: tenant.name } : null;
   }
 
   /**

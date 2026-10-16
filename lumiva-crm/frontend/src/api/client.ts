@@ -297,17 +297,20 @@ export async function login(
 }
 
 /**
- * Резолвит clientKey по кастомному домену тенанта (см. GET /tenants/by-domain) — используется
+ * Резолвит clientKey (и название компании) по кастомному домену тенанта (см. GET /tenants/by-domain) — используется
  * страницей логина, когда её открыли не с crm.lumiva.agency, чтобы не показывать клиенту поле
  * с его собственным company slug. Возвращает null, если домен не настроен/не активен — это
  * штатный случай (например для самого crm.lumiva.agency), а не ошибка.
  */
-export async function resolveClientKeyByDomain(host: string): Promise<string | null> {
+export async function resolveTenantByDomain(
+  host: string,
+): Promise<{ clientKey: string; companyName: string } | null> {
   try {
     const res = await fetch(`${API_BASE}/tenants/by-domain?host=${encodeURIComponent(host)}`);
     if (!res.ok) return null;
     const data = await res.json();
-    return data?.clientKey || null;
+    if (!data?.clientKey) return null;
+    return { clientKey: data.clientKey, companyName: data.companyName || '' };
   } catch {
     return null;
   }

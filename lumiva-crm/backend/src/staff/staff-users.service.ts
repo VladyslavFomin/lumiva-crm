@@ -350,16 +350,32 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private buildSetPasswordLink(token: string): string {
-    const baseUrl =
-      process.env.PASSWORD_RESET_URL ||
-      'https://crm.lumiva.agency/set-password';
+  /**
+   * Свой адрес CRM тенанта, если у него активный кастомный домен: ссылки в письмах (установка
+   * пароля, вход) ведут туда, а не на crm.lumiva.agency. null — домена нет, берём env-дефолты.
+   */
+  private async tenantCustomBase(
+    tenantOrId: string | Pick<Tenant, 'customDomain' | 'customDomainStatus'> | null | undefined,
+  ): Promise<string | null> {
+    const tenant =
+      typeof tenantOrId === 'string'
+        ? await this.tenantRepo.findOne({ where: { id: tenantOrId } })
+        : tenantOrId;
+    return tenant?.customDomainStatus === 'active' && tenant.customDomain
+      ? `https://${tenant.customDomain}`
+      : null;
+  }
+
+  private buildSetPasswordLink(token: string, customBase: string | null): string {
+    const baseUrl = customBase
+      ? `${customBase}/set-password`
+      : process.env.PASSWORD_RESET_URL || 'https://crm.lumiva.agency/set-password';
     return `${baseUrl}?token=${encodeURIComponent(token)}`;
   }
 
-  private loginPageUrl(): string {
+  private loginPageUrl(customBase: string | null): string {
     const frontendBase = (
-      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+      customBase || process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
     ).replace(/\/$/, '');
     return `${frontendBase}/login`;
   }
@@ -394,6 +410,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     const tenantName = tenant?.name;
+    const customBase = await this.tenantCustomBase(tenant);
 
     const existingUser = await this.userRepo.findOne({
       where: { tenantId, email },
@@ -447,8 +464,8 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       to: email,
       fullName: saved.fullName || email,
       tenantName,
-      link: this.buildSetPasswordLink(token),
-      loginUrl: this.loginPageUrl(),
+      link: this.buildSetPasswordLink(token, customBase),
+      loginUrl: this.loginPageUrl(customBase),
     });
 
     if (this.tenantLogs) {
@@ -499,12 +516,13 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
     const saved = await this.repo.save(staff);
 
+    const customBase = await this.tenantCustomBase(tenant);
     await this.mail.sendTeamInviteEmail({
       to: staff.email,
       fullName: saved.fullName || staff.email,
       tenantName: tenant?.name,
-      link: this.buildSetPasswordLink(token),
-      loginUrl: this.loginPageUrl(),
+      link: this.buildSetPasswordLink(token, customBase),
+      loginUrl: this.loginPageUrl(customBase),
     });
 
     if (this.tenantLogs) {
@@ -664,10 +682,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
     await this.repo.save(staff);
 
-    const baseUrl =
-      process.env.PASSWORD_RESET_URL ||
-      'https://crm.lumiva.agency/set-password';
-    const link = `${baseUrl}?token=${encodeURIComponent(token)}`;
+    const link = this.buildSetPasswordLink(token, await this.tenantCustomBase(tenantId));
 
     if (sendEmail) {
       await this.mail.sendOwnerInviteEmail({
