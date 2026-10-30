@@ -9,6 +9,7 @@ import { HotelMarket } from './hotel-market.entity';
 import { HotelReservation } from './hotel-reservation.entity';
 import { Tenant } from '../tenants/tenant.entity';
 import { CurrencyRatesService } from '../currency/currency-rates.service';
+import { normalizeChildPolicy } from './hotel-occupancy.util';
 
 const DEFAULT_MARKET_GROUPS = ['Batı Avrupa', 'Doğu Avrupa', 'İç Pazar (TR)'];
 const OCCUPIED_STATUSES = ['confirmed', 'pending', 'checked_in'];
@@ -95,7 +96,24 @@ export class HotelsService {
   async update(tenantId: string, id: string, dto: Partial<Hotel>) {
     const hotel = await this.repo.findOne({ where: { id, tenantId } });
     if (!hotel) throw new NotFoundException('Отель не найден');
-    Object.assign(hotel, dto);
+    const clean: Partial<Hotel> = { ...dto };
+    // служебные поля меняются только своими путями: принадлежность компании, фид, бизнес-дата/аудит (ночной аудит),
+    // настройки аудита и сборы (свои эндпоинты с отдельными правами)
+    for (const k of ['id', 'tenantId', 'createdAt', 'updatedAt', 'feedToken', 'businessDate', 'lastAuditDate', 'nightAuditAuto', 'nightAuditTime', 'nightAuditEmails', 'earlyCheckInFeePct', 'lateCheckOutFeePct'] as const) {
+      delete (clean as any)[k];
+    }
+    if (clean.pricingPriority !== undefined) clean.pricingPriority = clean.pricingPriority === 'market' ? 'market' : 'season';
+    if ((clean as any).childPolicy !== undefined) (clean as any).childPolicy = normalizeChildPolicy((clean as any).childPolicy);
+    if ((clean as any).guestCareWhatsapp !== undefined) (clean as any).guestCareWhatsapp = !!(clean as any).guestCareWhatsapp;
+    if (clean.childMaxAge !== undefined) clean.childMaxAge = Math.min(18, Math.max(1, Math.round(Number(clean.childMaxAge) || 12)));
+    for (const k of ['accommodationTaxPct', 'vatPct'] as const) {
+      if (clean[k] !== undefined) {
+        const n = Number(clean[k]);
+        clean[k] = String(Number.isFinite(n) ? Math.min(50, Math.max(0, n)) : 0);
+      }
+    }
+    if (clean.pricesIncludeTax !== undefined) clean.pricesIncludeTax = !!clean.pricesIncludeTax;
+    Object.assign(hotel, clean);
     await this.repo.save(hotel);
     return this.enrich(tenantId, hotel);
   }
@@ -171,12 +189,13 @@ export class HotelsService {
       ).length;
       occupancyToday = totalRooms > 0 ? Math.round((occupiedToday / totalRooms) * 100) : 0;
 
-      const revenueRows = reservations.filter((r) => REVENUE_STATUSES.includes(r.status));
+      // ADR — выручка платных броней (после скидки) на их ночи: бесплатные проживания не входят ни в выручку, ни в ночи
+      const revenueRows = reservations.filter((r) => REVENUE_STATUSES.includes(r.status) && !r.isComplimentary);
       const totalNights = revenueRows.reduce(
         (s, r) => s + nightsBetween(r.checkIn, r.checkOut),
         0,
       );
-      const totalRoomRevenue = revenueRows.reduce((s, r) => s + toNum(r.roomTotal), 0);
+      const totalRoomRevenue = revenueRows.reduce((s, r) => s + toNum(r.total), 0);
       adr = totalNights > 0 ? Math.round(totalRoomRevenue / totalNights) : 0;
     }
 
@@ -213,9 +232,10 @@ export class HotelsService {
     const toPrimary = (amount: unknown, hotelId: string) =>
       this.currencyRates.convertWithRates(toNum(amount as string | number), hotelCurrency.get(hotelId) || currency, currency, rates);
 
-    const revenueRows = reservations.filter((r) => REVENUE_STATUSES.includes(r.status));
+    // ADR без бесплатных проживаний и после скидок (как в ночном аудите и отчётах PMS)
+    const revenueRows = reservations.filter((r) => REVENUE_STATUSES.includes(r.status) && !r.isComplimentary);
     const totalNights = revenueRows.reduce((s, r) => s + nightsBetween(r.checkIn, r.checkOut), 0);
-    const totalRoomRevenue = revenueRows.reduce((s, r) => s + toPrimary(r.roomTotal, r.hotelId), 0);
+    const totalRoomRevenue = revenueRows.reduce((s, r) => s + toPrimary(r.total, r.hotelId), 0);
     const adr = totalNights > 0 ? Math.round(totalRoomRevenue / totalNights) : 0;
 
     const last30 = reservations.filter(

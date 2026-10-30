@@ -5,18 +5,23 @@ import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
+import { CountrySelect, CountryTag } from './CountrySelect';
+import { money } from './partners/partnerUtils';
 import { HousekeepingBadge } from './HotelDetailPage';
 import {
   fetchReservations,
   createReservation,
   updateReservation,
+  fetchReservation,
   checkInReservation,
   checkOutReservation,
   addReservationPayment,
   removeReservationPayment,
   downloadReservationFolio,
   sendFolioEmail,
-  fetchReservationPrice,
+  fetchQuote,
+  fetchMarketGroups,
+  type HotelQuote,
   fetchHotels,
   fetchRoomTypes,
   fetchAgencies,
@@ -26,6 +31,17 @@ import {
   fetchMarketPrices,
   previewReservationsImport,
   applyReservationsImport,
+  scanGuestDocument,
+  fetchContracts,
+  fetchRoomBlocks,
+  HOTEL_BOARD_TYPES,
+  HOTEL_COMP_REASONS,
+  contractPromotionDiscount,
+  hotelTaxes,
+  isRussiaCountry,
+  type HotelContract,
+  type HotelRoomBlock,
+  type GuestDocumentScan,
   type HotelReservation,
   type HotelReservationStatus,
   type HotelReservationPaidStatus,
@@ -39,15 +55,25 @@ import {
   type HotelReservationGuest,
   type HotelReservationImportPreview,
 } from '../../api/hotels';
+import { ReservationHistoryPanel } from './ReservationHistory';
+import { todayIso } from './partners/partnerUtils';
+import { FolioPanel } from './folio/FolioPanel';
+import { NightlyRatesSummary, QuoteBreakdown } from './pricing/QuoteBreakdown';
+import { GuestsPicker, matchOccupancy, splitGuests } from './pricing/GuestsPicker';
+import { CancelReservationDialog, NoShowDialog, ReservationClosedNote, hotelErrorText } from './ReservationLifecycle';
 import './hotels-design.css';
+import { DateInput } from '../../components/ui/DateInput';
+import { useHotelLive } from './useHotelLive';
+import { acquireReservationLock, releaseReservationLock } from '../../api/hotels';
 
 function nights(checkIn: string, checkOut: string) {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime();
   return Math.max(1, Math.round(ms / 86_400_000));
 }
 
-const STATUS_FILTER_KEYS = ['all', 'confirmed', 'pending', 'checked_in', 'checked_out', 'cancelled'] as const;
-const STATUS_KEYS: HotelReservationStatus[] = ['confirmed', 'pending', 'checked_in', 'checked_out', 'cancelled'];
+const STATUS_FILTER_KEYS = ['all', 'confirmed', 'pending', 'checked_in', 'checked_out', 'cancelled', 'no_show'] as const;
+/** Ручная смена статуса; отмена и no-show — только через свои диалоги (причина, штраф) */
+const STATUS_KEYS: HotelReservationStatus[] = ['confirmed', 'pending', 'checked_in', 'checked_out'];
 const PAID_STATUS_KEYS: HotelReservationPaidStatus[] = ['full', 'partial', 'none', 'refunded'];
 const PAYMENT_METHOD_KEYS = ['card', 'cash', 'bank_transfer', 'other'];
 
@@ -62,6 +88,7 @@ export const HotelReservationsPage: React.FC = () => {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [agencyFilter, setAgencyFilter] = useState('all');
+  const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<HotelReservation | null>(null);
   const [modalState, setModalState] = useState<'new' | HotelReservation | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -75,6 +102,7 @@ export const HotelReservationsPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [lifecycleDialog, setLifecycleDialog] = useState<'cancel' | 'noShow' | null>(null);
 
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const statusLabel = (s: HotelReservationStatus) => t(`crm.hotels.reservations.status.${s}`);
@@ -90,6 +118,8 @@ export const HotelReservationsPage: React.FC = () => {
     fetchReservations()
       .then((list) => {
         setReservations(list);
+        // открытая карточка — свежая версия (бронь могли изменить у другого сотрудника)
+        setSelected((cur) => (cur ? list.find((x) => x.id === cur.id) || cur : cur));
         // ?reservation=<id> — открыть бронь сразу (ссылка из карточки отзыва)
         const want = new URLSearchParams(window.location.search).get('reservation');
         if (want) {
@@ -99,6 +129,9 @@ export const HotelReservationsPage: React.FC = () => {
       })
       .catch((e) => showAlert(e.message || t('crm.hotels.reservations.loadError'), { variant: 'error' }));
   };
+
+  // новые и изменённые брони других сотрудников — без перезагрузки страницы
+  useHotelLive(['reservation'], () => load(), 800);
 
   useEffect(() => {
     load();
@@ -178,10 +211,18 @@ export const HotelReservationsPage: React.FC = () => {
         (r) =>
           (filter === 'all' || r.status === filter) &&
           (agencyFilter === 'all' || r.agencyId === agencyFilter) &&
-          r.guestName.toLowerCase().includes(q.toLowerCase()),
+          (!countryFilter || r.guestCountry === countryFilter) &&
+          [r.guestName, r.bookingCode, r.guestEmail].some((f) => f && f.toLowerCase().includes(q.toLowerCase())),
       ),
-    [reservations, filter, agencyFilter, q],
+    [reservations, filter, agencyFilter, countryFilter, q],
   );
+  // валюта отеля брони; в KPI — общая, только если у всех отелей она одна
+  const curOf = (r: HotelReservation) => hotelById.get(r.hotelId)?.currency || null;
+  const kpiCurrency = (() => {
+    const set = new Set(filtered.map(curOf));
+    return set.size === 1 ? [...set][0] : null;
+  })();
+  const fmt = (v: number, cur: string | null) => money(v, cur, i18n.language);
 
   const totals = useMemo(
     () =>
@@ -214,10 +255,10 @@ export const HotelReservationsPage: React.FC = () => {
         </div>
 
         <div data-tour="hres-kpis" className="htl-kpis" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.roomsSum')}</div><div className="v">${totals.rooms.toLocaleString()}</div></div>
-          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.costPeriod')}</div><div className="v">${totals.cost.toLocaleString()}</div></div>
-          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.discountsGiven')}</div><div className="v">${Math.round(totals.disc).toLocaleString()}</div></div>
-          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.marginEst')}</div><div className="v">${(totals.rooms - totals.disc - totals.cost).toLocaleString()}</div></div>
+          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.roomsSum')}</div><div className="v">{fmt(totals.rooms, kpiCurrency)}</div></div>
+          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.costPeriod')}</div><div className="v">{fmt(totals.cost, kpiCurrency)}</div></div>
+          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.discountsGiven')}</div><div className="v">{fmt(totals.disc, kpiCurrency)}</div></div>
+          <div className="htl-kpi"><div className="l">{t('crm.hotels.reservations.kpis.marginEst')}</div><div className="v">{fmt(totals.rooms - totals.disc - totals.cost, kpiCurrency)}</div></div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
@@ -229,6 +270,9 @@ export const HotelReservationsPage: React.FC = () => {
             <option value="all">{t('crm.hotels.reservations.allAgencies')}</option>
             {agencies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
+          <div style={{ width: 200 }}>
+            <CountrySelect value={countryFilter} onChange={setCountryFilter} placeholder={t('crm.hotels.reservations.allCountries')} />
+          </div>
           <div data-tour="hres-status" className="bk-savedviews" style={{ flex: 'none' }}>
             {STATUS_FILTER_KEYS.map((k) => (
               <div key={k} className={`bk-sv-tab${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>{t(`crm.hotels.reservations.statusFilters.${k}`)}</div>
@@ -243,6 +287,7 @@ export const HotelReservationsPage: React.FC = () => {
                 <th>{t('crm.hotels.reservations.table.colGuest')}</th>
                 <th>{t('crm.hotels.reservations.table.colHotelRoom')}</th>
                 <th>{t('crm.hotels.reservations.table.colAgency')}</th>
+                <th>{t('crm.hotels.reservations.table.colCountry')}</th>
                 <th>{t('crm.hotels.reservations.table.colCreated')}</th>
                 <th>{t('crm.hotels.reservations.table.colDates')}</th>
                 <th>{t('crm.hotels.reservations.table.colNightsPax')}</th>
@@ -251,6 +296,7 @@ export const HotelReservationsPage: React.FC = () => {
                 <th>{t('crm.hotels.reservations.table.colGross')}</th>
                 <th>{t('crm.hotels.reservations.table.colDiscount')}</th>
                 <th>{t('crm.hotels.reservations.table.colTotal')}</th>
+                <th>{t('crm.hotels.reservations.table.colNet')}</th>
                 <th>{t('crm.hotels.reservations.table.colPaid')}</th>
                 <th>{t('crm.hotels.reservations.table.colStatus')}</th>
               </tr>
@@ -258,7 +304,11 @@ export const HotelReservationsPage: React.FC = () => {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="clickable" onClick={() => setSelected(r)}>
-                  <td style={{ fontWeight: 600 }}>{r.guestName}</td>
+                  <td style={{ fontWeight: 600 }}>
+                    {r.guestName}
+                    {r.source === 'demo' && <span className="bk-badge draft" style={{ marginLeft: 6 }}>{t('crm.hotels.demo.badge')}</span>}
+                    {r.source === 'channel' && <span className="htl-ota" style={{ marginLeft: 6 }} title={r.otaCode || ''}>{r.otaName || t('crm.hotels.channels.ota')}</span>}
+                  </td>
                   <td>
                     <div>{hotelById.get(r.hotelId)?.name || '—'}</div>
                     <div style={{ fontSize: 11, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -272,16 +322,21 @@ export const HotelReservationsPage: React.FC = () => {
                     </div>
                   </td>
                   <td><span className="agency-pill"><i />{r.agencyId ? agencyById.get(r.agencyId)?.name || '—' : '—'}</span></td>
+                  <td style={{ fontSize: 12 }}><CountryTag code={r.guestCountry} /></td>
                   <td style={{ fontSize: 11, color: 'var(--fg-3)' }}>{new Date(r.createdAt).toLocaleDateString(dateLocale)}</td>
                   <td style={{ fontSize: 12 }}>{r.checkIn} → {r.checkOut}</td>
                   <td style={{ fontSize: 11.5 }}>{t('crm.hotels.reservations.table.nightsPax', { nights: nights(r.checkIn, r.checkOut), pax: r.pax })}</td>
-                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>${r.costPerNight}</td>
-                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>${r.ppPerNight}</td>
-                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>${r.grossPerNight}</td>
+                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>{fmt(Number(r.costPerNight), curOf(r))}</td>
+                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{fmt(Number(r.ppPerNight), curOf(r))}</td>
+                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{fmt(Number(r.grossPerNight), curOf(r))}</td>
                   <td style={{ fontSize: 11, color: Number(r.discountPct) ? '#cc2f47' : 'var(--fg-3)' }}>{Number(r.discountPct) ? `-${r.discountPct}%` : '—'}</td>
-                  <td style={{ fontFamily: 'var(--ff-mono)', fontWeight: 700 }}>${Number(r.total).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                  <td style={{ fontFamily: 'var(--ff-mono)', fontWeight: 700 }}>{fmt(Number(r.total), curOf(r))}</td>
+                  <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11.5 }} title={Number(r.commissionAmount) ? t('crm.hotels.reservations.table.commissionTip', { pct: Number(r.commissionPct), amount: fmt(Number(r.commissionAmount), curOf(r)) }) : undefined}>
+                    {fmt(Number(r.netTotal || r.total), curOf(r))}
+                    {Number(r.commissionPct) > 0 && <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>−{Number(r.commissionPct)}%</div>}
+                  </td>
                   <td style={{ fontSize: 11, color: r.paidStatus === 'full' ? '#1f8a5e' : r.paidStatus === 'none' ? '#cc2f47' : 'var(--fg-3)' }}>{paidStatusLabel(r.paidStatus)}</td>
-                  <td><span className={`bk-badge ${r.status === 'checked_out' ? '' : r.status === 'checked_in' ? 'confirmed' : r.status}`}>{statusLabel(r.status)}</span></td>
+                  <td><span className={`bk-badge ${r.status === 'checked_out' ? '' : r.status === 'checked_in' ? 'confirmed' : r.status === 'no_show' ? 'cancelled' : r.status}`}>{statusLabel(r.status)}</span>{r.isComplimentary && <span className="htl-comp-tag" style={{ marginLeft: 6 }}>{t('crm.hotels.lifecycle.compTag')}</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -297,6 +352,17 @@ export const HotelReservationsPage: React.FC = () => {
               <div>
                 <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>{selected.id.slice(0, 8)}</div>
                 <h3>{selected.guestName}</h3>
+                {selected.source === 'channel' && (
+                  <span className="htl-ota" style={{ marginTop: 6 }}>{selected.otaName || t('crm.hotels.channels.ota')}{selected.otaCode ? ` · ${selected.otaCode}` : ''}</span>
+                )}
+                {selected.isComplimentary && (
+                  <span className="htl-comp-tag" style={{ marginTop: 6 }}>
+                    {t('crm.hotels.lifecycle.compTag')} · {selected.compReason ? t(`crm.hotels.lifecycle.compReasons.${selected.compReason}`) : ''} · {fmt(Number(selected.compValue), curOf(selected))}
+                  </span>
+                )}
+                {selected.status === 'pending' && selected.optionUntil && (
+                  <div className="htl-sub" style={{ marginTop: 6 }}>{t('crm.hotels.lifecycle.optionUntilLine', { date: new Date(selected.optionUntil).toLocaleString(dateLocale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })}</div>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button onClick={() => setModalState(selected)} title={t('crm.hotels.reservations.drawer.edit')}><Ic d={HTL_ICON.pencil} size={16} /></button>
@@ -324,6 +390,17 @@ export const HotelReservationsPage: React.FC = () => {
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.guestPhone')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestPhone || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.createdDate')}</div><div className="v" style={{ fontSize: 12.5 }}>{new Date(selected.createdAt).toLocaleDateString(dateLocale)}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.market')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.market || '—'}</div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.guestCountry')}</div><div className="v" style={{ fontSize: 12.5 }}><CountryTag code={selected.guestCountry} /></div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.saleCountry')}</div><div className="v" style={{ fontSize: 12.5 }}><CountryTag code={selected.saleCountry} /></div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.board')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.boardType ? `${selected.boardType} · ${t(`crm.hotels.board.${selected.boardType}`)}` : '—'}</div></div>
+                <div className="htl-info-item">
+                  <div className="l">{t('crm.hotels.reservations.drawer.contract')}</div>
+                  <div className="v" style={{ fontSize: 12.5 }}>
+                    {selected.contractId ? <a href={`/hotels/contracts/${selected.contractId}`} style={{ color: 'var(--ink)', textDecoration: 'underline' }}>{t('crm.hotels.reservations.drawer.openContract')}</a> : '—'}
+                  </div>
+                </div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.commission')}</div><div className="v" style={{ fontSize: 12.5 }}>{Number(selected.commissionPct) ? `${Number(selected.commissionPct)}% · ${fmt(Number(selected.commissionAmount), curOf(selected))}` : '—'}</div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.net')}</div><div className="v" style={{ fontSize: 12.5 }}>{fmt(Number(selected.netTotal || selected.total), curOf(selected))}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.checkIn')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.checkIn}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.checkOut')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.checkOut}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.nights')}</div><div className="v" style={{ fontSize: 12.5 }}>{nights(selected.checkIn, selected.checkOut)}</div></div>
@@ -363,14 +440,26 @@ export const HotelReservationsPage: React.FC = () => {
 
               <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>{t('crm.hotels.reservations.drawer.financialTitle')}</div>
               <div className="htl-price-breakdown" style={{ marginTop: 8 }}>
-                <div className="row"><span>{t('crm.hotels.reservations.drawer.costPerNight')}</span><b>${selected.costPerNight}</b></div>
-                <div className="row"><span>{t('crm.hotels.reservations.drawer.ppPerNight')}</span><b>${selected.ppPerNight}</b></div>
-                <div className="row"><span>{t('crm.hotels.reservations.drawer.grossPerNight')}</span><b>${selected.grossPerNight}</b></div>
-                <div className="row"><span>{t('crm.hotels.reservations.drawer.ppTotal')}</span><b>${selected.ppTotal}</b></div>
-                <div className="row"><span>{t('crm.hotels.reservations.drawer.roomTotal')}</span><b>${selected.roomTotal}</b></div>
+                <div className="row"><span>{t('crm.hotels.reservations.drawer.costPerNight')}</span><b>{fmt(Number(selected.costPerNight), curOf(selected))}</b></div>
+                <div className="row"><span>{t('crm.hotels.reservations.drawer.ppPerNight')}</span><b>{fmt(Number(selected.ppPerNight), curOf(selected))}</b></div>
+                <div className="row"><span>{t('crm.hotels.reservations.drawer.grossPerNight')}</span><b>{fmt(Number(selected.grossPerNight), curOf(selected))}</b></div>
+                <div className="row"><span>{t('crm.hotels.reservations.drawer.ppTotal')}</span><b>{fmt(Number(selected.ppTotal), curOf(selected))}</b></div>
+                <div className="row"><span>{t('crm.hotels.reservations.drawer.roomTotal')}</span><b>{fmt(Number(selected.roomTotal), curOf(selected))}</b></div>
                 <div className="row"><span>{t('crm.hotels.reservations.drawer.discount')}</span><b style={{ color: Number(selected.discountPct) ? '#cc2f47' : 'inherit' }}>{Number(selected.discountPct) ? `-${selected.discountPct}%` : '—'}</b></div>
-                <div className="row final" style={{ gridColumn: '1 / -1' }}><span>{t('crm.hotels.reservations.drawer.finalTotal')}</span><b>${Number(selected.total).toLocaleString(undefined, { maximumFractionDigits: 2 })}</b></div>
+                <div className="row final" style={{ gridColumn: '1 / -1' }}><span>{t('crm.hotels.reservations.drawer.finalTotal')}</span><b>{fmt(Number(selected.total), curOf(selected))}</b></div>
               </div>
+              {(() => {
+                const tx = hotelTaxes(Number(selected.total), hotelById.get(selected.hotelId));
+                if (!tx.has) return null;
+                return (
+                  <div className="htl-price-breakdown" style={{ marginTop: 8 }}>
+                    <div className="row"><span>{t('crm.hotels.reservations.drawer.taxBase')}</span><b>{fmt(tx.base, curOf(selected))}</b></div>
+                    {tx.accommodationTaxPct > 0 && <div className="row"><span>{t('crm.hotels.reservations.drawer.accTax', { pct: tx.accommodationTaxPct })}</span><b>{fmt(tx.accommodationTax, curOf(selected))}</b></div>}
+                    {tx.vatPct > 0 && <div className="row"><span>{t('crm.hotels.reservations.drawer.vat', { pct: tx.vatPct })}</span><b>{fmt(tx.vat, curOf(selected))}</b></div>}
+                    <div className="row final" style={{ gridColumn: '1 / -1' }}><span>{tx.included ? t('crm.hotels.reservations.drawer.taxIncluded') : t('crm.hotels.reservations.drawer.totalWithTax')}</span><b>{fmt(tx.total, curOf(selected))}</b></div>
+                  </div>
+                );
+              })()}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 13 }}>
                 <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.paidStatusLabel')}</span>
@@ -393,67 +482,17 @@ export const HotelReservationsPage: React.FC = () => {
               {selected.depositAmount && Number(selected.depositAmount) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 13 }}>
                   <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.deposit')}</span>
-                  <span style={{ fontWeight: 600 }}>${selected.depositAmount}</span>
+                  <span style={{ fontWeight: 600 }}>{fmt(Number(selected.depositAmount), curOf(selected))}</span>
                 </div>
               )}
 
-              <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>{t('crm.hotels.reservations.drawer.paymentsTitle')}</div>
-              <div style={{ marginTop: 8 }}>
-                {selected.payments.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.noPayments')}</div>
-                )}
-                {selected.payments.map((p) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--line-2)', fontSize: 12.5 }}>
-                    <span>{p.date} · {paymentMethodLabel(p.method)}{p.note ? ` · ${p.note}` : ''}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <b>${p.amount}</b>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePayment(p.id)}
-                        title={t('crm.hotels.reservations.drawer.removePaymentTitle')}
-                        style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', display: 'flex' }}
-                      >
-                        <Ic d={HTL_ICON.x} size={12} />
-                      </button>
-                    </span>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                  <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={{ width: 130, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }} />
-                  <input placeholder={t('crm.hotels.reservations.drawer.amountPlaceholder')} value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} style={{ width: 70, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }} />
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }}>
-                    {PAYMENT_METHOD_KEYS.map((k) => <option key={k} value={k}>{paymentMethodLabel(k)}</option>)}
-                  </select>
-                  <input
-                    placeholder={t('crm.hotels.reservations.drawer.notePlaceholder')}
-                    value={paymentNote}
-                    onChange={(e) => setPaymentNote(e.target.value)}
-                    style={{ flex: 1, minWidth: 140, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }}
-                  />
-                  <button className="btn btn-sm" disabled={paymentBusy || !paymentAmount} onClick={handleAddPayment}>
-                    <Ic d={HTL_ICON.plus} size={12} />
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button
-                  className="btn"
-                  style={{ flex: 1 }}
-                  onClick={() => downloadReservationFolio(selected.id).catch((e) => showAlert(e.message || t('crm.hotels.reservations.folioDownloadError'), { variant: 'error' }))}
-                >
-                  <Ic d={HTL_ICON.download} size={14} />{t('crm.hotels.reservations.drawer.downloadFolio')}
-                </button>
-                <button
-                  className="btn"
-                  style={{ flex: 1 }}
-                  disabled={emailBusy || !selected.guestEmail}
-                  title={selected.guestEmail ? undefined : t('crm.hotels.reservations.drawer.noEmailTitle')}
-                  onClick={handleSendFolioEmail}
-                >
-                  <Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.reservations.drawer.sendFolio')}
-                </button>
-              </div>
+              {selected.priceMode === 'auto' && selected.nightlyRates?.length ? <NightlyRatesSummary nights={selected.nightlyRates} currency={curOf(selected)} /> : null}
+              <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>{t('crm.hotels.folio.title')}</div>
+              <FolioPanel
+                reservation={selected}
+                currency={curOf(selected)}
+                onChanged={() => fetchReservation(selected.id).then((r) => { setSelected(r); load(); }).catch(() => load())}
+              />
 
               {(selected.checkedInAt || selected.checkedOutAt) && (
                 <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 10 }}>
@@ -503,25 +542,30 @@ export const HotelReservationsPage: React.FC = () => {
                       .catch((err) => showAlert(err.message || t('crm.hotels.reservations.updateStatusError'), { variant: 'error' }));
                   }}
                 >
-                  {STATUS_KEYS.map((k) => (
-                    <option key={k} value={k}>{statusLabel(k)}</option>
+                  {(STATUS_KEYS.includes(selected.status) ? STATUS_KEYS : [selected.status, ...STATUS_KEYS]).map((k) => (
+                    <option key={k} value={k} disabled={k === 'cancelled' || k === 'no_show'}>{statusLabel(k)}</option>
                   ))}
                 </select>
               </div>
-              <button
-                className="btn"
-                style={{ width: '100%', marginTop: 8, color: '#cc2f47' }}
-                onClick={() => {
-                  updateReservation(selected.id, { status: 'cancelled' })
-                    .then((r) => {
-                      setSelected(r);
-                      load();
-                    })
-                    .catch((err) => showAlert(err.message || t('crm.hotels.reservations.cancelError'), { variant: 'error' }));
-                }}
-              >
-                {t('crm.hotels.reservations.drawer.cancelBooking')}
-              </button>
+              <ReservationClosedNote r={selected} currency={curOf(selected)} />
+              {(selected.status === 'confirmed' || selected.status === 'pending') && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  {selected.checkIn <= todayIso() && (
+                    <button className="btn" style={{ flex: 1 }} onClick={() => setLifecycleDialog('noShow')}>{t('crm.hotels.frontDesk.noShow')}</button>
+                  )}
+                  <button className="btn" style={{ flex: 1, color: '#cc2f47' }} onClick={() => setLifecycleDialog('cancel')}>
+                    {t('crm.hotels.reservations.drawer.cancelBooking')}
+                  </button>
+                </div>
+              )}
+              <ReservationHistoryPanel
+                reservationId={selected.id}
+                refreshKey={selected.updatedAt}
+                units={allRoomUnits}
+                roomTypes={roomTypes}
+                agencies={agencies}
+                lang={dateLocale}
+              />
             </div>
           </div>
         </div>
@@ -544,6 +588,23 @@ export const HotelReservationsPage: React.FC = () => {
         />
       )}
 
+      {selected && lifecycleDialog === 'cancel' && (
+        <CancelReservationDialog
+          reservation={selected}
+          currency={curOf(selected)}
+          onClose={() => setLifecycleDialog(null)}
+          onDone={(r) => { setLifecycleDialog(null); setSelected(r); load(); }}
+        />
+      )}
+      {selected && lifecycleDialog === 'noShow' && (
+        <NoShowDialog
+          reservation={selected}
+          currency={curOf(selected)}
+          onClose={() => setLifecycleDialog(null)}
+          onDone={(r) => { setLifecycleDialog(null); setSelected(r); load(); }}
+        />
+      )}
+
       {showImport && (
         <ImportModal
           hotels={hotels}
@@ -558,7 +619,35 @@ export const HotelReservationsPage: React.FC = () => {
   );
 };
 
-const ReservationModal: React.FC<{
+/** Фото с телефона бывают 4000px+ и HEIC — уменьшаем и перекодируем в JPEG до отправки на распознавание. */
+async function toScanJpeg(file: File): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('encode'))), 'image/jpeg', 0.9));
+  } catch {
+    return file;
+  }
+}
+
+/** Полных лет на дату (заезда или сегодня). */
+function ageOn(birthDate: string, on: string): string {
+  const b = new Date(`${birthDate}T00:00:00`);
+  const d = on ? new Date(`${on}T00:00:00`) : new Date();
+  if (Number.isNaN(b.getTime()) || Number.isNaN(d.getTime())) return '';
+  let age = d.getFullYear() - b.getFullYear();
+  if (d.getMonth() < b.getMonth() || (d.getMonth() === b.getMonth() && d.getDate() < b.getDate())) age--;
+  return age >= 0 ? String(age) : '';
+}
+
+type ScanNote = { tone: 'ok' | 'warn' | 'err'; text: string };
+
+/** prefill — значения новой брони (из шахматки: отель, тип, номер, даты); initial — редактирование */
+export const ReservationModal: React.FC<{
   hotels: Hotel[];
   roomTypes: HotelRoomType[];
   agencies: HotelAgency[];
@@ -567,21 +656,26 @@ const ReservationModal: React.FC<{
   setSaving: (v: boolean) => void;
   onClose: () => void;
   onSaved: (r: HotelReservation) => void;
-}> = ({ hotels, roomTypes, agencies, initial, saving, setSaving, onClose, onSaved }) => {
-  const { t } = useTranslation();
+  prefill?: Partial<Pick<HotelReservation, 'hotelId' | 'roomTypeId' | 'roomUnitId' | 'checkIn' | 'checkOut'>>;
+}> = ({ hotels, roomTypes, agencies, initial, saving, setSaving, onClose, onSaved, prefill }) => {
+  const { t, i18n } = useTranslation();
   const { showAlert } = useAlertModal();
-  const [hotelId, setHotelId] = useState(initial?.hotelId || hotels[0]?.id || '');
-  const [roomTypeId, setRoomTypeId] = useState(initial?.roomTypeId || '');
+  const [hotelId, setHotelId] = useState(initial?.hotelId || prefill?.hotelId || hotels[0]?.id || '');
+  const [roomTypeId, setRoomTypeId] = useState(initial?.roomTypeId || prefill?.roomTypeId || '');
   const [agencyId, setAgencyId] = useState(initial?.agencyId || '');
-  const [roomUnitId, setRoomUnitId] = useState(initial?.roomUnitId || '');
-  const [occupancyTypeId, setOccupancyTypeId] = useState(initial?.occupancyTypeId || '');
+  const [roomUnitId, setRoomUnitId] = useState(initial?.roomUnitId || prefill?.roomUnitId || '');
   const [guestName, setGuestName] = useState(initial?.guestName || '');
   const [guestEmail, setGuestEmail] = useState(initial?.guestEmail || '');
   const [guestPhone, setGuestPhone] = useState(initial?.guestPhone || '');
-  const [pax, setPax] = useState(initial ? String(initial.pax) : '2');
+  // состав гостей: взрослые + возраст каждого ребёнка (у старых броней без возрастов — дети «без возраста»)
+  const initialAges: Array<number | null> = initial ? (initial.childAges?.length ? initial.childAges : Array.from({ length: initial.children || 0 }, () => null)) : [];
+  const [adults, setAdults] = useState(initial ? Math.max(1, (initial.pax || 1) - initialAges.length) : 2);
+  const [childAges, setChildAges] = useState<Array<number | null>>(initialAges);
+  /** '' — размещение подбирается по составу, иначе выбрано вручную */
+  const [occupancyOverride, setOccupancyOverride] = useState('');
   const [market, setMarket] = useState(initial?.market || '');
-  const [checkIn, setCheckIn] = useState(initial?.checkIn || '');
-  const [checkOut, setCheckOut] = useState(initial?.checkOut || '');
+  const [checkIn, setCheckIn] = useState(initial?.checkIn || prefill?.checkIn || '');
+  const [checkOut, setCheckOut] = useState(initial?.checkOut || prefill?.checkOut || '');
   const [costPerNight, setCostPerNight] = useState(initial?.costPerNight || '0');
   const [ppPerNight, setPpPerNight] = useState(initial?.ppPerNight || '0');
   const [grossPerNight, setGrossPerNight] = useState(initial?.grossPerNight || '0');
@@ -590,33 +684,119 @@ const ReservationModal: React.FC<{
   const [earlyCheckIn, setEarlyCheckIn] = useState(initial?.earlyCheckIn || false);
   const [lateCheckOut, setLateCheckOut] = useState(initial?.lateCheckOut || false);
   const [notes, setNotes] = useState(initial?.notes || '');
+  const toLocalInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const [isOption, setIsOption] = useState(!!(initial?.status === 'pending' && initial?.optionUntil));
+  const [optionUntil, setOptionUntil] = useState(initial?.optionUntil ? toLocalInput(new Date(initial.optionUntil)) : toLocalInput(new Date(Date.now() + 48 * 3600_000)));
+  const [isComp, setIsComp] = useState(!!initial?.isComplimentary);
+  const [compReason, setCompReason] = useState<string>(initial?.compReason || '');
+  const [compNote, setCompNote] = useState(initial?.compNote || '');
+  const canOption = !initial || initial.status === 'pending' || initial.status === 'confirmed';
   const [guests, setGuests] = useState<HotelReservationGuest[]>(initial?.guests || []);
+  const [guestCountry, setGuestCountry] = useState<string | null>(initial?.guestCountry || null);
+  const [saleCountry, setSaleCountry] = useState<string | null>(initial?.saleCountry || null);
+  /** '' — подобрать автоматически по партнёру/отелю/дате, 'none' — без контракта */
+  const [contractId, setContractId] = useState<string>(initial ? initial.contractId || 'none' : '');
+  const [blockId, setBlockId] = useState(initial?.blockId || '');
+  const [boardType, setBoardType] = useState(initial?.boardType || '');
+  const [commissionPct, setCommissionPct] = useState(initial ? String(Number(initial.commissionPct) || '') : '');
+  const [contracts, setContracts] = useState<HotelContract[]>([]);
+  const [blocks, setBlocks] = useState<HotelRoomBlock[]>([]);
 
   const addGuestRow = () => setGuests((prev) => [...prev, { id: crypto.randomUUID(), fullName: '', citizenship: '', passportNumber: '', passportExpiry: '', age: '', note: null }]);
   const updateGuestRow = (id: string, patch: Partial<HotelReservationGuest>) =>
     setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   const removeGuestRow = (id: string) => setGuests((prev) => prev.filter((g) => g.id !== id));
 
+  // ─── скан паспорта / ID-карты → строка гостя ───
+  const scanInput = React.useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(0);
+  const [scanNotes, setScanNotes] = useState<ScanNote[]>([]);
+  const applyScan = (r: GuestDocumentScan) => {
+    const patch: Partial<HotelReservationGuest> = {
+      fullName: r.fullName,
+      citizenship: r.nationalityName || r.nationalityIso3 || '',
+      passportNumber: r.documentNumber,
+      passportExpiry: r.expiryDate || '',
+      birthDate: r.birthDate || '',
+      gender: r.sex || '',
+      documentType: r.documentType,
+      nationalityCode: r.nationalityCode,
+      ...(r.birthDate ? { age: ageOn(r.birthDate, checkIn) } : {}),
+    };
+    if (r.nationalityCode) setGuestCountry((c) => c || r.nationalityCode);
+    setGuests((prev) => {
+      // заполняем первую пустую строку, иначе — новый гость
+      const empty = prev.find((g) => !g.fullName.trim() && !g.passportNumber.trim());
+      if (empty) return prev.map((g) => (g.id === empty.id ? { ...g, ...patch } : g));
+      return [...prev, { id: crypto.randomUUID(), fullName: '', citizenship: '', passportNumber: '', passportExpiry: '', age: '', note: null, ...patch }];
+    });
+    if (!guestName.trim() && r.fullName) setGuestName(r.fullName);
+  };
+  const scanFiles = async (files: FileList | null) => {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    setScanNotes([]);
+    setScanning(list.length);
+    const lang = (i18n.language || 'ru').slice(0, 2);
+    for (const f of list) {
+      try {
+        const r = await scanGuestDocument(await toScanJpeg(f), lang);
+        applyScan(r);
+        const who = r.fullName || r.documentNumber;
+        const notes: ScanNote[] = [];
+        if (r.warnings.includes('expired')) notes.push({ tone: 'err', text: t('crm.hotels.reservations.scan.expired', { name: who }) });
+        if (r.mrzVerified) notes.push({ tone: 'ok', text: t('crm.hotels.reservations.scan.verified', { name: who }) });
+        else if (r.warnings.includes('mrz_checksum_failed')) notes.push({ tone: 'warn', text: t('crm.hotels.reservations.scan.checksumFailed', { name: who }) });
+        else notes.push({ tone: 'warn', text: t('crm.hotels.reservations.scan.noMrz', { name: who }) });
+        setScanNotes((prev) => [...prev, ...notes]);
+      } catch (e) {
+        const code = (e as { code?: string }).code;
+        const known = ['AI_QUOTA_EXCEEDED', 'AI_NOT_CONFIGURED', 'AI_UNAVAILABLE', 'NOT_A_DOCUMENT', 'FILE_TOO_LARGE', 'BAD_FORMAT'];
+        const text = code && known.includes(code) ? t(`crm.hotels.reservations.scan.err.${code}`) : t('crm.hotels.reservations.scan.err.generic', { error: (e as Error).message });
+        setScanNotes((prev) => [...prev, { tone: 'err', text: `${f.name}: ${text}` }]);
+      } finally {
+        setScanning((n) => n - 1);
+      }
+    }
+    if (scanInput.current) scanInput.current.value = '';
+  };
+
   const [occupancyTypes, setOccupancyTypes] = useState<HotelRoomOccupancyType[]>([]);
   const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [markets, setMarkets] = useState<HotelMarket[]>([]);
+  const [marketGroups, setMarketGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [marketPrices, setMarketPrices] = useState<HotelRoomMarketPrice[]>([]);
   const [roomTypeReservations, setRoomTypeReservations] = useState<HotelReservation[]>([]);
-  const [priceWarning, setPriceWarning] = useState('');
-  const pricesTouchedManually = React.useRef(false);
+  /** auto — цена считается прайсом на сервере по ночам и пересчитывается при смене условий; manual — введена руками */
+  const [priceMode, setPriceMode] = useState<'auto' | 'manual'>(initial ? (initial.priceMode === 'auto' ? 'auto' : 'manual') : 'auto');
+  const [quote, setQuote] = useState<HotelQuote | null>(null);
+  const [quoteError, setQuoteError] = useState('');
+
+  // мягкая блокировка: пока форма открыта, бронь помечена «редактирует …» у остальных (продление каждые 20 с)
+  const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const { locks } = useHotelLive([], () => {});
+  useEffect(() => {
+    if (!initial?.id) return;
+    const id = initial.id;
+    const take = () => acquireReservationLock(id).then((r) => setLockedBy(r.ok ? null : r.lock.userName)).catch(() => {});
+    void take();
+    const t = window.setInterval(take, 20_000);
+    return () => { window.clearInterval(t); void releaseReservationLock(id).catch(() => {}); };
+  }, [initial?.id]);
+  const otherLock = initial ? locks.find((l) => l.reservationId === initial.id && l.userName === lockedBy) : undefined;
 
   const roomsForHotel = roomTypes.filter((r) => r.hotelId === hotelId);
 
   useEffect(() => {
     if (!hotelId) { setMarkets([]); return; }
     fetchMarkets(hotelId).then(setMarkets).catch(() => setMarkets([]));
+    fetchMarketGroups(hotelId).then(setMarketGroups).catch(() => setMarketGroups([]));
   }, [hotelId]);
 
   useEffect(() => {
     if (!roomTypeId) { setOccupancyTypes([]); setRoomUnits([]); setMarketPrices([]); setRoomTypeReservations([]); return; }
     fetchOccupancyTypes(roomTypeId).then(setOccupancyTypes).catch(() => setOccupancyTypes([]));
     fetchRoomUnits({ roomTypeId }).then((units) => setRoomUnits(units.filter((u) => u.active))).catch(() => setRoomUnits([]));
-    fetchMarketPrices(roomTypeId).then(setMarketPrices).catch(() => setMarketPrices([]));
     fetchReservations({ roomTypeId }).then(setRoomTypeReservations).catch(() => setRoomTypeReservations([]));
   }, [roomTypeId]);
 
@@ -634,49 +814,108 @@ const ReservationModal: React.FC<{
     return set;
   }, [roomTypeReservations, checkIn, checkOut, initial]);
 
+  // контракты партнёра по отелю и блоки по типу номера — для выбора в брони
   useEffect(() => {
-    setPriceWarning('');
-    if (pricesTouchedManually.current) return;
-    if (!roomTypeId || !occupancyTypeId || !checkIn || !checkOut) return;
-    fetchReservationPrice(roomTypeId, occupancyTypeId, checkIn, checkOut)
-      .then((r) => {
-        if (r.pricePerNight === null) {
-          setPriceWarning(t('crm.hotels.reservations.modal.priceWarningNoPeriod'));
-          return;
-        }
-        setPpPerNight(String(r.pricePerNight));
-        // Brutto/ночь falls back to this occupancy-based price too — the market-price effect
-        // below overrides it once a market with a configured flat price is picked.
-        setGrossPerNight(String(r.pricePerNight));
-        if (r.spansMultiplePeriods) {
-          setPriceWarning(t('crm.hotels.reservations.modal.priceWarningSpans'));
-        }
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomTypeId, occupancyTypeId, checkIn, checkOut]);
+    if (!agencyId || !hotelId) { setContracts([]); return; }
+    fetchContracts({ agencyId, hotelId }).then((x) => setContracts(x.filter((c) => c.status === 'active' || c.id === initial?.contractId))).catch(() => setContracts([]));
+  }, [agencyId, hotelId, initial?.contractId]);
+  useEffect(() => {
+    if (!hotelId) { setBlocks([]); return; }
+    fetchRoomBlocks({ hotelId })
+      .then((x) => setBlocks(x.filter((b) => (b.roomTypeId === roomTypeId || b.id === initial?.blockId) && (b.status === 'definite' || b.status === 'tentative' || b.id === initial?.blockId))))
+      .catch(() => setBlocks([]));
+  }, [hotelId, roomTypeId, initial?.blockId]);
+  // рынок следует за страной гостя: при смене страны подставляется её рынок (выбрать другой вручную можно после)
+  const prevGuestCountry = React.useRef(guestCountry);
+  useEffect(() => {
+    const changed = prevGuestCountry.current !== guestCountry;
+    prevGuestCountry.current = guestCountry;
+    if (!guestCountry || !markets.length || (market && !changed)) return;
+    const m = markets.find((x) => (x.countryCodes || []).includes(guestCountry));
+    if (m) setMarket(m.code);
+  }, [guestCountry, markets]); // eslint-disable-line react-hooks/exhaustive-deps
+  const partner = agencies.find((a) => a.id === agencyId);
+  const autoContract = contracts.find((c) => c.validFrom <= (checkIn || '9999') && c.validTo >= (checkIn || '0000') && (!c.marketCountries?.length || (guestCountry && c.marketCountries.includes(guestCountry))));
+  const effectiveContract = contractId === 'none' ? null : contractId ? contracts.find((c) => c.id === contractId) || null : autoContract || null;
+  const childMaxAge = hotels.find((h) => h.id === hotelId)?.childMaxAge || 12;
+  const guestSplit = splitGuests(adults, childAges, childMaxAge);
+  // есть детская политика (контракта или отеля) — дети доплачиваются по ней, размещение подбирается по взрослым
+  const childPolicy = effectiveContract?.childPolicy?.length ? effectiveContract.childPolicy : hotels.find((h) => h.id === hotelId)?.childPolicy || [];
+  const autoOccupancy = matchOccupancy(occupancyTypes, guestSplit.adults, guestSplit.children > 0 && childPolicy.length ? 0 : guestSplit.children);
+  const occupancyTypeId = occupancyOverride || autoOccupancy?.id || '';
+  const occupancy = occupancyTypes.find((o) => o.id === occupancyTypeId) || null;
+  // при редактировании: размещение брони не совпадает с составом — значит его выбрали вручную
+  const occInit = React.useRef(false);
+  useEffect(() => {
+    if (occInit.current || !initial?.occupancyTypeId || !occupancyTypes.length) return;
+    occInit.current = true;
+    if (initial.occupancyTypeId !== autoOccupancy?.id && occupancyTypes.some((o) => o.id === initial.occupancyTypeId)) setOccupancyOverride(initial.occupancyTypeId);
+  }, [occupancyTypes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const autoCommission = effectiveContract ? (effectiveContract.pricing === 'net' ? 0 : Number(effectiveContract.commissionPct)) : Number(partner?.commissionPct || 0);
+  const nightsCount = checkIn && checkOut ? Math.max(1, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000)) : 0;
+  const roomSum = priceMode === 'auto' && quote ? quote.total : Number(grossPerNight || 0) * nightsCount;
+  const totalPreview = roomSum * (1 - Number(discountPct || 0) / 100);
+  const pctPreview = commissionPct !== '' ? Number(commissionPct) : autoCommission;
 
-  // Market's flat per-market price (independent pricing mechanism, deliberately not reconciled
-  // with the occupancy-based one above) drives Brutto/ночь — the retail sell price for that
-  // market — while occupancy+dates above drives PP/ночь.
-  // fetchMarketPrices returns every historical price row, including orphaned ones left behind
-  // by deleted markets that happen to share a code with a currently-valid one — filter to only
-  // marketIds that still exist in `markets` before matching by code, or a stale $0 row can win.
+  // цена блока / контракта партнёра — приоритетнее рынка и прайса (пока цену не правили руками)
+  const block = blocks.find((b) => b.id === blockId) || null;
+  const contractRate = effectiveContract?.rooms.find((l) => l.roomTypeId === roomTypeId)?.rate ?? null;
+  const partnerRate = block?.ratePerNight ?? contractRate;
+  const partnerRateSource = block?.ratePerNight ? 'block' : contractRate ? 'contract' : null;
+  // единый расчёт цены по ночам (блок → контракт → календарь → сезон по рынку гостя / цена рынка → база)
+  const quoteContractId = blockId ? null : contractId === 'none' ? null : contractId || autoContract?.id || null;
   useEffect(() => {
-    if (pricesTouchedManually.current) return;
-    if (!market || !marketPrices.length || !markets.length) return;
-    const validMarketIds = new Set(markets.map((m) => m.id));
-    const match = marketPrices.find((mp) => mp.code === market && validMarketIds.has(mp.marketId));
-    if (match) setGrossPerNight(match.price);
-  }, [market, marketPrices, markets]);
+    if (priceMode !== 'auto') return;
+    if (!roomTypeId || !checkIn || !checkOut || checkOut <= checkIn) { setQuote(null); return; }
+    const timer = window.setTimeout(() => {
+      fetchQuote({ roomTypeId, occupancyTypeId: occupancyTypeId || undefined, adults, childAges, checkIn, checkOut, market: market || undefined, guestCountry: guestCountry || undefined, contractId: quoteContractId || undefined, blockId: blockId || undefined })
+        .then((q) => {
+          setQuote(q);
+          setQuoteError('');
+          setGrossPerNight(String(q.average));
+          setPpPerNight(String(q.ppAverage || q.seasonAverage || q.average));
+        })
+        .catch((e) => { setQuote(null); setQuoteError(hotelErrorText(t, e, '')); });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [priceMode, roomTypeId, occupancyTypeId, adults, childAges.join(','), checkIn, checkOut, market, guestCountry, quoteContractId, blockId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // акции контракта — только для новой брони и пока скидку не правили руками
+  const discountTouched = React.useRef(false);
+  const promo = contractPromotionDiscount(effectiveContract, checkIn, checkOut, new Date().toISOString().slice(0, 10));
+  useEffect(() => {
+    if (initial || discountTouched.current) return;
+    setDiscountPct(String(promo.pct));
+  }, [promo.pct]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = () => {
     if (!guestName.trim() || !hotelId || !roomTypeId || !checkIn || !checkOut) {
       showAlert(t('crm.hotels.reservations.modal.requiredError'), { variant: 'error' });
       return;
     }
+    if (isComp && !compReason) {
+      showAlert(t('crm.hotels.lifecycle.errors.HOTEL_COMP_REASON_REQUIRED'), { variant: 'error' });
+      return;
+    }
+    if (isOption && canOption && !(Date.parse(optionUntil) > Date.now())) {
+      showAlert(t('crm.hotels.lifecycle.optionPast'), { variant: 'error' });
+      return;
+    }
     setSaving(true);
+    const optionDto: Partial<HotelReservation> = !canOption
+      ? {}
+      : isOption
+        ? { status: 'pending', optionUntil: new Date(optionUntil).toISOString() }
+        : initial?.optionUntil
+          ? { optionUntil: null, ...(initial.status === 'pending' ? { status: 'confirmed' as const } : {}) }
+          : {};
     const dto = {
+      ...optionDto,
+      ...(initial?.updatedAt ? { expectedUpdatedAt: initial.updatedAt } : {}),
+      priceMode,
+      isComplimentary: isComp,
+      compReason: isComp ? compReason || null : null,
+      compNote: isComp ? compNote || null : null,
       hotelId,
       roomTypeId,
       agencyId: agencyId || null,
@@ -685,7 +924,8 @@ const ReservationModal: React.FC<{
       guestName,
       guestEmail: guestEmail || null,
       guestPhone: guestPhone || null,
-      pax: Number(pax) || 1,
+      adults,
+      childAges,
       market: market || null,
       checkIn,
       checkOut,
@@ -698,23 +938,31 @@ const ReservationModal: React.FC<{
       lateCheckOut,
       notes: notes || null,
       guests,
-    };
+      guestCountry,
+      saleCountry,
+      marketId: markets.find((m) => m.code === market)?.id ?? null,
+      ...(contractId === '' ? {} : { contractId: contractId === 'none' ? null : contractId }),
+      blockId: blockId || null,
+      boardType: boardType || null,
+      ...(commissionPct !== '' ? { commissionPct } : {}),
+    } as Partial<HotelReservation>;
     const req = initial ? updateReservation(initial.id, dto) : createReservation(dto);
     req
       .then((r) => onSaved(r))
-      .catch((e) => showAlert(e.message || t('crm.hotels.reservations.modal.saveError'), { variant: 'error' }))
+      .catch((e) => showAlert(hotelErrorText(t, e, t('crm.hotels.reservations.modal.saveError')), { variant: 'error' }))
       .finally(() => setSaving(false));
   };
 
   return (
     <div className="px-scope">
       <div className="bk-modal-back" onClick={onClose} />
-      <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="bk-modal htl-res-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bk-modal-head">
           <h3>{initial ? t('crm.hotels.reservations.modal.titleEdit') : t('crm.hotels.reservations.modal.titleNew')}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-modal-body">
+          {lockedBy && <div className="pe-box warn" style={{ marginTop: 0, marginBottom: 12 }}>{t('crm.hotels.live.lockedBy', { name: otherLock?.userName || lockedBy })}</div>}
           <label>{t('crm.hotels.reservations.modal.guestLabel')}</label>
           <input value={guestName} onChange={(e) => setGuestName(e.target.value)} />
           <div className="bk-row2">
@@ -724,25 +972,38 @@ const ReservationModal: React.FC<{
           <div className="bk-row2">
             <div>
               <label>{t('crm.hotels.reservations.modal.hotelLabel')}</label>
-              <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); setRoomTypeId(''); setOccupancyTypeId(''); setRoomUnitId(''); }}>
+              <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); setRoomTypeId(''); setOccupancyOverride(''); setRoomUnitId(''); }}>
                 {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </div>
             <div>
               <label>{t('crm.hotels.reservations.modal.roomTypeLabel')}</label>
-              <select value={roomTypeId} onChange={(e) => { setRoomTypeId(e.target.value); setOccupancyTypeId(''); setRoomUnitId(''); }}>
+              <select value={roomTypeId} onChange={(e) => { setRoomTypeId(e.target.value); setOccupancyOverride(''); setRoomUnitId(''); }}>
                 <option value="">{t('crm.hotels.reservations.modal.roomTypeNone')}</option>
                 {roomsForHotel.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
           </div>
           <div className="bk-row2">
+            <div><label>{t('crm.hotels.reservations.modal.checkInLabel')}</label><DateInput value={checkIn} onChange={(v) => setCheckIn(v)} /></div>
+            <div><label>{t('crm.hotels.reservations.modal.checkOutLabel')}</label><DateInput value={checkOut} onChange={(v) => setCheckOut(v)} /></div>
+          </div>
+          <label>{t('crm.hotels.guestsPicker.title')}</label>
+          <GuestsPicker adults={adults} childAges={childAges} childMaxAge={childMaxAge} onChange={(a, ages) => { setAdults(a); setChildAges(ages); setOccupancyOverride(''); }} />
+          <div className="bk-row2">
             <div>
               <label>{t('crm.hotels.reservations.modal.occupancyLabel')}</label>
-              <select value={occupancyTypeId} onChange={(e) => setOccupancyTypeId(e.target.value)} disabled={!roomTypeId}>
-                <option value="">—</option>
-                {occupancyTypes.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              <select value={occupancyOverride} onChange={(e) => setOccupancyOverride(e.target.value)} disabled={!roomTypeId}>
+                <option value="">
+                  {autoOccupancy
+                    ? t('crm.hotels.guestsPicker.occAuto', { label: autoOccupancy.label, coef: Number(autoOccupancy.coefficient) })
+                    : t('crm.hotels.guestsPicker.occAutoNone')}
+                </option>
+                {occupancyTypes.map((o) => <option key={o.id} value={o.id}>{o.label} · ×{Number(o.coefficient)}</option>)}
               </select>
+              {roomTypeId && occupancyTypes.length > 0 && !occupancy && (
+                <div className="gp-note warn">{t('crm.hotels.guestsPicker.noMatch', { adults: guestSplit.adults, children: guestSplit.children })}</div>
+              )}
             </div>
             <div>
               <label>{t('crm.hotels.reservations.modal.roomLabel')}</label>
@@ -759,18 +1020,63 @@ const ReservationModal: React.FC<{
               </select>
             </div>
           </div>
+
+          <div className="htl-form-sec" style={{ marginTop: 14 }}>{t('crm.hotels.reservations.modal.secPartner')}</div>
           <div className="bk-row2">
-            <div><label>{t('crm.hotels.reservations.modal.checkInLabel')}</label><input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} /></div>
-            <div><label>{t('crm.hotels.reservations.modal.checkOutLabel')}</label><input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} /></div>
+            <div>
+              <label>{t('crm.hotels.reservations.modal.partnerLabel')}</label>
+              <select value={agencyId} onChange={(e) => { setAgencyId(e.target.value); setContractId(''); }}>
+                <option value="">{t('crm.hotels.reservations.modal.directSale')}</option>
+                {agencies.filter((a) => a.status !== 'archived' || a.id === agencyId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label>{t('crm.hotels.reservations.modal.contractLabel')}</label>
+              <select value={contractId} onChange={(e) => setContractId(e.target.value)} disabled={!agencyId}>
+                <option value="">{autoContract ? t('crm.hotels.reservations.modal.contractAuto', { name: autoContract.name }) : t('crm.hotels.reservations.modal.contractAutoNone')}</option>
+                <option value="none">{t('crm.hotels.reservations.modal.contractNone')}</option>
+                {contracts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
           </div>
           <div className="bk-row2">
-            <div><label>{t('crm.hotels.reservations.modal.paxLabel')}</label><input value={pax} onChange={(e) => setPax(e.target.value)} /></div>
             <div>
-              <label>{t('crm.hotels.reservations.modal.agencyLabel')}</label>
-              <select value={agencyId} onChange={(e) => setAgencyId(e.target.value)}>
+              <label>{t('crm.hotels.reservations.modal.blockLabel')}</label>
+              <select value={blockId} onChange={(e) => setBlockId(e.target.value)} disabled={!blocks.length}>
                 <option value="">—</option>
-                {agencies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {blocks.map((b) => <option key={b.id} value={b.id}>{b.name} · {b.dateFrom} — {b.dateTo}</option>)}
               </select>
+            </div>
+            <div>
+              <label>{t('crm.hotels.reservations.modal.boardLabel')}</label>
+              <select value={boardType} onChange={(e) => setBoardType(e.target.value)}>
+                <option value="">{effectiveContract ? t('crm.hotels.reservations.modal.fromContract', { v: effectiveContract.boardType }) : '—'}</option>
+                {HOTEL_BOARD_TYPES.map((b) => <option key={b} value={b}>{b} · {t(`crm.hotels.board.${b}`)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="bk-row2">
+            <div>
+              <label>{t('crm.hotels.reservations.modal.commissionLabel')}</label>
+              <input type="number" min={0} max={100} step="0.5" value={commissionPct} placeholder={t('crm.hotels.reservations.modal.commissionAuto', { v: autoCommission })} onChange={(e) => setCommissionPct(e.target.value)} />
+            </div>
+            <div>
+              <label>{t('crm.hotels.reservations.modal.netPreviewLabel')}</label>
+              <div className="htl-readonly">
+                {nightsCount ? `${Math.round(totalPreview - (totalPreview * pctPreview) / 100).toLocaleString(i18n.language)} · ${t('crm.hotels.reservations.modal.commissionShort', { v: Math.round((totalPreview * pctPreview) / 100).toLocaleString(i18n.language) })}` : '—'}
+              </div>
+            </div>
+          </div>
+
+          <div className="htl-form-sec" style={{ marginTop: 14 }}>{t('crm.hotels.reservations.modal.secCountries')}</div>
+          <div className="bk-row2">
+            <div>
+              <label>{t('crm.hotels.reservations.modal.guestCountryLabel')}</label>
+              <CountrySelect value={guestCountry} onChange={setGuestCountry} />
+            </div>
+            <div>
+              <label>{t('crm.hotels.reservations.modal.saleCountryLabel')}</label>
+              <CountrySelect value={saleCountry} onChange={setSaleCountry} placeholder={partner?.countryCode ? t('crm.hotels.reservations.modal.saleCountryAuto') : undefined} />
             </div>
           </div>
           <label>{t('crm.hotels.reservations.modal.marketLabel')}</label>
@@ -781,28 +1087,61 @@ const ReservationModal: React.FC<{
           {!markets.length && hotelId && (
             <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>{t('crm.hotels.reservations.modal.noMarketsHint')}</div>
           )}
-          {priceWarning && (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: '#cc7a00' }}>{priceWarning}</div>
+          {promo.applied.length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 11.5, color: '#175c3d' }}>
+              {t('crm.hotels.reservations.modal.promoApplied', { names: promo.applied.map((p) => `${p.name} −${p.discountPct}%`).join(', ') })}
+            </div>
           )}
+          <QuoteBreakdown
+            mode={priceMode}
+            quote={quote}
+            error={quoteError}
+            currency={hotels.find((h) => h.id === hotelId)?.currency}
+            netContract={effectiveContract?.pricing === 'net' && !blockId}
+            marketGroupName={quote?.marketGroupId ? marketGroups.find((g) => g.id === quote.marketGroupId)?.name : undefined}
+            onAuto={() => setPriceMode('auto')}
+          />
           <div className="bk-row2" style={{ marginTop: 8 }}>
             <div><label>{t('crm.hotels.reservations.modal.costPerNightLabel')}</label><input value={costPerNight} onChange={(e) => setCostPerNight(e.target.value)} /></div>
-            <div><label>{t('crm.hotels.reservations.modal.ppPerNightLabel')}</label><input value={ppPerNight} onChange={(e) => { pricesTouchedManually.current = true; setPpPerNight(e.target.value); }} /></div>
+            <div><label>{t('crm.hotels.reservations.modal.ppPerNightLabel')}</label><input value={ppPerNight} onChange={(e) => { setPriceMode('manual'); setPpPerNight(e.target.value); }} /></div>
           </div>
           <div className="bk-row2">
-            <div><label>{t('crm.hotels.reservations.modal.grossPerNightLabel')}</label><input value={grossPerNight} onChange={(e) => { pricesTouchedManually.current = true; setGrossPerNight(e.target.value); }} /></div>
-            <div><label>{t('crm.hotels.reservations.modal.discountLabel')}</label><input value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} /></div>
+            <div><label>{t('crm.hotels.reservations.modal.grossPerNightLabel')}</label><input value={grossPerNight} onChange={(e) => { setPriceMode('manual'); setGrossPerNight(e.target.value); }} /></div>
+            <div><label>{t('crm.hotels.reservations.modal.discountLabel')}</label><input value={discountPct} onChange={(e) => { discountTouched.current = true; setDiscountPct(e.target.value); }} /></div>
           </div>
           <label>{t('crm.hotels.reservations.modal.depositLabel')}</label>
           <input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
           <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer', margin: 0 }}>
               <input type="checkbox" checked={earlyCheckIn} onChange={(e) => setEarlyCheckIn(e.target.checked)} />
               {t('crm.hotels.reservations.modal.earlyCheckIn')}
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer', margin: 0 }}>
               <input type="checkbox" checked={lateCheckOut} onChange={(e) => setLateCheckOut(e.target.checked)} />
               {t('crm.hotels.reservations.modal.lateCheckOut')}
             </label>
+          </div>
+          <div className="htl-life-box">
+            {canOption && (
+              <div className="row">
+                <label className="chk"><input type="checkbox" checked={isOption} onChange={(e) => setIsOption(e.target.checked)} />{t('crm.hotels.lifecycle.optionToggle')}</label>
+                {isOption && <input type="datetime-local" value={optionUntil} onChange={(e) => setOptionUntil(e.target.value)} />}
+                <span className="hint">{t('crm.hotels.lifecycle.optionHint')}</span>
+              </div>
+            )}
+            <div className="row">
+              <label className="chk"><input type="checkbox" checked={isComp} onChange={(e) => setIsComp(e.target.checked)} />{t('crm.hotels.lifecycle.compToggle')}</label>
+              {isComp && (
+                <>
+                  <select value={compReason} onChange={(e) => setCompReason(e.target.value)}>
+                    <option value="">{t('crm.hotels.lifecycle.pickCompReason')}</option>
+                    {HOTEL_COMP_REASONS.map((r) => <option key={r} value={r}>{t(`crm.hotels.lifecycle.compReasons.${r}`)}</option>)}
+                  </select>
+                  <input value={compNote} onChange={(e) => setCompNote(e.target.value)} placeholder={t('crm.hotels.lifecycle.compNotePh')} />
+                </>
+              )}
+              <span className="hint">{t('crm.hotels.lifecycle.compHint')}</span>
+            </div>
           </div>
           <label style={{ marginTop: 8 }}>{t('crm.hotels.reservations.modal.notesLabel')}</label>
           <textarea
@@ -814,8 +1153,36 @@ const ReservationModal: React.FC<{
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
             <label style={{ margin: 0 }}>{t('crm.hotels.reservations.modal.guestsLabel')}</label>
-            <button type="button" className="btn btn-sm" onClick={addGuestRow}><Ic d={HTL_ICON.plus} size={12} />{t('crm.hotels.reservations.modal.addGuest')}</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                ref={scanInput}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => void scanFiles(e.target.files)}
+              />
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={scanning > 0}
+                title={t('crm.hotels.reservations.scan.hint')}
+                onClick={() => scanInput.current?.click()}
+              >
+                <Ic d={HTL_ICON.scan} size={12} />
+                {scanning > 0 ? t('crm.hotels.reservations.scan.busy', { count: scanning }) : t('crm.hotels.reservations.scan.button')}
+              </button>
+              <button type="button" className="btn btn-sm" onClick={addGuestRow}><Ic d={HTL_ICON.plus} size={12} />{t('crm.hotels.reservations.modal.addGuest')}</button>
+            </div>
           </div>
+          {scanNotes.length > 0 && (
+            <div className="htl-scan-notes">
+              {scanNotes.map((n, i) => (
+                <div key={i} className={`htl-scan-note ${n.tone}`}>{n.text}</div>
+              ))}
+              <div className="htl-scan-note muted">{t('crm.hotels.reservations.scan.privacy')}</div>
+            </div>
+          )}
           {guests.length === 0 && (
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 6 }}>{t('crm.hotels.reservations.modal.noGuests')}</div>
           )}
@@ -861,12 +1228,10 @@ const ReservationModal: React.FC<{
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestPassportExpiryLabel')}</label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={g.passportExpiry}
-                    onChange={(e) => updateGuestRow(g.id, { passportExpiry: e.target.value })}
-                    style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
-                  />
+                    onChange={(v) => updateGuestRow(g.id, { passportExpiry: v })}
+                    style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }} />
                 </div>
                 <input
                   placeholder={t('crm.hotels.reservations.modal.guestNotePlaceholder')}
@@ -875,6 +1240,103 @@ const ReservationModal: React.FC<{
                   style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
                 />
               </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestBirthDateLabel')}</label>
+                  <DateInput
+                    value={g.birthDate || ''}
+                    onChange={(v) =>
+                      updateGuestRow(g.id, { birthDate: v, ...(v ? { age: ageOn(v, checkIn) } : {}) })
+                    }
+                    style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestGenderLabel')}</label>
+                  <select
+                    value={g.gender || ''}
+                    onChange={(e) => updateGuestRow(g.id, { gender: e.target.value as HotelReservationGuest['gender'] })}
+                    style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                  >
+                    <option value="">—</option>
+                    <option value="M">{t('crm.hotels.reservations.modal.genderM')}</option>
+                    <option value="F">{t('crm.hotels.reservations.modal.genderF')}</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestDocTypeLabel')}</label>
+                  <select
+                    value={g.documentType || ''}
+                    onChange={(e) => updateGuestRow(g.id, { documentType: e.target.value as HotelReservationGuest['documentType'] })}
+                    style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                  >
+                    <option value="">—</option>
+                    <option value="passport">{t('crm.hotels.reservations.modal.docPassport')}</option>
+                    <option value="id_card">{t('crm.hotels.reservations.modal.docIdCard')}</option>
+                    <option value="other">{t('crm.hotels.reservations.modal.docOther')}</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestNationalityLabel')}</label>
+                  <CountrySelect value={g.nationalityCode || null} onChange={(c) => updateGuestRow(g.id, { nationalityCode: c })} />
+                </div>
+                {g.nationalityCode === 'TR' && (
+                  <>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>T.C. Kimlik No</label>
+                      <input
+                        value={g.tcKimlikNo || ''}
+                        maxLength={11}
+                        inputMode="numeric"
+                        onChange={(e) => updateGuestRow(g.id, { tcKimlikNo: e.target.value.replace(/\D/g, '') })}
+                        style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5, fontFamily: 'var(--ff-mono)' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestFatherLabel')}</label>
+                      <input value={g.fatherName || ''} onChange={(e) => updateGuestRow(g.id, { fatherName: e.target.value })} style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestMotherLabel')}</label>
+                      <input value={g.motherName || ''} onChange={(e) => updateGuestRow(g.id, { motherName: e.target.value })} style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }} />
+                    </div>
+                  </>
+                )}
+              </div>
+              {isRussiaCountry(hotels.find((h) => h.id === hotelId)?.country) && g.nationalityCode && g.nationalityCode !== 'RU' && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  {([
+                    ['birthPlace', 'guestBirthPlaceLabel', 'text'],
+                    ['documentIssueDate', 'guestDocIssueLabel', 'date'],
+                    ['migrationCard', 'guestMigrationCardLabel', 'text'],
+                    ['visaNumber', 'guestVisaLabel', 'text'],
+                  ] as const).map(([k, label, type]) => (
+                    <div key={k} style={{ flex: '1 1 140px', minWidth: 0 }}>
+                      <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t(`crm.hotels.reservations.modal.${label}`)}</label>
+                      <input
+                        type={type}
+                        value={(g[k] as string) || ''}
+                        onChange={(e) => updateGuestRow(g.id, { [k]: e.target.value } as Partial<HotelReservationGuest>)}
+                        style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+                    <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.modal.guestPurposeLabel')}</label>
+                    <select
+                      value={g.entryPurpose || ''}
+                      onChange={(e) => updateGuestRow(g.id, { entryPurpose: e.target.value as HotelReservationGuest['entryPurpose'] })}
+                      style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                    >
+                      <option value="">—</option>
+                      {(['tourism', 'business', 'private', 'work', 'study', 'other'] as const).map((x) => (
+                        <option key={x} value={x}>{t(`crm.hotels.reservations.modal.purpose.${x}`)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

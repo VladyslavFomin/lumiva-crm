@@ -9,15 +9,40 @@ import {
   fetchHotels,
   fetchRoomTypes,
   fetchHotelAnalyticsSummary,
+  fetchLifecycleReport,
+  type HotelLifecycleBucket,
+  type HotelLifecycleReport,
   fetchHotelAnalyticsArrivals,
   updatePacingTargets,
+  fetchDemoReservationsCount,
+  generateDemoReservations,
+  clearDemoReservations,
+  HOTEL_PARTNER_TYPES,
   type Hotel,
   type HotelRoomType,
   type HotelAnalyticsSummary,
   type ArrivalDayRow,
   type PacingBucket,
 } from '../../api/hotels';
+import { CountrySelect, CountryTag } from './CountrySelect';
+import { CountryTable } from './partners/CountryTable';
+import { money } from './partners/partnerUtils';
+import { DateRangePicker, toIsoDate, type DateRangePreset } from '../../components/ui/DateRangePicker';
 import './hotels-design.css';
+
+const startOfYear = (y: number) => new Date(y, 0, 1);
+const periodPresets = (t: (k: string) => string): DateRangePreset[] => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const d = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n);
+  return [
+    { id: 'last30', label: t('crm.hotels.analytics.periods.last30'), range: { from: d(-30), to: now } },
+    { id: 'next90', label: t('crm.hotels.analytics.periods.next90'), range: { from: now, to: d(90) } },
+    { id: 'season', label: t('crm.hotels.analytics.periods.season'), range: { from: new Date(y, 3, 1), to: new Date(y, 9, 31) } },
+    { id: 'year', label: t('crm.hotels.analytics.periods.year'), range: { from: startOfYear(y), to: new Date(y, 11, 31) } },
+    { id: 'lastYear', label: t('crm.hotels.analytics.periods.lastYear'), range: { from: startOfYear(y - 1), to: new Date(y - 1, 11, 31) } },
+  ];
+};
 
 const cx = (...a: Array<string | false | undefined>) => a.filter(Boolean).join(' ');
 
@@ -150,7 +175,17 @@ const ArrivalHeatmap: React.FC<{ rows: ArrivalDayRow[] }> = ({ rows }) => {
 };
 
 export const HotelAnalyticsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
+  const presets = useMemo(() => periodPresets(t), [t]);
+  const [period, setPeriod] = useState<{ from: Date; to: Date; presetId: string | null }>(() => ({ ...(presets.find((p) => p.id === 'season')!.range as { from: Date; to: Date }), presetId: 'season' }));
+  const [guestCountry, setGuestCountry] = useState<string | null>(null);
+  const [saleCountry, setSaleCountry] = useState<string | null>(null);
+  const [partnerCountry, setPartnerCountry] = useState<string | null>(null);
+  const [partnerType, setPartnerType] = useState('');
+  const [countryTab, setCountryTab] = useState<'guest' | 'sale' | 'partner'>('guest');
+  const [demoCount, setDemoCount] = useState(0);
+  const [demoBusy, setDemoBusy] = useState(false);
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [roomTypesByHotel, setRoomTypesByHotel] = useState<Record<string, HotelRoomType[]>>({});
@@ -182,15 +217,51 @@ export const HotelAnalyticsPage: React.FC = () => {
   const filters = useMemo(() => ({
     hotelIds: selectedHotelIds.length === hotels.length ? undefined : selectedHotelIds.join(','),
     roomTypeId: roomTypeId === 'all' ? undefined : roomTypeId,
-  }), [selectedHotelIds, hotels.length, roomTypeId]);
+    dateFrom: toIsoDate(period.from),
+    dateTo: toIsoDate(period.to),
+    guestCountry: guestCountry || undefined,
+    saleCountry: saleCountry || undefined,
+    partnerCountry: partnerCountry || undefined,
+    partnerType: partnerType || undefined,
+  }), [selectedHotelIds, hotels.length, roomTypeId, period, guestCountry, saleCountry, partnerCountry, partnerType]);
 
-  useEffect(() => {
+  const reload = () => {
     if (!hotels.length) return;
     Promise.all([fetchHotelAnalyticsSummary(filters), fetchHotelAnalyticsArrivals(filters)])
       .then(([s, a]) => { setSummary(s); setArrivals(a); })
       .catch((e) => showAlert(e.message || t('crm.hotels.analytics.summaryError'), { variant: 'error' }));
+    fetchDemoReservationsCount().then((x) => setDemoCount(x.count)).catch(() => undefined);
+  };
+  useEffect(() => {
+    reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotels.length, filters.hotelIds, filters.roomTypeId]);
+  }, [hotels.length, filters]);
+
+  const genDemo = async () => {
+    setDemoBusy(true);
+    try {
+      const r = await generateDemoReservations({ hotelIds: selectedHotelIds, count: 150 });
+      showAlert(t('crm.hotels.demo.created', { n: r.created }), { variant: 'success' });
+      reload();
+    } catch (e) {
+      showAlert((e as Error).message, { variant: 'error' });
+    } finally {
+      setDemoBusy(false);
+    }
+  };
+  const clearDemo = async () => {
+    if (!window.confirm(t('crm.hotels.demo.clearConfirm', { n: demoCount }))) return;
+    setDemoBusy(true);
+    try {
+      const r = await clearDemoReservations();
+      showAlert(t('crm.hotels.demo.deleted', { n: r.deleted }), { variant: 'success' });
+      reload();
+    } catch (e) {
+      showAlert((e as Error).message, { variant: 'error' });
+    } finally {
+      setDemoBusy(false);
+    }
+  };
 
   const toggleHotel = (id: string) => {
     setSelectedHotelIds((prev) => (prev.includes(id) ? (prev.length > 1 ? prev.filter((x) => x !== id) : prev) : [...prev, id]));
@@ -234,6 +305,28 @@ export const HotelAnalyticsPage: React.FC = () => {
           </div>
         </div>
 
+        <div className="htl-toolbar">
+          <DateRangePicker
+            value={{ from: period.from, to: period.to }}
+            presetId={period.presetId}
+            presets={presets}
+            maxDate={null}
+            onChange={(v) => v.from && v.to && setPeriod({ from: v.from, to: v.to, presetId: v.presetId })}
+          />
+          <span className="htl-sub">{t('crm.hotels.analytics.byArrival')}</span>
+          <div style={{ width: 190 }}><CountrySelect value={guestCountry} onChange={setGuestCountry} placeholder={t('crm.hotels.analytics.f.guestCountry')} /></div>
+          <div style={{ width: 190 }}><CountrySelect value={saleCountry} onChange={setSaleCountry} placeholder={t('crm.hotels.analytics.f.saleCountry')} /></div>
+          <div style={{ width: 190 }}><CountrySelect value={partnerCountry} onChange={setPartnerCountry} placeholder={t('crm.hotels.analytics.f.partnerCountry')} /></div>
+          <select className="htl-select" value={partnerType} onChange={(e) => setPartnerType(e.target.value)}>
+            <option value="">{t('crm.hotels.analytics.f.allPartnerTypes')}</option>
+            {HOTEL_PARTNER_TYPES.map((x) => <option key={x} value={x}>{t(`crm.hotels.partners.types.${x}`)}</option>)}
+          </select>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            {demoCount > 0 && <button className="btn btn-sm" disabled={demoBusy} onClick={clearDemo}>{t('crm.hotels.demo.clear', { n: demoCount })}</button>}
+            <button className="btn btn-sm" disabled={demoBusy || !hotels.length} onClick={genDemo} title={t('crm.hotels.demo.hint')}>{t('crm.hotels.demo.generate')}</button>
+          </div>
+        </div>
+
         {summary && (
           <>
             <div data-tour="han-kpis" className="ha-kpis">
@@ -254,6 +347,33 @@ export const HotelAnalyticsPage: React.FC = () => {
                 <div className="v">{summary.kpis.roomsNeededPerDay}<small>{t('crm.hotels.analytics.kpis.roomsNeededUnit')}</small></div>
                 <div className="d down">{t('crm.hotels.analytics.kpis.roomsNeededHint')}</div>
               </div>
+            </div>
+
+            <div className="htl-kpis" style={{ gridTemplateColumns: 'repeat(5,1fr)', marginTop: 0 }}>
+              <div className="htl-kpi"><div className="l">{t('crm.hotels.analytics.sales.bookings')}</div><div className="v">{summary.totals.bookings}</div><div className="d">{t('crm.hotels.analytics.sales.cancelled', { n: summary.totals.cancelled })}</div></div>
+              <div className="htl-kpi"><div className="l">{t('crm.hotels.analytics.sales.roomNights')}</div><div className="v">{summary.totals.roomNights.toLocaleString(lang)}</div></div>
+              <div className="htl-kpi"><div className="l">{t('crm.hotels.analytics.sales.gross')}</div><div className="v">{money(summary.totals.gross, currency, lang)}</div></div>
+              <div className="htl-kpi"><div className="l">{t('crm.hotels.analytics.sales.commission')}</div><div className="v">{money(summary.totals.commission, currency, lang)}</div><div className="d">{summary.totals.gross ? `${Math.round((summary.totals.commission / summary.totals.gross) * 1000) / 10}%` : ''}</div></div>
+              <div className="htl-kpi"><div className="l">{t('crm.hotels.analytics.sales.net')}</div><div className="v">{money(summary.totals.net, currency, lang)}</div></div>
+            </div>
+
+            <div className="ha-section">
+              <div className="ha-section-head">
+                <div>
+                  <h3><Ic d={HTL_ICON.chart} size={15} />{t('crm.hotels.analytics.countries.title')}</h3>
+                  <div className="sub">{t('crm.hotels.analytics.countries.subtitle')}</div>
+                </div>
+                <div className="htl-seg">
+                  {(['guest', 'sale', 'partner'] as const).map((k) => (
+                    <button key={k} type="button" className={countryTab === k ? 'on' : ''} onClick={() => setCountryTab(k)}>{t(`crm.hotels.analytics.countries.${k}`)}</button>
+                  ))}
+                </div>
+              </div>
+              <CountryTable
+                rows={summary.countries[countryTab]}
+                currency={currency}
+                onPick={(code) => (countryTab === 'guest' ? setGuestCountry : countryTab === 'sale' ? setSaleCountry : setPartnerCountry)(code)}
+              />
             </div>
 
             <div data-tour="han-pacing" className="ha-section">
@@ -411,32 +531,117 @@ export const HotelAnalyticsPage: React.FC = () => {
                   <thead>
                     <tr>
                       <th>{t('crm.hotels.analytics.agencies.colAgency')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colType')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colCountry')}</th>
                       <th>{t('crm.hotels.analytics.agencies.colBookings')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colRoomNights')}</th>
                       <th>{t('crm.hotels.analytics.agencies.colRevenue')}</th>
-                      <th>{t('crm.hotels.analytics.agencies.colAvgRate')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colCommission')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colNet')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colAdr')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colCancel')}</th>
                       <th>{t('crm.hotels.analytics.agencies.colShare')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {summary.agencies.map((a) => (
                       <tr key={a.agencyId || 'direct'}>
-                        <td>{a.name}</td>
+                        <td>{a.agencyId ? <a href={`/hotels/partners/${a.agencyId}`} style={{ color: 'var(--ink)' }}>{a.name}</a> : a.name}</td>
+                        <td style={{ fontSize: 11.5, color: 'var(--fg-2)' }}>{a.type ? t(`crm.hotels.partners.types.${a.type}`) : '—'}</td>
+                        <td style={{ fontSize: 12 }}><CountryTag code={a.country} /></td>
                         <td>{a.bookingsCount}</td>
-                        <td className="need low">{fmtMoney(a.revenue, currency)}</td>
-                        <td>{fmtMoney(a.avgRate, currency)}</td>
+                        <td>{a.roomNights}</td>
+                        <td className="need low">{money(a.revenue, currency, lang)}</td>
+                        <td>{a.commission ? money(a.commission, currency, lang) : '—'}</td>
+                        <td>{money(a.net, currency, lang)}</td>
+                        <td>{money(a.adr, currency, lang)}</td>
+                        <td>{a.cancelPct ? `${a.cancelPct}%` : '—'}</td>
                         <td><span className="ha-risk-pill ok">{a.sharePct}%</span></td>
                       </tr>
                     ))}
                     {summary.agencies.length === 0 && (
-                      <tr><td colSpan={5} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.hotels.analytics.agencies.empty')}</td></tr>
+                      <tr><td colSpan={11} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.hotels.analytics.agencies.empty')}</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            <LifecycleSection hotelIds={filters.hotelIds} dateFrom={filters.dateFrom} dateTo={filters.dateTo} lang={lang} />
           </>
         )}
       </div>
     </MainLayout>
+  );
+};
+
+/** Бесплатные проживания (PMS-126), отмены по причинам и no-show со штрафами за период заезда */
+const LifecycleSection: React.FC<{ hotelIds?: string; dateFrom?: string; dateTo?: string; lang: string }> = ({ hotelIds, dateFrom, dateTo, lang }) => {
+  const { t } = useTranslation();
+  const k = (key: string, o?: Record<string, unknown>) => t(`crm.hotels.lifecycle.report.${key}`, o);
+  const [data, setData] = useState<HotelLifecycleReport | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setData(null);
+    setFailed(false);
+    fetchLifecycleReport({ hotelIds, dateFrom, dateTo }).then(setData).catch(() => setFailed(true));
+  }, [hotelIds, dateFrom, dateTo]);
+  const amount = (m: Record<string, number>) => {
+    const parts = Object.entries(m).filter(([, v]) => v);
+    return parts.length ? parts.map(([c, v]) => money(v, c, lang)).join(' · ') : '—';
+  };
+  const bucketRows = (list: HotelLifecycleBucket[], label: (r: string) => string) => list.map((b) => (
+    <tr key={b.reason}><td>{label(b.reason)}</td><td>{b.count}</td><td>{b.nights}</td><td>{amount(b.amount)}</td></tr>
+  ));
+  return (
+    <div className="ha-section">
+      <div className="ha-section-head">
+        <div>
+          <h3><Ic d={HTL_ICON.ban} size={15} />{k('title')}</h3>
+          <div className="sub">{k('subtitle')}</div>
+        </div>
+      </div>
+      {failed ? <div className="htl-hint">{k('error')}</div> : !data ? <div className="htl-hint">{t('crm.hotels.common.loading')}</div> : (
+        <div className="htl-life-report">
+          <div className="pace-table-wrap">
+            <table className="pace-table">
+              <thead><tr><th>{k('compTitle')}</th><th>{k('colCount')}</th><th>{k('colNights')}</th><th>{k('colValue')}</th></tr></thead>
+              <tbody>
+                {bucketRows(data.complimentary.byReason, (r) => t(`crm.hotels.lifecycle.compReasons.${r}`, { defaultValue: r }))}
+                {!data.complimentary.byReason.length && <tr><td colSpan={4} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{k('compEmpty')}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="pace-table-wrap">
+            <table className="pace-table">
+              <thead><tr><th>{k('cancelTitle')}</th><th>{k('colCount')}</th><th>{k('colNights')}</th><th>{k('colFees')}</th></tr></thead>
+              <tbody>
+                {bucketRows(data.cancellations, (r) => t(`crm.hotels.lifecycle.cancelReasons.${r}`, { defaultValue: r }))}
+                {data.noShow.count > 0 && bucketRows([data.noShow], () => k('noShowRow'))}
+                {!data.cancellations.length && !data.noShow.count && <tr><td colSpan={4} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{k('cancelEmpty')}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {data.complimentary.rows.length > 0 && (
+            <div className="pace-table-wrap" style={{ gridColumn: '1 / -1' }}>
+              <table className="pace-table">
+                <thead><tr><th>{k('colGuest')}</th><th>{k('colDates')}</th><th>{k('colReason')}</th><th>{k('colNote')}</th><th>{k('colValue')}</th></tr></thead>
+                <tbody>
+                  {data.complimentary.rows.map((r) => (
+                    <tr key={r.id}>
+                      <td><a href={`/hotels/reservations?reservation=${r.id}`} style={{ color: 'var(--ink)' }}>{r.guestName}</a></td>
+                      <td>{r.checkIn} – {r.checkOut} · {r.nights}</td>
+                      <td>{r.reason ? t(`crm.hotels.lifecycle.compReasons.${r.reason}`) : '—'}</td>
+                      <td style={{ color: 'var(--fg-2)' }}>{r.note || '—'}</td>
+                      <td>{money(r.value, r.currency, lang)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };

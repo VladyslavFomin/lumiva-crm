@@ -23,6 +23,12 @@ export class HotelAnalyticsController {
     return this.analytics.getArrivals(user.tenantId, q);
   }
 
+  /** Бесплатные проживания, отмены и no-show по причинам за период заезда */
+  @Get('lifecycle')
+  getLifecycle(@CurrentUser() user: CurrentUserPayload, @Query() q: HotelAnalyticsQueryDto) {
+    return this.analytics.getLifecycle(user.tenantId, q);
+  }
+
   @Get('pacing-targets')
   getPacingTargets(@CurrentUser() user: CurrentUserPayload, @Query('hotelId') hotelId: string) {
     return this.analytics.getPacingTargets(user.tenantId, hotelId);

@@ -44,7 +44,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
     'tools_automation', 'custom_objects', 'email', 'marketing', 'products',
     'products_manage_fields', 'products_manage_stock', 'products_publish',
     'bookings', 'bookings_manage_settings',
-    'hotels', 'hotels_manage_pricing', 'hotels_manage_reservations',
+    'hotels', 'hotels_manage_pricing', 'hotels_manage_reservations', 'hotels_housekeeping', 'hotels_night_audit',
   ],
   manager: [
     'leads', 'leads_view_roi', 'leads_create', 'leads_manage_import',
@@ -52,7 +52,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
     'contacts', 'companies', 'sales', 'client_accounts', 'helpdesk', 'esign', 'email', 'products',
     'products_manage_fields', 'products_manage_stock', 'products_publish',
     'bookings', 'bookings_manage_settings',
-    'hotels', 'hotels_manage_pricing', 'hotels_manage_reservations',
+    'hotels', 'hotels_manage_pricing', 'hotels_manage_reservations', 'hotels_housekeeping', 'hotels_night_audit',
   ],
   viewer: [
     'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'sales',
@@ -65,7 +65,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
     'leads', 'leads_create', 'leads_manage_import',
     'projects', 'projects_manage', 'analytics', 'marketing', 'chat',
     'contacts', 'companies', 'sales', 'client_accounts', 'email', 'products',
-    'products_manage_stock', 'bookings', 'hotels', 'hotels_manage_reservations',
+    'products_manage_stock', 'bookings', 'hotels', 'hotels_manage_reservations', 'hotels_housekeeping',
   ],
   developer: [
     'projects', 'analytics', 'chat', 'settings', 'sales',
@@ -73,7 +73,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
   ],
   support: [
     'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'sales', 'helpdesk', 'email',
-    'bookings', 'hotels', 'hotels_manage_reservations',
+    'bookings', 'hotels', 'hotels_manage_reservations', 'hotels_housekeeping',
   ],
 };
 

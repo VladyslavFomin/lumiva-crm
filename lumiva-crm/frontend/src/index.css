@@ -577,3 +577,36 @@ select.bg-slate-950 {
     }
   }
 }
+
+/* ===== CHECKBOX — единый вид по design-system (§ Чекбокс): монохром #222, скруглённый квадрат, белая галочка.
+   Исключения: tailwind-переключатели (.sr-only / .peer) и явный отказ .lv-native. ===== */
+input[type='checkbox']:not(.sr-only):not(.peer):not(.lv-native) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  padding: 0 !important;
+  border: 1.5px solid #c9c9cc !important;
+  border-radius: 5px !important;
+  background: #fff center / 10px 10px no-repeat !important;
+  cursor: pointer;
+  flex-shrink: 0;
+  vertical-align: -3px;
+  box-shadow: none !important;
+  transition: background-color .15s, border-color .15s;
+}
+input[type='checkbox']:not(.sr-only):not(.peer):not(.lv-native):hover:not(:disabled) { border-color: #222 !important; }
+input[type='checkbox']:not(.sr-only):not(.peer):not(.lv-native):checked {
+  background-color: #222 !important;
+  border-color: #222 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") !important;
+}
+input[type='checkbox']:not(.sr-only):not(.peer):not(.lv-native):indeterminate {
+  background-color: #222 !important;
+  border-color: #222 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E") !important;
+}
+input[type='checkbox']:not(.sr-only):not(.peer):not(.lv-native):disabled { opacity: .4; cursor: default; }
+input[type='checkbox']:not(.sr-only):not(.peer):not(.lv-native):focus-visible { outline: 2px solid #222; outline-offset: 2px; }
+input[type='radio']:not(.sr-only):not(.peer) { accent-color: #222; }

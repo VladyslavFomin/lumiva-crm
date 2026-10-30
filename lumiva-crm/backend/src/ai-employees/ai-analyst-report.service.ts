@@ -210,9 +210,10 @@ export class AiAnalystReportService {
         let count = 0;
         for (const r of rows) {
           const pct = Number(r.discountPct) || 0;
-          if (pct <= 0 || r.status === 'cancelled') continue;
+          if (pct <= 0 || r.status === 'cancelled' || r.status === 'no_show') continue;
           count++;
-          addMoney(amount, r.currency, Math.max(0, Number(r.roomTotal) - Number(r.total)));
+          // скидка — от цены номера; не «цена минус итог»: у бесплатного проживания итог 0, и вся стоимость считалась скидкой
+          addMoney(amount, r.currency, Math.max(0, (Number(r.roomTotal) * pct) / 100));
         }
         out.discounts = { count, amount };
       }

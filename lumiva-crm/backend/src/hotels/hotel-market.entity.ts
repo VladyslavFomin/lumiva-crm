@@ -28,6 +28,14 @@ export class HotelMarket {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
+  /** Страны рынка (ISO alpha-2): бронь сама относится к рынку по стране гостя */
+  @Column({ type: 'text', array: true, default: '{}' })
+  countryCodes: string[];
+
+  /** Группа рынков с оптовыми дневными ценами (Batı Avrupa, Doğu Avrupa…), по которой считается сезонная цена */
+  @Column({ type: 'uuid', nullable: true })
+  marketGroupId: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

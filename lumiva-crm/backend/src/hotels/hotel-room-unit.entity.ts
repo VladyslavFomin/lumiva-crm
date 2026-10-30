@@ -39,10 +39,25 @@ export class HotelRoomUnit {
   @Column({ type: 'text', nullable: true })
   note: string | null;
 
+  /** Этаж и корпус (PMS-001) — для плана уборки, распределения горничных и фильтра шахматки */
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  floor: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  building: string | null;
+
+  /** Признаки номера (PMS-003): connecting, accessible, smoking, non_smoking, pet_friendly */
+  @Column({ type: 'jsonb', default: [] })
+  features: string[];
+
   /** Soft-remove from inventory (temporarily or permanently) without losing reservation history
    * that references this unit — reservations keep roomUnitId even after a unit is deactivated. */
   @Column({ type: 'boolean', default: true })
   active: boolean;
+
+  /** Токен ссылки/QR-кода «Заявка гостя» в номере (публичная страница /g/:token) */
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  guestToken: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

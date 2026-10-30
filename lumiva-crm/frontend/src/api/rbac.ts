@@ -45,6 +45,8 @@ export type PermissionKey =
   | 'hotels'
   | 'hotels_manage_pricing'
   | 'hotels_manage_reservations'
+  | 'hotels_housekeeping'
+  | 'hotels_night_audit'
   | 'ai_employees'
   | 'ai_office';
 

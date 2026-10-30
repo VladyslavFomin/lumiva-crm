@@ -95,8 +95,9 @@ export class HotelsPublicStorefrontService {
         const firstOccupancy = occupancyRows[0];
         if (!firstOccupancy) continue;
 
-        const price = await this.pricing.getReservationPrice(tenantId, roomType.id, firstOccupancy.id, checkIn, checkOut);
-        if (price.pricePerNight == null) continue;
+        // тот же расчёт по ночам, что и у брони (сезоны, календарь, скидки дат); ночь без цены — не продаём
+        const quote = await this.reservations.quote(tenantId, { roomTypeId: roomType.id, occupancyTypeId: firstOccupancy.id, checkIn, checkOut }).catch(() => null);
+        if (!quote || quote.warnings.some((w) => w.code === 'no_price' || w.code === 'blocked')) continue;
 
         results.push({
           hotelId: hotel.id,
@@ -107,9 +108,9 @@ export class HotelsPublicStorefrontService {
           roomTypeId: roomType.id,
           roomTypeName: roomType.name,
           currency: hotel.currency,
-          pricePerNight: price.pricePerNight,
+          pricePerNight: quote.average,
           nights,
-          total: Math.round(price.pricePerNight * nights * 100) / 100,
+          total: quote.total,
         });
       }
     }
@@ -208,17 +209,7 @@ export class HotelsPublicStorefrontService {
       throw new BadRequestException('Укажите имя и email гостя');
     }
 
-    // Цена всегда пересчитывается на сервере — витрина не должна доверять клиенту сумму брони.
-    const price = await this.pricing.getReservationPrice(
-      tenantId,
-      dto.roomTypeId,
-      dto.occupancyTypeId,
-      dto.checkIn,
-      dto.checkOut,
-    );
-    if (price.pricePerNight == null) {
-      throw new BadRequestException('Не удалось рассчитать цену для выбранных дат');
-    }
+    // Цена всегда считается на сервере прайсом по ночам (priceMode=auto) — витрина не доверяет клиенту сумму брони.
 
     const bookingCode = await this.generateBookingCode();
     const reservation = await this.reservations.create(
@@ -233,7 +224,7 @@ export class HotelsPublicStorefrontService {
         guestEmail: dto.guestEmail,
         guestPhone: dto.guestPhone ?? null,
         pax: dto.pax ?? 1,
-        grossPerNight: String(price.pricePerNight),
+        priceMode: 'auto',
         status: 'pending',
         source: 'website',
         notes: dto.notes ?? null,

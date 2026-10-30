@@ -1,5 +1,7 @@
+import { ModuleRef } from '@nestjs/core';
 import {
   BadRequestException,
+  NotFoundException,
   Body,
   Controller,
   Delete,
@@ -27,6 +29,7 @@ import { RequirePermission } from '../rbac/require-permission.decorator';
 import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
+import { HotelRateEngineService } from './hotel-rate-engine.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
 import { HotelsFactsheetService } from './hotels-factsheet.service';
@@ -53,6 +56,8 @@ export class HotelsController {
     private readonly gallery: HotelsGalleryService,
     private readonly factsheet: HotelsFactsheetService,
     private readonly storageQuota: StorageQuotaService,
+    private readonly moduleRef: ModuleRef,
+    private readonly rateEngine: HotelRateEngineService,
   ) {}
 
   /* ---------- fixed literal routes — must come before hotels/:id ---------- */
@@ -64,13 +69,13 @@ export class HotelsController {
 
   @Get('agencies')
   listAgencies(@CurrentUser() user: CurrentUserPayload) {
-    return this.agencies.listOrSeed(user.tenantId);
+    return this.agencies.list(user.tenantId);
   }
 
   @Post('agencies')
   @RequirePermission('hotels_manage_pricing', 'write')
   createAgency(@CurrentUser() user: CurrentUserPayload, @Body() dto: { name: string }) {
-    return this.agencies.create(user.tenantId, dto.name);
+    return this.agencies.create(user.tenantId, { name: dto?.name });
   }
 
   @Delete('agencies/:id')
@@ -264,6 +269,16 @@ export class HotelsController {
     return this.pricing.getDailyRates(user.tenantId, roomTypeId, list);
   }
 
+  @Post('room-types/:roomTypeId/daily-rates/bulk')
+  @RequirePermission('hotels_manage_pricing', 'write')
+  bulkFillDailyRates(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('roomTypeId', new ParseUUIDPipe()) roomTypeId: string,
+    @Body() dto: { marketGroupIds?: string[]; from?: string; to?: string; weekdays?: number[]; budgetPP?: string; ppAvg?: string; grossPP?: string; discountPct?: string },
+  ) {
+    return this.pricing.bulkFillDailyRates(user.tenantId, roomTypeId, dto);
+  }
+
   @Post('room-types/:roomTypeId/daily-rates/:marketGroupId/:date')
   @RequirePermission('hotels_manage_pricing', 'write')
   upsertDailyRate(
@@ -304,7 +319,7 @@ export class HotelsController {
   updateMarket(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: { code?: string; name?: string },
+    @Body() dto: { code?: string; name?: string; countryCodes?: string[] },
   ) {
     return this.roomTypes.updateMarket(user.tenantId, id, dto);
   }
@@ -464,8 +479,16 @@ export class HotelsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
     @Param('roomTypeId', new ParseUUIDPipe()) roomTypeId: string,
+    @Query('marketGroupId') marketGroupId?: string,
   ) {
-    return this.pricing.getRoomPricing(user.tenantId, hotelId, roomTypeId);
+    return this.pricing.getRoomPricing(user.tenantId, hotelId, roomTypeId, marketGroupId || null);
+  }
+
+  /** Сопоставить рынки без группы с группами рынков по странам и названиям групп */
+  @Post(':hotelId/markets/auto-groups')
+  @RequirePermission('hotels_manage_pricing', 'write')
+  autoGroups(@CurrentUser() user: CurrentUserPayload, @Param('hotelId', new ParseUUIDPipe()) hotelId: string) {
+    return this.rateEngine.autoMapGroups(user.tenantId, hotelId);
   }
 
   @Get(':hotelId/markets')
@@ -481,7 +504,7 @@ export class HotelsController {
   createMarket(
     @CurrentUser() user: CurrentUserPayload,
     @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
-    @Body() dto: { code: string; name: string },
+    @Body() dto: { code: string; name: string; countryCodes?: string[] },
   ) {
     return this.roomTypes.createMarket(user.tenantId, hotelId, dto);
   }

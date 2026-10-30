@@ -44,6 +44,10 @@ export type PermissionKey =
   | 'hotels'
   | 'hotels_manage_pricing'
   | 'hotels_manage_reservations'
+  /** Уборка: план, статусы номеров, неисправности, находки (горничные, супервайзер) */
+  | 'hotels_housekeeping'
+  /** Ночной аудит отеля и правка денег в закрытых днях */
+  | 'hotels_night_audit'
   | 'ai_employees'
   /** ИИ-офис (ИИ-отделы): как и ИИ-сотрудники — владелец, руководители отделов и явный индивидуальный грант. */
   | 'ai_office';
@@ -90,6 +94,10 @@ export const GRANULAR_FALLBACK_TO_BASE: Partial<Record<PermissionKey, Permission
   // without the tenant explicitly restricting the new key.
   leads_edit_amount: 'leads',
   projects_edit_amount: 'projects',
+  // уборка (2026-10-30): кто уже мог заселять/выселять и менять статус номеров, сохраняет это без перенастройки
+  hotels_housekeeping: 'hotels_manage_reservations',
+  // ночной аудит (2026-10-30): у кого уже было управление ценами — тот закрывает день без перенастройки
+  hotels_night_audit: 'hotels_manage_pricing',
   // projects_view_all (видеть все проекты основной таблицы, не только свои) тоже без fallback:
   // раньше не-владелец видел только свои — по умолчанию так и остаётся.
   // projects_edit_owner deliberately has NO fallback entry — same precedent as

@@ -10,6 +10,18 @@ import { HotelReservation } from './hotel-reservation.entity';
 import { normalizeNumericInput } from './hotel-number.util';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+import { normalizeCountryList } from '../common/countries';
+import { occupancyGuestsFromLabel } from './hotel-occupancy.util';
+
+const clampInt = (v: unknown, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(v) || 0)));
+/** Взрослые/дети размещения: явные из запроса, иначе из названия (SGL → 1, 2 AD + 1 CHD → 2 + 1) */
+const guestsFor = (dto: Partial<HotelRoomOccupancyType>) => {
+  const parsed = occupancyGuestsFromLabel(dto.label);
+  return {
+    adults: dto.adults !== undefined && dto.adults !== null ? clampInt(dto.adults, 0, 20) : parsed.adults,
+    children: dto.children !== undefined ? clampInt(dto.children, 0, 10) : parsed.children,
+  };
+}
 
 function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
@@ -76,6 +88,7 @@ export class HotelRoomTypesService {
           label: o.label,
           coefficient: o.coefficient,
           paidChildCount: o.paidChildCount,
+          ...guestsFor({ label: o.label }),
           sortOrder: i,
         }),
       ),
@@ -90,7 +103,12 @@ export class HotelRoomTypesService {
     const previousOffset = rt.ppNetOffset;
     const previousStopSale = rt.stopSale;
 
-    const normalized = { ...dto };
+    // Базовый тип у отеля ровно один: true — переносим отметку сюда, false игнорируем (снять можно только выбрав другой)
+    const { isBaseRoomType: makeBase, id: _id, tenantId: _t, hotelId: _h, createdAt: _c, updatedAt: _u, ...normalized } = dto as any;
+    if (makeBase === true && !rt.isBaseRoomType) {
+      await this.repo.update({ tenantId, hotelId: rt.hotelId, isBaseRoomType: true }, { isBaseRoomType: false });
+      rt.isBaseRoomType = true;
+    }
     if (normalized.basePrice !== undefined) normalized.basePrice = normalizeNumericInput(normalized.basePrice);
     if (normalized.ppNetOffset !== undefined) normalized.ppNetOffset = normalizeNumericInput(normalized.ppNetOffset);
     Object.assign(rt, normalized);
@@ -168,17 +186,25 @@ export class HotelRoomTypesService {
     return this.marketsRepo.find({ where: { tenantId, hotelId }, order: { createdAt: 'ASC' } });
   }
 
-  createMarket(tenantId: string, hotelId: string, dto: { code: string; name: string }) {
+  createMarket(tenantId: string, hotelId: string, dto: { code: string; name: string; countryCodes?: string[] }) {
     return this.marketsRepo.save(
-      this.marketsRepo.create({ tenantId, hotelId, code: dto.code, name: dto.name }),
+      this.marketsRepo.create({ tenantId, hotelId, code: dto.code, name: dto.name, countryCodes: normalizeCountryList(dto.countryCodes) }),
     );
   }
 
-  async updateMarket(tenantId: string, id: string, dto: { code?: string; name?: string }) {
+  async updateMarket(tenantId: string, id: string, dto: { code?: string; name?: string; countryCodes?: string[]; marketGroupId?: string | null }) {
     const market = await this.marketsRepo.findOne({ where: { id, tenantId } });
     if (!market) throw new NotFoundException('Рынок не найден');
+    if (dto.marketGroupId !== undefined) {
+      if (dto.marketGroupId) {
+        const ok = await this.marketsRepo.manager.query(`SELECT 1 FROM hotel_market_groups WHERE id = $1 AND "tenantId" = $2 AND "hotelId" = $3`, [dto.marketGroupId, tenantId, market.hotelId]);
+        if (!ok.length) throw new BadRequestException({ code: 'HOTEL_MARKET_GROUP_NOT_FOUND', message: 'Группа рынков не из этого отеля' });
+      }
+      market.marketGroupId = dto.marketGroupId || null;
+    }
     if (dto.code !== undefined) market.code = dto.code;
     if (dto.name !== undefined) market.name = dto.name;
+    if (dto.countryCodes !== undefined) market.countryCodes = normalizeCountryList(dto.countryCodes);
     return this.marketsRepo.save(market);
   }
 
@@ -271,7 +297,7 @@ export class HotelRoomTypesService {
       .createQueryBuilder('r')
       .where('r.tenantId = :tenantId', { tenantId })
       .andWhere('r.roomTypeId = :roomTypeId', { roomTypeId })
-      .andWhere('r.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere('r.status NOT IN (:...inactive)', { inactive: ['cancelled', 'no_show'] })
       .andWhere('r.checkIn <= :to', { to })
       .andWhere('r.checkOut > :from', { from })
       .getMany();
@@ -313,7 +339,7 @@ export class HotelRoomTypesService {
       .createQueryBuilder('r')
       .where('r.tenantId = :tenantId', { tenantId })
       .andWhere('r.roomTypeId = :roomTypeId', { roomTypeId })
-      .andWhere('r.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere('r.status NOT IN (:...inactive)', { inactive: ['cancelled', 'no_show'] })
       .andWhere('r.checkIn < :to', { to })
       .andWhere('r.checkOut > :from', { from });
     if (excludeReservationId) qb.andWhere('r.id != :excludeId', { excludeId: excludeReservationId });
@@ -344,6 +370,7 @@ export class HotelRoomTypesService {
         label: dto.label ?? 'Новое размещение',
         coefficient: dto.coefficient !== undefined ? normalizeNumericInput(dto.coefficient) : '1',
         paidChildCount: dto.paidChildCount ?? 0,
+        ...guestsFor(dto),
         sortOrder: dto.sortOrder ?? 0,
       }),
     );
@@ -352,8 +379,12 @@ export class HotelRoomTypesService {
   async updateOccupancyType(tenantId: string, id: string, dto: Partial<HotelRoomOccupancyType>) {
     const row = await this.occupancyTypesRepo.findOne({ where: { id, tenantId } });
     if (!row) throw new NotFoundException('Строка размещения не найдена');
-    const normalized = { ...dto };
+    const { id: _id, tenantId: _t, roomTypeId: _r, ...normalized } = dto as Partial<HotelRoomOccupancyType>;
     if (normalized.coefficient !== undefined) normalized.coefficient = normalizeNumericInput(normalized.coefficient);
+    if (normalized.adults !== undefined) normalized.adults = normalized.adults === null ? null : clampInt(normalized.adults, 0, 20);
+    if (normalized.children !== undefined) normalized.children = clampInt(normalized.children, 0, 10);
+    // переименовали, а состав не задан явно — подставляем из нового названия
+    if (normalized.label !== undefined && normalized.adults === undefined && row.adults === null) Object.assign(normalized, guestsFor(normalized));
     Object.assign(row, normalized);
     return this.occupancyTypesRepo.save(row);
   }

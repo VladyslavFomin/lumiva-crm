@@ -25,4 +25,20 @@ export class HotelAnalyticsQueryDto {
   @IsOptional()
   @IsString()
   agencyId?: string;
+
+  @IsOptional()
+  @IsString()
+  guestCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  saleCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  partnerCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  partnerType?: string;
 }

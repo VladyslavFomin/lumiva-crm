@@ -1,3 +1,5 @@
+import { HotelGuestCareService } from '../../hotels/hotel-guest-care.service';
+import { ModuleRef } from '@nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -23,7 +25,19 @@ export class WhatsappWebhookService {
     @InjectRepository(IntegrationConnection)
     private readonly integrationRepo: Repository<IntegrationConnection>,
     private readonly whatsappCrmService: WhatsappCrmService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /** Guest Care: сообщение проживающего гостя → заявка (модуль отелей берём лениво — без циклической зависимости) */
+  private async toGuestCare(tenantId: string, fromDigits: string, text: string | null) {
+    if (!fromDigits || !text) return;
+    try {
+      const care = this.moduleRef.get(HotelGuestCareService, { strict: false });
+      await care.onWhatsappMessage(tenantId, fromDigits, text);
+    } catch {
+      /* модуль отелей не подключён у тенанта или заявка не нужна — сообщение уже сохранено в чате */
+    }
+  }
 
   parseConfig(entity: IntegrationConnection): WaCfg | null {
     if (!entity.configJson) return null;
@@ -165,6 +179,7 @@ export class WhatsappWebhookService {
             timestamp: Number.isFinite(timestamp) ? timestamp : null,
             raw: msg,
           });
+          void this.toGuestCare(tenantId, digits, textBody);
         }
       }
     }

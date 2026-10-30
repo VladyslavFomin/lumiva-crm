@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTenantComponents } from '../../hooks/useTenantComponents';
 
-type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'frontdesk' | 'pricing' | 'calendar' | 'analytics' | 'reviews';
+type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'rack' | 'partners' | 'inventory' | 'guestRegister' | 'frontdesk' | 'housekeeping' | 'cashier' | 'nightAudit' | 'reports' | 'pricing' | 'calendar' | 'analytics' | 'reviews' | 'channels' | 'guestCare';
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   overview: (
@@ -20,6 +20,56 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
   reservations: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" />
+    </svg>
+  ),
+  rack: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 4v16" /><path d="M10.5 12.5h5M12.5 16h6" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  ),
+  housekeeping: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M4 20h16" /><path d="M6 20V10l6-5 6 5v10" /><path d="M10 20v-5h4v5" /><path d="M17 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
+    </svg>
+  ),
+  cashier: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /><path d="M7 15h3" />
+    </svg>
+  ),
+  nightAudit: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" /><path d="M14 9l1.5 1.5L18 8" />
+    </svg>
+  ),
+  guestCare: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M4 18h16M6 18a6 6 0 0112 0" /><path d="M12 9V7M10 7h4" />
+    </svg>
+  ),
+  channels: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <circle cx="5" cy="12" r="2.2" /><circle cx="19" cy="5" r="2.2" /><circle cx="19" cy="19" r="2.2" /><path d="M7 11l10-5M7 13l10 5" />
+    </svg>
+  ),
+  reports: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </svg>
+  ),
+  partners: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><path d="M16 4.5a3 3 0 010 6" /><path d="M18 14c2 .7 3 2.6 3 6" />
+    </svg>
+  ),
+  inventory: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M3 14h18M9 4v16M15 4v16" />
+    </svg>
+  ),
+  guestRegister: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="4" y="3" width="16" height="18" rx="2" /><circle cx="12" cy="10" r="2.6" /><path d="M8 17c.6-2 2.1-3 4-3s3.4 1 4 3" />
     </svg>
   ),
   frontdesk: (
@@ -59,9 +109,19 @@ export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
     { key: 'overview', label: t('crm.hotels.nav.overview'), path: '/hotels', component: 'hotels' },
     { key: 'hotels', label: t('crm.hotels.nav.hotels'), path: '/hotels/list', component: 'hotels' },
     { key: 'reservations', label: t('crm.hotels.nav.reservations'), path: '/hotels/reservations', component: 'hotels_reservations' },
+    { key: 'partners', label: t('crm.hotels.nav.partners'), path: '/hotels/partners', component: 'hotels_reservations' },
+    { key: 'inventory', label: t('crm.hotels.nav.inventory'), path: '/hotels/inventory', component: 'hotels_reservations' },
+    { key: 'rack', label: t('crm.hotels.nav.rack'), path: '/hotels/rack', component: 'hotels_frontdesk' },
     { key: 'frontdesk', label: t('crm.hotels.nav.frontdesk'), path: '/hotels/frontdesk', component: 'hotels_frontdesk' },
+    { key: 'housekeeping', label: t('crm.hotels.nav.housekeeping'), path: '/hotels/housekeeping', component: 'hotels_frontdesk' },
+    { key: 'guestCare', label: t('crm.hotels.nav.guestCare'), path: '/hotels/guest-care', component: 'hotels_frontdesk' },
+    { key: 'cashier', label: t('crm.hotels.nav.cashier'), path: '/hotels/cashier', component: 'hotels_frontdesk' },
+    { key: 'nightAudit', label: t('crm.hotels.nav.nightAudit'), path: '/hotels/night-audit', component: 'hotels_frontdesk' },
+    { key: 'guestRegister', label: t('crm.hotels.nav.guestRegister'), path: '/hotels/guest-register', component: 'hotels_frontdesk' },
     { key: 'pricing', label: t('crm.hotels.nav.pricing'), path: '/hotels/pricing', component: 'hotels_pricing' },
     { key: 'calendar', label: t('crm.hotels.nav.calendar'), path: '/hotels/calendar', component: 'hotels_calendar' },
+    { key: 'channels', label: t('crm.hotels.nav.channels'), path: '/hotels/channels', component: 'hotels_pricing' },
+    { key: 'reports', label: t('crm.hotels.nav.reports'), path: '/hotels/reports', component: 'hotels_analytics' },
     { key: 'analytics', label: t('crm.hotels.nav.analytics'), path: '/hotels/analytics', component: 'hotels_analytics' },
     { key: 'reviews', label: t('crm.hotels.nav.reviews'), path: '/hotels/reviews', component: 'hotels_reviews' },
   ];

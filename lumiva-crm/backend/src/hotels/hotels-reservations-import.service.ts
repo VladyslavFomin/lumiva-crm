@@ -73,6 +73,11 @@ const STATUS_SYNONYMS: Record<string, HotelReservationStatus> = {
   checked_out: 'checked_out',
   'отменена': 'cancelled',
   cancelled: 'cancelled',
+  'незаезд': 'no_show',
+  'no-show': 'no_show',
+  no_show: 'no_show',
+  noshow: 'no_show',
+  'gelmedi': 'no_show',
 };
 
 export interface HotelReservationImportApplyResult {

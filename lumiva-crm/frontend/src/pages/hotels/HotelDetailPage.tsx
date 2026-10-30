@@ -21,6 +21,9 @@ import {
   updateRoomType,
   deleteRoomType,
   fetchMarkets,
+  fetchMarketGroups,
+  autoMapMarketGroups,
+  type HotelMarketGroup,
   createMarket,
   updateMarket,
   deleteMarket,
@@ -59,9 +62,14 @@ import {
   type HotelPeriodPriceSummaryRow,
   type HotelRoomUnit,
   type HotelRoomUnitHousekeepingStatus,
+  hotelTaxes,
 } from '../../api/hotels';
 import { HotelReviewsTab } from './reputation/HotelReviewsTab';
+import { CountryMultiSelect } from './CountrySelect';
+import { countryName } from '../../utils/countries';
 import './hotels-design.css';
+import { ChildPolicyEditor } from './pricing/ChildPolicyEditor';
+import type { HotelChildPolicyRule } from '../../api/hotels';
 
 /** Сумма в валюте отеля (символ/позиция по локали браузера); при неизвестном коде — число + код. */
 function formatHotelMoney(v: number, currency: string | undefined) {
@@ -444,7 +452,7 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
   );
 };
 
-const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({ hotelId, roomTypes }) => {
+const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; currency?: string }> = ({ hotelId, roomTypes, currency }) => {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [markets, setMarkets] = useState<HotelMarket[]>([]);
@@ -452,12 +460,16 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
   const [showAddMarket, setShowAddMarket] = useState(false);
   const [newMarketCode, setNewMarketCode] = useState('');
   const [newMarketName, setNewMarketName] = useState('');
+  const [newMarketCountries, setNewMarketCountries] = useState<string[]>([]);
   const [editingMarketId, setEditingMarketId] = useState<string | null>(null);
+  const [groups, setGroups] = useState<HotelMarketGroup[]>([]);
+  const { i18n } = useTranslation();
 
   const load = () => {
     fetchMarkets(hotelId)
       .then(setMarkets)
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.loadMarketsError'), { variant: 'error' }));
+    fetchMarketGroups(hotelId).then(setGroups).catch(() => setGroups([]));
     Promise.all(roomTypes.map((r) => fetchMarketPrices(r.id).then((p) => [r.id, p] as const)))
       .then((pairs) => setPricesByRoom(Object.fromEntries(pairs)))
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.loadPricesError'), { variant: 'error' }));
@@ -490,11 +502,12 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
       showAlert(t('crm.hotels.detail.marketsTab.addModal.required'), { variant: 'error' });
       return;
     }
-    createMarket(hotelId, { code: newMarketCode, name: newMarketName })
+    createMarket(hotelId, { code: newMarketCode, name: newMarketName, countryCodes: newMarketCountries })
       .then(() => {
         setShowAddMarket(false);
         setNewMarketCode('');
         setNewMarketName('');
+        setNewMarketCountries([]);
         load();
       })
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.addError'), { variant: 'error' }));
@@ -510,6 +523,20 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.renameError'), { variant: 'error' }))
       .finally(() => setEditingMarketId(null));
   };
+
+  const setMarketCountries = (m: HotelMarket, codes: string[]) => {
+    setMarkets((prev) => prev.map((x) => (x.id === m.id ? { ...x, countryCodes: codes } : x)));
+    updateMarket(m.id, { countryCodes: codes }).catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.renameError'), { variant: 'error' }));
+  };
+
+  const setMarketGroup = (m: HotelMarket, marketGroupId: string) => {
+    setMarkets((prev) => prev.map((x) => (x.id === m.id ? { ...x, marketGroupId: marketGroupId || null } : x)));
+    updateMarket(m.id, { marketGroupId: marketGroupId || null }).catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.renameError'), { variant: 'error' }));
+  };
+  const autoGroups = () =>
+    autoMapMarketGroups(hotelId)
+      .then((r) => { showAlert(t('crm.hotels.priceEngine.autoMapped', { mapped: r.mapped, unmapped: r.unmapped }), { variant: r.unmapped ? 'error' : 'success' }); load(); })
+      .catch((e) => showAlert(e.message, { variant: 'error' }));
 
   const removeMarket = async (m: HotelMarket) => {
     const ok = await showConfirm(t('crm.hotels.detail.marketsTab.deleteConfirmBody', { name: m.name }), {
@@ -569,16 +596,18 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
             {roomTypes.map((r) => (
               <tr key={r.id}>
                 <td className="room-cell">{r.name}</td>
-                <td style={{ fontFamily: 'var(--ff-mono)', color: 'var(--fg-3)' }}>${r.basePrice}</td>
+                <td style={{ fontFamily: 'var(--ff-mono)', color: 'var(--fg-3)' }}>{Number(r.basePrice).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency || ''}</td>
                 {markets.map((m) => {
                   const val = Number(priceFor(r.id, m.id));
                   const diff = pctDiff(Number(r.basePrice), val);
                   return (
                     <td key={m.id}>
+                      {/* key с ценой: цены приходят после первой отрисовки — без него поле навсегда показывало 0 и при уходе из поля могло записать 0 */}
                       <input
+                        key={`${r.id}-${m.id}-${val}`}
                         className="mkt-price-input"
                         defaultValue={val}
-                        onBlur={(e) => update(r.id, m.id, e.target.value)}
+                        onBlur={(e) => Number(e.target.value) !== val && update(r.id, m.id, e.target.value)}
                       />
                       <span className={`mkt-diff${diff > 0 ? ' up' : diff < 0 ? ' down' : ''}`}>{diff > 0 ? '+' : ''}{diff}%</span>
                     </td>
@@ -588,6 +617,30 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="htl-panel" style={{ marginTop: 16 }}>
+        <h3 className="htl-h3">{t('crm.hotels.detail.marketsTab.countriesTitle')}</h3>
+        <p className="htl-sub" style={{ margin: '-4px 0 12px' }}>{t('crm.hotels.detail.marketsTab.countriesHint')}</p>
+        {markets.map((m) => (
+          <div key={m.id} className="htl-mkt-row">
+            <div className="nm"><span className="mkt-flag">{m.code.toUpperCase()}</span> {m.name}</div>
+            <CountryMultiSelect value={m.countryCodes || []} onChange={(codes) => setMarketCountries(m, codes)} />
+            {groups.length > 0 && (
+              <select className="pe-group" value={m.marketGroupId || ''} onChange={(e) => setMarketGroup(m, e.target.value)} title={t('crm.hotels.priceEngine.groupHint')}>
+                <option value="">{t('crm.hotels.priceEngine.groupAuto')}</option>
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            )}
+          </div>
+        ))}
+        {groups.length > 0 && markets.length > 0 && (
+          <div className="pe-groups-foot">
+            <span className="htl-sub">{t('crm.hotels.priceEngine.groupsExplain')}</span>
+            <button className="btn btn-sm" onClick={() => void autoGroups()}>{t('crm.hotels.priceEngine.autoMap')}</button>
+          </div>
+        )}
+        {markets.length === 0 && <div className="htl-sub">{t('crm.hotels.detail.marketsTab.noMarkets')}</div>}
       </div>
 
       {showAddMarket && (
@@ -603,6 +656,15 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
               <input value={newMarketCode} onChange={(e) => setNewMarketCode(e.target.value)} />
               <label>{t('crm.hotels.detail.marketsTab.addModal.nameLabel')}</label>
               <input value={newMarketName} onChange={(e) => setNewMarketName(e.target.value)} />
+              <label>{t('crm.hotels.detail.marketsTab.addModal.countriesLabel')}</label>
+              <CountryMultiSelect
+                value={newMarketCountries}
+                onChange={(codes) => {
+                  setNewMarketCountries(codes);
+                  if (codes.length === 1 && !newMarketCode.trim()) setNewMarketCode(codes[0].toLowerCase());
+                  if (codes.length === 1 && !newMarketName.trim()) setNewMarketName(countryName(codes[0], i18n.language));
+                }}
+              />
             </div>
             <div className="bk-modal-foot">
               <button className="btn" onClick={() => setShowAddMarket(false)}>{t('crm.hotels.detail.marketsTab.addModal.cancel')}</button>
@@ -1256,7 +1318,24 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
   const [checkIn, setCheckIn] = useState(hotel.checkInTime);
   const [checkOut, setCheckOut] = useState(hotel.checkOutTime);
   const [allowOverbooking, setAllowOverbooking] = useState(hotel.allowOverbooking);
+  const [pricingPriority, setPricingPriority] = useState<'season' | 'market'>(hotel.pricingPriority === 'market' ? 'market' : 'season');
+  const [childMaxAge, setChildMaxAge] = useState(String(hotel.childMaxAge ?? 12));
+  const [childPolicy, setChildPolicy] = useState<HotelChildPolicyRule[]>(hotel.childPolicy || []);
   const [savingBasics, setSavingBasics] = useState(false);
+  const [accTax, setAccTax] = useState(String(Number(hotel.accommodationTaxPct) || 0));
+  const [vat, setVat] = useState(String(Number(hotel.vatPct) || 0));
+  const [inclTax, setInclTax] = useState(hotel.pricesIncludeTax !== false);
+  const [savingTax, setSavingTax] = useState(false);
+  const saveTaxes = () => {
+    setSavingTax(true);
+    updateHotel(hotel.id, { accommodationTaxPct: accTax, vatPct: vat, pricesIncludeTax: inclTax })
+      .then(() => {
+        onSaved();
+        showAlert(t('crm.hotels.detail.settings.taxSaved'), { variant: 'success' });
+      })
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.settings.saveError'), { variant: 'error' }))
+      .finally(() => setSavingTax(false));
+  };
 
   const [links, setLinks] = useState<Array<{ label: string; url: string }>>(hotel.quickLinks || []);
   const [savingLinks, setSavingLinks] = useState(false);
@@ -1282,7 +1361,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
 
   const saveBasics = () => {
     setSavingBasics(true);
-    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut, allowOverbooking })
+    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut, allowOverbooking, pricingPriority, childMaxAge: Math.min(18, Math.max(1, Math.round(Number(childMaxAge) || 12))), childPolicy })
       .then(() => onSaved())
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.settings.saveError'), { variant: 'error' }))
       .finally(() => setSavingBasics(false));
@@ -1353,8 +1432,64 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
         <input type="checkbox" checked={allowOverbooking} onChange={(e) => setAllowOverbooking(e.target.checked)} />
         {t('crm.hotels.detail.settings.overbookingLabel')}
       </label>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{t('crm.hotels.priceEngine.priorityTitle')}</div>
+        <div className="sub" style={{ fontSize: 12, color: 'var(--fg-3)', margin: '2px 0 8px' }}>{t('crm.hotels.priceEngine.priorityHint')}</div>
+        <div className="htl-seg">
+          <button type="button" className={pricingPriority === 'season' ? 'on' : ''} onClick={() => setPricingPriority('season')}>{t('crm.hotels.priceEngine.priority.season')}</button>
+          <button type="button" className={pricingPriority === 'market' ? 'on' : ''} onClick={() => setPricingPriority('market')}>{t('crm.hotels.priceEngine.priority.market')}</button>
+        </div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{t('crm.hotels.guestsPicker.settingTitle')}</div>
+        <div className="sub" style={{ fontSize: 12, color: 'var(--fg-3)', margin: '2px 0 8px' }}>
+          {t('crm.hotels.guestsPicker.settingHint', { max: Number(childMaxAge) || 12, last: (Number(childMaxAge) || 12) - 1 })}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="number" min={1} max={18} value={childMaxAge} onChange={(e) => setChildMaxAge(e.target.value)} style={{ width: 90, padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }} />
+          <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.hotels.guestsPicker.settingUnit')}</span>
+        </div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{t('crm.hotels.childPolicy.title')}</div>
+        <div className="sub" style={{ fontSize: 12, color: 'var(--fg-3)', margin: '2px 0 8px' }}>{t('crm.hotels.childPolicy.hotelHint')}</div>
+        <ChildPolicyEditor value={childPolicy} onChange={setChildPolicy} childMaxAge={Number(childMaxAge) || 12} />
+      </div>
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
         <button className="btn btn-primary" disabled={savingBasics} onClick={saveBasics}>
+          <Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.detail.settings.save')}
+        </button>
+      </div>
+
+      <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
+        <div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.settings.taxTitle')}</div>
+          <div className="sub" style={{ marginTop: 2 }}>{t('crm.hotels.detail.settings.taxHint')}</div>
+        </div>
+      </div>
+      <div className="bk-row2">
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>{t('crm.hotels.detail.settings.accTaxLabel')}</label>
+          <input type="number" min={0} max={50} step="0.5" value={accTax} onChange={(e) => setAccTax(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>{t('crm.hotels.detail.settings.vatLabel')}</label>
+          <input type="number" min={0} max={50} step="0.5" value={vat} onChange={(e) => setVat(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }} />
+        </div>
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12.5, cursor: 'pointer' }}>
+        <input type="checkbox" checked={inclTax} onChange={(e) => setInclTax(e.target.checked)} />
+        {t('crm.hotels.detail.settings.inclTaxLabel')}
+      </label>
+      <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 8 }}>
+        {(() => {
+          const x = hotelTaxes(1000, { accommodationTaxPct: accTax, vatPct: vat, pricesIncludeTax: inclTax });
+          return t('crm.hotels.detail.settings.taxExample', { base: x.base, acc: x.accommodationTax, vat: x.vat, total: x.total });
+        })()}
+      </div>
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <button className="btn btn-sm" type="button" onClick={() => { setAccTax('2'); setVat('10'); }}>{t('crm.hotels.detail.settings.taxPresetTr')}</button>
+        <button className="btn btn-primary" disabled={savingTax} onClick={saveTaxes}>
           <Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.detail.settings.save')}
         </button>
       </div>
@@ -1532,7 +1667,7 @@ export const HotelDetailPage: React.FC = () => {
 
         {tab === 'rooms' && <RoomsTab hotelId={hotel.id} roomTypes={roomTypes} onChanged={load} />}
         {tab === 'calendar' && <HotelPricingCalendar roomTypes={roomTypes} />}
-        {tab === 'markets' && <MarketsTab hotelId={hotel.id} roomTypes={roomTypes} />}
+        {tab === 'markets' && <MarketsTab hotelId={hotel.id} roomTypes={roomTypes} currency={hotel.currency} />}
         {tab === 'info' && <HotelInfoTab hotel={hotel} onSaved={load} />}
         {tab === 'gallery' && <HotelGalleryTab hotelId={hotel.id} />}
         {tab === 'reviews' && <HotelReviewsTab hotelId={hotel.id} />}

@@ -35,6 +35,13 @@ export class HotelRoomOccupancyType {
   @Column({ type: 'integer', default: 0 })
   paidChildCount: number;
 
+  /** Состав гостей этого размещения — по нему форма брони подбирает размещение (взрослые + дети). null — не задано */
+  @Column({ type: 'smallint', nullable: true })
+  adults: number | null;
+
+  @Column({ type: 'smallint', default: 0 })
+  children: number;
+
   @Column({ type: 'integer', default: 0 })
   sortOrder: number;
 

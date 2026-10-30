@@ -13,6 +13,7 @@ import {
   updateRoomType,
   updateRoomTypeInfo,
   fetchRoomPricing,
+  fetchMarketGroups,
   fetchOccupancyTypes,
   createOccupancyType,
   updateOccupancyType,
@@ -191,6 +192,9 @@ export const HotelRoomPricingPage: React.FC = () => {
   const [roomType, setRoomType] = useState<HotelRoomType | null>(null);
   const [hotelName, setHotelName] = useState('');
   const [pricing, setPricing] = useState<HotelRoomPricing | null>(null);
+  /** '' — опорная группа отеля; иначе цены считаются по дневным ценам выбранной группы рынков */
+  const [groupId, setGroupId] = useState('');
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [occupancyTypes, setOccupancyTypes] = useState<HotelRoomOccupancyType[]>([]);
   const [tab, setTab] = useState<'pricing' | 'info' | 'gallery'>('pricing');
   const [offset, setOffset] = useState('0');
@@ -223,11 +227,14 @@ export const HotelRoomPricingPage: React.FC = () => {
 
   useEffect(() => {
     if (!roomType) return;
-    fetchRoomPricing(roomType.hotelId, roomType.id)
+    fetchRoomPricing(roomType.hotelId, roomType.id, groupId || undefined)
       .then(setPricing)
       .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.calcError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomType]);
+  }, [roomType, groupId]);
+  useEffect(() => {
+    if (roomType) fetchMarketGroups(roomType.hotelId).then(setGroups).catch(() => setGroups([]));
+  }, [roomType?.hotelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveOffset = () => {
     if (!roomType) return;
@@ -236,17 +243,26 @@ export const HotelRoomPricingPage: React.FC = () => {
       .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }));
   };
 
+  /** состав размещения (взрослые/дети) — по нему форма брони подбирает размещение */
+  const saveGuests = (id: string, dto: { adults?: number | null; children?: number }) => {
+    const row = pricing?.occupancyRows.find((r) => r.id === id);
+    if (row && (dto.adults === undefined || dto.adults === row.adults) && (dto.children === undefined || dto.children === row.children)) return;
+    updateOccupancyType(id, dto)
+      .then(() => reloadPricing())
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }));
+  };
+
   const updateCoef = (id: string, coefficient: string) => {
     updateOccupancyType(id, { coefficient })
       .then(() => {
         load();
-        if (roomType) fetchRoomPricing(roomType.hotelId, roomType.id).then(setPricing);
+        if (roomType) fetchRoomPricing(roomType.hotelId, roomType.id, groupId || undefined).then(setPricing);
       })
       .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }));
   };
 
   const reloadPricing = () => {
-    if (roomType) fetchRoomPricing(roomType.hotelId, roomType.id).then(setPricing);
+    if (roomType) fetchRoomPricing(roomType.hotelId, roomType.id, groupId || undefined).then(setPricing);
   };
 
   const saveOverride = (occId: string, periodId: string, value: string) => {
@@ -354,7 +370,37 @@ export const HotelRoomPricingPage: React.FC = () => {
           <RoomGalleryTab hotelId={roomType.hotelId} roomTypeId={roomType.id} />
         ) : (
           <>
-            {!isFixedRate && (
+            {groups.length > 1 && (
+              <div className="pe-group-bar">
+                <span>{t('crm.hotels.priceEngine.viewGroup')}</span>
+                <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+                  <option value="">{t('crm.hotels.priceEngine.referenceGroup')}</option>
+                  {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+                {pricing && !pricing.isReferenceGroup && <em>{t('crm.hotels.priceEngine.overridesReferenceOnly')}</em>}
+              </div>
+            )}
+            <div className="pe-box muted" style={{ marginBottom: 10 }}>{t('crm.hotels.roomPricing.dailyNote')}</div>
+            {!isFixedRate && roomType.isBaseRoomType && (
+              <div className="pp-offset-box">
+                <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.hotels.roomPricing.offsetBox.baseNote')}</span>
+                {Number(roomType.ppNetOffset || 0) !== 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={() =>
+                      updateRoomType(roomType.id, { ppNetOffset: '0' })
+                        .then(() => load())
+                        .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }))
+                    }
+                  >
+                    {t('crm.hotels.roomPricing.offsetBox.resetBase', { offset: roomType.ppNetOffset })}
+                  </button>
+                )}
+              </div>
+            )}
+            {!isFixedRate && !roomType.isBaseRoomType && (
               <div className="pp-offset-box">
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
                   {t('crm.hotels.roomPricing.offsetBox.basePriceLabel')}{' '}
@@ -366,6 +412,18 @@ export const HotelRoomPricingPage: React.FC = () => {
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.hotels.roomPricing.offsetBox.diffLabel')}</span>
                 <input value={offset} onChange={(e) => setOffset(e.target.value)} onBlur={saveOffset} />
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.hotels.roomPricing.offsetBox.perNight')}</span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  title={t('crm.hotels.roomPricing.offsetBox.makeBaseHint')}
+                  onClick={() =>
+                    updateRoomType(roomType.id, { isBaseRoomType: true })
+                      .then(() => { load(); showAlert(t('crm.hotels.roomPricing.offsetBox.madeBase', { name: roomType.name }), { variant: 'success' }); })
+                      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }))
+                  }
+                >
+                  {t('crm.hotels.roomPricing.offsetBox.makeBase')}
+                </button>
                 <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 'auto' }}>
                   {t('crm.hotels.roomPricing.offsetBox.totalLabel', { name: roomType.name })}{' '}
                   <b style={{ color: 'var(--ink)', fontFamily: 'var(--ff-mono)' }}>
@@ -388,6 +446,8 @@ export const HotelRoomPricingPage: React.FC = () => {
                       />
                     </th>
                     <th className="occ-h" rowSpan={2}>{roomType.name}</th>
+                    <th rowSpan={2} title={t('crm.hotels.roomPricing.table.guestsTitle')}>{t('crm.hotels.roomPricing.table.adults')}</th>
+                    <th rowSpan={2} title={t('crm.hotels.roomPricing.table.guestsTitle')}>{t('crm.hotels.roomPricing.table.children')}</th>
                     <th rowSpan={2}>{t('crm.hotels.roomPricing.table.coefficient')}</th>
                     <th rowSpan={2}>{t('crm.hotels.roomPricing.table.paidChildren')}</th>
                     {pricing.periods.map((p) => <th key={p.id}>{p.startDate}</th>)}
@@ -399,8 +459,8 @@ export const HotelRoomPricingPage: React.FC = () => {
                 <tbody>
                   <tr className="pp-row">
                     <td></td>
-                    <td className="occ-name">{!isFixedRate && Number(offset) !== 0 ? t('crm.hotels.roomPricing.table.ppNetBaseWithDiff') : t('crm.hotels.roomPricing.table.ppNetBase')}</td>
-                    <td></td><td></td>
+                    <td className="occ-name">{!isFixedRate && !roomType.isBaseRoomType && Number(offset) !== 0 ? t('crm.hotels.roomPricing.table.ppNetBaseWithDiff') : t('crm.hotels.roomPricing.table.ppNetBase')}</td>
+                    <td></td><td></td><td></td><td></td>
                     {pricing.periods.map((p) => <td key={p.id}>{fmtEUR(p.effectiveBasePP)}</td>)}
                   </tr>
                   {pricing.occupancyRows.map((row) => (
@@ -441,6 +501,12 @@ export const HotelRoomPricingPage: React.FC = () => {
                         )}
                       </td>
                       <td className="coef-cell">
+                        <input key={`a-${row.id}-${row.adults ?? ''}`} defaultValue={row.adults ?? ''} style={{ width: 44 }} inputMode="numeric" onBlur={(e) => saveGuests(row.id, { adults: e.target.value === '' ? null : Number(e.target.value) })} />
+                      </td>
+                      <td className="coef-cell">
+                        <input key={`c-${row.id}-${row.children ?? 0}`} defaultValue={row.children ?? 0} style={{ width: 44 }} inputMode="numeric" onBlur={(e) => saveGuests(row.id, { children: Number(e.target.value) || 0 })} />
+                      </td>
+                      <td className="coef-cell">
                         <input defaultValue={row.coefficient} onBlur={(e) => updateCoef(row.id, e.target.value)} />
                       </td>
                       <td>{row.paidChildCount}</td>
@@ -453,7 +519,7 @@ export const HotelRoomPricingPage: React.FC = () => {
                             className="price-cell"
                             style={isOverridden ? { background: '#fff8e1' } : undefined}
                             title={isOverridden ? t('crm.hotels.roomPricing.table.manualOverrideTitle') : t('crm.hotels.roomPricing.table.calculatedTitle')}
-                            onClick={() => setEditingCell({ occId: row.id, periodId: p.id })}
+                            onClick={() => pricing?.isReferenceGroup !== false && setEditingCell({ occId: row.id, periodId: p.id })}
                           >
                             {isEditing ? (
                               <input

@@ -79,7 +79,7 @@ interface MainLayoutProps {
 }
 
 type NavChild = { label: string; path: string; matchPaths?: string[]; countBadge?: NavCountBadge };
-type NavSectionId = 'main' | 'clients' | 'communications' | 'bookings' | 'sales' | 'marketing' | 'tools' | 'management';
+type NavSectionId = 'main' | 'clients' | 'communications' | 'bookings' | 'hotels' | 'sales' | 'marketing' | 'tools' | 'management';
 type NavCountBadge = 'leads' | 'projects' | 'chat' | 'approvals';
 type NavItem = {
   label: string;
@@ -91,7 +91,7 @@ type NavItem = {
   matchPaths?: string[];
 };
 
-const NAV_SECTION_ORDER: NavSectionId[] = ['main', 'clients', 'bookings', 'sales', 'communications', 'marketing', 'tools', 'management'];
+const NAV_SECTION_ORDER: NavSectionId[] = ['main', 'clients', 'bookings', 'hotels', 'sales', 'communications', 'marketing', 'tools', 'management'];
 
 function normalizeLayoutPath(pathname: string): string {
   if (pathname.startsWith('/app/')) return pathname.slice(4);
@@ -1212,15 +1212,22 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.hotels'),
         path: '/hotels',
         icon: 'hotel',
-        section: 'bookings',
+        section: 'hotels',
         matchPaths: ['/app/hotels'],
         children: [
           { label: t('crm.nav.hotelsOverview'), path: '/hotels' },
           { label: t('crm.nav.hotelsList'), path: '/hotels/list' },
           { label: t('crm.nav.hotelsReservations'), path: '/hotels/reservations' },
+          { label: t('crm.nav.hotelsRack'), path: '/hotels/rack' },
           { label: t('crm.nav.hotelsFrontDesk'), path: '/hotels/frontdesk' },
+          { label: t('crm.nav.hotelsHousekeeping'), path: '/hotels/housekeeping' },
+          { label: t('crm.nav.hotelsGuestCare'), path: '/hotels/guest-care' },
+          { label: t('crm.nav.hotelsCashier'), path: '/hotels/cashier' },
+          { label: t('crm.nav.hotelsNightAudit'), path: '/hotels/night-audit' },
+          { label: t('crm.nav.hotelsReports'), path: '/hotels/reports' },
           { label: t('crm.nav.hotelsPricing'), path: '/hotels/pricing' },
           { label: t('crm.nav.hotelsCalendar'), path: '/hotels/calendar' },
+          { label: t('crm.nav.hotelsChannels'), path: '/hotels/channels' },
           { label: t('crm.nav.hotelsAnalytics'), path: '/hotels/analytics' },
           { label: t('crm.nav.hotelsReviews'), path: '/hotels/reviews' },
         ],
@@ -1547,7 +1554,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/bookings')) return 'bookings';
     if (p.startsWith('/hotels/reservations')) return 'hotels_reservations';
     if (p.startsWith('/hotels/frontdesk')) return 'hotels_frontdesk';
-    if (p.startsWith('/hotels/pricing')) return 'hotels_pricing';
+    if (p.startsWith('/hotels/rack')) return 'hotels_frontdesk';
+    if (p.startsWith('/hotels/housekeeping') || p.startsWith('/hotels/guest-care')) return 'hotels_frontdesk';
+    if (p.startsWith('/hotels/cashier') || p.startsWith('/hotels/night-audit')) return 'hotels_frontdesk';
+    if (p.startsWith('/hotels/reports')) return 'hotels_analytics';
+    if (p.startsWith('/hotels/pricing') || p.startsWith('/hotels/channels')) return 'hotels_pricing';
     if (p.startsWith('/hotels/calendar')) return 'hotels_calendar';
     if (p.startsWith('/hotels/analytics')) return 'hotels_analytics';
     if (p.startsWith('/hotels/reviews')) return 'hotels_reviews';
@@ -1589,7 +1600,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // Если компонент не найден в списке, разрешаем доступ (новый компонент)
     // Если найден, проверяем его статус
     // Для новых модулей (contacts, companies, automations) разрешаем доступ по умолчанию
-    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'whatsapp', 'notes', 'custom_objects', 'products', 'bookings', 'hotels'].includes(componentKey)) {
+    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'whatsapp', 'instagram', 'notes', 'custom_objects', 'products', 'bookings', 'hotels'].includes(componentKey)) {
       return true;
     }
     return component ? component.enabled : true;
@@ -1756,6 +1767,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         return t('crm.sidebar.sectionCommunications');
       case 'bookings':
         return t('crm.sidebar.sectionBookings');
+      case 'hotels':
+        return t('crm.sidebar.sectionHotels');
       case 'sales':
         return t('crm.sidebar.sectionSales');
       case 'marketing':

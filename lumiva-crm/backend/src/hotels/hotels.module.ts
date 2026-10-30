@@ -27,6 +27,13 @@ import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
+import { HotelContract } from './hotel-contract.entity';
+import { HotelRoomBlock } from './hotel-room-block.entity';
+import { HotelContractsService } from './hotel-contracts.service';
+import { HotelDemoDataService } from './hotel-demo-data.service';
+import { HotelPartnerStatementService } from './hotel-partner-statement.service';
+import { HotelGuestRegisterService } from './hotel-guest-register.service';
+import { HotelPartnersController } from './hotel-partners.controller';
 import { HotelsGalleryService } from './hotels-gallery.service';
 import { HotelsFactsheetService } from './hotels-factsheet.service';
 import { HotelsInfoImportService } from './hotels-info-import.service';
@@ -45,6 +52,19 @@ import { HotelsController } from './hotels.controller';
 import { HotelAnalyticsController } from './hotel-analytics.controller';
 import { HotelReservationsController } from './hotel-reservations.controller';
 import { HotelRoomUnitsController } from './hotel-room-units.controller';
+import { HotelRackService } from './hotel-rack.service';
+import { HotelLifecycleScheduler } from './hotel-lifecycle.scheduler';
+import { HotelHousekeepingService } from './hotel-housekeeping.service';
+import { HotelHousekeepingController } from './hotel-housekeeping.controller';
+import { HotelCashierController } from './hotel-cashier.controller';
+import { HotelNightAuditController } from './hotel-night-audit.controller';
+import { HotelNightAuditService } from './hotel-night-audit.service';
+import { HotelReportsController } from './hotel-reports.controller';
+import { HotelReportsService } from './hotel-reports.service';
+import { HotelRateEngineService } from './hotel-rate-engine.service';
+import { HotelFolioService } from './hotel-folio.service';
+import { HotelFolioLine, HotelExtraService, HotelCashShift, HotelNightAudit } from './hotel-folio.entities';
+import { HotelRoomOutage, HotelHousekeepingTask, HotelMaintenanceIssue, HotelLostFound } from './hotel-housekeeping.entities';
 import { HotelFrontDeskController } from './hotel-frontdesk.controller';
 import { HotelsReservationsImportController } from './hotels-reservations-import.controller';
 import { HotelsPricingImportController } from './hotels-pricing-import.controller';
@@ -60,11 +80,27 @@ import { MailModule } from '../mail/mail.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { CurrencyModule } from '../currency/currency.module';
 import { Tenant } from '../tenants/tenant.entity';
+import { HotelLiveController } from './hotel-live.controller';
+import { HotelLiveService } from './hotel-live.service';
+import { HotelLiveSubscriber } from './hotel-live.subscriber';
+import { User } from '../users/user.entity';
+import { HotelChannelsController } from './hotel-channels.controller';
+import { HotelChannelsService } from './hotel-channels.service';
+import { HotelChannelsScheduler } from './hotel-channels.scheduler';
+import { HotelChannelConnection, HotelChannelLog, HotelChannelMapping } from './hotel-channel.entities';
+import { HotelGuestCareController, HotelGuestCarePublicController } from './hotel-guest-care.controller';
+import { HotelGuestCareService } from './hotel-guest-care.service';
+import { HotelGuestRequest } from './hotel-guest-care.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Tenant,
+      User,
+      HotelChannelConnection,
+      HotelChannelMapping,
+      HotelChannelLog,
+      HotelGuestRequest,
       Hotel,
       HotelRoomType,
       HotelMarket,
@@ -86,6 +122,16 @@ import { Tenant } from '../tenants/tenant.entity';
       HotelFactsheetItem,
       HotelInfoImportSession,
       HotelRoomUnit,
+      HotelContract,
+      HotelRoomBlock,
+      HotelRoomOutage,
+      HotelHousekeepingTask,
+      HotelMaintenanceIssue,
+      HotelLostFound,
+      HotelFolioLine,
+      HotelExtraService,
+      HotelCashShift,
+      HotelNightAudit,
     ]),
     RbacModule,
     forwardRef(() => AutomationsModule),
@@ -100,8 +146,17 @@ import { Tenant } from '../tenants/tenant.entity';
     // match "reservations" as the :id param first (same gotcha as within a single controller,
     // but here it spans two controllers under the same 'hotels' prefix).
     HotelReservationsController,
+    HotelPartnersController,
     HotelRoomUnitsController,
     HotelFrontDeskController,
+    HotelLiveController,
+    HotelChannelsController,
+    HotelGuestCareController,
+    HotelGuestCarePublicController,
+    HotelHousekeepingController,
+    HotelCashierController,
+    HotelNightAuditController,
+    HotelReportsController,
     HotelAnalyticsController,
     HotelsReservationsImportController,
     HotelsPricingImportController,
@@ -112,10 +167,19 @@ import { Tenant } from '../tenants/tenant.entity';
     HotelsController,
   ],
   providers: [
+    HotelLiveService,
+    HotelLiveSubscriber,
+    HotelChannelsService,
+    HotelGuestCareService,
+    HotelChannelsScheduler,
     HotelsService,
     HotelRoomTypesService,
     HotelsPricingService,
     HotelsAgenciesService,
+    HotelContractsService,
+    HotelDemoDataService,
+    HotelPartnerStatementService,
+    HotelGuestRegisterService,
     HotelsGalleryService,
     HotelsFactsheetService,
     HotelsInfoImportService,
@@ -128,6 +192,13 @@ import { Tenant } from '../tenants/tenant.entity';
     HotelRoomUnitsService,
     HotelAvailabilityService,
     HotelFrontDeskService,
+    HotelRackService,
+    HotelLifecycleScheduler,
+    HotelHousekeepingService,
+    HotelFolioService,
+    HotelNightAuditService,
+    HotelReportsService,
+    HotelRateEngineService,
     HotelsPublicStorefrontService,
   ],
   exports: [

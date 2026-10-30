@@ -1,3 +1,4 @@
+import type { HotelChildPolicyRule } from './hotel-contract.entity';
 import {
   Column,
   CreateDateColumn,
@@ -90,9 +91,66 @@ export class Hotel {
   @Column({ type: 'boolean', default: false })
   allowOverbooking: boolean;
 
+  /** Налог на проживание, % (Турция — konaklama vergisi); входит в базу НДС */
+  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
+  accommodationTaxPct: string;
+
+  /** НДС на проживание, % (Турция — KDV) */
+  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
+  vatPct: string;
+
+  /** Цены в бронях уже включают налоги (иначе налоги начисляются сверху) */
+  @Column({ type: 'boolean', default: true })
+  pricesIncludeTax: boolean;
+
   /** Бренд/сеть отеля (The Norm, Selectum…) — разрез аналитики отзывов (hotel-reputation). */
   @Column({ type: 'uuid', nullable: true })
   brandId: string | null;
+
+  /** Что важнее для прямой продажи, если есть оба: сезонная цена группы рынка ('season') или плоская цена рынка ('market') */
+  @Column({ type: 'varchar', length: 16, default: 'season' })
+  pricingPriority: 'season' | 'market';
+
+  /** Гость младше этого возраста — ребёнок (12 → ребёнок до 11,99 лет); старше — считается взрослым при подборе размещения */
+  @Column({ type: 'smallint', default: 12 })
+  childMaxAge: number;
+
+  /** Сообщения WhatsApp от проживающих гостей → заявки Guest Care */
+  @Column({ type: 'boolean', default: false })
+  guestCareWhatsapp: boolean;
+
+  /** Детская политика прямых продаж: полосы возраста → бесплатно / % от цены взрослого (у контракта партнёра — своя) */
+  @Column({ type: 'jsonb', default: [] })
+  childPolicy: HotelChildPolicyRule[];
+
+  /** Ранний заезд / поздний выезд: % от цены ночи, начисляется в фолио автоматически (PMS-062) */
+  @Column({ type: 'numeric', precision: 6, scale: 2, default: 0 })
+  earlyCheckInFeePct: string;
+
+  @Column({ type: 'numeric', precision: 6, scale: 2, default: 0 })
+  lateCheckOutFeePct: string;
+
+  /** Часовой пояс отеля (IANA) — для бизнес-даты и времени ночного аудита */
+  @Column({ type: 'varchar', length: 64, default: 'Europe/Istanbul' })
+  timezone: string;
+
+  /** Бизнес-дата (PMS-092): открытый операционный день; null — ещё не было аудита, берётся сегодня по часовому поясу */
+  @Column({ type: 'date', nullable: true })
+  businessDate: string | null;
+
+  /** Последний закрытый аудитом день — изменения денег на эту дату и раньше только с правом override (PMS-094) */
+  @Column({ type: 'date', nullable: true })
+  lastAuditDate: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  nightAuditAuto: boolean;
+
+  @Column({ type: 'varchar', length: 5, default: '03:00' })
+  nightAuditTime: string;
+
+  /** Кому отправлять отчёт аудита (через запятую) */
+  @Column({ type: 'text', nullable: true })
+  nightAuditEmails: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

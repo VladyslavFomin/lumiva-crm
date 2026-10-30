@@ -25,6 +25,17 @@ export interface Hotel {
   coverPhotoUrl: string | null;
   quickLinks: Array<{ label: string; url: string }>;
   allowOverbooking: boolean;
+  /** Прямая продажа: что важнее — сезонная цена группы рынка или плоская цена рынка */
+  pricingPriority?: 'season' | 'market';
+  /** гость младше этого возраста — ребёнок (12 → до 11,99 лет) */
+  childMaxAge?: number;
+  /** детская политика прямых продаж */
+  childPolicy?: HotelChildPolicyRule[];
+  /** сообщения WhatsApp от проживающих → заявки Guest Care */
+  guestCareWhatsapp?: boolean;
+  accommodationTaxPct: string;
+  vatPct: string;
+  pricesIncludeTax: boolean;
   createdAt: string;
   updatedAt: string;
   roomsCount: number;
@@ -63,6 +74,9 @@ export interface HotelMarket {
   hotelId: string;
   code: string;
   name: string;
+  countryCodes: string[];
+  /** Группа рынков с оптовыми ценами, по которой считается сезонная цена для гостей этого рынка */
+  marketGroupId: string | null;
 }
 
 export interface HotelRoomMarketPrice {
@@ -106,6 +120,9 @@ export interface HotelDailyMarketRateGroup {
   grossPP: string;
   discountPct: string;
   netPP: string;
+  /** PP Ort. по факту — средняя цена на человека по броням этой даты; null — броней нет */
+  ppActual?: number | null;
+  ppActualCount?: number;
 }
 
 export interface HotelDailyMarketRateRow {
@@ -120,6 +137,9 @@ export interface HotelRoomOccupancyType {
   label: string;
   coefficient: string;
   paidChildCount: number;
+  /** состав размещения — форма брони подбирает размещение по взрослым + детям */
+  adults: number | null;
+  children: number;
   sortOrder: number;
 }
 
@@ -128,11 +148,16 @@ export interface HotelRoomPricingOccupancyRow {
   label: string;
   coefficient: string;
   paidChildCount: number;
+  adults?: number | null;
+  children?: number;
   pricesByPeriod: Record<string, number>;
   overriddenPeriods: string[];
 }
 
 export interface HotelRoomPricing {
+  /** группа рынков, по которой посчитаны цены, и опорная ли она (ручные цены периода — только у опорной) */
+  marketGroupId?: string | null;
+  isReferenceGroup?: boolean;
   roomType: {
     id: string;
     name: string;
@@ -152,10 +177,196 @@ export interface HotelRoomPricing {
   occupancyRows: HotelRoomPricingOccupancyRow[];
 }
 
+export type HotelPartnerType = 'tour_operator' | 'ota' | 'travel_agency' | 'corporate' | 'direct' | 'other';
+export const HOTEL_PARTNER_TYPES: HotelPartnerType[] = ['tour_operator', 'ota', 'travel_agency', 'corporate', 'direct', 'other'];
+export type HotelPartnerPaymentTerms = 'prepayment' | 'on_arrival' | 'postpayment';
+
+/** Партнёр по продажам (исторически — «агентство»). */
 export interface HotelAgency {
   id: string;
   tenantId: string;
   name: string;
+  type: HotelPartnerType;
+  status: 'active' | 'archived';
+  countryCode: string | null;
+  city: string | null;
+  code: string | null;
+  legalName: string | null;
+  taxId: string | null;
+  address: string | null;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  currency: string | null;
+  commissionPct: string;
+  paymentTerms: HotelPartnerPaymentTerms;
+  paymentDays: number;
+  creditLimit: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HotelPartnerStats {
+  bookings: number;
+  cancelled: number;
+  gross: number;
+  net: number;
+  commission: number;
+  lastBookingAt: string | null;
+  activeContracts: number;
+}
+
+export type HotelPartnerWithStats = HotelAgency & { stats: HotelPartnerStats };
+
+export type HotelBoardType = 'RO' | 'BB' | 'HB' | 'FB' | 'AI' | 'UAI';
+export const HOTEL_BOARD_TYPES: HotelBoardType[] = ['RO', 'BB', 'HB', 'FB', 'AI', 'UAI'];
+export type HotelContractStatus = 'draft' | 'active' | 'expired' | 'cancelled';
+
+export interface HotelContractRoom {
+  roomTypeId: string;
+  allotment: number;
+  releaseDays: number | null;
+  rate: string | null;
+  dateOverrides: Record<string, number>;
+  stopDates: string[];
+}
+export interface HotelCancellationRule {
+  daysBefore: number;
+  penaltyType: 'percent' | 'nights';
+  value: number;
+}
+export interface HotelContractPromotion {
+  id: string;
+  type: 'early_booking' | 'spo' | 'long_stay';
+  name: string;
+  discountPct: number;
+  bookBy: string | null;
+  stayFrom: string | null;
+  stayTo: string | null;
+  minNights: number;
+  combinable: boolean;
+}
+
+/** Та же логика, что promotionDiscount на сервере: суммируемые складываются, из остальных — лучшая. */
+export function contractPromotionDiscount(c: HotelContract | null, checkIn: string, checkOut: string, bookedOn: string) {
+  if (!c?.promotions?.length || !checkIn || !checkOut) return { pct: 0, applied: [] as HotelContractPromotion[] };
+  const nights = Math.max(1, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
+  const fits = c.promotions.filter(
+    (p) =>
+      nights >= (p.minNights || 1) &&
+      (!p.stayFrom || checkIn >= p.stayFrom) &&
+      (!p.stayTo || checkIn <= p.stayTo) &&
+      (p.type !== 'early_booking' || (!!p.bookBy && bookedOn <= p.bookBy)),
+  );
+  const best = fits.filter((p) => !p.combinable).sort((a, b) => b.discountPct - a.discountPct)[0];
+  const applied = [...fits.filter((p) => p.combinable), ...(best ? [best] : [])];
+  return { pct: Math.min(90, applied.reduce((s, p) => s + p.discountPct, 0)), applied };
+}
+
+export interface HotelChildPolicyRule {
+  /** от (включительно) — до (не включая): 0–2 = до 1,99 */
+  ageFrom: number;
+  ageTo: number;
+  type: 'free' | 'percent';
+  value: number;
+  /** только для N-го ребёнка (1 — старший) */
+  childNo?: number;
+}
+
+export interface HotelContract {
+  id: string;
+  tenantId: string;
+  agencyId: string;
+  hotelId: string;
+  name: string;
+  code: string | null;
+  status: HotelContractStatus;
+  validFrom: string;
+  validTo: string;
+  bookingFrom: string | null;
+  bookingTo: string | null;
+  pricing: 'net' | 'commission';
+  commissionPct: string;
+  boardType: HotelBoardType;
+  currency: string | null;
+  releaseDays: number;
+  guaranteed: boolean;
+  allowOverAllotment: boolean;
+  minStay: number;
+  marketCountries: string[];
+  rooms: HotelContractRoom[];
+  cancellationPolicy: HotelCancellationRule[];
+  childPolicy: HotelChildPolicyRule[];
+  promotions: HotelContractPromotion[];
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HotelContractUsage {
+  contract: HotelContract;
+  from: string;
+  to: string;
+  rows: Array<{
+    roomTypeId: string;
+    days: Array<{ date: string; allotment: number; sold: number; left: number; released: boolean; stop: boolean }>;
+    totalAllotment: number;
+    totalSold: number;
+    utilizationPct: number;
+  }>;
+}
+
+export type HotelRoomBlockStatus = 'tentative' | 'definite' | 'released' | 'cancelled';
+export interface HotelRoomBlock {
+  id: string;
+  tenantId: string;
+  hotelId: string;
+  roomTypeId: string;
+  agencyId: string | null;
+  contractId: string | null;
+  name: string;
+  status: HotelRoomBlockStatus;
+  dateFrom: string;
+  dateTo: string;
+  rooms: number;
+  cutoffDate: string;
+  ratePerNight: string | null;
+  boardType: string | null;
+  countryCode: string | null;
+  contactName: string | null;
+  notes: string | null;
+  pickup?: { bookings: number; roomNights: number; pickedRoomNights: number; pct: number };
+  holds?: boolean;
+}
+
+export interface HotelInventory {
+  hotelId: string;
+  from: string;
+  to: string;
+  nights: string[];
+  rows: Array<{
+    roomTypeId: string;
+    name: string;
+    capacity: number;
+    days: Array<{ date: string; capacity: number; sold: number; heldBlocks: number; heldAllot: number; allotted: number; free: number }>;
+    contracts: Array<{
+      contractId: string;
+      name: string;
+      partner: string;
+      guaranteed: boolean;
+      days: Array<{ date: string; allotment: number; sold: number; released: boolean; stop: boolean }>;
+    }>;
+    blocks: Array<{
+      blockId: string;
+      name: string;
+      status: HotelRoomBlockStatus;
+      partner: string | null;
+      cutoffDate: string;
+      days: Array<{ date: string; rooms: number; picked: number }>;
+    }>;
+  }>;
 }
 
 export type HotelRoomUnitHousekeepingStatus = 'clean' | 'dirty' | 'inspected' | 'out_of_order';
@@ -185,7 +396,13 @@ export type HotelReservationStatus =
   | 'pending'
   | 'checked_in'
   | 'checked_out'
-  | 'cancelled';
+  | 'cancelled'
+  | 'no_show';
+
+export const HOTEL_CANCEL_REASONS = ['guest_request', 'partner', 'no_payment', 'duplicate', 'overbooking', 'force_majeure', 'other'] as const;
+export type HotelCancelReason = (typeof HOTEL_CANCEL_REASONS)[number] | 'option_expired';
+export const HOTEL_COMP_REASONS = ['infotour', 'influencer', 'pr', 'partner_visit', 'staff', 'vip', 'compensation', 'other'] as const;
+export type HotelCompReason = (typeof HOTEL_COMP_REASONS)[number];
 export type HotelReservationPaidStatus = 'full' | 'partial' | 'none' | 'refunded';
 
 export interface HotelReservation {
@@ -196,11 +413,28 @@ export interface HotelReservation {
   agencyId: string | null;
   roomUnitId: string | null;
   occupancyTypeId: string | null;
+  /** бронь из менеджера каналов */
+  otaName?: string | null;
+  otaCode?: string | null;
+  channelBookingId?: string | null;
   guestName: string;
   guestEmail: string | null;
   guestPhone: string | null;
   pax: number;
+  children: number;
+  /** возрасты детей (null — не указан) */
+  childAges?: Array<number | null>;
   market: string | null;
+  marketId: string | null;
+  guestCountry: string | null;
+  saleCountry: string | null;
+  contractId: string | null;
+  blockId: string | null;
+  boardType: string | null;
+  commissionPct: string;
+  commissionAmount: string;
+  netTotal: string;
+  bookingCode?: string | null;
   checkIn: string;
   checkOut: string;
   costPerNight: string;
@@ -212,7 +446,21 @@ export interface HotelReservation {
   total: string;
   status: HotelReservationStatus;
   paidStatus: HotelReservationPaidStatus;
-  source: 'manual' | 'import';
+  source: 'manual' | 'import' | 'website' | 'demo' | 'walk_in' | 'channel';
+  cancelReason: HotelCancelReason | null;
+  cancelNote: string | null;
+  cancelledAt: string | null;
+  cancellationFee: string;
+  noShowAt: string | null;
+  optionUntil: string | null;
+  isComplimentary: boolean;
+  compReason: HotelCompReason | null;
+  compNote: string | null;
+  compValue: string;
+  accommodationFolio: 'guest' | 'partner';
+  extrasTotal: string;
+  priceMode: 'auto' | 'manual';
+  nightlyRates: HotelNightlyRate[] | null;
   checkedInAt: string | null;
   checkedOutAt: string | null;
   depositAmount: string;
@@ -241,6 +489,45 @@ export interface HotelReservationGuest {
   passportExpiry: string;
   age: string;
   note: string | null;
+  birthDate?: string;
+  gender?: 'M' | 'F' | '';
+  documentType?: 'passport' | 'id_card' | 'other' | '';
+  nationalityCode?: string | null;
+  tcKimlikNo?: string;
+  fatherName?: string;
+  motherName?: string;
+  kbsReportedAt?: string | null;
+  birthPlace?: string;
+  documentIssueDate?: string;
+  migrationCard?: string;
+  visaNumber?: string;
+  entryPurpose?: 'tourism' | 'business' | 'private' | 'work' | 'study' | 'other' | '';
+}
+
+/** Россия по свободному тексту страны отеля — тот же признак, что isRussia на сервере. */
+export const isRussiaCountry = (c: string | null | undefined) => /^(ru|rus|russia|россия|российская федерация|рф)$/i.test(String(c || '').trim());
+
+/** Результат распознавания фото паспорта / ID-карты (POST /hotels/reservations/scan-document) */
+export interface GuestDocumentScan {
+  documentType: 'passport' | 'id_card' | 'other';
+  surname: string;
+  givenNames: string;
+  fullName: string;
+  nationalityIso3: string | null;
+  nationalityName: string | null;
+  nationalityCode: string | null;
+  documentNumber: string;
+  birthDate: string | null;
+  expiryDate: string | null;
+  sex: 'M' | 'F' | null;
+  mrzVerified: boolean;
+  warnings: Array<'no_mrz' | 'mrz_checksum_failed' | 'expired'>;
+}
+
+export function scanGuestDocument(file: Blob, lang: string) {
+  const fd = new FormData();
+  fd.append('file', file, 'document.jpg');
+  return api.postForm<GuestDocumentScan>(`/hotels/reservations/scan-document?lang=${encodeURIComponent(lang)}`, fd);
 }
 
 export const HOTEL_RESERVATION_STATUS_LABELS_RU: Record<HotelReservationStatus, string> = {
@@ -249,6 +536,7 @@ export const HOTEL_RESERVATION_STATUS_LABELS_RU: Record<HotelReservationStatus, 
   checked_in: 'Заселён',
   checked_out: 'Выехал',
   cancelled: 'Отменена',
+  no_show: 'Не заехал',
 };
 
 export const HOTEL_RESERVATION_PAID_LABELS_RU: Record<HotelReservationPaidStatus, string> = {
@@ -303,6 +591,12 @@ export function fetchRoomTypes(hotelId: string) {
   return api.get<HotelRoomType[]>(`/hotels/${hotelId}/room-types`);
 }
 
+/** Типы номеров всех отелей тенанта (по одному запросу на отель). */
+export async function fetchAllRoomTypes(hotels?: Hotel[]) {
+  const list = hotels ?? (await fetchHotels());
+  return (await Promise.all(list.map((h) => fetchRoomTypes(h.id)))).flat();
+}
+
 export function fetchRoomType(id: string) {
   return api.get<HotelRoomType>(`/hotels/room-types/${id}`);
 }
@@ -329,11 +623,11 @@ export function fetchMarkets(hotelId: string) {
   return api.get<HotelMarket[]>(`/hotels/${hotelId}/markets`);
 }
 
-export function createMarket(hotelId: string, dto: { code: string; name: string }) {
+export function createMarket(hotelId: string, dto: { code: string; name: string; countryCodes?: string[] }) {
   return api.post<HotelMarket>(`/hotels/${hotelId}/markets`, dto);
 }
 
-export function updateMarket(id: string, dto: { code?: string; name?: string }) {
+export function updateMarket(id: string, dto: { code?: string; name?: string; countryCodes?: string[]; marketGroupId?: string | null }) {
   return api.patch<HotelMarket>(`/hotels/markets/${id}`, dto);
 }
 
@@ -402,8 +696,8 @@ export function deleteOccupancyType(id: string) {
   return api.delete<{ ok: boolean }>(`/hotels/occupancy-types/${id}`);
 }
 
-export function fetchRoomPricing(hotelId: string, roomTypeId: string) {
-  return api.get<HotelRoomPricing>(`/hotels/${hotelId}/room-types/${roomTypeId}/room-pricing`);
+export function fetchRoomPricing(hotelId: string, roomTypeId: string, marketGroupId?: string) {
+  return api.get<HotelRoomPricing>(`/hotels/${hotelId}/room-types/${roomTypeId}/room-pricing`, { params: marketGroupId ? { marketGroupId } : undefined });
 }
 
 export function setOccupancyOverride(occupancyTypeId: string, periodId: string, price: string | null) {
@@ -467,6 +761,14 @@ export function upsertDailyRate(
   );
 }
 
+/** «Заполнить диапазон» — одни значения на все даты from..to (weekdays: 1=пн … 7=вс; пусто — все дни) */
+export function bulkFillDailyRates(
+  roomTypeId: string,
+  dto: { marketGroupIds: string[]; from: string; to: string; weekdays?: number[]; budgetPP?: string; ppAvg?: string; grossPP?: string; discountPct?: string },
+) {
+  return api.post<{ updated: number }>(`/hotels/room-types/${roomTypeId}/daily-rates/bulk`, dto);
+}
+
 /* ---------- stop-sale (Цены и рынки — точечный стоп на дату) ---------- */
 
 export function fetchStopSaleDates(roomTypeId: string, dates: string[]) {
@@ -496,6 +798,76 @@ export function deleteAgency(id: string) {
   return api.delete<{ ok: boolean }>(`/hotels/agencies/${id}`);
 }
 
+/* ---------- partners / contracts / blocks / inventory ---------- */
+
+export function fetchPartners() {
+  return api.get<HotelPartnerWithStats[]>('/hotels/partners');
+}
+export function fetchPartner(id: string) {
+  return api.get<HotelAgency>(`/hotels/partners/${id}`);
+}
+export function createPartner(dto: Partial<HotelAgency>) {
+  return api.post<HotelAgency>('/hotels/partners', dto);
+}
+export function updatePartner(id: string, dto: Partial<HotelAgency>) {
+  return api.patch<HotelAgency>(`/hotels/partners/${id}`, dto);
+}
+export function deletePartner(id: string) {
+  return api.delete<{ ok: boolean; archived: boolean }>(`/hotels/partners/${id}`);
+}
+export function addTypicalPartners() {
+  return api.post<HotelAgency[]>('/hotels/partners/typical');
+}
+
+export function fetchContracts(filters: { agencyId?: string; hotelId?: string } = {}) {
+  return api.get<HotelContract[]>('/hotels/contracts', { params: filters });
+}
+export function fetchContract(id: string) {
+  return api.get<HotelContract>(`/hotels/contracts/${id}`);
+}
+export function fetchContractUsage(id: string, from?: string, to?: string) {
+  return api.get<HotelContractUsage>(`/hotels/contracts/${id}/usage`, { params: { from, to } });
+}
+export function createContract(dto: Partial<HotelContract>) {
+  return api.post<HotelContract>('/hotels/contracts', dto);
+}
+export function updateContract(id: string, dto: Partial<HotelContract>) {
+  return api.patch<HotelContract>(`/hotels/contracts/${id}`, dto);
+}
+export function duplicateContract(id: string) {
+  return api.post<HotelContract>(`/hotels/contracts/${id}/duplicate`);
+}
+export function deleteContract(id: string) {
+  return api.delete<{ ok: boolean; cancelled: boolean }>(`/hotels/contracts/${id}`);
+}
+
+export function fetchRoomBlocks(filters: { hotelId?: string; agencyId?: string } = {}) {
+  return api.get<HotelRoomBlock[]>('/hotels/blocks', { params: filters });
+}
+export function createRoomBlock(dto: Partial<HotelRoomBlock>) {
+  return api.post<HotelRoomBlock>('/hotels/blocks', dto);
+}
+export function updateRoomBlock(id: string, dto: Partial<HotelRoomBlock>) {
+  return api.patch<HotelRoomBlock>(`/hotels/blocks/${id}`, dto);
+}
+export function deleteRoomBlock(id: string) {
+  return api.delete<{ ok: boolean; cancelled: boolean }>(`/hotels/blocks/${id}`);
+}
+
+export function fetchHotelInventory(hotelId: string, from: string, to: string) {
+  return api.get<HotelInventory>(`/hotels/inventory/${hotelId}`, { params: { from, to } });
+}
+
+export function fetchDemoReservationsCount() {
+  return api.get<{ count: number }>('/hotels/demo-reservations');
+}
+export function generateDemoReservations(dto: { hotelIds?: string[]; count?: number }) {
+  return api.post<{ created: number }>('/hotels/demo-reservations', dto);
+}
+export function clearDemoReservations() {
+  return api.delete<{ deleted: number }>('/hotels/demo-reservations');
+}
+
 /* ---------- reservations ---------- */
 
 export interface HotelReservationFilters {
@@ -505,6 +877,10 @@ export interface HotelReservationFilters {
   status?: string;
   market?: string;
   search?: string;
+  contractId?: string;
+  blockId?: string;
+  guestCountry?: string;
+  source?: string;
 }
 
 export function fetchReservations(filters: HotelReservationFilters = {}) {
@@ -543,9 +919,10 @@ export function removeReservationPayment(id: string, paymentId: string) {
   return api.delete<HotelReservation>(`/hotels/reservations/${id}/payments/${paymentId}`);
 }
 
-export async function downloadReservationFolio(id: string): Promise<void> {
+export async function downloadReservationFolio(id: string, opts: { lang?: string; folio?: 'guest' | 'partner' } = {}): Promise<void> {
   const token = getAccessToken();
-  const res = await fetch(`${API_BASE}/hotels/reservations/${id}/folio.pdf`, {
+  const qs = new URLSearchParams({ ...(opts.lang ? { lang: opts.lang } : {}), ...(opts.folio ? { folio: opts.folio } : {}) }).toString();
+  const res = await fetch(`${API_BASE}/hotels/reservations/${id}/folio.pdf${qs ? `?${qs}` : ''}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!res.ok) throw new Error(`Не удалось скачать счёт: ${res.status}`);
@@ -581,12 +958,168 @@ export function fetchReservationPrice(roomTypeId: string, occupancyTypeId: strin
 export interface HotelFrontDeskToday {
   date: string;
   arrivals: HotelReservation[];
+  /** заехали в этот день (уже оформлены) — для прогресса */
+  arrived: HotelReservation[];
   departures: HotelReservation[];
+  departed: HotelReservation[];
+  inHouse: HotelReservation[];
+  /** выезд прошёл, гость всё ещё заселён */
+  overdue: HotelReservation[];
+  /** заезд прошёл, гость не заселён */
+  noShowCandidates: HotelReservation[];
+  optionsExpiring: HotelReservation[];
   inHouseCount: number;
+}
+
+export interface HotelCancellationQuote {
+  daysBefore: number;
+  total: number;
+  firstNight: number;
+  contractId: string | null;
+  contractName: string | null;
+  rule: { daysBefore: number; penaltyType: 'percent' | 'nights'; value: number } | null;
+  suggestedFee: number;
+  paid: number;
+}
+
+export function fetchCancellationQuote(id: string) {
+  return api.get<HotelCancellationQuote>(`/hotels/reservations/${id}/cancellation-quote`);
+}
+
+export function cancelReservation(id: string, dto: { reason: string; note?: string; fee?: string | number | null }) {
+  return api.post<HotelReservation>(`/hotels/reservations/${id}/cancel`, dto);
+}
+
+export function markNoShow(id: string, dto: { fee?: string | number | null; note?: string } = {}) {
+  return api.post<HotelReservation>(`/hotels/reservations/${id}/no-show`, dto);
+}
+
+export function bulkNoShow(ids: string[], feeMode: 'none' | 'first_night') {
+  return api.post<{ done: string[]; failed: Array<{ id: string; code: string; message: string }> }>('/hotels/frontdesk/no-show', { ids, feeMode });
+}
+
+export interface HotelWalkInInput {
+  hotelId: string;
+  roomUnitId: string;
+  nights: number;
+  guestName: string;
+  guestPhone?: string | null;
+  guestEmail?: string | null;
+  pax?: number;
+  children?: number;
+  adults?: number;
+  childAges?: Array<number | null>;
+  grossPerNight?: string;
+  boardType?: string | null;
+  guestCountry?: string | null;
+  notes?: string | null;
+  payment?: { amount: string; method: string; note?: string } | null;
+}
+
+export function walkIn(dto: HotelWalkInInput) {
+  return api.post<HotelReservation>('/hotels/frontdesk/walk-in', dto);
+}
+
+export interface HotelLifecycleBucket { reason: string; count: number; nights: number; amount: Record<string, number> }
+export interface HotelLifecycleReport {
+  from: string;
+  to: string;
+  complimentary: {
+    byReason: HotelLifecycleBucket[];
+    rows: Array<{ id: string; hotelId: string; guestName: string; checkIn: string; checkOut: string; nights: number; reason: HotelCompReason | null; note: string | null; value: number; currency: string; status: HotelReservationStatus }>;
+  };
+  cancellations: HotelLifecycleBucket[];
+  noShow: HotelLifecycleBucket;
+}
+
+export function fetchLifecycleReport(params: { hotelIds?: string; dateFrom?: string; dateTo?: string }) {
+  return api.get<HotelLifecycleReport>('/hotels/analytics/lifecycle', { params });
 }
 
 export function fetchFrontDeskToday(date?: string, hotelId?: string) {
   return api.get<HotelFrontDeskToday>('/hotels/frontdesk/today', { params: { date, hotelId } });
+}
+
+/* ---------- room rack (шахматка) ---------- */
+
+export interface HotelRackReservation {
+  id: string;
+  hotelId: string;
+  roomTypeId: string;
+  roomUnitId: string | null;
+  agencyId: string | null;
+  guestName: string;
+  guestPhone: string | null;
+  guestEmail: string | null;
+  guestCountry: string | null;
+  pax: number;
+  children: number;
+  checkIn: string;
+  checkOut: string;
+  status: HotelReservationStatus;
+  paidStatus: HotelReservationPaidStatus;
+  total: string;
+  paidAmount: string;
+  grossPerNight: string;
+  boardType: string | null;
+  bookingCode: string | null;
+  source: string;
+  blockId: string | null;
+  earlyCheckIn: boolean;
+  lateCheckOut: boolean;
+  notes: string | null;
+  guestsCount: number;
+  optionUntil: string | null;
+  isComplimentary: boolean;
+  extrasTotal: string;
+  cancellationFee: string;
+}
+
+export interface HotelRack {
+  hotel: { id: string; name: string; currency: string; checkInTime: string; checkOutTime: string };
+  from: string;
+  to: string;
+  days: number;
+  roomTypes: Array<{ id: string; name: string; quantity: number; stopSale: boolean }>;
+  units: Array<{ id: string; roomTypeId: string; label: string; housekeepingStatus: HotelRoomUnitHousekeepingStatus; note: string | null; active: boolean; floor: string | null; building: string | null; features: string[] }>;
+  outages: Array<{ id: string; roomUnitId: string; kind: HotelOutageKind; dateFrom: string; dateTo: string | null; reason: string; note: string | null }>;
+  agencies: Array<{ id: string; name: string }>;
+  reservations: HotelRackReservation[];
+}
+
+export function fetchRack(hotelId: string, from: string, days: number) {
+  return api.get<HotelRack>('/hotels/frontdesk/rack', { params: { hotelId, from, days } });
+}
+
+export interface HotelReservationMoveInput {
+  roomUnitId?: string | null;
+  checkIn?: string;
+  checkOut?: string;
+  reason?: string;
+  swap?: boolean;
+}
+
+/** 409 HOTEL_MOVE_CONFLICT кладёт в ApiError.payload: { canSwap, conflicts[] } */
+export interface HotelMoveConflict {
+  canSwap: boolean;
+  conflicts: Array<{ id: string; guestName: string; checkIn: string; checkOut: string; status: HotelReservationStatus }>;
+}
+
+export function moveReservation(id: string, dto: HotelReservationMoveInput) {
+  return api.post<{ reservation: HotelReservation; swapped: { id: string; roomUnitId: string | null } | null }>(`/hotels/reservations/${id}/move`, dto);
+}
+
+export interface HotelReservationHistoryEntry {
+  id: string;
+  createdAt: string;
+  action: 'create' | 'update' | 'delete';
+  summary: string | null;
+  changes: Array<{ field: string; oldValue: string | null; newValue: string | null }>;
+  actorName: string | null;
+}
+
+export function fetchReservationHistory(id: string) {
+  return api.get<HotelReservationHistoryEntry[]>(`/hotels/reservations/${id}/history`);
 }
 
 /* ---------- room units ---------- */
@@ -704,6 +1237,10 @@ export interface HotelAnalyticsFilters {
   dateTo?: string;
   marketId?: string;
   agencyId?: string;
+  guestCountry?: string;
+  saleCountry?: string;
+  partnerCountry?: string;
+  partnerType?: string;
 }
 
 export interface HotelAnalyticsKpis {
@@ -753,9 +1290,30 @@ export interface MarketRevenueRow {
 export interface AgencyAnalyticsRow {
   agencyId: string | null;
   name: string;
+  type: HotelPartnerType | null;
+  country: string | null;
   bookingsCount: number;
+  roomNights: number;
   revenue: number;
+  net: number;
+  commission: number;
   avgRate: number;
+  adr: number;
+  cancelPct: number;
+  sharePct: number;
+}
+
+export interface CountryAnalyticsRow {
+  country: string | null;
+  bookings: number;
+  cancelled: number;
+  roomNights: number;
+  guests: number;
+  gross: number;
+  net: number;
+  commission: number;
+  adr: number;
+  avgStay: number;
   sharePct: number;
 }
 
@@ -776,6 +1334,9 @@ export interface HotelAnalyticsSummary {
   markets: MarketRevenueRow[];
   agencies: AgencyAnalyticsRow[];
   guests: GuestDemographics;
+  countries: { guest: CountryAnalyticsRow[]; sale: CountryAnalyticsRow[]; partner: CountryAnalyticsRow[] };
+  partnerTypes: Array<{ type: string; bookings: number; gross: number; net: number; commission: number }>;
+  totals: { bookings: number; cancelled: number; roomNights: number; gross: number; net: number; commission: number };
 }
 
 export interface ArrivalDayRow {
@@ -1004,3 +1565,497 @@ export interface HotelPeriodPriceSummaryRow {
 export function fetchPeriodPriceSummary(hotelId: string) {
   return api.get<{ currency: string; rows: HotelPeriodPriceSummaryRow[] }>(`/hotels/${hotelId}/pricing/period-summary`);
 }
+
+/* ---------- файлы с авторизацией ---------- */
+
+/** Скачать файл с авторизацией (PDF, Excel) */
+export async function downloadAuthed(path: string, fallbackName: string) {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+  if (!res.ok) {
+    let msg = `${res.status}`;
+    try {
+      msg = (await res.json()).message || msg;
+    } catch {
+      /* не JSON */
+    }
+    throw new Error(msg);
+  }
+  const cd = res.headers.get('Content-Disposition') || '';
+  const m = /filename\*=UTF-8''([^;]+)/.exec(cd);
+  const name = m ? decodeURIComponent(m[1]) : fallbackName;
+  const url = window.URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+const qs = (o: Record<string, string | undefined>) =>
+  Object.entries(o)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v!)}`)
+    .join('&');
+
+/* ---------- журнал гостей (KBS / МВД) ---------- */
+
+export type GuestIssue =
+  | 'no_manifest' | 'missing_name' | 'missing_nationality' | 'missing_document' | 'missing_birthdate'
+  | 'missing_gender' | 'missing_tckn' | 'invalid_tckn' | 'missing_parents' | 'document_expired'
+  | 'missing_birthplace' | 'missing_issue_date' | 'missing_migration_card' | 'missing_entry_purpose';
+
+export interface GuestRegisterRow {
+  reservationId: string;
+  guestId: string | null;
+  hotelId: string;
+  roomType: string | null;
+  room: string | null;
+  checkIn: string;
+  checkOut: string;
+  status: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  nationality: string | null;
+  documentType: string | null;
+  documentNumber: string;
+  documentExpiry: string | null;
+  birthDate: string | null;
+  gender: string | null;
+  tcKimlikNo: string | null;
+  fatherName: string | null;
+  motherName: string | null;
+  reportedAt: string | null;
+  birthPlace: string | null;
+  documentIssueDate: string | null;
+  migrationCard: string | null;
+  visaNumber: string | null;
+  entryPurpose: string | null;
+  deadline: string | null;
+  issues: GuestIssue[];
+}
+
+export interface GuestRegister {
+  date: string;
+  mode: 'inhouse' | 'arrivals' | 'departures';
+  regime: 'kbs' | 'mvd';
+  rows: GuestRegisterRow[];
+  summary: { guests: number; ready: number; withIssues: number; reported: number; foreigners: number; overdue: number };
+}
+
+export function fetchGuestRegister(q: { hotelId?: string; date?: string; mode?: string; regime?: string }) {
+  return api.get<GuestRegister>('/hotels/guest-register', { params: q });
+}
+export function downloadGuestRegisterXlsx(q: { hotelId?: string; date?: string; mode?: string; regime?: string }) {
+  return downloadAuthed(`/hotels/guest-register.xlsx?${qs(q)}`, 'kbs.xlsx');
+}
+export function markGuestsReported(items: Array<{ reservationId: string; guestId: string | null }>, reported = true) {
+  return api.post<{ marked: number }>('/hotels/guest-register/mark', { items, reported });
+}
+
+/* ---------- выписка партнёру ---------- */
+
+export interface PartnerStatement {
+  partner: { id: string; name: string; legalName: string | null; email: string | null; currency: string | null; paymentTerms: string; paymentDays: number };
+  from: string;
+  to: string;
+  basis: 'checkout' | 'arrival';
+  currency: string | null;
+  rows: Array<{
+    reservationId: string;
+    bookingCode: string | null;
+    hotel: string;
+    guestName: string;
+    checkIn: string;
+    checkOut: string;
+    nights: number;
+    status: string;
+    gross: number;
+    commissionPct: number;
+    commission: number;
+    net: number;
+  }>;
+  totals: { bookings: number; roomNights: number; gross: number; commission: number; net: number };
+}
+
+export function fetchPartnerStatement(id: string, q: { from: string; to: string; basis: string }) {
+  return api.get<PartnerStatement>(`/hotels/partners/${id}/statement`, { params: q });
+}
+export function downloadPartnerStatement(id: string, q: { from: string; to: string; basis: string }, format: 'pdf' | 'xlsx') {
+  return downloadAuthed(`/hotels/partners/${id}/statement.${format}?${qs(q)}`, `statement.${format}`);
+}
+export function sendPartnerStatement(id: string, body: { from: string; to: string; basis: string; email?: string }) {
+  return api.post<{ ok: boolean; to: string }>(`/hotels/partners/${id}/statement/send`, body);
+}
+
+/** Как hotelTaxes на сервере: налог на проживание входит в базу НДС; итог = база × (1+налог) × (1+НДС). */
+export function hotelTaxes(amount: number, hotel: Pick<Hotel, 'accommodationTaxPct' | 'vatPct' | 'pricesIncludeTax'> | null | undefined) {
+  const a = Math.max(0, Number(hotel?.accommodationTaxPct) || 0) / 100;
+  const v = Math.max(0, Number(hotel?.vatPct) || 0) / 100;
+  const base = hotel?.pricesIncludeTax === false ? amount : amount / ((1 + a) * (1 + v));
+  const acc = base * a;
+  const vat = (base + acc) * v;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  return { has: a > 0 || v > 0, base: r2(base), accommodationTax: r2(acc), vat: r2(vat), total: r2(base + acc + vat), accommodationTaxPct: a * 100, vatPct: v * 100, included: hotel?.pricesIncludeTax !== false };
+}
+
+/* ---------- housekeeping (уборка, неработающие номера, неисправности, находки) ---------- */
+
+export const HOTEL_UNIT_FEATURES = ['connecting', 'accessible', 'smoking', 'non_smoking', 'pet_friendly', 'sea_view', 'balcony'] as const;
+export type HotelOutageKind = 'ooo' | 'oos';
+export const HOTEL_OUTAGE_REASONS = ['repair', 'renovation', 'deep_cleaning', 'pest_control', 'damage', 'staff_use', 'other'] as const;
+export const HOTEL_ISSUE_CATEGORIES = ['ac', 'plumbing', 'electric', 'tv', 'safe', 'furniture', 'door_lock', 'minibar', 'other'] as const;
+export const HOTEL_ISSUE_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export const HOTEL_LOST_CATEGORIES = ['documents', 'electronics', 'jewelry', 'clothing', 'money', 'bag', 'other'] as const;
+export type HotelHkTaskKind = 'departure' | 'stayover' | 'arrival' | 'vacant_dirty';
+export type HotelHkTaskStatus = 'pending' | 'in_progress' | 'done' | 'inspected' | 'skipped';
+export type HotelRoomState = 'vacant_clean' | 'vacant_dirty' | 'inspected' | 'occupied_clean' | 'occupied_dirty' | 'out_of_order' | 'out_of_service';
+
+export interface HotelStaffMember { id: string; name: string }
+
+export interface HotelHkTask {
+  id: string;
+  hotelId: string;
+  date: string;
+  roomUnitId: string;
+  kind: HotelHkTaskKind;
+  priority: number;
+  credits: number;
+  reservationId: string | null;
+  assigneeUserId: string | null;
+  status: HotelHkTaskStatus;
+  note: string | null;
+  startedAt: string | null;
+  doneAt: string | null;
+  inspectedAt: string | null;
+  unit: { id: string; label: string; floor: string | null; building: string | null; roomTypeName: string; housekeepingStatus: HotelRoomUnitHousekeepingStatus; state?: HotelRoomState } | null;
+  guestName: string | null;
+  pax?: number | null;
+  earlyCheckIn: boolean;
+  lateCheckOut: boolean;
+  nextArrival?: { guestName: string; earlyCheckIn: boolean } | null;
+  departed: boolean | null;
+  hotelName?: string;
+}
+
+export interface HotelHkPlan {
+  date: string;
+  editable: boolean;
+  tasks: HotelHkTask[];
+  staff: HotelStaffMember[];
+  load: Array<{ userId: string; tasks: number; credits: number; done: number }>;
+  roomStates: Partial<Record<HotelRoomState, number>>;
+  summary: { total: number; done: number; inspected: number; unassigned: number; credits: number };
+}
+
+export interface HotelRoomOutage {
+  id: string;
+  hotelId: string;
+  roomUnitId: string;
+  kind: HotelOutageKind;
+  dateFrom: string;
+  dateTo: string | null;
+  reason: string;
+  note: string | null;
+  issueId: string | null;
+  createdAt: string;
+}
+
+export interface HotelOutageConflict { id: string; guestName: string; checkIn: string; checkOut: string; status: HotelReservationStatus }
+
+export interface HotelMaintenanceIssue {
+  id: string;
+  hotelId: string;
+  roomUnitId: string | null;
+  category: string;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  status: 'open' | 'in_progress' | 'resolved' | 'cancelled';
+  description: string;
+  photoUrls: string[];
+  reportedBy: string | null;
+  assigneeUserId: string | null;
+  outageId: string | null;
+  resolution: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  repeated?: boolean;
+}
+
+export interface HotelLostItem {
+  id: string;
+  hotelId: string;
+  roomUnitId: string | null;
+  reservationId: string | null;
+  guestName: string | null;
+  category: string;
+  description: string;
+  foundPlace: string | null;
+  foundAt: string;
+  foundBy: string | null;
+  storageLocation: string | null;
+  photoUrls: string[];
+  status: 'stored' | 'returned' | 'disposed' | 'handed_over';
+  returnedTo: string | null;
+  closedAt: string | null;
+  notifiedAt: string | null;
+  note: string | null;
+}
+
+export type HotelUnitFull = HotelRoomUnit & { floor: string | null; building: string | null; features: string[] };
+
+const HK = '/hotels/housekeeping';
+export const fetchHkStaff = () => api.get<HotelStaffMember[]>(`${HK}/staff`);
+export const fetchHkPlan = (hotelId: string, date: string) => api.get<HotelHkPlan>(`${HK}/plan`, { params: { hotelId, date } });
+export const autoAssignHk = (dto: { hotelId: string; date: string; userIds: string[]; mode?: 'unassigned' | 'all' }) => api.post<{ assigned: number }>(`${HK}/plan/auto-assign`, dto);
+export const fetchMyHkTasks = (date?: string) => api.get<{ date: string; tasks: HotelHkTask[] }>(`${HK}/my`, { params: { date } });
+export const assignHkTask = (id: string, userId: string | null) => api.patch<HotelHkTask>(`${HK}/tasks/${id}/assign`, { userId });
+export const hkTaskAction = (id: string, action: 'start' | 'done' | 'skip' | 'reopen' | 'inspect', note?: string) => api.post<HotelHkTask>(`${HK}/tasks/${id}/${action}`, { note });
+export const fetchHkUnits = (hotelId: string) => api.get<{ units: HotelUnitFull[]; roomTypes: Array<{ id: string; name: string }> }>(`${HK}/units`, { params: { hotelId } });
+export const updateHkUnit = (id: string, dto: { floor?: string | null; building?: string | null; features?: string[]; note?: string | null }) => api.patch<HotelUnitFull>(`${HK}/units/${id}`, dto);
+export const floorsFromLabels = (hotelId: string, overwrite = false) => api.post<{ changed: number }>(`${HK}/units/floors-from-labels`, { hotelId, overwrite });
+export const fetchOutages = (hotelId: string, includeEnded = false) => api.get<HotelRoomOutage[]>(`${HK}/outages`, { params: { hotelId, includeEnded: includeEnded ? '1' : undefined } });
+export const createOutage = (dto: { roomUnitId: string; kind: HotelOutageKind; dateFrom: string; dateTo: string | null; reason: string; note?: string }) => api.post<{ outage: HotelRoomOutage; conflicts: HotelOutageConflict[] }>(`${HK}/outages`, dto);
+export const updateOutage = (id: string, dto: Partial<HotelRoomOutage>) => api.patch<{ outage: HotelRoomOutage; conflicts: HotelOutageConflict[] }>(`${HK}/outages/${id}`, dto);
+export const endOutage = (id: string) => api.post<{ outage?: HotelRoomOutage; removed?: boolean }>(`${HK}/outages/${id}/end`, {});
+export const deleteOutage = (id: string) => api.delete<{ ok: boolean }>(`${HK}/outages/${id}`);
+export const fetchIssues = (hotelId: string, status?: string) => api.get<HotelMaintenanceIssue[]>(`${HK}/issues`, { params: { hotelId, status } });
+export const createIssue = (dto: { hotelId: string; roomUnitId?: string | null; category: string; priority: string; description: string; photoUrls?: string[]; makeOoo?: boolean; assigneeUserId?: string | null }) =>
+  api.post<{ issue: HotelMaintenanceIssue; conflicts: HotelOutageConflict[] }>(`${HK}/issues`, dto);
+export const updateIssue = (id: string, dto: Partial<HotelMaintenanceIssue>) => api.patch<HotelMaintenanceIssue>(`${HK}/issues/${id}`, dto);
+export const fetchLostFound = (hotelId: string, status?: string, search?: string) => api.get<HotelLostItem[]>(`${HK}/lost-found`, { params: { hotelId, status, search } });
+export const createLostItem = (dto: Partial<HotelLostItem> & { hotelId: string }) => api.post<HotelLostItem>(`${HK}/lost-found`, dto);
+export const updateLostItem = (id: string, dto: Partial<HotelLostItem>) => api.patch<HotelLostItem>(`${HK}/lost-found/${id}`, dto);
+export const notifyLostItem = (id: string) => api.post<HotelLostItem>(`${HK}/lost-found/${id}/notify`, {});
+export const deleteLostItem = (id: string) => api.delete<{ ok: boolean }>(`${HK}/lost-found/${id}`);
+export function uploadHkPhoto(file: Blob) {
+  const form = new FormData();
+  form.append('file', file, (file as File).name || 'photo.jpg');
+  return api.postForm<{ url: string }>(`${HK}/photos`, form);
+}
+
+/* ---------- фолио, касса, ночной аудит, отчёты ---------- */
+
+export type HotelFolioKind = 'guest' | 'partner';
+export const HOTEL_FOLIO_LINE_KINDS = ['extra', 'board', 'minibar', 'early_checkin', 'late_checkout', 'fee', 'discount', 'adjustment'] as const;
+export const HOTEL_EXTRA_CATEGORIES = ['fnb', 'minibar', 'spa', 'transfer', 'excursion', 'laundry', 'room', 'other'] as const;
+
+export interface HotelFolioLine {
+  id: string;
+  reservationId: string;
+  folio: HotelFolioKind;
+  serviceDate: string;
+  kind: string;
+  extraServiceId: string | null;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  amount: string;
+  voidOfId: string | null;
+  voided: boolean;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface HotelFolioSummary {
+  currency: string;
+  accommodation: number;
+  accommodationFolio: HotelFolioKind;
+  taxes: { base: number; accommodationTax: number; vat: number; accommodationTaxPct: number; vatPct: number; pricesIncludeTax: boolean };
+  folios: Record<HotelFolioKind, { charges: number; extras: number; payments: number; balance: number }>;
+  extrasTotal: number;
+  paymentsTotal: number;
+  balance: number;
+}
+
+export interface HotelFolio {
+  lines: HotelFolioLine[];
+  summary: HotelFolioSummary;
+  businessDate: string;
+  lastAuditDate: string | null;
+  payments: Array<HotelReservationPayment & { folio?: HotelFolioKind; shiftId?: string | null }>;
+}
+
+export const fetchFolio = (id: string) => api.get<HotelFolio>(`/hotels/reservations/${id}/folio`);
+export const postFolioLine = (id: string, dto: { folio: HotelFolioKind; serviceDate?: string; kind: string; extraServiceId?: string | null; description?: string; quantity?: string; unitPrice?: string }) =>
+  api.post<HotelFolioLine>(`/hotels/reservations/${id}/folio/lines`, dto);
+export const voidFolioLine = (id: string, lineId: string, reason: string) => api.post<HotelFolioLine>(`/hotels/reservations/${id}/folio/lines/${lineId}/void`, { reason });
+export const setFolioRouting = (id: string, accommodationFolio: HotelFolioKind) => api.patch<HotelReservation>(`/hotels/reservations/${id}/folio-routing`, { accommodationFolio });
+export const addFolioPayment = (id: string, dto: { date?: string; amount: string; method: string; note?: string; folio?: HotelFolioKind; refund?: boolean }) =>
+  api.post<HotelReservation>(`/hotels/reservations/${id}/payments`, dto);
+
+export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number }
+export interface HotelCashShift {
+  id: string; hotelId: string; status: 'open' | 'closed'; openedBy: string | null; openedAt: string; openingCash: string;
+  closedBy: string | null; closedAt: string | null; countedCash: string | null; expectedCash: string | null; difference: string | null; totals: Record<string, number> | null; note: string | null;
+}
+export interface HotelShiftPayment { reservationId: string; guestName: string; bookingCode: string | null; id: string; date: string; amount: number; method: string; note: string | null; createdAt?: string }
+
+const CASH = '/hotels/cashier';
+export const fetchCashierSettings = (hotelId: string) => api.get<{ earlyCheckInFeePct: string; lateCheckOutFeePct: string; currency: string; businessDate: string; lastAuditDate: string | null }>(`${CASH}/settings`, { params: { hotelId } });
+export const saveCashierSettings = (dto: { hotelId: string; earlyCheckInFeePct?: string; lateCheckOutFeePct?: string }) => api.patch<{ earlyCheckInFeePct: string; lateCheckOutFeePct: string }>(`${CASH}/settings`, dto);
+export const fetchExtras = (hotelId: string, all = false) => api.get<HotelExtraService[]>(`${CASH}/extras`, { params: { hotelId, all: all ? '1' : undefined } });
+export const createExtra = (dto: Partial<HotelExtraService> & { hotelId: string }) => api.post<HotelExtraService>(`${CASH}/extras`, dto);
+export const updateExtra = (id: string, dto: Partial<HotelExtraService>) => api.patch<HotelExtraService>(`${CASH}/extras/${id}`, dto);
+export const deleteExtra = (id: string) => api.delete<{ ok: boolean }>(`${CASH}/extras/${id}`);
+export const fetchCurrentShift = (hotelId: string) => api.get<{ shift: HotelCashShift | null; payments: HotelShiftPayment[]; totals: Record<string, number>; expectedCash: number | null }>(`${CASH}/shift`, { params: { hotelId } });
+export const openShift = (hotelId: string, openingCash: string) => api.post<HotelCashShift>(`${CASH}/shift/open`, { hotelId, openingCash });
+export const closeShift = (hotelId: string, countedCash: string, note?: string) => api.post<HotelCashShift>(`${CASH}/shift/close`, { hotelId, countedCash, note });
+export const fetchShifts = (hotelId: string) => api.get<HotelCashShift[]>(`${CASH}/shifts`, { params: { hotelId } });
+export const fetchShiftDetail = (id: string) => api.get<{ shift: HotelCashShift; payments: HotelShiftPayment[]; totals: Record<string, number> }>(`${CASH}/shifts/${id}`);
+
+export interface HotelAuditSnapshot {
+  available: number; sold: number; comp: number; occupancyPct: number; roomRevenue: number; adr: number; revpar: number;
+  extrasRevenue: number; feesRevenue: number; totalRevenue: number; arrivals: number; departures: number; noShows: number; cancellations: number;
+  inHouseGuests: number; payments: Record<string, number>; paymentsTotal: number; openBalance: number; outOfOrder: number;
+  byRoomType: Array<{ roomTypeId: string; name: string; available: number; sold: number; revenue: number }>; currency: string;
+}
+export interface HotelAuditBrief { id: string; guestName: string; checkIn: string; checkOut: string; status: HotelReservationStatus; roomUnitId: string | null; bookingCode: string | null; balance?: number }
+export interface HotelNightAuditStatus {
+  auditDate: string;
+  today: string;
+  canRun: boolean;
+  lastAuditDate: string | null;
+  checks: { pendingArrivals: HotelAuditBrief[]; pendingDepartures: HotelAuditBrief[]; unpaidDepartures: HotelAuditBrief[]; openShift: { id: string; openedAt: string } | null };
+  history: Array<{ id: string; businessDate: string; mode: 'manual' | 'auto'; completedAt: string; snapshot: HotelAuditSnapshot; reportSentAt: string | null; checks: Record<string, any> }>;
+  settings: { nightAuditAuto: boolean; nightAuditTime: string; timezone: string; nightAuditEmails: string; currency: string };
+}
+const NA = '/hotels/night-audit';
+export const fetchNightAuditStatus = (hotelId: string) => api.get<HotelNightAuditStatus>(`${NA}/status`, { params: { hotelId } });
+export const runNightAudit = (dto: { hotelId: string; autoNoShow?: boolean; noShowFee?: 'none' | 'first_night'; ignoreDepartures?: boolean; ignoreOpenShift?: boolean }) => api.post<{ id: string; businessDate: string }>(`${NA}/run`, dto);
+export const saveNightAuditSettings = (dto: { hotelId: string; nightAuditAuto?: boolean; nightAuditTime?: string; timezone?: string; nightAuditEmails?: string }) => api.patch<HotelNightAuditStatus>(`${NA}/settings`, dto);
+export const sendNightAuditReport = (id: string) => api.post<{ sent: boolean; reason?: string }>(`${NA}/audits/${id}/send`, {});
+
+export interface HotelPerfRow { period: string; available: number; sold: number; comp: number; revenue: number; occupancyPct: number; adr: number; revpar: number }
+export interface HotelPerformanceReport { hotel: { id: string; name: string; currency: string }; from: string; to: string; groupBy: 'day' | 'month'; rows: HotelPerfRow[]; byRoomType: Array<HotelPerfRow & { roomTypeId: string; name: string }>; total: HotelPerfRow }
+export interface HotelForecastRow { period: string; available: number; otbRooms: number; otbRevenue: number; stlyRooms: number; stlyRevenue: number; lyRooms: number; lyRevenue: number; otbOccPct: number; stlyOccPct: number }
+export interface HotelForecastReport { hotel: { id: string; name: string; currency: string }; today: string; to: string; horizon: number; groupBy: 'day' | 'month'; rows: HotelForecastRow[]; total: Record<string, number> }
+export interface HotelPickupRow { period: string; otb: number; pickup1: number; pickup7: number; pickup30: number; new30: number; cancelled30: number }
+export interface HotelPickupReport { hotel: { id: string; name: string }; today: string; to: string; horizon: number; groupBy: 'day' | 'month'; rows: HotelPickupRow[]; total: Omit<HotelPickupRow, 'period'> }
+export const fetchPerformance = (q: { hotelId: string; from: string; to: string; groupBy: 'day' | 'month'; roomTypeId?: string }) => api.get<HotelPerformanceReport>('/hotels/reports/performance', { params: q });
+export const fetchForecast = (hotelId: string, horizon: number) => api.get<HotelForecastReport>('/hotels/reports/forecast', { params: { hotelId, horizon } });
+export const fetchPickup = (hotelId: string, horizon: number) => api.get<HotelPickupReport>('/hotels/reports/pickup', { params: { hotelId, horizon } });
+
+/* ---------- единый расчёт цены ---------- */
+
+export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base';
+export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number }
+export interface HotelQuote {
+  nights: HotelNightlyRate[];
+  total: number;
+  average: number;
+  seasonAverage: number;
+  ppAverage?: number;
+  occupancyTypeId: string | null;
+  guests?: { adults: number; children: number; grown: number; childMaxAge: number } | null;
+  childLines?: Array<{ childNo: number; age: number | null; share: number; reason: 'rule' | 'no_rule' | 'no_age' }>;
+  childPolicySource?: 'contract' | 'hotel' | null;
+  marketId: string | null;
+  marketGroupId: string | null;
+  marketGroupGuessed: boolean;
+  priority: 'season' | 'market';
+  currency: string;
+  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy'; dates: string[] }>;
+}
+export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null> }) =>
+  api.get<HotelQuote>('/hotels/reservations/quote', { params: { ...q, ...(childAges?.length ? { childAges: childAges.map((a) => (a === null ? '-' : String(a))).join(',') } : {}) } });
+export const autoMapMarketGroups = (hotelId: string) => api.post<{ mapped: number; unmapped: number }>(`/hotels/${hotelId}/markets/auto-groups`, {});
+
+
+/* ---------- живые обновления PMS (Server-Sent Events) и блокировки редактирования ---------- */
+
+export type HotelLiveEntity = 'reservation' | 'unit' | 'housekeeping' | 'outage' | 'request';
+export interface HotelEditLock { reservationId: string; userId: string; userName: string; expiresAt: number }
+export type HotelLiveEvent =
+  | { type: 'changed'; entity: HotelLiveEntity; id: string; hotelId: string | null; action: 'insert' | 'update' | 'remove' }
+  | { type: 'locks'; locks: HotelEditLock[] }
+  | { type: 'ping' };
+
+export const issueLiveTicket = () => api.post<{ ticket: string; expiresInSec: number }>('/hotels/live/ticket', {});
+export const acquireReservationLock = (reservationId: string) =>
+  api.post<{ ok: boolean; lock: HotelEditLock }>(`/hotels/live/locks/${reservationId}`, {});
+export const releaseReservationLock = (reservationId: string) => api.delete<{ ok: boolean }>(`/hotels/live/locks/${reservationId}`);
+
+/* ---------- менеджер каналов (Channex → Booking.com, Expedia, Airbnb…) ---------- */
+
+export interface HotelChannelMapping {
+  id?: string;
+  roomTypeId: string;
+  occupancyTypeId: string | null;
+  marketGroupId: string | null;
+  externalRoomTypeId: string;
+  externalRatePlanId: string | null;
+  externalName?: string | null;
+  active: boolean;
+}
+export interface HotelChannelConnection {
+  id: string;
+  hotelId: string;
+  provider: 'channex';
+  environment: 'production' | 'staging' | 'test';
+  status: 'active' | 'paused' | 'error';
+  apiKeyMasked: string | null;
+  externalPropertyId: string | null;
+  externalPropertyName: string | null;
+  settings: { pushDays?: number; reserveRooms?: number };
+  lastPushAt: string | null;
+  lastPullAt: string | null;
+  lastError: string | null;
+  mappings: HotelChannelMapping[];
+}
+export interface HotelChannelRemote {
+  properties: Array<{ id: string; title: string; currency: string | null }>;
+  roomTypes: Array<{ id: string; title: string; rooms: number | null }>;
+  ratePlans: Array<{ id: string; title: string; roomTypeId: string | null; currency: string | null }>;
+}
+export interface HotelChannelLogRow { id: string; kind: 'push' | 'pull' | 'booking' | 'test'; ok: boolean; message: string; createdAt: string }
+
+export const fetchChannels = (hotelId?: string) => api.get<HotelChannelConnection[]>('/hotels/channels', { params: hotelId ? { hotelId } : {} });
+export const connectChannel = (dto: { hotelId: string; provider: 'channex'; apiKey?: string; environment: string; externalPropertyId?: string }) =>
+  api.post<{ connection: HotelChannelConnection; properties: HotelChannelRemote['properties'] }>('/hotels/channels', dto);
+export const updateChannel = (id: string, dto: { status?: 'active' | 'paused'; settings?: HotelChannelConnection['settings']; externalPropertyId?: string }) =>
+  api.patch<HotelChannelConnection>(`/hotels/channels/${id}`, dto);
+export const deleteChannel = (id: string) => api.delete<{ ok: boolean }>(`/hotels/channels/${id}`);
+export const fetchChannelRemote = (id: string) => api.get<HotelChannelRemote>(`/hotels/channels/${id}/remote`);
+export const saveChannelMappings = (id: string, mappings: HotelChannelMapping[]) => api.put<HotelChannelMapping[]>(`/hotels/channels/${id}/mappings`, { mappings });
+export const pushChannel = (id: string) => api.post<{ ok: boolean; availability: number; rates: number; stops: number }>(`/hotels/channels/${id}/push`, {});
+export const pullChannel = (id: string) => api.post<{ revisions: number; created: number; modified: number; cancelled: number; failed: number }>(`/hotels/channels/${id}/pull`, {});
+export const fetchChannelLogs = (id: string) => api.get<HotelChannelLogRow[]>(`/hotels/channels/${id}/logs`);
+
+/* ---------- Guest Care: заявки гостей (QR в номере, WhatsApp, со слов гостя) ---------- */
+
+export type HotelGuestRequestCategory = 'towels' | 'cleaning' | 'amenities' | 'minibar' | 'maintenance' | 'noise' | 'other' | 'message';
+export type HotelGuestRequestStatus = 'new' | 'in_progress' | 'done' | 'cancelled';
+export interface HotelGuestRequest {
+  id: string;
+  hotelId: string;
+  roomUnitId: string | null;
+  reservationId: string | null;
+  number: number;
+  source: 'qr' | 'whatsapp' | 'staff';
+  category: HotelGuestRequestCategory;
+  subcategory: string | null;
+  text: string | null;
+  guestName: string | null;
+  lang: string | null;
+  status: HotelGuestRequestStatus;
+  assigneeUserId: string | null;
+  maintenanceIssueId: string | null;
+  staffNote: string | null;
+  startedAt: string | null;
+  doneAt: string | null;
+  createdAt: string;
+  room: string | null;
+}
+export const HOTEL_GUEST_HK_CATEGORIES: HotelGuestRequestCategory[] = ['towels', 'cleaning', 'amenities', 'minibar'];
+export const fetchGuestRequests = (q: { hotelId?: string; status?: string; days?: number }) =>
+  api.get<{ requests: HotelGuestRequest[]; staff: Array<{ id: string; name: string }> }>('/hotels/guest-care', { params: q });
+export const fetchMyGuestRequests = () => api.get<HotelGuestRequest[]>('/hotels/guest-care/my');
+export const createGuestRequest = (dto: { hotelId: string; roomUnitId?: string | null; category: HotelGuestRequestCategory; subcategory?: string; text?: string }) =>
+  api.post<HotelGuestRequest>('/hotels/guest-care', dto);
+export const updateGuestRequest = (id: string, dto: { status?: HotelGuestRequestStatus; assigneeUserId?: string | null; staffNote?: string | null }) =>
+  api.patch<HotelGuestRequest>(`/hotels/guest-care/${id}`, dto);
+export const fetchGuestQrLinks = (hotelId: string) => api.get<Array<{ roomUnitId: string; label: string; floor: string | null; token: string }>>(`/hotels/guest-care/qr/${hotelId}`);
+export const rotateGuestQr = (roomUnitId: string) => api.post<{ roomUnitId: string; token: string }>(`/hotels/guest-care/qr/rotate/${roomUnitId}`, {});

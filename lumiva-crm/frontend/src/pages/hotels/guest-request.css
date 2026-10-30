@@ -1,0 +1,31 @@
+/* Публичная страница «Заявка гостя» (QR в номере) — телефон в первую очередь, монохром дизайн-системы */
+.gr{min-height:100vh;background:#f5f5f3;color:#222;font-family:var(--ff-text, 'Inter', system-ui, sans-serif);padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.gr *{box-sizing:border-box}
+.gr-head{width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.gr-hotel{font-family:var(--ff-heading, inherit);font-size:20px;font-weight:600}
+.gr-room{font-size:13px;color:#777;margin-top:2px}
+.gr-langs{display:flex;gap:4px}
+.gr-langs button{border:1px solid #e3e3e0;background:#fff;border-radius:8px;height:30px;min-width:38px;font-size:12px;cursor:pointer;color:#555}
+.gr-langs button.on{background:#222;border-color:#222;color:#fff}
+.gr-card{width:100%;max-width:520px;background:#fff;border:1px solid #ebebe8;border-radius:16px;padding:20px}
+.gr-card h1{font-family:var(--ff-heading, inherit);font-size:22px;margin:0 0 4px;font-weight:600}
+.gr-sub{color:#777;font-size:14px;margin:0 0 16px}
+.gr-center{text-align:center;padding:36px 20px}
+.gr-center p{color:#777;font-size:14px}
+.gr-cats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gr-cats button{display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 12px;border:1px solid #e3e3e0;border-radius:12px;background:#fff;color:#222;font-size:14px;text-align:left;cursor:pointer;font-family:inherit}
+.gr-cats button.on{border-color:#222;box-shadow:inset 0 0 0 1px #222;background:#fafafa}
+.gr-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.gr-subs button{border:1px solid #e3e3e0;border-radius:999px;background:#fff;padding:8px 12px;font-size:13px;cursor:pointer;font-family:inherit;color:#555}
+.gr-subs button.on{background:#222;border-color:#222;color:#fff}
+.gr-l{display:block;font-size:12px;color:#777;margin:14px 0 6px}
+.gr textarea,.gr input{width:100%;border:1px solid #e3e3e0;border-radius:10px;padding:12px;font-size:16px;font-family:inherit;color:#222;background:#fff}
+.gr textarea:focus,.gr input:focus{outline:none;border-color:#222}
+.gr-btn{width:100%;height:50px;margin-top:16px;border:0;border-radius:12px;background:#222;color:#fff;font-size:16px;font-weight:500;cursor:pointer;font-family:inherit}
+.gr-btn:disabled{opacity:.45;cursor:default}
+.gr-btn.ghost{background:#fff;color:#222;border:1px solid #e3e3e0;width:auto;padding:0 20px}
+.gr-err{margin-top:10px;color:#9a1f31;font-size:13px}
+.gr-ok{width:56px;height:56px;border-radius:50%;background:#eaf4ee;color:#175c3d;font-size:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.gr-foot{font-size:11px;color:#999;max-width:520px;text-align:center}
+.gr-spin{width:28px;height:28px;border:3px solid #e3e3e0;border-top-color:#222;border-radius:50%;margin:0 auto;animation:gr-spin .8s linear infinite}
+@keyframes gr-spin{to{transform:rotate(360deg)}}

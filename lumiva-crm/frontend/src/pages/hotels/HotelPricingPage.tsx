@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Toggle } from '../../components/ui';
 import { MainLayout } from '../../layout/MainLayout';
@@ -18,6 +19,7 @@ import {
   updatePricingPeriod,
   deletePricingPeriod,
   fetchDailyRates,
+  bulkFillDailyRates,
   upsertDailyRate,
   fetchStopSaleDates,
   setStopSaleDate,
@@ -31,6 +33,7 @@ import {
   type HotelPricingImportPreview,
 } from '../../api/hotels';
 import './hotels-design.css';
+import { DateInput } from '../../components/ui/DateInput';
 
 function fmtEUR(v: number) {
   return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -59,26 +62,171 @@ interface CellPos {
   col: number;
 }
 
+/** Модалка периода (раньше — абсолютный поповер у чипа, вылезал за край экрана справа). */
 const PeriodEditor: React.FC<{
   initial?: HotelPricingPeriod;
   onSave: (startDate: string, endDate: string) => void;
   onCancel: () => void;
 }> = ({ initial, onSave, onCancel }) => {
   const { t } = useTranslation();
+  const pe = (key: string) => t(`crm.hotels.pricing.periodEditor.${key}`);
   const [start, setStart] = useState(initial?.startDate || '');
   const [end, setEnd] = useState(initial?.endDate || '');
+  const invalid = !!start && !!end && end < start;
   return (
-    <div className="period-editor">
-      <div style={{ fontSize: 13, fontWeight: 600 }}>{initial ? t('crm.hotels.pricing.periodEditor.editTitle') : t('crm.hotels.pricing.periodEditor.newTitle')}</div>
-      <div className="row2">
-        <div><label>{t('crm.hotels.pricing.periodEditor.startLabel')}</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></div>
-        <div><label>{t('crm.hotels.pricing.periodEditor.endLabel')}</label><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+    <SmallDialog
+      title={initial ? pe('editTitle') : pe('newTitle')}
+      onClose={onCancel}
+      foot={
+        <>
+          <button type="button" className="btn" onClick={onCancel}>{pe('cancel')}</button>
+          <button type="button" className="btn btn-primary" disabled={!start || !end || invalid} onClick={() => onSave(start, end)}>{pe('save')}</button>
+        </>
+      }
+    >
+      <div className="bk-row2">
+        <div>
+          <label>{pe('startLabel')}</label>
+          <DateInput value={start} onChange={(v) => { setStart(v); if (v && (!end || end < v)) setEnd(v); }} clearable={false} />
+        </div>
+        <div>
+          <label>{pe('endLabel')}</label>
+          <DateInput value={end} min={start || undefined} onChange={(v) => setEnd(v)} clearable={false} />
+        </div>
       </div>
-      <div className="period-editor-foot">
-        <button className="btn btn-sm" style={{ flex: 1 }} onClick={onCancel}>{t('crm.hotels.pricing.periodEditor.cancel')}</button>
-        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => start && end && onSave(start, end)}>{t('crm.hotels.pricing.periodEditor.save')}</button>
+      {invalid && <div className="htl-hint" style={{ color: 'var(--danger, #c0392b)' }}>{pe('endBeforeStart')}</div>}
+    </SmallDialog>
+  );
+};
+
+/** Новая группа рынков — вместо системного window.prompt. */
+const MarketGroupDialog: React.FC<{ onSave: (name: string) => Promise<void>; onCancel: () => void }> = ({ onSave, onCancel }) => {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = () => {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    onSave(name.trim()).finally(() => setBusy(false));
+  };
+  return (
+    <SmallDialog
+      title={t('crm.hotels.pricing.addMarketGroupTitle')}
+      onClose={onCancel}
+      foot={
+        <>
+          <button type="button" className="btn" onClick={onCancel}>{t('crm.hotels.pricing.periodEditor.cancel')}</button>
+          <button type="button" className="btn btn-primary" disabled={!name.trim() || busy} onClick={submit}>{t('crm.hotels.pricing.addGroupSave')}</button>
+        </>
+      }
+    >
+      <label>{t('crm.hotels.pricing.groupNameLabel')}</label>
+      <input autoFocus value={name} maxLength={80} placeholder={t('crm.hotels.pricing.groupNamePh')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+      <div className="htl-hint">{t('crm.hotels.pricing.groupNameHint')}</div>
+    </SmallDialog>
+  );
+};
+
+const SmallDialog: React.FC<{ title: string; onClose: () => void; foot: React.ReactNode; children: React.ReactNode }> = ({ title, onClose, foot, children }) => {
+  const { t } = useTranslation();
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  }, [onClose]);
+  return createPortal(
+    <div className="px-scope">
+      <div className="lv-backdrop bk-modal-back" onClick={onClose} />
+      <div className="bk-modal narrow" role="dialog" aria-modal="true">
+        <div className="bk-modal-head">
+          <h3>{title}</h3>
+          <button type="button" onClick={onClose} aria-label={t('crm.hotels.pricing.periodEditor.cancel')}><Ic d={HTL_ICON.x} size={16} /></button>
+        </div>
+        <div className="bk-modal-body">{children}</div>
+        <div className="bk-modal-foot">{foot}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
+  );
+};
+
+/** «Заполнить диапазон»: одни Brüt/İndirim (и при желании Bütçe/PP Ort.) на все даты периода для выбранных групп. */
+const BulkFillDialog: React.FC<{
+  groups: HotelMarketGroup[];
+  defaultFrom: string;
+  defaultTo: string;
+  onSave: (dto: { marketGroupIds: string[]; from: string; to: string; weekdays: number[]; grossPP?: string; discountPct?: string; budgetPP?: string; ppAvg?: string }) => Promise<void>;
+  onCancel: () => void;
+}> = ({ groups, defaultFrom, defaultTo, onSave, onCancel }) => {
+  const { t, i18n } = useTranslation();
+  const k = (key: string, o?: Record<string, unknown>) => t(`crm.hotels.pricing.bulk.${key}`, o);
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
+  const [groupIds, setGroupIds] = useState<string[]>(groups.map((g) => g.id));
+  const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]);
+  const [vals, setVals] = useState({ grossPP: '', discountPct: '', budgetPP: '', ppAvg: '' });
+  const [busy, setBusy] = useState(false);
+  const dayNames = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(i18n.language || 'ru', { weekday: 'short' }).replace('.', '')),
+    [i18n.language],
+  );
+  const hasValue = Object.values(vals).some((v) => v.trim() !== '');
+  const valid = !!from && !!to && to >= from && groupIds.length > 0 && weekdays.length > 0 && hasValue;
+  const submit = () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    const dto: any = { marketGroupIds: groupIds, from, to, weekdays: weekdays.length === 7 ? [] : weekdays };
+    (Object.keys(vals) as Array<keyof typeof vals>).forEach((f) => { if (vals[f].trim() !== '') dto[f] = vals[f].trim(); });
+    onSave(dto).finally(() => setBusy(false));
+  };
+  const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  const net = vals.grossPP.trim() !== '' ? Number(vals.grossPP.replace(',', '.')) * (1 - Number((vals.discountPct || '0').replace(',', '.')) / 100) : null;
+  return (
+    <SmallDialog
+      title={k('title')}
+      onClose={onCancel}
+      foot={
+        <>
+          <button type="button" className="btn" onClick={onCancel}>{t('crm.hotels.pricing.periodEditor.cancel')}</button>
+          <button type="button" className="btn btn-primary" disabled={!valid || busy} onClick={submit}>{k('apply')}</button>
+        </>
+      }
+    >
+      <div className="bk-row2">
+        <div>
+          <label>{t('crm.hotels.pricing.periodEditor.startLabel')}</label>
+          <DateInput value={from} clearable={false} onChange={(v) => { setFrom(v); if (v && (!to || to < v)) setTo(v); }} />
+        </div>
+        <div>
+          <label>{t('crm.hotels.pricing.periodEditor.endLabel')}</label>
+          <DateInput value={to} min={from || undefined} clearable={false} onChange={(v) => setTo(v)} />
+        </div>
+      </div>
+      <label>{k('groups')}</label>
+      <div className="pp-chips">
+        {groups.map((g) => (
+          <button type="button" key={g.id} className={groupIds.includes(g.id) ? 'on' : ''} onClick={() => setGroupIds(toggle(groupIds, g.id))}>{g.name}</button>
+        ))}
+      </div>
+      <label>{k('weekdays')}</label>
+      <div className="pp-chips">
+        {dayNames.map((d, i) => (
+          <button type="button" key={d} className={weekdays.includes(i + 1) ? 'on' : ''} onClick={() => setWeekdays(toggle(weekdays, i + 1))}>{d}</button>
+        ))}
+      </div>
+      <div className="bk-row2">
+        <div><label>Brüt, €</label><input inputMode="decimal" value={vals.grossPP} onChange={(e) => setVals({ ...vals, grossPP: e.target.value })} placeholder={k('keep')} /></div>
+        <div><label>İndirim, %</label><input inputMode="decimal" value={vals.discountPct} onChange={(e) => setVals({ ...vals, discountPct: e.target.value })} placeholder={k('keep')} /></div>
+      </div>
+      <div className="bk-row2">
+        <div><label>Bütçe, € · {k('budgetShort')}</label><input inputMode="decimal" value={vals.budgetPP} onChange={(e) => setVals({ ...vals, budgetPP: e.target.value })} placeholder={k('keep')} /></div>
+        <div />
+      </div>
+      <div className="htl-hint">
+        {net !== null && Number.isFinite(net) ? k('netPreview', { net: net.toFixed(2) }) + ' · ' : ''}
+        {k('hint')}
+      </div>
+    </SmallDialog>
   );
 };
 
@@ -91,12 +239,15 @@ export const HotelPricingPage: React.FC = () => {
   const [roomTypeId, setRoomTypeId] = useState('');
   const [marketGroups, setMarketGroups] = useState<HotelMarketGroup[]>([]);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [addingGroup, setAddingGroup] = useState(false);
   const [periods, setPeriods] = useState<HotelPricingPeriod[]>([]);
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
   const [editing, setEditing] = useState<'new' | string | null>(null);
   const [rows, setRows] = useState<HotelDailyMarketRateRow[]>([]);
   const [stoppedDates, setStoppedDates] = useState<string[]>([]);
   const [showImport, setShowImport] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [baseRows, setBaseRows] = useState<HotelDailyMarketRateRow[]>([]);
   const [selAnchor, setSelAnchor] = useState<CellPos | null>(null);
   const [selFocus, setSelFocus] = useState<CellPos | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -130,13 +281,10 @@ export const HotelPricingPage: React.FC = () => {
       .catch((e) => showAlert(e.message || t('crm.hotels.pricing.marketGroupsError'), { variant: 'error' }));
   };
 
-  const addMarketGroup = () => {
-    const name = window.prompt(t('crm.hotels.pricing.addGroupPrompt'));
-    if (!name || !name.trim()) return;
-    createMarketGroup(hotelId, name.trim())
-      .then(() => loadMarketGroups(hotelId))
+  const addMarketGroup = (name: string) =>
+    createMarketGroup(hotelId, name)
+      .then(() => { setAddingGroup(false); loadMarketGroups(hotelId); })
       .catch((e) => showAlert(e.message || t('crm.hotels.pricing.addGroupError'), { variant: 'error' }));
-  };
 
   const renameMarketGroup = (id: string, name: string) => {
     if (!name.trim()) {
@@ -198,11 +346,14 @@ export const HotelPricingPage: React.FC = () => {
     fetchDailyRates(roomTypeId, visibleDays)
       .then(setRows)
       .catch((e) => showAlert(e.message || t('crm.hotels.pricing.ratesError'), { variant: 'error' }));
+    const base = roomTypes.find((r) => r.isBaseRoomType);
+    if (base && base.id !== roomTypeId) fetchDailyRates(base.id, visibleDays).then(setBaseRows).catch(() => setBaseRows([]));
+    else setBaseRows([]);
     fetchStopSaleDates(roomTypeId, visibleDays)
       .then(setStoppedDates)
       .catch((e) => showAlert(e.message || t('crm.hotels.pricing.stopDatesError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomTypeId, visibleDays.join(',')]);
+  }, [roomTypeId, visibleDays.join(','), roomTypes]);
 
   const toggleStopSaleDate = (date: string) => {
     if (!roomTypeId) return;
@@ -277,7 +428,9 @@ export const HotelPricingPage: React.FC = () => {
     const group = marketGroups[Math.floor(col / FIELDS_PER_GROUP)];
     const g = rows[row]?.groups.find((x) => x.marketGroupId === group?.id);
     if (!g) return '';
-    return (g as any)[EDITABLE_FIELDS[col % FIELDS_PER_GROUP]] ?? '';
+    const field = EDITABLE_FIELDS[col % FIELDS_PER_GROUP];
+    if (field === 'ppAvg') return g.ppActual !== null && g.ppActual !== undefined ? String(g.ppActual) : '';
+    return (g as any)[field] ?? '';
   };
 
   const handleGridKeyDown = (e: React.KeyboardEvent) => {
@@ -309,6 +462,8 @@ export const HotelPricingPage: React.FC = () => {
         if (row >= rows.length || col >= marketGroups.length * FIELDS_PER_GROUP) return;
         const group = marketGroups[Math.floor(col / FIELDS_PER_GROUP)];
         if (!group) return;
+        // PP Ort. считается по броням — вставка в эту колонку пропускается
+        if (EDITABLE_FIELDS[col % FIELDS_PER_GROUP] === 'ppAvg') return;
         updates.push({
           roomGroupId: group.id,
           date: rows[row].date,
@@ -322,6 +477,42 @@ export const HotelPricingPage: React.FC = () => {
       .then(() => fetchDailyRates(roomTypeId, visibleDays).then(setRows))
       .catch((err) => showAlert(err.message || t('crm.hotels.pricing.pasteError'), { variant: 'error' }));
   };
+
+  // Как из таблицы получается цена брони (то же, что HotelsPricingService.dailyPrices)
+  const roomType = roomTypes.find((r) => r.id === roomTypeId) || null;
+  const baseType = roomTypes.find((r) => r.isBaseRoomType) || null;
+  const isBase = !!roomType && (!baseType || baseType.id === roomType.id);
+  const offset = Number(roomType?.ppNetOffset || 0);
+  const hotel = hotels.find((h) => h.id === hotelId);
+  const refGroupId = hotel?.referenceMarketGroupId && marketGroups.some((g) => g.id === hotel.referenceMarketGroupId) ? hotel.referenceMarketGroupId : marketGroups[0]?.id;
+  const baseNetMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of baseRows) for (const g of r.groups) m.set(`${g.marketGroupId}|${r.date}`, Number(g.netPP) || 0);
+    return m;
+  }, [baseRows]);
+  /** Net человека/ночь, по которому пойдёт бронь: свой Net → от базового (+ разница) */
+  const effectiveNet = (date: string, groupId: string, ownNet: number): { value: number; derived: boolean } => {
+    if (ownNet > 0 || isBase) return { value: ownNet, derived: false };
+    const b = baseNetMap.get(`${groupId}|${date}`) || 0;
+    if (!(b > 0)) return { value: 0, derived: false };
+    return { value: roomType?.pricingMode === 'fixed_rate' ? b : b + offset, derived: true };
+  };
+  const missingByGroup = useMemo(
+    () =>
+      marketGroups
+        .map((grp) => ({
+          group: grp,
+          count: rows.filter((r) => {
+            const g = r.groups.find((x) => x.marketGroupId === grp.id);
+            return !(effectiveNet(r.date, grp.id, Number(g?.netPP) || 0).value > 0);
+          }).length,
+        }))
+        .filter((x) => x.count > 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, baseNetMap, marketGroups, roomTypeId, roomTypes],
+  );
+  const refMissing = missingByGroup.find((x) => x.group.id === refGroupId);
+  const pp = (key: string, o?: Record<string, unknown>) => t(`crm.hotels.pricing.flow.${key}`, o);
 
   return (
     <MainLayout>
@@ -341,6 +532,7 @@ export const HotelPricingPage: React.FC = () => {
             <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)}>
               {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
+            <button className="btn" disabled={!roomTypeId || !marketGroups.length} onClick={() => setShowBulk(true)}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.pricing.bulk.open')}</button>
             <button data-tour="pricing-import" className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.pricing.importBtn')}</button>
           </div>
         </div>
@@ -362,6 +554,24 @@ export const HotelPricingPage: React.FC = () => {
           <div style={{ position: 'relative' }}>
             <button className="period-add-btn" onClick={() => setEditing('new')}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.pricing.addPeriod')}</button>
             {editing === 'new' && <PeriodEditor onCancel={() => setEditing(null)} onSave={addPeriod} />}
+            {addingGroup && <MarketGroupDialog onCancel={() => setAddingGroup(false)} onSave={addMarketGroup} />}
+            {showBulk && (
+              <BulkFillDialog
+                groups={marketGroups}
+                defaultFrom={visibleDays[0] || ''}
+                defaultTo={visibleDays[visibleDays.length - 1] || ''}
+                onCancel={() => setShowBulk(false)}
+                onSave={(dto) =>
+                  bulkFillDailyRates(roomTypeId, dto)
+                    .then((r) => {
+                      setShowBulk(false);
+                      showAlert(t('crm.hotels.pricing.bulk.done', { count: r.updated }), { variant: 'success' });
+                      return fetchDailyRates(roomTypeId, visibleDays).then(setRows);
+                    })
+                    .catch((e) => showAlert(e.message || t('crm.hotels.pricing.bulk.error'), { variant: 'error' }))
+                }
+              />
+            )}
           </div>
         </div>
 
@@ -369,6 +579,36 @@ export const HotelPricingPage: React.FC = () => {
           <b style={{ color: 'var(--ink)' }}>{hotels.find((h) => h.id === hotelId)?.name}</b> · {roomTypes.find((r) => r.id === roomTypeId)?.name}{' '}
           {t('crm.hotels.pricing.summaryLine', { perPerson: t('crm.hotels.pricing.perPersonPerNight'), count: visibleDays.length })}
         </div>
+
+        {roomType && (
+          <div className="pp-flow">
+            {!baseType ? (
+              <div className="pe-box warn">{pp('noBase')}</div>
+            ) : isBase ? (
+              <div className="pe-box">{pp('base')}</div>
+            ) : (
+              <div className="pe-box">
+                {roomType.pricingMode === 'fixed_rate'
+                  ? pp('derivedFixed', { base: baseType.name })
+                  : pp('derived', { base: baseType.name, offset: fmtEUR(offset) })}
+              </div>
+            )}
+            {baseType && Number(baseType.ppNetOffset || 0) !== 0 && (
+              <div className="pe-box warn">{pp('baseOffset', { base: baseType.name, offset: fmtEUR(Number(baseType.ppNetOffset)) })}</div>
+            )}
+            {rows.length > 0 && missingByGroup.length > 0 && (
+              <div className="pe-box warn">
+                <div>
+                  {pp('missing')}{' '}
+                  {missingByGroup.map((x, i) => (
+                    <span key={x.group.id}>{i > 0 && ', '}<b>{x.group.name}</b> — {pp('days', { count: x.count })}</span>
+                  ))}
+                </div>
+                <div>{refMissing ? pp('missingRef') : pp('missingFallback')}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ fontSize: 11, color: 'var(--fg-3)', margin: '8px 0 4px' }}>
           {t('crm.hotels.pricing.hint')}
@@ -378,11 +618,11 @@ export const HotelPricingPage: React.FC = () => {
             <thead>
               <tr className="grp">
                 <th className="periyot-h" rowSpan={2}>
-                  Tarih
+                  {t('crm.hotels.pricing.dateColHeader')}
                   <button
                     className="btn btn-sm"
                     style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10.5, fontWeight: 500, textTransform: 'none', verticalAlign: 'middle' }}
-                    onClick={addMarketGroup}
+                    onClick={() => setAddingGroup(true)}
                     title={t('crm.hotels.pricing.addMarketGroupTitle')}
                   >
                     <Ic d={HTL_ICON.plus} size={11} />{t('crm.hotels.pricing.addMarketGroupBtn')}
@@ -420,7 +660,7 @@ export const HotelPricingPage: React.FC = () => {
               <tr className="sub">
                 {marketGroups.map((g) => (
                   <React.Fragment key={g.id}>
-                    <th>Bütçe</th><th>PP Ort.</th><th className="brut">Brüt</th><th>İndirim</th><th>Net</th>
+                    <th className="ref" title={pp('budgetTitle')}>Bütçe</th><th className="ref" title={pp('ppActHeadTitle')}>PP Ort.</th><th className="brut">Brüt</th><th>İndirim</th><th title={pp('netTitle')}>Net</th>
                   </React.Fragment>
                 ))}
               </tr>
@@ -458,19 +698,35 @@ export const HotelPricingPage: React.FC = () => {
                     };
                     return (
                       <React.Fragment key={g.marketGroupId}>
-                        <td {...cellProps(0)}>
+                        <td {...cellProps(0, 'ref-cell budget-cell')}>
                           <input key={`${row.date}-${g.marketGroupId}-b-${g.budgetPP}`} defaultValue={g.budgetPP} onBlur={(e) => updateCell(row.date, g.marketGroupId, 'budgetPP', e.target.value)} /> €
                         </td>
-                        <td {...cellProps(1)}>
-                          <input key={`${row.date}-${g.marketGroupId}-p-${g.ppAvg}`} defaultValue={g.ppAvg} onBlur={(e) => updateCell(row.date, g.marketGroupId, 'ppAvg', e.target.value)} /> €
-                        </td>
+                        {(() => {
+                          // PP Ort. — факт по броням этой даты (считается сам); без броней — значение из импорта, если было
+                          const budget = Number(g.budgetPP) || 0;
+                          const act = g.ppActual ?? null;
+                          const legacy = act === null && Number(g.ppAvg) > 0 ? Number(g.ppAvg) : null;
+                          const tone = act !== null && budget > 0 ? (act >= budget ? 'up' : 'down') : '';
+                          return (
+                            <td {...cellProps(1, `ppact-cell ${tone}`)} title={act !== null ? pp('ppActTitle', { count: g.ppActualCount || 0 }) : legacy !== null ? pp('ppLegacyTitle') : pp('ppNoneTitle')}>
+                              {act !== null ? fmtEUR(act) : legacy !== null ? <i>{fmtEUR(legacy)}</i> : '—'}
+                            </td>
+                          );
+                        })()}
                         <td {...cellProps(2, 'brut-cell')}>
                           <input key={`${row.date}-${g.marketGroupId}-g-${g.grossPP}`} defaultValue={g.grossPP} onBlur={(e) => updateCell(row.date, g.marketGroupId, 'grossPP', e.target.value)} /> €
                         </td>
                         <td {...cellProps(3)}>
-                          <input key={`${row.date}-${g.marketGroupId}-d-${g.discountPct}`} defaultValue={g.discountPct} style={{ width: 44 }} onBlur={(e) => updateCell(row.date, g.marketGroupId, 'discountPct', e.target.value)} />%
+                          <input key={`${row.date}-${g.marketGroupId}-d-${g.discountPct}`} defaultValue={g.discountPct} style={{ width: 56 }} onBlur={(e) => updateCell(row.date, g.marketGroupId, 'discountPct', e.target.value)} />%
                         </td>
-                        <td className="net-cell">{fmtEUR(Number(g.netPP))}</td>
+                        {(() => {
+                          const eff = effectiveNet(row.date, g.marketGroupId, Number(g.netPP) || 0);
+                          return eff.derived ? (
+                            <td className="net-cell derived" title={pp('derivedCell', { base: baseType?.name || '' })}>{fmtEUR(eff.value)}</td>
+                          ) : (
+                            <td className={eff.value > 0 ? 'net-cell' : 'net-cell empty'}>{fmtEUR(eff.value)}</td>
+                          );
+                        })()}
                       </React.Fragment>
                     );
                   })}
