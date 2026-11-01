@@ -182,17 +182,6 @@ export class HotelsController {
     return this.roomTypes.listDateOverrides(user.tenantId, roomTypeId, from, to);
   }
 
-  @Post('room-types/:roomTypeId/date-overrides/:date')
-  @RequirePermission('hotels_manage_pricing', 'write')
-  upsertDateOverride(
-    @CurrentUser() user: CurrentUserPayload,
-    @Param('roomTypeId', new ParseUUIDPipe()) roomTypeId: string,
-    @Param('date') date: string,
-    @Body() dto: { price?: string | null; blocked?: boolean; discountPct?: string; minNights?: number },
-  ) {
-    return this.roomTypes.upsertDateOverride(user.tenantId, roomTypeId, date, dto);
-  }
-
   @Get('room-types/:roomTypeId/month-fill')
   getMonthFill(
     @CurrentUser() user: CurrentUserPayload,

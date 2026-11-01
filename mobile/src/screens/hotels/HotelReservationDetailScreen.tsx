@@ -17,16 +17,18 @@ import { appLocale } from '../../i18n/format';
 type Props = NativeStackScreenProps<HotelsStackParamList, 'HotelReservationDetail'>;
 
 const STATUS_LABEL: Record<HotelReservationStatus, string> = {
-  confirmed: 'Подтверждена', pending: 'Ожидает', checked_in: 'Заселён', checked_out: 'Выселен', cancelled: 'Отменена',
+  confirmed: 'Подтверждена', pending: 'Ожидает', checked_in: 'Заселён', checked_out: 'Выселен', cancelled: 'Отменена', no_show: 'Не заехал',
 };
 const STATUS_TONE: Record<HotelReservationStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
-  confirmed: 'acc', pending: 'warn', checked_in: 'pos', checked_out: 'default', cancelled: 'neg',
+  confirmed: 'acc', pending: 'warn', checked_in: 'pos', checked_out: 'default', cancelled: 'neg', no_show: 'neg',
 };
 const PAID_LABEL: Record<HotelReservationPaidStatus, string> = { full: 'Оплачено', partial: 'Частично', none: 'Не оплачено', refunded: 'Возврат' };
 const PAID_TONE: Record<HotelReservationPaidStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
   full: 'pos', partial: 'warn', none: 'neg', refunded: 'default',
 };
-const SOURCE_LABEL: Record<string, string> = { manual: 'Вручную', import: 'Импорт', website: 'Сайт' };
+const SOURCE_LABEL: Record<string, string> = { manual: 'Вручную', import: 'Импорт', website: 'Сайт', demo: 'Демо', walk_in: 'Без брони (walk-in)', channel: 'Канал продаж' };
+/** младше 2 лет — младенец: бесплатно, нужна детская кроватка (как в веб-версии) */
+const isInfant = (age: number | null | undefined) => age !== null && age !== undefined && age < 2;
 
 function fmtDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
@@ -75,13 +77,22 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
 
   const currency = hotel?.currency || 'EUR';
   const nights = Math.max(1, Math.round((new Date(reservation.checkOut).getTime() - new Date(reservation.checkIn).getTime()) / 86_400_000));
+  const ages = reservation.childAges || [];
+  const infants = ages.filter(isInfant).length;
+  const kids = Math.max(0, (reservation.children ?? ages.length) - infants);
+  const adults = Math.max(0, reservation.pax - kids - infants);
+  const guestsLine = kids || infants ? [`${adults} взр.`, kids ? `${kids} реб.` : '', infants ? `${infants} млад.` : ''].filter(Boolean).join(' + ') : String(reservation.pax);
+  const closed = reservation.status === 'cancelled' || reservation.status === 'no_show';
 
   const properties = [
     hotel && { label: 'Отель', value: hotel.name, icon: 'business-outline' as const, iconColor: colors.fg3 },
     reservation.guestPhone && { label: 'Телефон', value: reservation.guestPhone, icon: 'call-outline' as const, iconColor: colors.success, onPress: () => Linking.openURL(`tel:${reservation.guestPhone}`) },
     reservation.guestEmail && { label: 'Email', value: reservation.guestEmail, icon: 'mail-outline' as const, iconColor: colors.secondary, onPress: () => Linking.openURL(`mailto:${reservation.guestEmail}`) },
     { label: 'Даты', value: `${fmtDate(reservation.checkIn)} – ${fmtDate(reservation.checkOut)} (${nights} ноч.)`, icon: 'calendar-outline' as const, iconColor: colors.info },
-    { label: 'Гостей', value: String(reservation.pax), icon: 'people-outline' as const, iconColor: colors.fg3 },
+    { label: 'Гостей', value: guestsLine, icon: 'people-outline' as const, iconColor: colors.fg3 },
+    infants > 0 && { label: 'Детская кроватка', value: `×${infants} — младенец до 2 лет, бесплатно`, icon: 'bed-outline' as const, iconColor: colors.warning },
+    reservation.otaName && { label: 'Канал', value: [reservation.otaName, reservation.otaCode].filter(Boolean).join(' · '), icon: 'globe-outline' as const, iconColor: colors.info },
+    reservation.paymentCollect && { label: 'Кто берёт оплату', value: reservation.paymentCollect === 'ota' ? `${reservation.otaName || 'OTA'} — проживание в счёт партнёра` : 'Отель — гость платит на месте', icon: 'card-outline' as const, iconColor: colors.fg3 },
     reservation.agencyId && { label: 'Агентство', value: agencyName || `#${reservation.agencyId.slice(0, 8)}`, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
     reservation.market && { label: 'Рынок', value: reservation.market, icon: 'globe-outline' as const, iconColor: colors.warning },
     (reservation.earlyCheckIn || reservation.lateCheckOut) && {
@@ -103,7 +114,8 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
     { label: 'Депозит', value: formatMoney(reservation.depositAmount, currency) },
   ];
 
-  const total = Number(reservation.total) || 0;
+  // у отменённой / незаехавшей к оплате — только удержанный штраф
+  const total = closed ? Number(reservation.cancellationFee) || 0 : Number(reservation.total) || 0;
   const received = reservation.payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const remaining = Math.max(0, total - received);
   const paidPct = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
@@ -132,7 +144,7 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
 
         <GlassCard variant="g" style={styles.payCard}>
           <View style={styles.payHead}>
-            <Text style={[styles.payKicker, { color: colors.textSecondary }]}>К оплате</Text>
+            <Text style={[styles.payKicker, { color: colors.textSecondary }]}>{closed ? 'Удержано (штраф)' : 'К оплате'}</Text>
             <Pill label={PAID_LABEL[reservation.paidStatus]} tone={PAID_TONE[reservation.paidStatus]} />
           </View>
           <Text style={[styles.payAmount, { color: colors.text, fontFamily: fonts.bold }]}>{formatMoney(total, currency)}</Text>
@@ -141,7 +153,7 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
           </View>
           <View style={styles.payMetaRow}>
             <Text style={[styles.payMetaTxt, { color: colors.textSecondary }]}>получено {formatMoney(received, currency)}</Text>
-            <Text style={[styles.payMetaTxt, { color: colors.textSecondary }]}>остаток {formatMoney(remaining, currency)}</Text>
+            <Text style={[styles.payMetaTxt, { color: colors.textSecondary }]}>{received > total + 0.009 ? `переплата ${formatMoney(received - total, currency)}` : `остаток ${formatMoney(remaining, currency)}`}</Text>
           </View>
         </GlassCard>
 

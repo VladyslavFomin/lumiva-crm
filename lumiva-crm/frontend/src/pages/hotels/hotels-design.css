@@ -1030,3 +1030,45 @@
   .px-scope .gc-qr-grid{grid-template-columns:repeat(3,1fr)}
   .px-scope .htl-panel{border:0;padding:0}
 }
+
+/* менеджер каналов v2: тарифы по номеру, режим тарифа, вебхук, детали журнала (2026-11-01) */
+.px-scope .ch-kpis em{font-style:normal;font-size:11px;color:var(--fg-3)}
+.px-scope .ch-webhook{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-3);font-size:12px;color:var(--fg-2)}
+.px-scope .ch-rooms{display:flex;flex-direction:column;gap:8px}
+.px-scope .ch-room{border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;background:#fff}
+.px-scope .ch-room.off{background:var(--bg-muted)}
+.px-scope .ch-room-head{display:grid;grid-template-columns:minmax(140px,1fr) 20px minmax(200px,2fr);align-items:center;gap:8px;font-size:12.5px}
+.px-scope .ch-room-head .arrow{color:var(--fg-3);text-align:center}
+.px-scope .ch-room select,.px-scope .ch-plan-row select{width:100%;padding:6px 8px;border:1px solid var(--line-2);border-radius:7px;font-size:12px;background:#fff;font-family:inherit;min-width:0}
+.px-scope .ch-plans{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-left:12px;border-left:2px solid var(--line-2)}
+.px-scope .ch-plan-row{display:grid;grid-template-columns:minmax(180px,2fr) auto minmax(150px,1.3fr) minmax(130px,1fr) auto 28px;align-items:center;gap:8px}
+.px-scope .ch-plan{font-family:var(--ff-mono-ui);font-size:9.5px;padding:2px 7px;border-radius:5px;white-space:nowrap;background:var(--bg-soft);color:var(--fg-2)}
+.px-scope .ch-plan.m-per_person{background:#eef3f9;color:#1769d1}
+.px-scope .ch-plan.m-derived{background:#fbf2dc;color:#7a4a09}
+.px-scope .ch-note{font-size:11.5px;grid-column:span 2}
+.px-scope .ch-active{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-2);white-space:nowrap}
+.px-scope .ch-add{align-self:flex-start}
+.px-scope .ch-log>div.more{cursor:pointer}
+.px-scope .ch-log>div.more .m::after{content:' ›';color:var(--fg-3)}
+.px-scope .ch-log .ch-log-details{display:block;background:var(--bg-muted);font-family:var(--ff-mono-ui);font-size:11px;color:var(--fg-2);padding:8px 12px}
+.px-scope .ch-log-details .w{color:#9a1f31}
+@media (max-width:900px){
+  .px-scope .ch-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .px-scope .ch-plan-row{grid-template-columns:1fr 1fr}
+  .px-scope .ch-room-head{grid-template-columns:1fr}
+  .px-scope .ch-room-head .arrow{display:none}
+}
+
+/* возврат при отмене / no-show (2026-11-01) */
+.px-scope .htl-refund{margin-top:12px;border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.px-scope .htl-refund-sum{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.px-scope .htl-refund-sum>div{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.px-scope .htl-refund-sum span{color:var(--fg-3)}
+.px-scope .htl-refund-sum b{font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.px-scope .htl-refund-on{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;margin:0}
+.px-scope .htl-refund-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.px-scope .htl-refund-form label{font-size:11px;color:var(--fg-3);margin-bottom:4px;display:block}
+.px-scope .htl-err{font-size:11px;color:#9a1f31;margin-top:3px}
+/* модалка, открытая из боковой карточки (бронь, шахматка), — поверх карточки */
+.px-scope .bk-modal-back.over-sheet{z-index:80}
+.px-scope .bk-modal.over-sheet{z-index:81}

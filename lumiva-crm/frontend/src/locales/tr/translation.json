@@ -18136,10 +18136,10 @@
       "calendarPage": {
         "error": "Oteller yüklenemedi",
         "roomTypesError": "Oda türleri yüklenemedi",
-        "kicker": "MÜSAİTLİK VE FİYAT TAKVİMİ",
+        "kicker": "GÜNLÜK FİYAT VE KISITLAMALAR",
         "title": "Oda takvimi",
-        "subtitle": "Her oda türü için belirli tarihlerde fiyat, indirim ve satış durdurma ayarlayın.",
-        "tabPrice": "Fiyat ve müsaitlik",
+        "subtitle": "Müsait odalar, fiyat, satış durdurma, girişe / çıkışa kapalı, minimum ve maksimum gece — her gün için. Değişiklikler satış kanallarına gider.",
+        "tabPrice": "Fiyat ve kısıtlamalar",
         "tabOccupancy": "Oda doluluğu"
       },
       "pricingCalendar": {
@@ -18587,7 +18587,7 @@
         },
         "tabs": {
           "rooms": "Odalar",
-          "calendar": "Fiyat takvimi",
+          "calendar": "Fiyat ve kısıtlamalar",
           "markets": "Pazarlar ve fiyatlandırma",
           "info": "Otel bilgisi",
           "gallery": "Galeri",
@@ -18965,7 +18965,15 @@
           "accTax": "Konaklama vergisi %{{pct}}",
           "vat": "KDV %{{pct}}",
           "taxIncluded": "Toplam (vergiler dahil)",
-          "totalWithTax": "Vergiler dahil toplam"
+          "totalWithTax": "Vergiler dahil toplam",
+          "paymentCollect": {
+            "ota": "Ödemeyi {{ota}} alır (Expedia Collect / Booking Payments): konaklama partner hesabına",
+            "property": "Ödemeyi otel alır: misafir yerinde veya kartla öder"
+          },
+          "channelPaymentType": {
+            "credit_card": "kart",
+            "bank_transfer": "banka havalesi"
+          }
         },
         "paymentMethods": {
           "card": "Kart",
@@ -20722,7 +20730,7 @@
           "STORAGE_FULL": "Şirket depolama alanı dolu",
           "HOTEL_DAY_CLOSED": "Gün gece denetimiyle kapatıldı — düzenleme için Gece denetimi yetkisi gerekir",
           "HOTEL_PAYMENT_ZERO": "Ödeme tutarı sıfır olamaz",
-          "HOTEL_REFUND_TOO_BIG": "İade, bu folyoda ödenenden fazla",
+          "HOTEL_REFUND_TOO_BIG": "İade, ceza kesildikten sonra iade edilebilecek tutardan fazla",
           "HOTEL_PAYMENT_SHIFT_CLOSED": "Bu ödemenin vardiyası kapalı — iade yapın",
           "HOTEL_FOLIO_DESCRIPTION_REQUIRED": "Neyin ücretlendirildiğini girin",
           "HOTEL_FOLIO_ZERO": "Masraf tutarı sıfır olamaz",
@@ -20761,7 +20769,20 @@
           "HOTEL_GUEST_REQUEST_CATEGORY": "Ne gerektiğini seçin",
           "HOTEL_GUEST_REQUEST_TEXT": "Ne gerektiğini yazın",
           "HOTEL_GUEST_REQUEST_LIMIT": "Bu odadan bir saatte çok fazla talep"
-        }
+        },
+        "refund": {
+          "folio": {
+            "guest": "Misafir hesabı",
+            "partner": "Partner hesabı"
+          },
+          "line": "ödenen {{paid}} · kesilen {{kept}} · iade edilebilir {{back}}",
+          "issue": "İadeyi şimdi yap",
+          "folioLabel": "Hesaptan",
+          "amount": "İade tutarı",
+          "method": "Yöntem",
+          "tooBig": "En fazla {{max}}"
+        },
+        "confirmCancelRefund": "İptal et ve iade et"
       },
       "hk": {
         "kicker": "Kat hizmetleri",
@@ -21294,7 +21315,8 @@
           "calendar": "takvim",
           "season": "fiyat listesi",
           "market": "pazar",
-          "base": "baz"
+          "base": "baz",
+          "channel": "kanal"
         },
         "total": "Konaklama",
         "netContract": "Net kontrat: otelin alacağı tutardır, komisyon uygulanmaz",
@@ -21324,7 +21346,10 @@
         "minStay": "Bu dönemde minimum konaklama: {{count}} gece",
         "release": "Dönem release süresi {{count}} gün — giriş release içinde",
         "belowBudget": "PP bütçenin altında: {{dates}}",
-        "childInfant": "bebek — ücretsiz, bebek yatağı"
+        "childInfant": "bebek — ücretsiz, bebek yatağı",
+        "maxStay": "Bu giriş tarihi için maksimum geceden fazla: {{count}}",
+        "closedArrival": "Giriş tarihi girişe kapalı",
+        "closedDeparture": "Çıkış tarihi çıkışa kapalı"
       },
       "guestsPicker": {
         "title": "Misafirler",
@@ -21416,7 +21441,7 @@
         "autoOn": "müsaitlik anında, rezervasyonlar 5 dk’da bir, fiyatlar 30 dk’da bir",
         "autoOff": "kapalı",
         "mappingTitle": "Oda ve fiyat planı eşleme",
-        "mappingHint": "Müsaitlik oda tipine, fiyat fiyat planına göre gider: her tarih için seçilen konaklama tipi ve pazar grubuna göre fiyat listemiz. Fiyatı olmayan ve satışı durdurulmuş günler kapatılır — kanala 0 gitmez.",
+        "mappingHint": "Bizim her oda tipimiz için kanalda bir oda; bir odanın birden fazla tarifesi olabilir (BAR, kahvaltılı…). Müsaitlik odaya göre, fiyat ve kısıtlamalar her tarifeye göre gider: konaklama ve pazar grubuna göre sezon fiyat listesi, takvimden durdurma ve kısıtlamalar. Fiyatı olmayan günler satılmaz.",
         "colRoom": "Bizdeki oda",
         "colChannelRoom": "Channex oda tipi",
         "colRatePlan": "Channex fiyat planı",
@@ -21432,7 +21457,7 @@
         "currencyWarn": "Channex fiyat planı para birimi otel para biriminden ({{currency}}) farklı — fiyatlar dönüştürülmeden otel para biriminde gider.",
         "settingsTitle": "Senkron ayarları",
         "pushDays": "İleri gün sayısı",
-        "pushDaysHint": "Kanallarda kaç gün ileriye satış açılsın (7–365).",
+        "pushDaysHint": "Kanallarda kaç gün ileriye satış açılsın (7–500; Channex tam senkronizasyonu 500 gün için onaylar).",
         "reserveRooms": "Yedekte tutulan oda",
         "reserveHint": "Her tipten bu kadar oda kanallara verilmez — doğrudan satış ve partnerler için.",
         "saveSettings": "Kaydet",
@@ -21449,7 +21474,48 @@
         },
         "remoteError": "Channex verileri alınamadı",
         "error": "Kanal senkron hatası",
-        "ota": "Kanaldan"
+        "ota": "Kanaldan",
+        "pushDelta": "Değişiklikleri gönder",
+        "pushFull": "Tam senkronizasyon",
+        "fullBody": "Tüm aralık için fiyat, müsaitlik ve kısıtlamalar yeniden gönderilsin mi? Channex tam senkronizasyona günde bir kez izin verir — normalde gece kendiliğinden yapılır.",
+        "syncNothing": "Her şey zaten kanalda — değişiklik yok",
+        "syncDone": "Gönderildi: müsaitlik {{availability}}, fiyat ve kısıtlamalar {{rates}} ({{calls}} çağrı)",
+        "syncDeferred": "bir kısmı kanal limiti nedeniyle ertelendi — bir dakika içinde gider",
+        "syncWarnings": "kanal {{count}} değeri reddetti — kayda bakın",
+        "lastDelta": "değişiklikler: {{at}}",
+        "lastFull": "Tam senkronizasyon",
+        "fullRule": "günde bir kez, otel saatiyle gece",
+        "webhookOn": "rezervasyonlar anında gelir (webhook)",
+        "webhookOff": "rezervasyonlar 5 dakikada bir",
+        "mappedValue": "{{rooms}} / {{total}} oda · {{plans}} tarife",
+        "accepted": "kanalın kabul ettiği: müsaitlik {{avail}}, fiyat {{rates}}",
+        "pausedUntil": "Kanal hatası nedeniyle senkronizasyon {{at}} saatine kadar duraklatıldı — sonra kendiliğinden devam eder. «Devam et» hemen kaldırır.",
+        "webhookOnHint": "Webhook açık: kanal yeni rezervasyonu hemen bildirir, saniyeler içinde yüklenir.",
+        "webhookOffHint": "Webhook kapalı: rezervasyonlar 5 dakikada bir sorgulanır.",
+        "webhookEnable": "Webhook aç",
+        "webhookDisable": "Webhook kapat",
+        "webhookEnabled": "Webhook açıldı",
+        "webhookDisabled": "Webhook kapatıldı",
+        "roomsIn": "{{n}} oda",
+        "availabilityOnly": "Tarife yok — yalnızca müsaitlik gönderilir. Fiyat ve kısıtlamalar için tarife ekleyin.",
+        "pickRatePlan": "Tarife seçin",
+        "occDefault": "konaklama: 2 yetişkin",
+        "addPlan": "Tarife",
+        "removePlan": "Tarifeyi kaldır",
+        "unsaved": "Kaydedilmemiş değişiklikler var",
+        "derivedNote": "Türetilmiş tarife: fiyatı kanal hesaplar, yalnızca kısıtlamalar gönderilir",
+        "perPersonNote": "Kişi başı fiyat: her misafir sayısı için gönderilir",
+        "plan": {
+          "perRoom": "oda başı",
+          "perPerson": "kişi başı · {{list}}",
+          "derived": "türetilmiş",
+          "hint": {
+            "per_room": "Oda başı fiyat — seçilen konaklamaya göre",
+            "per_person": "Fiyat misafir sayısına bağlı — her biri için gönderilir",
+            "derived": "Kanal fiyatı ana tarifeden türetir"
+          }
+        },
+        "tasks": "Kanal görevleri:"
       },
       "guestCare": {
         "kicker": "yeni {{n}} · işlemde {{w}}",
@@ -21621,6 +21687,79 @@
         },
         "kicker": "Fiyat listesi · kişi başı",
         "subtitle": "Otelin tüm fiyat listesi tek tabloda, Excel’deki gibi: dönemler, kategoriler, konaklamalar. Fiyatlar en düşük kategorinin dönem PP’sinden hesaplanır."
+      },
+      "ari": {
+        "loading": "Takvim yükleniyor…",
+        "loadError": "Takvim yüklenemedi",
+        "retry": "Tekrar dene",
+        "saveError": "Kaydedilemedi",
+        "prev": "Geri",
+        "next": "İleri",
+        "today": "Bugün",
+        "days_one": "{{count}} gün",
+        "days_other": "{{count}} gün",
+        "priceFor": "Fiyat",
+        "adults_one": "{{count}} yetişkin",
+        "adults_other": "{{count}} yetişkin",
+        "market": "Pazar",
+        "reference": "referans",
+        "bulkBtn": "Aralığı düzenle",
+        "noRooms": "Oda tipi yok",
+        "noRoomsText": "Otel kartında oda tipleri ekleyin — günlük fiyat ve kısıtlamalar burada görünür.",
+        "hint": "Bir günü düzenlemek için hücreye tıklayın; birkaç gün için satır boyunca sürükleyin. Fiyat sezon listesinden gelir; mavi — o tarih için elle girilmiş fiyat.",
+        "base": "en düşük kategori",
+        "stopSale": "satış dışı",
+        "rows": {
+          "free": "Müsait",
+          "price": "Fiyat",
+          "stop": "Satış durdurma",
+          "cta": "Girişe kapalı",
+          "ctd": "Çıkışa kapalı",
+          "min": "Min. gece",
+          "max": "Maks. gece"
+        },
+        "rowHint": {
+          "free": "Satışa müsait: kontenjan ve bloklara göre, arızalı odalar hariç",
+          "price": "Seçilen yetişkin sayısı için gecelik oda fiyatı",
+          "stop": "Tarih satışa kapalı",
+          "cta": "Bu tarihte giriş yapılamaz (konaklama geçebilir)",
+          "ctd": "Bu tarihte çıkış yapılamaz",
+          "min": "Bu tarihte girişte minimum gece (fiyat dönemi ve takvimden katı olanı)",
+          "max": "Bu tarihte girişte maksimum gece"
+        },
+        "byPrice": "listeye göre",
+        "manualTip": "Bu tarih için elle fiyat. Silerseniz liste fiyatına döner",
+        "priceTip": "Sezon fiyat listesi. Tarihe elle fiyat için sayı yazın",
+        "noPriceTip": "Fiyat yok: sezon listesini doldurun veya tarihe fiyat girin",
+        "stopElsewhere": "Bu durdurma başka yerde ayarlı: oda tipi satış dışı veya «Fiyatlar ve pazarlar → Günlük» içinde durdurma tarihi var. Orada kaldırın.",
+        "legend": {
+          "manual": "elle fiyat",
+          "closed": "kapalı",
+          "ext": "diğer ayarlardan durdurma",
+          "soldOut": "müsait yok",
+          "channels": "Değişiklikler bir dakika içinde satış kanallarına gider"
+        },
+        "bulkDone": "Güncellenen gün: {n}",
+        "bulk": {
+          "title": "Aralığı düzenle",
+          "rooms": "Oda tipleri",
+          "from": "Başlangıç",
+          "to": "Bitiş",
+          "weekdays": "Haftanın günleri",
+          "price": "Gecelik fiyat",
+          "priceSet": "gir",
+          "priceReset": "listeye göre",
+          "discount": "İndirim, %",
+          "keep": "değiştirme",
+          "close": "kapat",
+          "open": "aç",
+          "maxSet": "gir",
+          "maxReset": "sınırsız",
+          "summary": "Alan: {{fields}} · oda tipi: {{rooms}}",
+          "nothing": "Neyi değiştireceğinizi seçin",
+          "cancel": "İptal",
+          "apply": "Uygula"
+        }
       }
     },
     "telephony": {

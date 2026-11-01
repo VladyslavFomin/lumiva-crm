@@ -74,8 +74,9 @@ export interface HotelQuote {
   /** всегда 'season': плоская цена рынка больше не участвует (поле оставлено для старых клиентов API) */
   priority: 'season' | 'market';
   currency: string;
-  /** min_stay / release — условия периода заезда (value — мин. ночей / дней release); below_budget — PP ночи ниже бюджета */
-  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
+  /** min_stay / max_stay / release — условия заезда (value — ночей / дней release); closed_arrival / closed_departure — дата закрыта
+   * на заезд / выезд; below_budget — PP ночи ниже бюджета */
+  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'max_stay' | 'closed_arrival' | 'closed_departure' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
 }
 
 /**
@@ -152,7 +153,8 @@ export class HotelRateEngineService {
       this.markets.find({ where: { tenantId, hotelId: hotel.id } }),
       this.groups.find({ where: { tenantId, hotelId: hotel.id } }),
       this.occupancy.find({ where: { tenantId, roomTypeId: roomType.id }, order: { sortOrder: 'ASC' } }),
-      this.overrides.find({ where: { tenantId, roomTypeId: roomType.id, date: Between(input.checkIn, dates[dates.length - 1]) } }),
+      // включая дату выезда — там может стоять «закрыто на выезд»
+      this.overrides.find({ where: { tenantId, roomTypeId: roomType.id, date: Between(input.checkIn, input.checkOut) } }),
       input.blockId ? this.blocks.findOne({ where: { id: input.blockId, tenantId } }) : Promise.resolve(null),
       input.contractId ? this.contracts.findOne({ where: { id: input.contractId, tenantId } }) : Promise.resolve(null),
     ]);
@@ -204,10 +206,16 @@ export class HotelRateEngineService {
     ]);
     const seasonPrice = (d: string) => daily.get(d) || null;
     const periodOf = (d: string) => periods.find((p) => d >= p.startDate && d <= p.endDate) || null;
-    // условия периода заезда: минимум ночей и release (дней до заезда)
+    // условия заезда: минимум ночей (период и календарь — что строже), release, закрыто на заезд / выезд, максимум ночей
     const arrival = periodOf(input.checkIn);
+    const arrOv = overrides.find((o) => o.date === input.checkIn);
+    const depOv = overrides.find((o) => o.date === input.checkOut);
     const stayRule: HotelQuote['warnings'] = [];
-    if (arrival && arrival.minNights > 1 && dates.length < arrival.minNights) stayRule.push({ code: 'min_stay', dates: [input.checkIn], value: arrival.minNights });
+    const minStay = Math.max(arrival?.minNights || 1, arrOv?.minNights || 1);
+    if (minStay > 1 && dates.length < minStay) stayRule.push({ code: 'min_stay', dates: [input.checkIn], value: minStay });
+    if (arrOv?.maxNights && dates.length > arrOv.maxNights) stayRule.push({ code: 'max_stay', dates: [input.checkIn], value: arrOv.maxNights });
+    if (arrOv?.closedToArrival) stayRule.push({ code: 'closed_arrival', dates: [input.checkIn] });
+    if (depOv?.closedToDeparture) stayRule.push({ code: 'closed_departure', dates: [input.checkOut] });
     if (arrival && arrival.releaseDays > 0) {
       const today = new Date().toISOString().slice(0, 10);
       if (addDays(today, arrival.releaseDays) > input.checkIn) stayRule.push({ code: 'release', dates: [input.checkIn], value: arrival.releaseDays });

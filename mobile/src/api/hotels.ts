@@ -99,9 +99,9 @@ export async function fetchHotelOverviewKpis(): Promise<HotelOverviewKpis> {
 
 /* ---------- reservations ---------- */
 
-export type HotelReservationStatus = 'confirmed' | 'pending' | 'checked_in' | 'checked_out' | 'cancelled';
+export type HotelReservationStatus = 'confirmed' | 'pending' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show';
 export type HotelReservationPaidStatus = 'full' | 'partial' | 'none' | 'refunded';
-export type HotelReservationSource = 'manual' | 'import' | 'website';
+export type HotelReservationSource = 'manual' | 'import' | 'website' | 'demo' | 'walk_in' | 'channel';
 
 export interface HotelReservationGuest {
   id: string;
@@ -156,6 +156,15 @@ export interface HotelReservation {
   lateCheckOut: boolean;
   notes: string | null;
   guests: HotelReservationGuest[];
+  /** детей в брони и их возрасты (младше 2 лет — младенец: бесплатно, нужна детская кроватка) */
+  children?: number;
+  childAges?: Array<number | null>;
+  /** отмена / no-show: удержанный штраф */
+  cancellationFee?: string;
+  /** бронь из канала продаж (Booking.com, Expedia…) */
+  otaName?: string | null;
+  otaCode?: string | null;
+  paymentCollect?: 'property' | 'ota' | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -430,6 +430,9 @@ export interface HotelReservation {
   occupancyTypeId: string | null;
   /** бронь из менеджера каналов */
   otaName?: string | null;
+  /** бронь из канала: кто берёт оплату (отель / OTA) и способ оплаты */
+  paymentCollect?: 'property' | 'ota' | null;
+  channelPaymentType?: string | null;
   otaCode?: string | null;
   channelBookingId?: string | null;
   guestName: string;
@@ -752,6 +755,57 @@ export function updatePricingPeriod(id: string, dto: HotelPeriodInput) {
   return api.patch<HotelPricingPeriod>(`/hotels/pricing-periods/${id}`, dto);
 }
 
+/* ---------- календарь ограничений (ARI): свободно, цена, стоп, закрыто на заезд / выезд, мин. / макс. ночей ---------- */
+
+export interface HotelAriDay {
+  date: string;
+  free: number;
+  price: number | null;
+  stop: boolean;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  minStay: number;
+  maxStay: number;
+  manualPrice: number | null;
+  discountPct: number;
+  /** стоп поставлен не в календаре (тип номера снят с продажи или стоп-дата «По дням») */
+  stopElsewhere: boolean;
+}
+
+export interface HotelAriGrid {
+  hotelId: string;
+  from: string;
+  days: number;
+  adults: number;
+  marketGroupId: string | null;
+  today: string;
+  currency: string;
+  dates: string[];
+  roomTypes: Array<{ id: string; name: string; isBase: boolean; stopSale: boolean; days: HotelAriDay[] }>;
+}
+
+export interface HotelAriBulkPatch {
+  roomTypeIds: string[];
+  from: string;
+  to: string;
+  weekdays?: number[];
+  price?: string | null;
+  discountPct?: string | null;
+  stop?: boolean;
+  closedToArrival?: boolean;
+  closedToDeparture?: boolean;
+  minNights?: number | null;
+  maxNights?: number | null;
+}
+
+export function fetchAriGrid(hotelId: string, q: { from?: string; days?: number; adults?: number; marketGroupId?: string | null }) {
+  return api.get<HotelAriGrid>('/hotels/ari/grid', { params: { hotelId, ...q, ...(q.marketGroupId ? {} : { marketGroupId: undefined }) } });
+}
+
+export function saveAriBulk(dto: HotelAriBulkPatch) {
+  return api.post<{ updated: number; removed: number; dates: number; roomTypes: number }>('/hotels/ari/bulk', dto);
+}
+
 /* ---------- прайс сезона: PP периода → + разница категории → × коэффициент → ± рынок ---------- */
 
 export interface HotelSeasonPrice {
@@ -1065,17 +1119,23 @@ export interface HotelCancellationQuote {
   rule: { daysBefore: number; penaltyType: 'percent' | 'nights'; value: number } | null;
   suggestedFee: number;
   paid: number;
+  /** счёт, на который ложится проживание (и штраф) */
+  accommodationFolio: 'guest' | 'partner';
+  /** по счёту: оплачено, доп. услуги, можно вернуть при штрафе по умолчанию */
+  folios: Record<'guest' | 'partner', { payments: number; extras: number; refundable: number }>;
 }
+
+export interface HotelCloseRefund { amount: string; method: string; folio: 'guest' | 'partner'; note?: string }
 
 export function fetchCancellationQuote(id: string) {
   return api.get<HotelCancellationQuote>(`/hotels/reservations/${id}/cancellation-quote`);
 }
 
-export function cancelReservation(id: string, dto: { reason: string; note?: string; fee?: string | number | null }) {
+export function cancelReservation(id: string, dto: { reason: string; note?: string; fee?: string | number | null; refund?: HotelCloseRefund }) {
   return api.post<HotelReservation>(`/hotels/reservations/${id}/cancel`, dto);
 }
 
-export function markNoShow(id: string, dto: { fee?: string | number | null; note?: string } = {}) {
+export function markNoShow(id: string, dto: { fee?: string | number | null; note?: string; refund?: HotelCloseRefund } = {}) {
   return api.post<HotelReservation>(`/hotels/reservations/${id}/no-show`, dto);
 }
 
@@ -2029,7 +2089,7 @@ export const fetchPickup = (hotelId: string, horizon: number) => api.get<HotelPi
 
 /* ---------- единый расчёт цены ---------- */
 
-export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base';
+export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base' | 'channel';
 export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number }
 export interface HotelQuote {
   nights: HotelNightlyRate[];
@@ -2046,7 +2106,7 @@ export interface HotelQuote {
   marketGroupGuessed: boolean;
   priority: 'season' | 'market';
   currency: string;
-  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
+  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'max_stay' | 'closed_arrival' | 'closed_departure' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
 }
 export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null> }) =>
   api.get<HotelQuote>('/hotels/reservations/quote', { params: { ...q, ...(childAges?.length ? { childAges: childAges.map((a) => (a === null ? '-' : String(a))).join(',') } : {}) } });
@@ -2078,6 +2138,8 @@ export interface HotelChannelMapping {
   externalRatePlanId: string | null;
   externalName?: string | null;
   active: boolean;
+  /** режим тарифа в канале (читается при сохранении сопоставления) */
+  ratePlanMeta?: HotelChannelRatePlanMeta | null;
 }
 export interface HotelChannelConnection {
   id: string;
@@ -2092,14 +2154,37 @@ export interface HotelChannelConnection {
   lastPushAt: string | null;
   lastPullAt: string | null;
   lastError: string | null;
+  /** полная выгрузка — раз в сутки ночью; изменения — после правок и раз в 5 минут */
+  lastFullSyncAt: string | null;
+  lastDeltaAt: string | null;
+  /** пауза обмена после ошибки канала (1, 2, 4… до 15 минут) */
+  pausedUntil: string | null;
+  failCount: number;
+  webhookActive: boolean;
   mappings: HotelChannelMapping[];
 }
+export interface HotelChannelRatePlanMeta { sellMode: 'per_room' | 'per_person'; rateMode: 'manual' | 'derived' | 'auto' | 'cascade'; occupancies: number[] }
 export interface HotelChannelRemote {
   properties: Array<{ id: string; title: string; currency: string | null }>;
   roomTypes: Array<{ id: string; title: string; rooms: number | null }>;
-  ratePlans: Array<{ id: string; title: string; roomTypeId: string | null; currency: string | null }>;
+  ratePlans: Array<{ id: string; title: string; roomTypeId: string | null; currency: string | null } & HotelChannelRatePlanMeta>;
 }
-export interface HotelChannelLogRow { id: string; kind: 'push' | 'pull' | 'booking' | 'test'; ok: boolean; message: string; createdAt: string }
+export interface HotelChannelWarning { externalId: string | null; from: string | null; to: string | null; message: string }
+export interface HotelChannelLogRow {
+  id: string;
+  kind: 'push' | 'pull' | 'booking' | 'test';
+  ok: boolean;
+  message: string;
+  createdAt: string;
+  details?: { taskIds?: string[]; warnings?: HotelChannelWarning[]; pauseMinutes?: number; mode?: string } | null;
+}
+export interface HotelChannelSyncResult { mode: 'delta' | 'full'; availability: number; rates: number; calls: number; taskIds: string[]; warnings: HotelChannelWarning[]; deferred: Array<'availability' | 'rates'> }
+export interface HotelChannelState {
+  availability: { values: number; lastSentAt: string | null; until: string | null };
+  rates: { values: number; lastSentAt: string | null; until: string | null };
+  lastFullSyncAt: string | null;
+  lastDeltaAt: string | null;
+}
 
 export const fetchChannels = (hotelId?: string) => api.get<HotelChannelConnection[]>('/hotels/channels', { params: hotelId ? { hotelId } : {} });
 export const connectChannel = (dto: { hotelId: string; provider: 'channex'; apiKey?: string; environment: string; externalPropertyId?: string }) =>
@@ -2109,7 +2194,9 @@ export const updateChannel = (id: string, dto: { status?: 'active' | 'paused'; s
 export const deleteChannel = (id: string) => api.delete<{ ok: boolean }>(`/hotels/channels/${id}`);
 export const fetchChannelRemote = (id: string) => api.get<HotelChannelRemote>(`/hotels/channels/${id}/remote`);
 export const saveChannelMappings = (id: string, mappings: HotelChannelMapping[]) => api.put<HotelChannelMapping[]>(`/hotels/channels/${id}/mappings`, { mappings });
-export const pushChannel = (id: string) => api.post<{ ok: boolean; availability: number; rates: number; stops: number }>(`/hotels/channels/${id}/push`, {});
+export const pushChannel = (id: string, full = false) => api.post<HotelChannelSyncResult>(`/hotels/channels/${id}/push${full ? '?full=1' : ''}`, {});
+export const fetchChannelState = (id: string) => api.get<HotelChannelState>(`/hotels/channels/${id}/state`);
+export const toggleChannelWebhook = (id: string, enabled: boolean) => api.post<HotelChannelConnection>(`/hotels/channels/${id}/webhook`, { enabled });
 export const pullChannel = (id: string) => api.post<{ revisions: number; created: number; modified: number; cancelled: number; failed: number }>(`/hotels/channels/${id}/pull`, {});
 export const fetchChannelLogs = (id: string) => api.get<HotelChannelLogRow[]>(`/hotels/channels/${id}/logs`);
 

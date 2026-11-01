@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put, Patch, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -48,10 +49,22 @@ export class HotelChannelsController {
     return this.channels.saveMappings(user.tenantId, id, dto?.mappings || []);
   }
 
+  /** Отправить в канал изменения; full=1 — полная выгрузка всего окна (не чаще, чем нужно: Channex против выгрузок по таймеру) */
   @Post(':id/push')
   @RequirePermission('hotels_manage_pricing', 'write')
-  push(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
-    return this.channels.push(user.tenantId, id);
+  push(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Query('full') full?: string) {
+    return this.channels.push(user.tenantId, id, full === '1' || full === 'true');
+  }
+
+  @Get(':id/state')
+  state(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.channels.stateOf(user.tenantId, id);
+  }
+
+  @Post(':id/webhook')
+  @RequirePermission('hotels_manage_pricing', 'write')
+  webhook(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: { enabled?: boolean }) {
+    return this.channels.toggleWebhook(user.tenantId, id, dto?.enabled !== false);
   }
 
   @Post(':id/pull')
@@ -63,5 +76,18 @@ export class HotelChannelsController {
   @Get(':id/logs')
   logs(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.channels.logsOf(user.tenantId, id);
+  }
+}
+
+/** Вебхук менеджера каналов: без входа, проверка секрета в заголовке; тело — только сигнал забрать брони */
+@Controller('public/hotel-channels')
+export class HotelChannelsPublicController {
+  constructor(private readonly channels: HotelChannelsService) {}
+
+  @Post(':id/webhook')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  hook(@Param('id') id: string, @Headers('x-channex-webhook-secret') secret: string | undefined, @Body() body: any) {
+    return this.channels.webhook(id, secret, body || {});
   }
 }

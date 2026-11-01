@@ -1,0 +1,66 @@
+/* Календарь ограничений (ARI) — см. md/design-system.md §12a «Календарь ограничений» */
+.px-scope .ari-wrap{display:flex;flex-direction:column;gap:10px}
+.px-scope .ari-wrap.busy .ari-table{opacity:.6;transition:opacity .15s}
+.px-scope .ari-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.px-scope .ari-nav,.px-scope .ari-opts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.px-scope .ari-opts label{display:flex;align-items:center;gap:6px;font-size:12px;color:#555;white-space:nowrap}
+.px-scope .ari-hint{font-size:11.5px;color:var(--fg-3)}
+.px-scope .ari-scroll{border:1px solid var(--line-2);border-radius:12px;background:#fff;overflow:auto;max-height:calc(100vh - 300px);user-select:none}
+.px-scope .ari-table{border-collapse:separate;border-spacing:0;min-width:100%}
+.px-scope .ari-table th,.px-scope .ari-table td{border-bottom:1px solid var(--line-3,#f0f0f0);border-right:1px solid var(--line-3,#f0f0f0);text-align:center;font-family:var(--ff-mono-ui);font-size:11.5px;min-width:52px;height:28px;padding:0 4px;color:#222;white-space:nowrap}
+.px-scope .ari-table thead th{position:sticky;top:0;z-index:2;background:var(--bg-muted,#fafafa);font-weight:500;height:40px;line-height:1.2}
+.px-scope .ari-table thead th span{display:block;font-size:9.5px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.04em}
+.px-scope .ari-table thead th b{font-size:11px;font-weight:600}
+.px-scope .ari-table thead th.we{background:#f3f3f3}
+.px-scope .ari-table thead th.today{box-shadow:inset 0 -2px 0 #222}
+.px-scope .ari-table .ari-c0{position:sticky;left:0;z-index:1;background:#fff;text-align:left;font-family:var(--ff-text,inherit);font-size:12px;min-width:170px;padding:0 12px;border-right:1px solid var(--line-2)}
+.px-scope .ari-table thead .ari-c0{z-index:3;background:var(--bg-muted,#fafafa);font-family:var(--ff-mono-ui);font-size:10px;color:var(--fg-3)}
+.px-scope .ari-room td{background:#f5f5f5;height:32px;border-top:1px solid var(--line-2)}
+.px-scope .ari-room .ari-c0{background:#f5f5f5;font-size:12.5px}
+.px-scope .ari-room b{margin-right:8px}
+.px-scope .ari-tag{display:inline-block;font-family:var(--ff-mono-ui);font-size:9.5px;padding:2px 6px;border-radius:5px;background:#222;color:#fff;margin-right:6px}
+.px-scope .ari-tag.stop{background:#fbecef;color:#9a1f31}
+.px-scope .ari-c0.lbl{color:#555;font-size:11.5px}
+.px-scope .ari-table td.we{background:#fbfbfb}
+.px-scope .ari-table td.ed{cursor:pointer}
+.px-scope .ari-table td.ed:hover{box-shadow:inset 0 0 0 1px #c9c9cc}
+.px-scope .ari-table td.sel{background:#e9eef6!important;box-shadow:inset 0 0 0 1px #1769d1}
+.px-scope .ari-table td.zero{background:#fbecef;color:#9a1f31;font-weight:600}
+.px-scope .ari-row.r-free td{color:#555}
+.px-scope .ari-row.r-price td{font-weight:600}
+.px-scope .ari-table td.man{background:#eef3f9;color:#1769d1}
+.px-scope .ari-table td.none{color:var(--fg-4,#b5b5b5);font-weight:400}
+.px-scope .ari-table td .disc{display:block;font-style:normal;font-size:9px;color:#c08319;line-height:1}
+.px-scope .ari-table td .dot{display:inline-block;width:10px;height:10px;border-radius:3px;background:#9a1f31}
+.px-scope .ari-table td.on{background:#fbecef}
+.px-scope .ari-table td.ext{background:repeating-linear-gradient(135deg,#fbecef,#fbecef 4px,#f6dde2 4px,#f6dde2 8px);cursor:not-allowed}
+.px-scope .ari-table td.set{font-weight:600;color:#7a4a09;background:#fbf2dc}
+.px-scope .ari-table td.editing{padding:1px}
+.px-scope .ari-table td.editing input{width:100%;min-width:60px;height:24px;border:1px solid #222;border-radius:6px;font:inherit;text-align:center;padding:0 4px;background:#fff}
+.px-scope .ari-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:#555;align-items:center}
+.px-scope .ari-legend .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-2px;border:1px solid var(--line-2)}
+.px-scope .ari-legend .sw.man{background:#eef3f9}
+.px-scope .ari-legend .sw.on{background:#fbecef}
+.px-scope .ari-legend .sw.ext{background:repeating-linear-gradient(135deg,#fbecef,#fbecef 3px,#f6dde2 3px,#f6dde2 6px)}
+.px-scope .ari-legend .sw.zero{background:#fbecef;border-color:#f0c8cf}
+.px-scope .ari-legend .muted{color:var(--fg-3)}
+.px-scope .ari-empty{padding:48px 20px;text-align:center;border:1px solid var(--line-2);border-radius:12px;background:#fff;color:var(--fg-3);font-size:12.5px}
+.px-scope .ari-empty h4{font-size:15px;font-weight:600;color:#222;margin:0 0 6px}
+.px-scope .ari-empty p{margin:0 auto 14px;max-width:520px}
+/* массовая правка */
+.px-scope .bk-modal.ari-dialog{width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.px-scope .ari-dialog .bk-modal-body{overflow:auto;display:flex;flex-direction:column;gap:12px}
+.px-scope .ari-f{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:10px;font-size:12.5px}
+.px-scope .ari-f>span{color:#555}
+.px-scope .ari-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.px-scope .ari-dialog .ari-inline input,.px-scope .ari-dialog input.ari-num{width:110px}
+.px-scope .ari-chips{display:flex;gap:6px;flex-wrap:wrap}
+.px-scope .ari-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:#555;font-size:12px;cursor:pointer;font-family:inherit}
+.px-scope .ari-chip.on{background:#222;border-color:#222;color:#fff}
+.px-scope .ari-chip input{display:none}
+.px-scope .ari-sep{height:1px;background:var(--line-2);margin:2px 0}
+.px-scope .ari-sum{margin-right:auto;font-size:12px;color:var(--fg-3);align-self:center}
+@media (max-width:720px){
+  .px-scope .ari-table .ari-c0{min-width:120px}
+  .px-scope .ari-f{grid-template-columns:1fr}
+}

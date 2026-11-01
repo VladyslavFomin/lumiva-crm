@@ -7,7 +7,7 @@ import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { resolvePublicAssetUrl } from '../../api/client';
 import { HotelsSubnav } from './HotelsSubnav';
-import { HotelPricingCalendar } from './HotelPricingCalendar';
+import { AriCalendar } from './ari/AriCalendar';
 import { Ic, HTL_ICON } from './HotelIcons';
 import { PhotoEditDrawer } from './PhotoEditDrawer';
 import {
@@ -1594,7 +1594,7 @@ export const HotelDetailPage: React.FC = () => {
         </div>
 
         {tab === 'rooms' && <RoomsTab hotelId={hotel.id} roomTypes={roomTypes} onChanged={load} />}
-        {tab === 'calendar' && <HotelPricingCalendar roomTypes={roomTypes} />}
+        {tab === 'calendar' && <AriCalendar hotelId={hotel.id} />}
         {tab === 'markets' && <MarketsTab hotelId={hotel.id} roomTypes={roomTypes} currency={hotel.currency} />}
         {tab === 'info' && <HotelInfoTab hotel={hotel} onSaved={load} />}
         {tab === 'gallery' && <HotelGalleryTab hotelId={hotel.id} />}

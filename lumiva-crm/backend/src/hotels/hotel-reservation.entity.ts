@@ -46,7 +46,8 @@ export interface HotelReservationPayment {
   createdAt?: string;
 }
 
-export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base';
+/** channel — цена ночи из брони менеджера каналов (OTA) */
+export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base' | 'channel';
 export interface HotelNightlyRate {
   date: string;
   price: number;
@@ -186,6 +187,14 @@ export class HotelReservation {
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   otaCode: string | null;
+
+  /** Кто берёт оплату по брони из канала: property — отель (гость платит на месте / картой отелю), ota — OTA (Expedia Collect, Booking Payments) */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  paymentCollect: 'property' | 'ota' | null;
+
+  /** Способ оплаты по данным канала: credit_card / bank_transfer */
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  channelPaymentType: string | null;
 
   /** Возрасты детей (лет; null — не указан). children = дети младше hotel.childMaxAge */
   @Column({ type: 'jsonb', default: [] })

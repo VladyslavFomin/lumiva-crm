@@ -486,7 +486,13 @@ export const HotelReservationsPage: React.FC = () => {
                 </div>
               )}
 
-              {selected.priceMode === 'auto' && selected.nightlyRates?.length ? <NightlyRatesSummary nights={selected.nightlyRates} currency={curOf(selected)} /> : null}
+              {(selected.priceMode === 'auto' || selected.source === 'channel') && selected.nightlyRates?.length ? <NightlyRatesSummary nights={selected.nightlyRates} currency={curOf(selected)} /> : null}
+              {selected.source === 'channel' && selected.paymentCollect && (
+                <div className={`pe-box${selected.paymentCollect === 'ota' ? '' : ' muted'}`} style={{ marginTop: 8 }}>
+                  {t(`crm.hotels.reservations.drawer.paymentCollect.${selected.paymentCollect}`, { ota: selected.otaName || 'OTA' })}
+                  {selected.channelPaymentType ? ` · ${t(`crm.hotels.reservations.drawer.channelPaymentType.${selected.channelPaymentType}`, { defaultValue: selected.channelPaymentType })}` : ''}
+                </div>
+              )}
               <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>{t('crm.hotels.folio.title')}</div>
               <FolioPanel
                 reservation={selected}

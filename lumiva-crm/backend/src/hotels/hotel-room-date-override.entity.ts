@@ -35,8 +35,21 @@ export class HotelRoomDateOverride {
   @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
   discountPct: string;
 
+  /** минимум ночей при заезде в эту дату (в канал — min_stay_arrival) */
   @Column({ type: 'integer', default: 1 })
   minNights: number;
+
+  /** закрыто на заезд (CTA): в эту дату нельзя заехать, проживание через неё — можно */
+  @Column({ type: 'boolean', default: false })
+  closedToArrival: boolean;
+
+  /** закрыто на выезд (CTD): в эту дату нельзя выехать */
+  @Column({ type: 'boolean', default: false })
+  closedToDeparture: boolean;
+
+  /** максимум ночей при заезде в эту дату; null — без ограничения */
+  @Column({ type: 'smallint', nullable: true })
+  maxNights: number | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

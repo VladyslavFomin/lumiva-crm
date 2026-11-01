@@ -16,12 +16,12 @@ import { appLocale } from '../../i18n/format';
 type Props = NativeStackScreenProps<HotelsStackParamList, 'HotelReservations'>;
 
 const STATUS_LABEL: Record<HotelReservationStatus, string> = {
-  confirmed: 'Подтверждена', pending: 'Ожидает', checked_in: 'Заселён', checked_out: 'Выселен', cancelled: 'Отменена',
+  confirmed: 'Подтверждена', pending: 'Ожидает', checked_in: 'Заселён', checked_out: 'Выселен', cancelled: 'Отменена', no_show: 'Не заехал',
 };
 const STATUS_TONE: Record<HotelReservationStatus, 'acc' | 'default' | 'warn' | 'pos' | 'neg'> = {
-  confirmed: 'acc', pending: 'warn', checked_in: 'pos', checked_out: 'default', cancelled: 'neg',
+  confirmed: 'acc', pending: 'warn', checked_in: 'pos', checked_out: 'default', cancelled: 'neg', no_show: 'neg',
 };
-const STATUS_ORDER: HotelReservationStatus[] = ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled'];
+const STATUS_ORDER: HotelReservationStatus[] = ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
 
 function fmtDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(appLocale(), { day: '2-digit', month: 'short' });

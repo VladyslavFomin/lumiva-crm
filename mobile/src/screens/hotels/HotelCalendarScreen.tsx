@@ -60,7 +60,8 @@ export const HotelCalendarScreen: React.FC = () => {
         fetchHotelReservations({ hotelId }),
       ]);
       setRoomTypes(types);
-      setReservations(res.filter((r) => r.status !== 'cancelled'));
+      // отменённые и незаехавшие номер не занимают — как в шахматке веб-версии
+      setReservations(res.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show'));
       const rateEntries = await Promise.all(types.map(async (t) => [t.id, await fetchHotelDailyRates(t.id, dateStrs)] as const));
       setRates(Object.fromEntries(rateEntries));
     } catch {

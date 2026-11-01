@@ -51,6 +51,9 @@ export const QuoteBreakdown: React.FC<{
   const minStay = quote.warnings.find((w) => w.code === 'min_stay');
   const release = quote.warnings.find((w) => w.code === 'release');
   const lowBudget = quote.warnings.find((w) => w.code === 'below_budget');
+  const maxStay = quote.warnings.find((w) => w.code === 'max_stay');
+  const closedIn = quote.warnings.some((w) => w.code === 'closed_arrival');
+  const closedOut = quote.warnings.some((w) => w.code === 'closed_departure');
   return (
     <div className="pe-box">
       <div className="pe-head">
@@ -91,6 +94,9 @@ export const QuoteBreakdown: React.FC<{
       {fallback && <div className="pe-note">{k('fallback')}</div>}
       {minStay && <div className="pe-note warn">{k('minStay', { count: minStay.value })}</div>}
       {release && <div className="pe-note warn">{k('release', { count: release.value })}</div>}
+      {maxStay && <div className="pe-note warn">{k('maxStay', { count: maxStay.value })}</div>}
+      {closedIn && <div className="pe-note warn">{k('closedArrival')}</div>}
+      {closedOut && <div className="pe-note warn">{k('closedDeparture')}</div>}
       {lowBudget && <div className="pe-note warn">{k('belowBudget', { dates: lowBudget.dates.map(d).join(', ') })}</div>}
       {noOcc && <div className="pe-note warn">{k('noOccupancy', { adults: quote.guests?.adults ?? '?', children: quote.guests?.children ?? 0 })}</div>}
     </div>

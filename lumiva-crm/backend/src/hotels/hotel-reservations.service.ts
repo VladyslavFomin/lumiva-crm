@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import {
+  HotelNightlyRate,
   HOTEL_CANCEL_REASONS,
   HOTEL_COMP_REASONS,
   HotelCancelReason,
@@ -35,7 +36,7 @@ import { HotelContractsService, promotionDiscount } from './hotel-contracts.serv
 import { HotelRoomOutage } from './hotel-housekeeping.entities';
 import { HotelFolioLine } from './hotel-folio.entities';
 import { HotelRateEngineService } from './hotel-rate-engine.service';
-import { businessDateOf, hotelToday, HotelFolioService } from './hotel-folio.service';
+import { businessDateOf, folioSummary, hotelToday, HotelFolioService } from './hotel-folio.service';
 
 export interface HotelReservationWriteOptions {
   /** Never populated from the HTTP request body — set only by the reservation-import flow for
@@ -44,7 +45,19 @@ export interface HotelReservationWriteOptions {
   skipValidation?: boolean;
   /** Правка денег в закрытых ночным аудитом днях (право hotels_night_audit) */
   allowClosed?: boolean;
+  /** Цены по ночам из менеджера каналов (бронь OTA): итог брони — их сумма, без пересчёта прайсом */
+  channelNights?: HotelNightlyRate[];
 }
+
+/** Возврат вместе с отменой / no-show */
+export interface HotelCloseRefund {
+  amount?: string | number | null;
+  method?: string;
+  folio?: 'guest' | 'partner';
+  note?: string | null;
+}
+
+export const HOTEL_REFUND_METHODS = ['cash', 'card', 'bank_transfer', 'other'] as const;
 
 export interface HotelReservationFilters {
   hotelId?: string;
@@ -123,6 +136,9 @@ export interface HotelReservationInput {
   channelBookingId?: string | null;
   otaName?: string | null;
   otaCode?: string | null;
+  /** кто берёт оплату по брони канала (property / ota) и способ оплаты — только из менеджера каналов */
+  paymentCollect?: 'property' | 'ota' | null;
+  channelPaymentType?: string | null;
 }
 
 const PRICE_FIELDS = ['costPerNight', 'ppPerNight', 'grossPerNight', 'discountPct'] as const;
@@ -445,7 +461,7 @@ export class HotelReservationsService {
     const nights = nightsBetween(row.checkIn, row.checkOut);
     row.ppTotal = String(round2(toNum(row.ppPerNight) * nights));
     // цена по ночам из прайса — итог суммой ночей (сезоны и даты календаря могут отличаться), иначе цена ночи × ночи
-    row.roomTotal = row.priceMode === 'auto' && row.nightlyRates?.length === nights
+    row.roomTotal = (row.priceMode === 'auto' || row.source === 'channel') && row.nightlyRates?.length === nights
       ? String(round2(row.nightlyRates.reduce((s, n) => s + toNum(n.price), 0)))
       : String(round2(toNum(row.grossPerNight) * nights));
     row.total = String(round2(toNum(row.roomTotal) * (1 - toNum(row.discountPct) / 100)));
@@ -503,6 +519,8 @@ export class HotelReservationsService {
       channelConnectionId: dto.channelConnectionId ?? null,
       channelBookingId: dto.channelBookingId ?? null,
       otaName: dto.otaName ?? null,
+      paymentCollect: dto.paymentCollect === 'ota' || dto.paymentCollect === 'property' ? dto.paymentCollect : null,
+      channelPaymentType: dto.channelPaymentType ? String(dto.channelPaymentType).slice(0, 16) : null,
       otaCode: dto.otaCode ?? null,
       optionUntil: parseOptionUntil(dto.optionUntil),
       ...normalizeComp(dto),
@@ -532,6 +550,7 @@ export class HotelReservationsService {
       row.priceMode = 'manual';
       row.nightlyRates = null;
     }
+    if (options.channelNights?.length) row.nightlyRates = options.channelNights;
     if (!options.skipValidation) {
       const result = await this.availability.checkAvailability({
         tenantId,
@@ -645,6 +664,7 @@ export class HotelReservationsService {
     delete normalized.expectedUpdatedAt;
     // привязка к каналу меняется только при загрузке из канала
     for (const k of ['channelConnectionId', 'channelBookingId']) delete normalized[k];
+    if (normalized.paymentCollect !== undefined && !['ota', 'property', null].includes(normalized.paymentCollect)) delete normalized.paymentCollect;
     Object.assign(row, normalized);
     // состав гостей поменялся, а размещение явно не прислали — подбираем заново по составу
     const guestsChanged = (await this.applyGuests(tenantId, row, dto)) || (dto.pax !== undefined && dto.pax !== before.pax) || (dto.children !== undefined && Number(dto.children) !== before.children);
@@ -660,6 +680,7 @@ export class HotelReservationsService {
       row.priceMode = 'manual';
       row.nightlyRates = null;
     }
+    if (options.channelNights?.length) row.nightlyRates = options.channelNights;
 
     if (datesOrRoomChanged && !options.skipValidation) {
       const result = await this.availability.checkAvailability({
@@ -1065,11 +1086,41 @@ export class HotelReservationsService {
       rule,
       suggestedFee: fee,
       paid: round2((row.payments || []).reduce((sum, p) => sum + toNum(p.amount), 0)),
+      ...(await this.moneyAfterClose(tenantId, row, fee)),
     };
   }
 
+  /**
+   * Деньги после отмены / no-show с удержанием fee: по каждому счёту — оплачено, доп. услуги и сколько можно вернуть
+   * (оплачено − штраф на счёте проживания − доп. услуги этого счёта). Форма считает возврат вживую при правке штрафа.
+   */
+  private async moneyAfterClose(tenantId: string, row: HotelReservation, fee: number) {
+    const [f, hotel] = await Promise.all([this.folio.folio(tenantId, row.id), this.folio.hotelOf(tenantId, row.hotelId)]);
+    const sim = folioSummary({ ...row, status: 'cancelled', cancellationFee: String(round2(fee)) } as HotelReservation, f.lines, hotel);
+    const of = (k: 'guest' | 'partner') => ({ payments: sim.folios[k].payments, extras: sim.folios[k].extras, refundable: round2(Math.max(0, -sim.folios[k].balance)) });
+    return { accommodationFolio: sim.accommodationFolio, folios: { guest: of('guest'), partner: of('partner') } };
+  }
+
+  /** Возврат вместе с отменой / no-show: сумма > 0, счёт, способ; не больше, чем можно вернуть после удержания штрафа */
+  private async checkCloseRefund(tenantId: string, row: HotelReservation, fee: number, raw: HotelCloseRefund | undefined) {
+    if (!raw || raw.amount === undefined || raw.amount === null || String(raw.amount).trim() === '') return null;
+    const amount = round2(toNum(normalizeNumericInput(raw.amount as any)));
+    if (!(amount > 0)) return null;
+    const folio: 'guest' | 'partner' = raw.folio === 'partner' && row.agencyId ? 'partner' : 'guest';
+    const method = HOTEL_REFUND_METHODS.includes(raw.method as any) ? String(raw.method) : 'cash';
+    const money = await this.moneyAfterClose(tenantId, row, fee);
+    if (amount > money.folios[folio].refundable + 0.009) {
+      throw new BadRequestException({ code: 'HOTEL_REFUND_TOO_BIG', message: `Вернуть можно не больше ${money.folios[folio].refundable}` });
+    }
+    return { amount, folio, method, note: String(raw.note || '').trim().slice(0, 500) || null };
+  }
+
+  private async applyCloseRefund(tenantId: string, id: string, refund: NonNullable<Awaited<ReturnType<HotelReservationsService['checkCloseRefund']>>>, label: string, actorUserId?: string | null) {
+    return this.addPayment(tenantId, id, { amount: String(refund.amount), method: refund.method, folio: refund.folio, refund: true, note: refund.note || label }, actorUserId ?? null);
+  }
+
   /** Отмена с причиной и штрафом (PMS-026). Штраф по умолчанию — по политике контракта. */
-  async cancel(tenantId: string, id: string, dto: { reason?: string; note?: string; fee?: string | number | null }, actorUserId?: string | null) {
+  async cancel(tenantId: string, id: string, dto: { reason?: string; note?: string; fee?: string | number | null; refund?: HotelCloseRefund }, actorUserId?: string | null) {
     const row = await this.get(tenantId, id);
     if (!['confirmed', 'pending'].includes(row.status)) {
       throw new BadRequestException({ code: 'HOTEL_CANCEL_NOT_ALLOWED', message: 'Отменить можно только подтверждённую или ожидающую бронь' });
@@ -1081,15 +1132,18 @@ export class HotelReservationsService {
     const fee = dto.fee === undefined || dto.fee === null || dto.fee === ''
       ? (await this.cancellationQuote(tenantId, id)).suggestedFee
       : Math.max(0, toNum(normalizeNumericInput(dto.fee as any)));
-    return this.closeAs(tenantId, row, 'cancelled', {
+    // возврат проверяем до отмены — отмена не должна пройти, если возврат невозможен
+    const refund = await this.checkCloseRefund(tenantId, row, round2(fee), dto.refund);
+    const closed = await this.closeAs(tenantId, row, 'cancelled', {
       cancelReason: reason as HotelCancelReason,
       cancelNote: String(dto.note || '').trim().slice(0, 1000) || null,
       cancellationFee: String(round2(fee)),
     }, 'Бронь отменена', actorUserId);
+    return refund ? this.applyCloseRefund(tenantId, id, refund, 'Возврат при отмене', actorUserId) : closed;
   }
 
   /** Гость не заехал (no-show). Штраф по умолчанию — первая ночь. */
-  async noShow(tenantId: string, id: string, dto: { fee?: string | number | null; note?: string }, actorUserId?: string | null) {
+  async noShow(tenantId: string, id: string, dto: { fee?: string | number | null; note?: string; refund?: HotelCloseRefund }, actorUserId?: string | null) {
     const row = await this.get(tenantId, id);
     if (!['confirmed', 'pending'].includes(row.status)) {
       throw new BadRequestException({ code: 'HOTEL_NO_SHOW_NOT_ALLOWED', message: 'No-show можно отметить только у незаселённой брони' });
@@ -1101,11 +1155,14 @@ export class HotelReservationsService {
     const fee = dto.fee === undefined || dto.fee === null || dto.fee === ''
       ? toNum(row.total) / nights
       : Math.max(0, toNum(normalizeNumericInput(dto.fee as any)));
-    return this.closeAs(tenantId, row, 'no_show', {
+    const kept = round2(Math.min(fee, toNum(row.total)));
+    const refund = await this.checkCloseRefund(tenantId, row, kept, dto.refund);
+    const closed = await this.closeAs(tenantId, row, 'no_show', {
       noShowAt: new Date(),
       cancelNote: String(dto.note || '').trim().slice(0, 1000) || null,
-      cancellationFee: String(round2(Math.min(fee, toNum(row.total)))),
+      cancellationFee: String(kept),
     }, 'Гость не заехал (no-show)', actorUserId);
+    return refund ? this.applyCloseRefund(tenantId, id, refund, 'Возврат при no-show', actorUserId) : closed;
   }
 
   /** Массовая отметка no-show с экрана дня; feeMode: none — без штрафа, first_night — первая ночь */
@@ -1281,6 +1338,8 @@ export class HotelReservationsService {
     };
     row.payments = [...row.payments, entry];
     if (row.paidStatus !== 'refunded') row.paidStatus = this.suggestPaidStatus(row);
+    // закрытая бронь, деньги вернули полностью — «возвращено»
+    if (amount < 0 && (row.status === 'cancelled' || row.status === 'no_show') && row.payments.reduce((s, p) => s + toNum(p.amount), 0) <= 0.009) row.paidStatus = 'refunded';
     const saved = await this.repo.save(row);
 
     void this.auditLog.log({

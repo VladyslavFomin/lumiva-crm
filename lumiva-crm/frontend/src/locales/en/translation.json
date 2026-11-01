@@ -18156,10 +18156,10 @@
       "calendarPage": {
         "error": "Failed to load hotels",
         "roomTypesError": "Failed to load room types",
-        "kicker": "AVAILABILITY & PRICING CALENDAR",
+        "kicker": "PRICES AND RESTRICTIONS BY DAY",
         "title": "Room calendar",
-        "subtitle": "Set price, discount, and stop-sell by specific dates for each room type.",
-        "tabPrice": "Pricing & availability",
+        "subtitle": "Available rooms, price, stop sell, closed to arrival / departure, minimum and maximum nights — for every day. Changes go to the sales channels.",
+        "tabPrice": "Prices & restrictions",
         "tabOccupancy": "Room occupancy"
       },
       "pricingCalendar": {
@@ -18607,7 +18607,7 @@
         },
         "tabs": {
           "rooms": "Rooms",
-          "calendar": "Price calendar",
+          "calendar": "Prices & restrictions",
           "markets": "Markets & pricing",
           "info": "Hotel information",
           "gallery": "Gallery",
@@ -18985,7 +18985,15 @@
           "accTax": "Accommodation tax {{pct}}%",
           "vat": "VAT {{pct}}%",
           "taxIncluded": "Total (taxes included)",
-          "totalWithTax": "Total incl. taxes"
+          "totalWithTax": "Total incl. taxes",
+          "paymentCollect": {
+            "ota": "{{ota}} collects payment (Expedia Collect / Booking Payments): the stay goes to the partner account",
+            "property": "The hotel collects payment: the guest pays on site or by card"
+          },
+          "channelPaymentType": {
+            "credit_card": "card",
+            "bank_transfer": "bank transfer"
+          }
         },
         "paymentMethods": {
           "card": "Card",
@@ -20746,7 +20754,7 @@
           "STORAGE_FULL": "Company storage is full",
           "HOTEL_DAY_CLOSED": "The day is closed by the night audit — editing requires the Night audit permission",
           "HOTEL_PAYMENT_ZERO": "Payment amount cannot be zero",
-          "HOTEL_REFUND_TOO_BIG": "The refund exceeds what was paid on this folio",
+          "HOTEL_REFUND_TOO_BIG": "The refund is larger than what can be returned after the penalty",
           "HOTEL_PAYMENT_SHIFT_CLOSED": "The shift of this payment is closed — issue a refund instead",
           "HOTEL_FOLIO_DESCRIPTION_REQUIRED": "Enter what is being charged",
           "HOTEL_FOLIO_ZERO": "Charge amount cannot be zero",
@@ -20785,7 +20793,20 @@
           "HOTEL_GUEST_REQUEST_CATEGORY": "Choose what is needed",
           "HOTEL_GUEST_REQUEST_TEXT": "Describe what is needed",
           "HOTEL_GUEST_REQUEST_LIMIT": "Too many requests from this room in an hour"
-        }
+        },
+        "refund": {
+          "folio": {
+            "guest": "Guest account",
+            "partner": "Partner account"
+          },
+          "line": "paid {{paid}} · kept {{kept}} · refundable {{back}}",
+          "issue": "Issue the refund now",
+          "folioLabel": "From account",
+          "amount": "Refund amount",
+          "method": "Method",
+          "tooBig": "No more than {{max}}"
+        },
+        "confirmCancelRefund": "Cancel and refund"
       },
       "hk": {
         "kicker": "Housekeeping",
@@ -21322,7 +21343,8 @@
           "calendar": "calendar",
           "season": "rate sheet",
           "market": "market",
-          "base": "base"
+          "base": "base",
+          "channel": "channel"
         },
         "total": "Accommodation",
         "netContract": "Net contract: this is what the hotel receives, no commission is charged",
@@ -21352,7 +21374,10 @@
         "minStay": "Minimum stay in this period: {{count}} nights",
         "release": "Period release is {{count}} days — arrival is inside the release",
         "belowBudget": "PP below budget: {{dates}}",
-        "childInfant": "infant — free, baby cot"
+        "childInfant": "infant — free, baby cot",
+        "maxStay": "More than the maximum nights for this arrival date: {{count}}",
+        "closedArrival": "The arrival date is closed to arrival",
+        "closedDeparture": "The departure date is closed to departure"
       },
       "guestsPicker": {
         "title": "Guests",
@@ -21444,7 +21469,7 @@
         "autoOn": "availability instantly, bookings every 5 min, rates every 30 min",
         "autoOff": "off",
         "mappingTitle": "Room & rate mapping",
-        "mappingHint": "Availability goes per room type, the price per rate plan: our rate sheet for the chosen occupancy and market group for each date. Days without a price or with stop-sale are closed — 0 is never sent.",
+        "mappingHint": "One channel room per our room type; a room can have several rate plans (BAR, with breakfast…). Availability goes per room, prices and restrictions per rate plan: the season price list by occupancy and market group, stops and restrictions from the calendar. Days without a price are not sold.",
         "colRoom": "Our room",
         "colChannelRoom": "Channex room type",
         "colRatePlan": "Channex rate plan",
@@ -21460,7 +21485,7 @@
         "currencyWarn": "The Channex rate plan currency differs from the hotel currency ({{currency}}) — rates are sent in the hotel currency without conversion.",
         "settingsTitle": "Sync settings",
         "pushDays": "Days ahead",
-        "pushDaysHint": "How many days ahead to open sales on channels (7–365).",
+        "pushDaysHint": "How many days ahead to open sales on channels (7–500; Channex certifies a full sync of 500 days).",
         "reserveRooms": "Rooms held back",
         "reserveHint": "This many rooms of each type are not given to channels — for direct sales and partners.",
         "saveSettings": "Save",
@@ -21477,7 +21502,48 @@
         },
         "remoteError": "Could not load Channex data",
         "error": "Channel sync error",
-        "ota": "From channel"
+        "ota": "From channel",
+        "pushDelta": "Send changes",
+        "pushFull": "Full sync",
+        "fullBody": "Send prices, availability and restrictions for the whole window again? Channex allows a full sync once a day — it normally runs by itself at night.",
+        "syncNothing": "Everything is already in the channel — no changes",
+        "syncDone": "Sent: availability {{availability}}, prices and restrictions {{rates}} ({{calls}} calls)",
+        "syncDeferred": "part was deferred by the channel limit — it goes out within a minute",
+        "syncWarnings": "the channel rejected {{count}} values — see the log",
+        "lastDelta": "changes: {{at}}",
+        "lastFull": "Full sync",
+        "fullRule": "once a day, at night hotel time",
+        "webhookOn": "bookings arrive instantly (webhook)",
+        "webhookOff": "bookings every 5 minutes",
+        "mappedValue": "{{rooms}} / {{total}} rooms · {{plans}} rate plans",
+        "accepted": "accepted by the channel: availability {{avail}}, rates {{rates}}",
+        "pausedUntil": "Sync is paused after a channel error until {{at}} — it then resumes by itself. “Resume” lifts the pause now.",
+        "webhookOnHint": "Webhook is on: the channel reports a new booking at once and it loads within seconds.",
+        "webhookOffHint": "Webhook is off: bookings are polled every 5 minutes.",
+        "webhookEnable": "Turn on webhook",
+        "webhookDisable": "Turn off webhook",
+        "webhookEnabled": "Webhook turned on",
+        "webhookDisabled": "Webhook turned off",
+        "roomsIn": "{{n}} rooms",
+        "availabilityOnly": "No rate plan — only availability is sent. Add a rate plan to send prices and restrictions.",
+        "pickRatePlan": "Choose a rate plan",
+        "occDefault": "occupancy: 2 adults",
+        "addPlan": "Rate plan",
+        "removePlan": "Remove rate plan",
+        "unsaved": "There are unsaved changes",
+        "derivedNote": "Derived rate plan: the channel calculates the price, only restrictions are sent",
+        "perPersonNote": "Per-person price: sent for each number of guests",
+        "plan": {
+          "perRoom": "per room",
+          "perPerson": "per person · {{list}}",
+          "derived": "derived",
+          "hint": {
+            "per_room": "Per-room price — by the chosen occupancy",
+            "per_person": "Price depends on the number of guests — sent for each",
+            "derived": "The channel derives the price from the parent rate plan"
+          }
+        },
+        "tasks": "Channel tasks:"
       },
       "guestCare": {
         "kicker": "new {{n}} · in progress {{w}}",
@@ -21649,6 +21715,79 @@
         },
         "kicker": "Price list · per person",
         "subtitle": "The whole hotel price list in one table, like in Excel: periods, categories, occupancies. Prices derive from the lowest category’s period PP."
+      },
+      "ari": {
+        "loading": "Loading the calendar…",
+        "loadError": "Could not load the calendar",
+        "retry": "Retry",
+        "saveError": "Could not save",
+        "prev": "Back",
+        "next": "Forward",
+        "today": "Today",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "priceFor": "Price for",
+        "adults_one": "{{count}} adult",
+        "adults_other": "{{count}} adults",
+        "market": "Market",
+        "reference": "reference",
+        "bulkBtn": "Edit a range",
+        "noRooms": "No room types",
+        "noRoomsText": "Add room types on the hotel card — prices and restrictions by day will appear here.",
+        "hint": "Click a cell to edit a day; drag along a row to edit several days. Price comes from the season sheet; blue means a manual price for that date.",
+        "base": "lowest category",
+        "stopSale": "off sale",
+        "rows": {
+          "free": "Available",
+          "price": "Price",
+          "stop": "Stop sell",
+          "cta": "Closed to arrival",
+          "ctd": "Closed to departure",
+          "min": "Min. nights",
+          "max": "Max. nights"
+        },
+        "rowHint": {
+          "free": "Available to sell: by allotments and blocks, minus out-of-order rooms",
+          "price": "Room price per night for the selected number of adults",
+          "stop": "The date is closed for sale",
+          "cta": "No arrivals on this date (stays through it are fine)",
+          "ctd": "No departures on this date",
+          "min": "Minimum nights when arriving on this date (the stricter of the price period and the calendar)",
+          "max": "Maximum nights when arriving on this date"
+        },
+        "byPrice": "by price list",
+        "manualTip": "Manual price for this date. Clear it to use the price list again",
+        "priceTip": "Season price list. Type a number to set a manual price for the date",
+        "noPriceTip": "No price: fill in the season price list or set a price for the date",
+        "stopElsewhere": "This stop is set elsewhere: the room type is off sale or there is a stop date in “Prices & markets → By day”. Remove it there.",
+        "legend": {
+          "manual": "manual price",
+          "closed": "closed",
+          "ext": "stop from other settings",
+          "soldOut": "sold out",
+          "channels": "Changes reach sales channels within a minute"
+        },
+        "bulkDone": "Days updated: {n}",
+        "bulk": {
+          "title": "Edit a range",
+          "rooms": "Room types",
+          "from": "From",
+          "to": "To",
+          "weekdays": "Weekdays",
+          "price": "Price per night",
+          "priceSet": "set",
+          "priceReset": "by price list",
+          "discount": "Discount, %",
+          "keep": "keep",
+          "close": "close",
+          "open": "open",
+          "maxSet": "set",
+          "maxReset": "no limit",
+          "summary": "Fields: {{fields}} · room types: {{rooms}}",
+          "nothing": "Choose what to change",
+          "cancel": "Cancel",
+          "apply": "Apply"
+        }
       }
     },
     "telephony": {

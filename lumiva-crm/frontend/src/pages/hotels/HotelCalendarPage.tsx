@@ -4,7 +4,7 @@ import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
-import { HotelPricingCalendar } from './HotelPricingCalendar';
+import { AriCalendar } from './ari/AriCalendar';
 import { HotelRoomOccupancyGrid } from './HotelRoomOccupancyGrid';
 import { fetchHotels, fetchRoomTypes, type Hotel, type HotelRoomType } from '../../api/hotels';
 import './hotels-design.css';
@@ -62,7 +62,7 @@ export const HotelCalendarPage: React.FC = () => {
 
         <div data-tour="hcal-grid" style={{ marginTop: 16 }}>
           {tab === 'price' ? (
-            <HotelPricingCalendar roomTypes={roomTypes} />
+            hotelId ? <AriCalendar hotelId={hotelId} /> : null
           ) : (
             <HotelRoomOccupancyGrid roomTypes={roomTypes} />
           )}

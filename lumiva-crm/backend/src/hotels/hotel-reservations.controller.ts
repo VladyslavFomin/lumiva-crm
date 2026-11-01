@@ -78,7 +78,7 @@ export class HotelReservationsController {
   @RequirePermission('hotels_manage_reservations', 'write')
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: any) {
     // привязка к каналу и источник «канал» — только у броней, загруженных из менеджера каналов
-    const { channelConnectionId, channelBookingId, otaName, otaCode, ...clean } = dto || {};
+    const { channelConnectionId, channelBookingId, otaName, otaCode, paymentCollect, channelPaymentType, ...clean } = dto || {};
     if (clean.source === 'channel') delete clean.source;
     return this.reservations.create(user.tenantId, clean, user.userId ?? user.id ?? user.sub);
   }
@@ -122,7 +122,9 @@ export class HotelReservationsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: any,
   ) {
-    return this.reservations.update(user.tenantId, id, dto, this.actor(user), { allowClosed: await this.canOverride(user) });
+    // данные канала (кто берёт оплату, способ оплаты) меняет только загрузка из менеджера каналов
+    const { paymentCollect, channelPaymentType, ...clean } = dto || {};
+    return this.reservations.update(user.tenantId, id, clean, this.actor(user), { allowClosed: await this.canOverride(user) });
   }
 
   @Delete(':id')
@@ -142,7 +144,7 @@ export class HotelReservationsController {
   cancel(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: { reason?: string; note?: string; fee?: string | number | null },
+    @Body() dto: { reason?: string; note?: string; fee?: string | number | null; refund?: { amount?: string | number | null; method?: string; folio?: 'guest' | 'partner'; note?: string | null } },
   ) {
     return this.reservations.cancel(user.tenantId, id, dto || {}, user.userId ?? user.id ?? user.sub);
   }
@@ -152,7 +154,7 @@ export class HotelReservationsController {
   noShow(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: { fee?: string | number | null; note?: string },
+    @Body() dto: { fee?: string | number | null; note?: string; refund?: { amount?: string | number | null; method?: string; folio?: 'guest' | 'partner'; note?: string | null } },
   ) {
     return this.reservations.noShow(user.tenantId, id, dto || {}, user.userId ?? user.id ?? user.sub);
   }
