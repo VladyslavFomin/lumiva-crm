@@ -26,8 +26,16 @@ export class HotelsPriceListImportController {
   apply(
     @CurrentUser() user: CurrentUserPayload,
     @UploadedFile() file: any,
-    @Body() dto: { hotelId: string; replacePeriods?: string; clearDaily?: string; sheet?: string },
+    @Body() dto: { hotelId: string; replacePeriods?: string; clearDaily?: string; sheet?: string; importPromotions?: string; promoMarketGroupIds?: string },
   ) {
-    return this.importService.apply(user.tenantId, dto.hotelId, file, { replacePeriods: flag(dto.replacePeriods), clearDaily: flag(dto.clearDaily), sheet: dto.sheet || null });
+    // группы рынков акций приходят строкой через запятую (multipart)
+    const promoMarketGroupIds = String(dto.promoMarketGroupIds || '').split(',').map((x) => x.trim()).filter(Boolean);
+    return this.importService.apply(user.tenantId, dto.hotelId, file, {
+      replacePeriods: flag(dto.replacePeriods),
+      clearDaily: flag(dto.clearDaily),
+      sheet: dto.sheet || null,
+      importPromotions: flag(dto.importPromotions),
+      promoMarketGroupIds,
+    });
   }
 }

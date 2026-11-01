@@ -86,6 +86,9 @@ export class HotelsPublicStorefrontService {
       total: number;
       ratePlan: { code: string; name: string; boardType: string; refundable: boolean } | null;
       prepayment: { amount: number; dueDate: string | null } | null;
+      /** цена без акций (зачёркнутая) и названия акций — только если акция сработала */
+      totalBeforePromo: number | null;
+      promotions: string[];
     }> = [];
 
     for (const hotel of hotels) {
@@ -102,7 +105,7 @@ export class HotelsPublicStorefrontService {
         // тот же расчёт по ночам, что и у брони (сезоны, календарь, скидки дат); ночь без цены — не продаём
         // на сайте — тариф, который продаётся на сайте (по умолчанию, если он такой); нет — чистый прайс
         const plan = await this.ratePlans.websitePlan(tenantId, hotel.id, roomType.id);
-        const quote = await this.reservations.quote(tenantId, { roomTypeId: roomType.id, occupancyTypeId: firstOccupancy.id, checkIn, checkOut, ratePlanId: plan?.id ?? null, useDefaultRatePlan: false }).catch(() => null);
+        const quote = await this.reservations.quote(tenantId, { roomTypeId: roomType.id, occupancyTypeId: firstOccupancy.id, checkIn, checkOut, ratePlanId: plan?.id ?? null, useDefaultRatePlan: false, promotions: 'auto', salesChannel: 'website' }).catch(() => null);
         if (quote && plan && quote.warnings.some((w) => w.code === 'min_stay')) continue;
         if (!quote || quote.warnings.some((w) => w.code === 'no_price' || w.code === 'blocked')) continue;
 
@@ -120,6 +123,8 @@ export class HotelsPublicStorefrontService {
           total: quote.total,
           ratePlan: quote.ratePlan ? { code: quote.ratePlan.code, name: quote.ratePlan.name, boardType: quote.ratePlan.boardType, refundable: quote.ratePlan.refundable } : null,
           prepayment: quote.prepayment && quote.prepayment.amount > 0 ? quote.prepayment : null,
+          totalBeforePromo: quote.promoDiscount > 0 ? quote.totalBeforePromo : null,
+          promotions: quote.promotions.map((p) => p.name),
         });
       }
     }

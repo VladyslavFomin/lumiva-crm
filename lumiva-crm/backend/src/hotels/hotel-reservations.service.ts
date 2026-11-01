@@ -39,6 +39,7 @@ import { HotelRateEngineService } from './hotel-rate-engine.service';
 import { businessDateOf, folioSummary, hotelToday, HotelFolioService } from './hotel-folio.service';
 import { HotelRatePlansService, ratePlanPenalty, ratePlanPrepayment } from './hotel-rate-plans.service';
 import type { HotelRatePlan } from './hotel-rate-plan.entity';
+import { mergePrepayment, promotionsPrepayment } from './hotel-promotions.util';
 
 export interface HotelReservationWriteOptions {
   /** Never populated from the HTTP request body — set only by the reservation-import flow for
@@ -140,6 +141,8 @@ export interface HotelReservationInput {
   otaCode?: string | null;
   /** тариф брони; не задан — тариф отеля по умолчанию (кроме контракта, блока и канала); 'none' — явно без тарифа */
   ratePlanId?: string | null;
+  /** снять акции отеля с брони (гость не внёс предоплату по условиям акции и т. п.) / вернуть — цена пересчитывается */
+  promotionsOff?: boolean;
   /** кто берёт оплату по брони канала (property / ota) и способ оплаты — только из менеджера каналов */
   paymentCollect?: 'property' | 'ota' | null;
   channelPaymentType?: string | null;
@@ -152,7 +155,7 @@ const HISTORY_FIELDS = [
   'hotelId', 'roomTypeId', 'roomUnitId', 'occupancyTypeId', 'agencyId', 'contractId', 'blockId',
   'guestName', 'guestEmail', 'guestPhone', 'pax', 'children', 'checkIn', 'checkOut', 'status', 'paidStatus',
   'boardType', 'market', 'guestCountry', 'saleCountry', 'costPerNight', 'ppPerNight', 'grossPerNight',
-  'discountPct', 'commissionPct', 'total', 'depositAmount', 'depositDueDate', 'ratePlanId', 'earlyCheckIn', 'lateCheckOut', 'notes',
+  'discountPct', 'commissionPct', 'total', 'depositAmount', 'depositDueDate', 'ratePlanId', 'promotionsOff', 'earlyCheckIn', 'lateCheckOut', 'notes',
   'optionUntil', 'isComplimentary', 'compReason', 'compNote', 'cancelReason', 'cancelNote', 'cancellationFee', 'priceMode',
 ] as const;
 
@@ -310,16 +313,22 @@ export class HotelReservationsService {
     return plan;
   }
 
-  /** Предоплата по тарифу: сумма и срок от итога брони (бронь сделана в день создания по времени отеля) */
-  private async applyPrepayment(tenantId: string, row: HotelReservation, plan: HotelRatePlan | null) {
-    if (!plan || row.isComplimentary) {
+  /**
+   * Предоплата брони: по тарифу и по условиям акций (EB: 50 % до даты) — большая сумма, самый ранний срок.
+   * hadPromoPrepay — до правки предоплату требовала акция: акцию сняли, тарифа нет — требование снимается.
+   */
+  private async applyPrepayment(tenantId: string, row: HotelReservation, plan: HotelRatePlan | null, hadPromoPrepay = false) {
+    const promoP = promotionsPrepayment(row.promotions, toNum(row.total));
+    if ((!plan && !promoP) || row.isComplimentary) {
       if (plan === null && row.depositDueDate) row.depositDueDate = null;
+      if (!plan && !promoP && hadPromoPrepay) row.depositAmount = '0';
       return;
     }
     const hotel = await this.hotelRepo.findOne({ where: { id: row.hotelId, tenantId } });
     const bookedOn = row.createdAt ? hotelToday(hotel, row.createdAt) : hotelToday(hotel);
     const nights = row.nightlyRates?.length ? row.nightlyRates.map((n) => toNum(n.price)) : Array.from({ length: nightsBetween(row.checkIn, row.checkOut) }, () => toNum(row.grossPerNight));
-    const p = ratePlanPrepayment(plan, { total: toNum(row.total), nights, checkIn: row.checkIn, bookedOn });
+    const planP = plan ? ratePlanPrepayment(plan, { total: toNum(row.total), nights, checkIn: row.checkIn, bookedOn }) : null;
+    const p = mergePrepayment(planP, promoP) || { amount: 0, dueDate: null };
     row.depositAmount = String(p.amount);
     row.depositDueDate = p.dueDate;
   }
@@ -339,6 +348,10 @@ export class HotelReservationsService {
       blockId: row.blockId,
       ratePlanId: row.ratePlanId,
       useDefaultRatePlan: false,
+      // акции — прямые продажи и сайт; у брони из канала цена канала. Дата брони — день создания (раннее бронирование)
+      promotions: row.source === 'channel' || row.promotionsOff ? 'none' : 'auto',
+      salesChannel: row.source === 'website' ? 'website' : 'direct',
+      bookedAt: row.createdAt ?? null,
     });
     if (q.warnings.some((w) => w.code === 'no_occupancy')) {
       const g = q.guests;
@@ -349,6 +362,7 @@ export class HotelReservationsService {
       throw new BadRequestException({ code: 'HOTEL_PRICE_MISSING', message: `Нет цены в прайсе на даты: ${missing.dates.join(', ')}`, dates: missing.dates });
     }
     row.nightlyRates = q.nights;
+    row.promotions = q.promotions;
     row.grossPerNight = String(q.average);
     row.ppPerNight = String(q.ppAverage || q.seasonAverage || q.average);
     row.priceMode = 'auto';
@@ -545,6 +559,8 @@ export class HotelReservationsService {
       paidStatus: dto.paidStatus ?? 'none',
       source: dto.source ?? 'manual',
       depositAmount: dto.depositAmount !== undefined ? normalizeNumericInput(dto.depositAmount) : '0',
+      promotionsOff: dto.promotionsOff === true,
+      promotions: [],
       earlyCheckIn: dto.earlyCheckIn ?? false,
       lateCheckOut: dto.lateCheckOut ?? false,
       notes: dto.notes ?? null,
@@ -591,6 +607,7 @@ export class HotelReservationsService {
     } else {
       row.priceMode = 'manual';
       row.nightlyRates = null;
+      row.promotions = [];
     }
     if (options.channelNights?.length) row.nightlyRates = options.channelNights;
     if (!options.skipValidation) {
@@ -699,7 +716,8 @@ export class HotelReservationsService {
       if (!normalized.isComplimentary) normalized.compNote = null;
     }
     // служебные поля жизненного цикла меняются только своими действиями (cancel / noShow)
-    for (const k of ['cancelReason', 'cancelNote', 'cancelledAt', 'cancellationFee', 'noShowAt', 'compValue', 'extrasTotal', 'accommodationFolio', 'payments', 'priceMode', 'nightlyRates']) delete normalized[k];
+    for (const k of ['cancelReason', 'cancelNote', 'cancelledAt', 'cancellationFee', 'noShowAt', 'compValue', 'extrasTotal', 'accommodationFolio', 'payments', 'priceMode', 'nightlyRates', 'promotions']) delete normalized[k];
+    if (normalized.promotionsOff !== undefined) normalized.promotionsOff = normalized.promotionsOff === true;
     if (dto.status === 'cancelled' && row.status !== 'cancelled') normalized.cancelledAt = new Date();
     if (dto.status === 'no_show' && row.status !== 'no_show') normalized.noShowAt = new Date();
     if (dto.status && dto.status !== 'pending') normalized.optionUntil = null;
@@ -724,12 +742,20 @@ export class HotelReservationsService {
     // цена: явно «по прайсу» → пересчёт; бронь в авто-режиме и поменялись условия цены → пересчёт; прислали цену руками → ручная
     // себестоимость — не цена продажи, её правка режим цены не меняет; сравниваем числа ("120" и "120.00" — одно)
     const manualPriceSent = dto.priceMode !== 'auto' && (['ppPerNight', 'grossPerNight'] as const).some((k) => dto[k] !== undefined && Number(normalizeNumericInput(dto[k])) !== Number((before as any)[k]));
-    const priceInputsChanged = datesOrRoomChanged || termsChanged || guestsChanged || planChanged || (dto.occupancyTypeId !== undefined && dto.occupancyTypeId !== before.occupancyTypeId) || (dto.market !== undefined && dto.market !== before.market);
+    const promoToggled = dto.promotionsOff !== undefined && (dto.promotionsOff === true) !== !!before.promotionsOff;
+    if (promoToggled && (row.source === 'channel' || row.contractId || row.blockId)) {
+      throw new BadRequestException({ code: 'HOTEL_PROMO_PARTNER', message: 'У брони из канала, по контракту или блоку свои условия — акции отеля к ней не применяются' });
+    }
+    if (promoToggled && row.priceMode !== 'auto' && dto.priceMode !== 'auto') {
+      throw new BadRequestException({ code: 'HOTEL_PROMO_MANUAL', message: 'Цена брони введена вручную — акции применяются только к цене по прайсу' });
+    }
+    const priceInputsChanged = promoToggled || datesOrRoomChanged || termsChanged || guestsChanged || planChanged || (dto.occupancyTypeId !== undefined && dto.occupancyTypeId !== before.occupancyTypeId) || (dto.market !== undefined && dto.market !== before.market);
     if (dto.priceMode === 'auto' || (row.priceMode === 'auto' && !manualPriceSent && priceInputsChanged)) {
       await this.applyAutoPrice(tenantId, row, dto.adults !== undefined || dto.childAges !== undefined);
     } else if (manualPriceSent || dto.priceMode === 'manual') {
       row.priceMode = 'manual';
       row.nightlyRates = null;
+      row.promotions = [];
     }
     if (options.channelNights?.length) row.nightlyRates = options.channelNights;
 
@@ -752,8 +778,13 @@ export class HotelReservationsService {
     }
     this.computeTotals(row);
     // предоплата по тарифу пересчитывается, если поменялись тариф или сумма, а её не задали явно (оплаченную не трогаем)
-    if (dto.depositAmount === undefined && plan && (planChanged || toNum(row.total) !== toNum(before.total))) await this.applyPrepayment(tenantId, row, plan);
-    if (planChanged && !plan) row.depositDueDate = null;
+    const hadPromoPrepay = (before.promotions || []).some((a) => a.prepaymentPct > 0);
+    const promosChanged = JSON.stringify((row.promotions || []).map((a) => [a.id, a.amount])) !== JSON.stringify((before.promotions || []).map((a) => [a.id, a.amount]));
+    const needsPrepay = plan || hadPromoPrepay || (row.promotions || []).some((a) => a.prepaymentPct > 0);
+    if (dto.depositAmount === undefined && needsPrepay && (planChanged || promosChanged || toNum(row.total) !== toNum(before.total))) {
+      await this.applyPrepayment(tenantId, row, plan, hadPromoPrepay);
+    }
+    if (planChanged && !plan && !promotionsPrepayment(row.promotions, toNum(row.total))) row.depositDueDate = null;
     const saved = await this.repo.save(row);
 
     try {

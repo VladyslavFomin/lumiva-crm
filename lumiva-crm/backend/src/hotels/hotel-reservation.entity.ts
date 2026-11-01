@@ -1,3 +1,4 @@
+import type { AppliedPromotion } from './hotel-promotions.util';
 import {
   Column,
   CreateDateColumn,
@@ -60,6 +61,9 @@ export interface HotelNightlyRate {
   pp?: number;
   /** Доплата за детей по детской политике (уже в price) */
   childAmount?: number;
+  /** скидка акций этой ночи (уже вычтена из price) и её % (бесплатная ночь — 100) */
+  promoAmount?: number;
+  promoPct?: number;
 }
 
 export interface HotelReservationGuest {
@@ -259,6 +263,14 @@ export class HotelReservation {
   /** Тариф брони (питание, условия отмены и предоплаты); null — без тарифа (контракт, блок, старые брони) */
   @Column({ type: 'uuid', nullable: true })
   ratePlanId: string | null;
+
+  /** Акции отеля в цене брони — снимок на момент расчёта (имя, %, сумма скидки, условие предоплаты) */
+  @Column({ type: 'jsonb', default: [] })
+  promotions: AppliedPromotion[];
+
+  /** Акции сняты (гость отказался / не внёс предоплату по условиям акции) — пересчёт без акций */
+  @Column({ type: 'boolean', default: false })
+  promotionsOff: boolean;
 
   /** Simple payment ledger — appended to by addPayment/removePayment, drives the auto-suggested
    * paidStatus (see HotelReservationsService.suggestPaidStatus). paidStatus itself stays directly

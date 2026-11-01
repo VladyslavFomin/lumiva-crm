@@ -486,6 +486,9 @@ export interface HotelReservation {
   depositDueDate?: string | null;
   /** тариф брони */
   ratePlanId?: string | null;
+  /** акции отеля в цене брони (снимок) и признак «акции сняты» */
+  promotions?: HotelAppliedPromotion[];
+  promotionsOff?: boolean;
   payments: HotelReservationPayment[];
   earlyCheckIn: boolean;
   lateCheckOut: boolean;
@@ -796,6 +799,61 @@ export const updateRatePlan = (id: string, dto: HotelRatePlanInput) => api.patch
 export const makeDefaultRatePlan = (id: string) => api.post<HotelRatePlan>(`/hotels/rate-plans/${id}/default`, {});
 export const deleteRatePlan = (id: string) => api.delete<{ ok: boolean }>(`/hotels/rate-plans/${id}`);
 
+/* ---------- акции отеля: раннее бронирование, горящие, спецпредложения, длительное проживание ---------- */
+
+export type HotelPromotionType = 'early_booking' | 'last_minute' | 'spo' | 'long_stay';
+export const HOTEL_PROMOTION_TYPES: HotelPromotionType[] = ['early_booking', 'last_minute', 'spo', 'long_stay'];
+export interface HotelPromotion {
+  id: string;
+  hotelId: string;
+  type: HotelPromotionType;
+  name: string;
+  description: string | null;
+  discountPct: string;
+  freeNights: number;
+  bookFrom: string | null;
+  bookTo: string | null;
+  stayFrom: string | null;
+  stayTo: string | null;
+  stayRule: 'nights' | 'arrival';
+  minNights: number;
+  maxNights: number | null;
+  minDaysBefore: number | null;
+  maxDaysBefore: number | null;
+  combinable: boolean;
+  prepaymentPct: string;
+  prepaymentDueDate: string | null;
+  prepaymentDueDays: number | null;
+  marketGroupIds: string[];
+  roomTypeIds: string[];
+  ratePlanIds: string[];
+  sellDirect: boolean;
+  sellWebsite: boolean;
+  active: boolean;
+  origin: 'manual' | 'import';
+  sortOrder: number;
+}
+export type HotelPromotionInput = Partial<Omit<HotelPromotion, 'id' | 'hotelId' | 'origin'>> & { hotelId?: string };
+export interface HotelAppliedPromotion { id: string; type: HotelPromotionType; name: string; discountPct: number; freeNights: number; amount: number; prepaymentPct: number; prepaymentDueDate: string | null }
+export type HotelPromotionBlocker = 'inactive' | 'channel' | 'room' | 'market' | 'rate_plan' | 'book_window' | 'lead_time' | 'min_nights' | 'max_nights' | 'stay_window' | 'not_best';
+export interface HotelPromotionCheck {
+  total: number;
+  totalBeforePromo: number;
+  promoDiscount: number;
+  currency: string;
+  prepayment: { amount: number; dueDate: string | null } | null;
+  ratePlan: { id: string; code: string; name: string } | null;
+  nights: HotelNightlyRate[];
+  warnings: HotelQuote['warnings'];
+  promotions: Array<{ id: string; name: string; type: HotelPromotionType; applied: boolean; amount: number; blockers: HotelPromotionBlocker[] }>;
+}
+export const fetchPromotions = (hotelId: string) => api.get<HotelPromotion[]>('/hotels/promotions', { params: { hotelId } });
+export const createPromotion = (dto: HotelPromotionInput) => api.post<HotelPromotion>('/hotels/promotions', dto);
+export const updatePromotion = (id: string, dto: HotelPromotionInput) => api.patch<HotelPromotion>(`/hotels/promotions/${id}`, dto);
+export const deletePromotion = (id: string) => api.delete<{ ok: boolean }>(`/hotels/promotions/${id}`);
+export const checkPromotions = (dto: { hotelId: string; roomTypeId: string; checkIn: string; checkOut: string; bookedOn?: string; marketGroupId?: string | null; ratePlanId?: string | null; adults?: number; salesChannel?: 'direct' | 'website' }) =>
+  api.post<HotelPromotionCheck>('/hotels/promotions/check', dto);
+
 /* ---------- календарь ограничений (ARI): свободно, цена, стоп, закрыто на заезд / выезд, мин. / макс. ночей ---------- */
 
 export interface HotelAriDay {
@@ -891,12 +949,15 @@ export interface HotelPriceListPreview {
   }>;
   stalePeriods: Array<{ id: string; startDate: string; endDate: string }>;
   dailyDays: number;
+  /** раннее бронирование из блока ERKEN REZERVASYON — станет акциями отеля */
+  earlyBooking?: Array<{ roomType: string | null; roomTypeKnown: boolean; bookFrom: string | null; bookTo: string | null; stayFrom: string | null; stayTo: string | null; discountPct: number; prepaymentPct: number; prepaymentDueDate: string | null; listDate: string | null; exists: boolean }>;
   warnings: string[];
 }
 
 export interface HotelPriceListResult {
   periodsCreated: number; periodsUpdated: number; periodsRemoved: number; roomTypesCreated: string[]; roomTypesUpdated: number;
   rowsCreated: number; rowsUpdated: number; overrides: number; dailyCleared: number;
+  promotionsCreated?: number; promotionsUpdated?: number; promotionsSkipped?: number;
 }
 
 export function previewPriceListImport(hotelId: string, file: File, sheet?: string | null) {
@@ -907,13 +968,15 @@ export function previewPriceListImport(hotelId: string, file: File, sheet?: stri
   return api.postForm<HotelPriceListPreview>('/hotels/price-list-import/preview', form);
 }
 
-export function applyPriceListImport(hotelId: string, file: File, opts: { replacePeriods: boolean; clearDaily: boolean; sheet?: string | null }) {
+export function applyPriceListImport(hotelId: string, file: File, opts: { replacePeriods: boolean; clearDaily: boolean; sheet?: string | null; importPromotions?: boolean; promoMarketGroupIds?: string[] }) {
   const form = new FormData();
   form.append('file', file);
   form.append('hotelId', hotelId);
   if (opts.sheet) form.append('sheet', opts.sheet);
   form.append('replacePeriods', String(opts.replacePeriods));
   form.append('clearDaily', String(opts.clearDaily));
+  form.append('importPromotions', String(opts.importPromotions !== false));
+  if (opts.promoMarketGroupIds?.length) form.append('promoMarketGroupIds', opts.promoMarketGroupIds.join(','));
   return api.postForm<HotelPriceListResult>('/hotels/price-list-import/apply', form);
 }
 
@@ -2134,7 +2197,7 @@ export const fetchPickup = (hotelId: string, horizon: number) => api.get<HotelPi
 /* ---------- единый расчёт цены ---------- */
 
 export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base' | 'channel';
-export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number; boardAmount?: number }
+export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number; boardAmount?: number; promoAmount?: number; promoPct?: number }
 export interface HotelQuote {
   nights: HotelNightlyRate[];
   total: number;
@@ -2151,10 +2214,13 @@ export interface HotelQuote {
   priority: 'season' | 'market';
   ratePlan?: { id: string; code: string; name: string; boardType: string; refundable: boolean } | null;
   prepayment?: { amount: number; dueDate: string | null } | null;
+  promotions?: HotelAppliedPromotion[];
+  promoDiscount?: number;
+  totalBeforePromo?: number;
   currency: string;
   warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'max_stay' | 'closed_arrival' | 'closed_departure' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
 }
-export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; ratePlanId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null> }) =>
+export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; ratePlanId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null>; promotions?: 'auto' | 'none'; salesChannel?: 'direct' | 'website'; bookedAt?: string }) =>
   api.get<HotelQuote>('/hotels/reservations/quote', { params: { ...q, ...(childAges?.length ? { childAges: childAges.map((a) => (a === null ? '-' : String(a))).join(',') } : {}) } });
 export const autoMapMarketGroups = (hotelId: string) => api.post<{ mapped: number; unmapped: number }>(`/hotels/${hotelId}/markets/auto-groups`, {});
 

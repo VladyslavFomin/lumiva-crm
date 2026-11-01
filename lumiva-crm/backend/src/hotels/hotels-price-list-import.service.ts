@@ -6,10 +6,14 @@ import { HotelPricingPeriod } from './hotel-pricing-period.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
 import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
 import { HotelDailyMarketRate } from './hotel-daily-market-rate.entity';
+import { HotelMarketGroup } from './hotel-market-group.entity';
+import { HotelPromotion } from './hotel-promotion.entity';
 import { parseHotelPriceListSheet, type ParsedPriceList } from './hotel-price-list-sheet.util';
 
 const key = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 const str = (n: number) => String(Math.round(n * 100) / 100);
+const dmy = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+const sameSet = (a: string[] | null | undefined, b: string[]) => [...(a || [])].sort().join(',') === [...b].sort().join(',');
 
 export interface PriceListApplyOptions {
   /** удалить периоды отеля, которых нет в файле (иначе старые периоды могут перекрывать новые) */
@@ -18,6 +22,10 @@ export interface PriceListApplyOptions {
   clearDaily?: boolean;
   /** лист книги; по умолчанию — первый с периодами */
   sheet?: string | null;
+  /** завести акции раннего бронирования из блока ERKEN REZERVASYON (по умолчанию — да) */
+  importPromotions?: boolean;
+  /** группы рынков, для которых действуют акции листа; пусто — все */
+  promoMarketGroupIds?: string[];
 }
 
 /**
@@ -53,7 +61,8 @@ export class HotelsPriceListImportService {
     const dailyDays = matchedIds.length
       ? await m.count(HotelDailyMarketRate, { where: { tenantId, roomTypeId: In(matchedIds), date: Between(from, to) } })
       : 0;
-    return { periods, roomTypes, occs, periodMatch, stale, roomMatch, from, to, matchedIds, dailyDays };
+    const promos = parsed.earlyBooking.length ? await m.find(HotelPromotion, { where: { tenantId, hotelId: hotel.id, origin: 'import', type: 'early_booking' } }) : [];
+    return { periods, roomTypes, occs, periodMatch, stale, roomMatch, from, to, matchedIds, dailyDays, promos };
   }
 
   async preview(tenantId: string, hotelId: string, file: any, sheet?: string | null) {
@@ -93,8 +102,63 @@ export class HotelsPriceListImportService {
       }),
       stalePeriods: p.stale.map((x) => ({ id: x.id, startDate: x.startDate, endDate: x.endDate })),
       dailyDays: p.dailyDays,
+      // раннее бронирование: окна дат как в файле; exists — такая акция уже заведена прошлым импортом (обновится)
+      earlyBooking: parsed.earlyBooking.map((e) => ({
+        ...e,
+        roomTypeKnown: !e.roomType || parsed.categories.some((c) => key(c.name) === key(e.roomType!)) || p.roomTypes.some((r) => key(r.name) === key(e.roomType!)),
+        exists: p.promos.some((x) => x.bookFrom === e.bookFrom && x.bookTo === e.bookTo && x.stayFrom === e.stayFrom && x.stayTo === e.stayTo),
+      })),
       warnings: parsed.warnings,
     };
+  }
+
+  /**
+   * Раннее бронирование листа → акции отеля (вид early_booking, скидка на ночи периода проживания, суммируется с
+   * другими акциями — как «EB ile kümüle» в контрактах). Совпадение по окнам дат и группам рынков — обновление.
+   */
+  private async applyEarlyBooking(
+    m: EntityManager,
+    tenantId: string,
+    hotel: Hotel,
+    parsed: ParsedPriceList,
+    existing: HotelPromotion[],
+    groupIdsRaw: string[],
+    result: { promotionsCreated: number; promotionsUpdated: number; promotionsSkipped: number },
+  ) {
+    const groupIds = [...new Set(groupIdsRaw.filter((x) => /^[0-9a-f-]{36}$/i.test(x)))];
+    if (groupIds.length) {
+      const found = await m.count(HotelMarketGroup, { where: { tenantId, hotelId: hotel.id, id: In(groupIds) } });
+      if (found !== groupIds.length) throw new BadRequestException({ code: 'HOTEL_PROMO_SCOPE', message: 'Группа рынков не из этого отеля' });
+    }
+    const roomTypes = await m.find(HotelRoomType, { where: { tenantId, hotelId: hotel.id } });
+    let order = await m.count(HotelPromotion, { where: { tenantId, hotelId: hotel.id } });
+    for (const e of parsed.earlyBooking) {
+      const rt = e.roomType ? roomTypes.find((r) => key(r.name) === key(e.roomType!)) : null;
+      if (e.roomType && !rt) {
+        result.promotionsSkipped++;
+        continue;
+      }
+      const roomTypeIds = rt ? [rt.id] : [];
+      let row = existing.find((x) => x.bookFrom === e.bookFrom && x.bookTo === e.bookTo && x.stayFrom === e.stayFrom && x.stayTo === e.stayTo && sameSet(x.marketGroupIds, groupIds) && sameSet(x.roomTypeIds, roomTypeIds));
+      if (row) result.promotionsUpdated++;
+      else {
+        row = m.create(HotelPromotion, { tenantId, hotelId: hotel.id, type: 'early_booking', origin: 'import', sortOrder: order++, marketGroupIds: groupIds, roomTypeIds, ratePlanIds: [], sellDirect: true, sellWebsite: true, active: true, freeNights: 0, minNights: 1, stayRule: 'nights', combinable: true });
+        existing.push(row);
+        result.promotionsCreated++;
+      }
+      row.name = `EB ${e.discountPct}%${e.bookFrom ? ` · ${dmy(e.bookFrom)}–` : ' · ≤ '}${e.bookTo ? dmy(e.bookTo) : ''}`.slice(0, 120);
+      row.bookFrom = e.bookFrom;
+      row.bookTo = e.bookTo;
+      row.stayFrom = e.stayFrom;
+      row.stayTo = e.stayTo;
+      row.discountPct = str(e.discountPct);
+      row.prepaymentPct = str(e.prepaymentPct);
+      row.prepaymentDueDate = e.prepaymentPct > 0 ? e.prepaymentDueDate : null;
+      // нет даты оплаты в файле — сразу при бронировании
+      row.prepaymentDueDays = e.prepaymentPct > 0 && !e.prepaymentDueDate ? 0 : null;
+      row.description = e.listDate ? `List: ${dmy(e.listDate)}` : row.description ?? null;
+      await m.save(row);
+    }
   }
 
   async apply(tenantId: string, hotelId: string, file: any, opts: PriceListApplyOptions) {
@@ -103,7 +167,7 @@ export class HotelsPriceListImportService {
     const clearDaily = opts.clearDaily !== false;
     return this.dataSource.transaction(async (m) => {
       const p = await this.plan(m, tenantId, hotel, parsed);
-      const result = { periodsCreated: 0, periodsUpdated: 0, periodsRemoved: 0, roomTypesCreated: [] as string[], roomTypesUpdated: 0, rowsCreated: 0, rowsUpdated: 0, overrides: 0, dailyCleared: 0 };
+      const result = { periodsCreated: 0, periodsUpdated: 0, periodsRemoved: 0, roomTypesCreated: [] as string[], roomTypesUpdated: 0, rowsCreated: 0, rowsUpdated: 0, overrides: 0, dailyCleared: 0, promotionsCreated: 0, promotionsUpdated: 0, promotionsSkipped: 0 };
 
       // периоды
       const periodIds: string[] = [];
@@ -196,6 +260,7 @@ export class HotelsPriceListImportService {
         const del = await m.delete(HotelDailyMarketRate, { tenantId, roomTypeId: In(touched), date: Between(p.from, p.to) });
         result.dailyCleared = del.affected || 0;
       }
+      if (opts.importPromotions !== false && parsed.earlyBooking.length) await this.applyEarlyBooking(m, tenantId, hotel, parsed, p.promos, opts.promoMarketGroupIds || [], result);
       return result;
     });
   }

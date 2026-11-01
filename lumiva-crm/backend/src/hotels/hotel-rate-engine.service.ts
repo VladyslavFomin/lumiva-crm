@@ -13,6 +13,8 @@ import { HotelContract } from './hotel-contract.entity';
 import { HotelNightlyRate, HotelRateSource } from './hotel-reservation.entity';
 import { HotelsPricingService, occupancyCoefficient } from './hotels-pricing.service';
 import { HotelRatePlansService, ratePlanNight, ratePlanPrepayment } from './hotel-rate-plans.service';
+import { HotelPromotionsService } from './hotel-promotions.service';
+import { AppliedPromotion, applyPromotions, mergePrepayment, promotionsPrepayment } from './hotel-promotions.util';
 import { isInfant } from './hotel-occupancy.util';
 import { hotelToday } from './hotel-folio.service';
 import { normalizeCountry } from '../common/countries';
@@ -57,6 +59,12 @@ export interface HotelQuoteInput {
   ratePlanId?: string | null;
   /** false — не брать тариф по умолчанию (расчёт «чистого» прайса) */
   useDefaultRatePlan?: boolean;
+  /** акции отеля: 'auto' — применить подходящие (прямые продажи и сайт), по умолчанию — без акций (каналы, ARI) */
+  promotions?: 'auto' | 'none';
+  /** где продаётся: у стойки / в форме или на сайте — акции отмечены, где действуют */
+  salesChannel?: 'direct' | 'website';
+  /** момент брони (для раннего бронирования при пересчёте старой брони); по умолчанию — сегодня по времени отеля */
+  bookedAt?: Date | string | null;
 }
 
 export interface HotelQuote {
@@ -83,6 +91,13 @@ export interface HotelQuote {
   /** тариф расчёта и предоплата по нему (сумма и срок) */
   ratePlan: { id: string; code: string; name: string; boardType: string; refundable: boolean } | null;
   prepayment: { amount: number; dueDate: string | null } | null;
+  /** применённые акции (скидка уже в ценах ночей) и итог до акций */
+  promotions: AppliedPromotion[];
+  promoDiscount: number;
+  /** дата брони, по которой проверялись акции (время отеля), и отель номера */
+  bookedOn: string;
+  hotelId: string;
+  totalBeforePromo: number;
   currency: string;
   /** min_stay / max_stay / release — условия заезда (value — ночей / дней release); closed_arrival / closed_departure — дата закрыта
    * на заезд / выезд; below_budget — PP ночи ниже бюджета */
@@ -109,6 +124,7 @@ export class HotelRateEngineService {
     @InjectRepository(HotelContract) private readonly contracts: Repository<HotelContract>,
     private readonly pricing: HotelsPricingService,
     private readonly ratePlans: HotelRatePlansService,
+    private readonly promos: HotelPromotionsService,
   ) {}
 
   /** Группа рынков по странам рынка и названию группы: Batı Avrupa ↔ DE/GB…, Doğu Avrupa ↔ RU/UA…, İç Pazar ↔ страна отеля */
@@ -253,6 +269,7 @@ export class HotelRateEngineService {
     }
 
     const nights: HotelNightlyRate[] = [];
+    const budgets: number[] = [];
     const seasonVals: number[] = [];
     const warn = { no_price: [] as string[], blocked: [] as string[], group_fallback: [] as string[], below_budget: [] as string[] };
     for (const d of dates) {
@@ -295,7 +312,6 @@ export class HotelRateEngineService {
         boardAmount = rp.board;
         price = rp.price;
       }
-      if (season?.budget && price > 0 && source !== 'block' && source !== 'contract' && ppPlan < season.budget - 0.005) warn.below_budget.push(d);
       // дети по политике: доля цены взрослого (PP) за каждого
       const childAmount = price > 0 && childLines.length ? ppPlan * childLines.reduce((s, c) => s + c.share, 0) : 0;
       nights.push({
@@ -307,9 +323,42 @@ export class HotelRateEngineService {
         ...(childLines.length ? { childAmount: round2(childAmount) } : {}),
         ...(boardAmount ? { boardAmount: round2(boardAmount) } : {}),
       });
+      budgets.push(season?.budget && source !== 'block' && source !== 'contract' ? season.budget : 0);
     }
+    const bookedOn = input.bookedAt ? hotelToday(hotel, new Date(input.bookedAt)) : hotelToday(hotel);
+    const totalBeforePromo = round2(nights.reduce((s, n) => s + n.price, 0));
+
+    // акции — только прямые продажи по прайсу: у брони по контракту или блоку свои условия (даже если цена контракта
+    // на этот номер не задана и считается по прайсу сезона), скидка — на полную цену ночи
+    let applied: AppliedPromotion[] = [];
+    if (input.promotions === 'auto' && !input.contractId && !input.blockId) {
+      const rules = await this.promos.active(tenantId, hotel.id);
+      if (rules.length) {
+        const res = applyPromotions(
+          rules,
+          { checkIn: input.checkIn, checkOut: input.checkOut, bookedOn, roomTypeId: roomType.id, marketGroupId, ratePlanId: plan?.id ?? null, salesChannel: input.salesChannel === 'website' ? 'website' : 'direct' },
+          dates,
+          nights.map((n) => n.price),
+        );
+        applied = res.applied;
+        res.nights.forEach((pn, i) => {
+          if (!(pn.amount > 0)) return;
+          const n = nights[i];
+          const k = n.price > 0 ? (n.price - pn.amount) / n.price : 0;
+          n.promoAmount = pn.amount;
+          n.promoPct = pn.pct;
+          n.price = round2(n.price - pn.amount);
+          if (n.pp !== undefined) n.pp = round2(n.pp * k);
+        });
+      }
+    }
+    // PP ночи ниже бюджета — уже с акцией: видно, когда раннее бронирование уводит ниже окупаемости
+    nights.forEach((n, i) => {
+      if (budgets[i] > 0 && n.price > 0 && (n.pp || 0) < budgets[i] - 0.005) warn.below_budget.push(n.date);
+    });
     const total = round2(nights.reduce((s, n) => s + n.price, 0));
-    const prepayment = plan ? ratePlanPrepayment(plan, { total, nights: nights.map((n) => n.price), checkIn: input.checkIn, bookedOn: hotelToday(hotel) }) : null;
+    const planPrepay = plan ? ratePlanPrepayment(plan, { total, nights: nights.map((n) => n.price), checkIn: input.checkIn, bookedOn }) : null;
+    const prepayment = mergePrepayment(planPrepay, promotionsPrepayment(applied, total));
     return {
       nights,
       total,
@@ -326,6 +375,11 @@ export class HotelRateEngineService {
       priority: 'season',
       ratePlan: plan ? { id: plan.id, code: plan.code, name: plan.name, boardType: plan.boardType, refundable: plan.refundable } : null,
       prepayment,
+      promotions: applied,
+      bookedOn,
+      hotelId: hotel.id,
+      promoDiscount: round2(totalBeforePromo - total),
+      totalBeforePromo,
       currency: (hotel.currency || '').toUpperCase(),
       warnings: [
         ...(noOccupancy ? [{ code: 'no_occupancy' as const, dates: [] }] : []),

@@ -81,7 +81,7 @@ const PAYMENT_METHOD_KEYS = ['card', 'cash', 'bank_transfer', 'other'];
 
 export const HotelReservationsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [reservations, setReservations] = useState<HotelReservation[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
@@ -496,21 +496,49 @@ export const HotelReservationsPage: React.FC = () => {
                   </div>
                 ) : null;
               })()}
+              {(!!selected.promotions?.length || selected.promotionsOff) && (
+                <div className="rtp-terms">
+                  {selected.promotions?.map((p) => <span key={p.id} className="ok">{p.name} · −{fmt(p.amount, curOf(selected))}</span>)}
+                  {selected.promotionsOff && <span>{t('crm.hotels.promos.drawerOff')}</span>}
+                </div>
+              )}
               {selected.depositAmount && Number(selected.depositAmount) > 0 && (() => {
                 const paid = (selected.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
                 const due = Number(selected.depositAmount);
                 const todayIso = new Date().toISOString().slice(0, 10);
                 const state = paid + 0.009 >= due ? 'paid' : selected.depositDueDate && selected.depositDueDate < todayIso ? 'overdue' : 'due';
+                // предоплата по условиям акции не внесена в срок — по условиям акции скидку можно снять
+                const promoPrepay = (selected.promotions || []).some((p) => p.prepaymentPct > 0);
+                const canRevoke = state === 'overdue' && promoPrepay && selected.priceMode === 'auto' && ['confirmed', 'pending'].includes(selected.status);
                 return (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 13 }}>
-                    <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.deposit')}</span>
-                    <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600 }}>{fmt(due, curOf(selected))}</span>
-                      <span className={`rtp-dep s-${state}`}>
-                        {state === 'paid' ? t('crm.hotels.ratePlans.depPaid') : state === 'overdue' ? t('crm.hotels.ratePlans.depOverdue', { date: selected.depositDueDate }) : selected.depositDueDate ? t('crm.hotels.ratePlans.depDue', { date: selected.depositDueDate }) : t('crm.hotels.ratePlans.depOpen')}
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 13 }}>
+                      <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.deposit')}</span>
+                      <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600 }}>{fmt(due, curOf(selected))}</span>
+                        <span className={`rtp-dep s-${state}`}>
+                          {state === 'paid' ? t('crm.hotels.ratePlans.depPaid') : state === 'overdue' ? t('crm.hotels.ratePlans.depOverdue', { date: selected.depositDueDate }) : selected.depositDueDate ? t('crm.hotels.ratePlans.depDue', { date: selected.depositDueDate }) : t('crm.hotels.ratePlans.depOpen')}
+                        </span>
                       </span>
-                    </span>
-                  </div>
+                    </div>
+                    {canRevoke && (
+                      <div className="pe-box warn prm-revoke">
+                        <span>{t('crm.hotels.promos.revokeHint', { amount: fmt((selected.promotions || []).reduce((s, p) => s + p.amount, 0), curOf(selected)) })}</span>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={async () => {
+                            if (!(await showConfirm(t('crm.hotels.promos.revokeBody'), { title: t('crm.hotels.promos.revoke'), confirmLabel: t('crm.hotels.promos.revoke'), danger: true }))) return;
+                            updateReservation(selected.id, { promotionsOff: true, expectedUpdatedAt: selected.updatedAt } as Partial<HotelReservation>)
+                              .then((r) => { setSelected(r); load(); showAlert(t('crm.hotels.promos.revoked'), { variant: 'success' }); })
+                              .catch((err) => showAlert(hotelErrorText(t, err, t('crm.hotels.promos.saveError')), { variant: 'error' }));
+                          }}
+                        >
+                          {t('crm.hotels.promos.revoke')}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
 
@@ -720,6 +748,8 @@ export const ReservationModal: React.FC<{
   const [ratePlans, setRatePlans] = useState<HotelRatePlan[]>([]);
   /** '' — без тарифа; при создании подставляется тариф по умолчанию */
   const [ratePlanId, setRatePlanId] = useState<string>(initial?.ratePlanId || '');
+  /** акции отеля сняты с брони — цена без акций */
+  const [promotionsOff, setPromotionsOff] = useState(!!initial?.promotionsOff);
   const [earlyCheckIn, setEarlyCheckIn] = useState(initial?.earlyCheckIn || false);
   const [lateCheckOut, setLateCheckOut] = useState(initial?.lateCheckOut || false);
   const [notes, setNotes] = useState(initial?.notes || '');
@@ -928,7 +958,14 @@ export const ReservationModal: React.FC<{
     if (priceMode !== 'auto') return;
     if (!roomTypeId || !checkIn || !checkOut || checkOut <= checkIn) { setQuote(null); return; }
     const timer = window.setTimeout(() => {
-      fetchQuote({ roomTypeId, occupancyTypeId: occupancyTypeId || undefined, adults, childAges, checkIn, checkOut, market: market || undefined, guestCountry: guestCountry || undefined, contractId: quoteContractId || undefined, blockId: blockId || undefined, ratePlanId: planApplies ? ratePlanId || 'none' : undefined })
+      fetchQuote({
+        roomTypeId, occupancyTypeId: occupancyTypeId || undefined, adults, childAges, checkIn, checkOut, market: market || undefined, guestCountry: guestCountry || undefined,
+        contractId: quoteContractId || undefined, blockId: blockId || undefined, ratePlanId: planApplies ? ratePlanId || 'none' : undefined,
+        // акции: как у сервера при сохранении — дата брони (раннее бронирование) у существующей брони — день её создания
+        promotions: promotionsOff || initial?.source === 'channel' ? 'none' : 'auto',
+        salesChannel: initial?.source === 'website' ? 'website' : 'direct',
+        bookedAt: initial?.createdAt || undefined,
+      })
         .then((q) => {
           setQuote(q);
           setQuoteError('');
@@ -938,7 +975,9 @@ export const ReservationModal: React.FC<{
         .catch((e) => { setQuote(null); setQuoteError(hotelErrorText(t, e, '')); });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [priceMode, roomTypeId, occupancyTypeId, adults, childAges.join(','), checkIn, checkOut, market, guestCountry, quoteContractId, blockId, ratePlanId, planApplies]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [priceMode, roomTypeId, occupancyTypeId, adults, childAges.join(','), checkIn, checkOut, market, guestCountry, quoteContractId, blockId, ratePlanId, planApplies, promotionsOff]); // eslint-disable-line react-hooks/exhaustive-deps
+  // предоплату считает сервер (тариф и условия акций), пока её не правили руками
+  const serverDeposit = !depositTouched && (!!plan || !!quote?.promotions?.some((p) => p.prepaymentPct > 0) || !!initial?.promotions?.some((p) => p.prepaymentPct > 0));
 
   // акции контракта — только для новой брони и пока скидку не правили руками
   const discountTouched = React.useRef(false);
@@ -994,8 +1033,9 @@ export const ReservationModal: React.FC<{
       grossPerNight,
       discountPct,
       // предоплату по тарифу считает сервер, если её не правили руками
-      ...(plan && !depositTouched ? {} : { depositAmount }),
+      ...(serverDeposit ? {} : { depositAmount }),
       ratePlanId: planApplies ? ratePlanId || 'none' : null,
+      ...(planApplies && priceMode === 'auto' && promotionsOff !== !!initial?.promotionsOff ? { promotionsOff } : {}),
       earlyCheckIn,
       lateCheckOut,
       notes: notes || null,
@@ -1184,6 +1224,8 @@ export const ReservationModal: React.FC<{
             netContract={effectiveContract?.pricing === 'net' && !blockId}
             marketGroupName={quote?.marketGroupId ? marketGroups.find((g) => g.id === quote.marketGroupId)?.name : undefined}
             onAuto={() => setPriceMode('auto')}
+            promotionsOff={promotionsOff}
+            onTogglePromotions={planApplies && initial?.source !== 'channel' ? setPromotionsOff : undefined}
           />
           <div className="bk-row2" style={{ marginTop: 8 }}>
             <div><label>{t('crm.hotels.reservations.modal.costPerNightLabel')}</label><input value={costPerNight} onChange={(e) => setCostPerNight(e.target.value)} /></div>
@@ -1194,7 +1236,7 @@ export const ReservationModal: React.FC<{
             <div><label>{t('crm.hotels.reservations.modal.discountLabel')}</label><input value={discountPct} onChange={(e) => { discountTouched.current = true; setDiscountPct(e.target.value); }} /></div>
           </div>
           <label>{t('crm.hotels.reservations.modal.depositLabel')}</label>
-          <input value={plan && !depositTouched && quote?.prepayment ? String(quote.prepayment.amount) : depositAmount} onChange={(e) => { setDepositTouched(true); setDepositAmount(e.target.value); }} />
+          <input value={serverDeposit && priceMode === 'auto' ? String(quote?.prepayment?.amount ?? 0) : depositAmount} onChange={(e) => { setDepositTouched(true); setDepositAmount(e.target.value); }} />
           <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer', margin: 0 }}>
               <input type="checkbox" checked={earlyCheckIn} onChange={(e) => setEarlyCheckIn(e.target.checked)} />

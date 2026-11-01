@@ -110,6 +110,10 @@ export class HotelReservationsController {
       // состав гостей: adults=2&childAges=5,8,- («-» — возраст не указан)
       adults: q.adults ? Number(q.adults) : null,
       childAges: typeof q.childAges === 'string' && q.childAges !== '' ? q.childAges.split(',').map((v: string) => (v === '-' || v === '' ? null : Number(v))) : null,
+      // акции: по умолчанию применяются; promotions=none — бронь без акций. bookedAt — момент создания редактируемой брони
+      promotions: q.promotions === 'none' ? 'none' : 'auto',
+      salesChannel: q.salesChannel === 'website' ? 'website' : 'direct',
+      bookedAt: typeof q.bookedAt === 'string' && !Number.isNaN(Date.parse(q.bookedAt)) ? q.bookedAt : null,
     });
   }
 

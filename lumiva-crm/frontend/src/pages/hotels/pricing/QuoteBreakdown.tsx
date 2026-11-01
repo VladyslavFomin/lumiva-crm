@@ -3,22 +3,32 @@ import { useTranslation } from 'react-i18next';
 import { money } from '../partners/partnerUtils';
 import type { HotelQuote } from '../../../api/hotels';
 
-type Seg = { from: string; to: string; nights: number; price: number; source: string; discountPct?: number; pp?: number; childAmount?: number };
+type Seg = { from: string; to: string; nights: number; price: number; source: string; discountPct?: number; pp?: number; childAmount?: number; promoPct?: number; promoAmount?: number };
 
 /** Соседние ночи с одинаковой ценой и источником — одной строкой: «1–3 нояб · 3 ночи · 120 € · сезон» */
 function segments(q: HotelQuote): Seg[] {
   const out: Seg[] = [];
   for (const n of q.nights) {
     const last = out[out.length - 1];
-    if (last && last.price === n.price && last.source === n.source && (last.discountPct || 0) === (n.discountPct || 0) && last.pp === n.pp && last.childAmount === n.childAmount) {
+    if (last && last.price === n.price && last.source === n.source && (last.discountPct || 0) === (n.discountPct || 0) && last.pp === n.pp && last.childAmount === n.childAmount && (last.promoPct || 0) === (n.promoPct || 0)) {
       last.to = n.date;
       last.nights += 1;
     } else {
-      out.push({ from: n.date, to: n.date, nights: 1, price: n.price, source: n.source, discountPct: n.discountPct, pp: n.pp, childAmount: n.childAmount });
+      out.push({ from: n.date, to: n.date, nights: 1, price: n.price, source: n.source, discountPct: n.discountPct, pp: n.pp, childAmount: n.childAmount, promoPct: n.promoPct, promoAmount: n.promoAmount });
     }
   }
   return out;
 }
+
+/** Пометка акции у ночи: «акция −20 %» / «бесплатно» */
+const PromoTag: React.FC<{ g: Seg; k: (key: string, o?: Record<string, unknown>) => string }> = ({ g, k }) =>
+  g.promoPct ? <span className="pe-promo">{g.promoPct >= 100 ? k('promoFree') : k('promoPct', { pct: g.promoPct })}</span> : null;
+
+/** Коэффициент размещения ночи — по цене до акции (скидка акции не входит в коэффициент) */
+const coefOf = (g: Seg) => {
+  const k = g.promoPct && g.promoPct < 100 ? 1 - g.promoPct / 100 : 1;
+  return Math.round((((g.price + (g.promoAmount || 0)) - (g.childAmount || 0)) / ((g.pp || 1) / k)) * 100) / 100;
+};
 
 /** Цена брони по ночам из прайса (или пометка «введена вручную» с кнопкой вернуться к прайсу) */
 export const QuoteBreakdown: React.FC<{
@@ -29,7 +39,10 @@ export const QuoteBreakdown: React.FC<{
   netContract?: boolean;
   marketGroupName?: string;
   onAuto: () => void;
-}> = ({ mode, quote, error, currency, netContract, marketGroupName, onAuto }) => {
+  /** акции сняты с брони / переключатель «без акций» (только у прямых броней по прайсу) */
+  promotionsOff?: boolean;
+  onTogglePromotions?: (off: boolean) => void;
+}> = ({ mode, quote, error, currency, netContract, marketGroupName, onAuto, promotionsOff, onTogglePromotions }) => {
   const { t, i18n } = useTranslation();
   const k = (key: string, o?: Record<string, unknown>) => t(`crm.hotels.priceEngine.${key}`, o);
   const loc = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
@@ -65,10 +78,10 @@ export const QuoteBreakdown: React.FC<{
           <div key={g.from} className="pe-row">
             <span className="dt">{g.from === g.to ? d(g.from) : `${d(g.from)} – ${d(g.to)}`}</span>
             <span className="n">{k('nights', { count: g.nights })}</span>
-            <span className={`src s-${g.source}`}>{k(`sources.${g.source}`)}{g.discountPct ? ` −${g.discountPct}%` : ''}</span>
+            <span className={`src s-${g.source}`}>{k(`sources.${g.source}`)}{g.discountPct ? ` −${g.discountPct}%` : ''}<PromoTag g={g} k={k} /></span>
             {g.pp && g.pp > 0 && Math.abs(g.pp - g.price) > 0.009 ? (
               <span className="pp" title={k('ppTitle')}>
-                {k('ppLine', { pp: money(g.pp, currency, loc), coef: Math.round(((g.price - (g.childAmount || 0)) / g.pp) * 100) / 100 })}
+                {k('ppLine', { pp: money(g.pp, currency, loc), coef: coefOf(g) })}
                 {g.childAmount ? ` ${k('ppChildren', { amount: money(g.childAmount, currency, loc) })}` : ''}
               </span>
             ) : <span className="pp" />}
@@ -90,7 +103,26 @@ export const QuoteBreakdown: React.FC<{
       {quote.ratePlan && quote.nights.some((n) => n.boardAmount) && (
         <div className="pe-note">{k('boardIncluded', { board: quote.ratePlan.boardType, amount: money(quote.nights.reduce((s, n) => s + (n.boardAmount || 0), 0), currency, loc) })}</div>
       )}
-      <div className="pe-total"><span>{k('total')}</span><b>{money(quote.total, currency, loc)}</b></div>
+      {!!quote.promotions?.length && (
+        <div className="pe-promos">
+          {quote.promotions.map((p) => (
+            <div key={p.id}><span>{p.name}</span><b>−{money(p.amount, currency, loc)}</b></div>
+          ))}
+        </div>
+      )}
+      <div className="pe-total">
+        <span>{k('total')}</span>
+        <b>
+          {!!quote.promoDiscount && quote.promoDiscount > 0 && <s className="pe-old">{money(quote.totalBeforePromo || 0, currency, loc)}</s>}
+          {money(quote.total, currency, loc)}
+        </b>
+      </div>
+      {onTogglePromotions && (promotionsOff || !!quote.promotions?.length) && (
+        <label className="pe-toggle">
+          <input type="checkbox" checked={!!promotionsOff} onChange={(e) => onTogglePromotions(e.target.checked)} />
+          {promotionsOff ? k('promosOff') : k('promosOffAsk')}
+        </label>
+      )}
       {netContract && <div className="pe-note">{k('netContract')}</div>}
       {missing && !noOcc && <div className="pe-note warn">{k('missing', { dates: missing.dates.map(d).join(', ') })}</div>}
       {blocked && <div className="pe-note warn">{k('blocked', { dates: blocked.dates.map(d).join(', ') })}</div>}
@@ -122,7 +154,7 @@ export const NightlyRatesSummary: React.FC<{ nights: HotelQuote['nights']; curre
           <div key={g.from} className="pe-row">
             <span className="dt">{g.from === g.to ? d(g.from) : `${d(g.from)} – ${d(g.to)}`}</span>
             <span className="n">{k('nights', { count: g.nights })}</span>
-            <span className={`src s-${g.source}`}>{k(`sources.${g.source}`)}{g.discountPct ? ` −${g.discountPct}%` : ''}</span>
+            <span className={`src s-${g.source}`}>{k(`sources.${g.source}`)}{g.discountPct ? ` −${g.discountPct}%` : ''}<PromoTag g={g} k={k} /></span>
             <b>{money(g.price, currency, loc)}</b>
           </div>
         ))}

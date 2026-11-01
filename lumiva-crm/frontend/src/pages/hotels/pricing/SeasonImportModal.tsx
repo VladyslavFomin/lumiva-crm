@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import { Ic, HTL_ICON } from '../HotelIcons';
-import { previewPriceListImport, applyPriceListImport, type HotelPriceListPreview, type HotelPriceListResult } from '../../../api/hotels';
+import { previewPriceListImport, applyPriceListImport, fetchMarketGroups, type HotelMarketGroup, type HotelPriceListPreview, type HotelPriceListResult } from '../../../api/hotels';
 
 /** Импорт прайс-листа сезона из Excel: предпросмотр (что найдено и что изменится) → применить */
 export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void; onDone: () => void }> = ({ hotelId, onClose, onDone }) => {
@@ -19,6 +19,11 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
   const [replacePeriods, setReplacePeriods] = useState(true);
   const [clearDaily, setClearDaily] = useState(true);
   const [sheet, setSheet] = useState<string | null>(null);
+  // раннее бронирование листа → акции отеля; для каких групп рынков (лист прайса обычно — один рынок)
+  const [importPromotions, setImportPromotions] = useState(true);
+  const [promoGroups, setPromoGroups] = useState<string[]>([]);
+  const [groups, setGroups] = useState<HotelMarketGroup[]>([]);
+  useEffect(() => { fetchMarketGroups(hotelId).then(setGroups).catch(() => setGroups([])); }, [hotelId]);
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -39,7 +44,7 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
   const apply = () => {
     if (!file) return;
     setBusy(true);
-    applyPriceListImport(hotelId, file, { replacePeriods, clearDaily, sheet: preview?.sheet ?? sheet })
+    applyPriceListImport(hotelId, file, { replacePeriods, clearDaily, sheet: preview?.sheet ?? sheet, importPromotions, promoMarketGroupIds: promoGroups })
       .then(setResult)
       .catch((e) => showAlert(e.message || k('applyError'), { variant: 'error' }))
       .finally(() => setBusy(false));
@@ -88,7 +93,7 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
                 <div><span>{k('kRows')}</span><b>{preview.categories.reduce((s, c) => s + c.rows.length, 0)}</b><em>{k('kOverrides', { count: overrides })}</em></div>
               </div>
               {preview.currencyMismatch && <div className="sp-note warn">{k('currency', { file: preview.currency, hotel: preview.hotelCurrency })}</div>}
-              {preview.warnings.map((w) => <div key={w} className="sp-note warn">{k('noPP', { name: w.replace(/^no_pp:/, '') })}</div>)}
+              {preview.warnings.map((w) => <div key={w} className="sp-note warn">{w.startsWith('no_pp:') ? k('noPP', { name: w.replace(/^no_pp:/, '') }) : k(`warn.${w}`, { defaultValue: w })}</div>)}
 
               <h4>{k('periods')}</h4>
               <div className="sp-scroll small">
@@ -128,6 +133,48 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
                 ))}
               </div>
 
+              {!!preview.earlyBooking?.length && (
+                <>
+                  <h4>{k('eb.title')}</h4>
+                  <div className="sp-scroll small">
+                    <table className="sp-table sp-eb">
+                      <thead>
+                        <tr><th className="sp-c0">{k('eb.rooms')}</th><th>{k('eb.booking')}</th><th>{k('eb.stay')}</th><th>{k('eb.discount')}</th><th>{k('eb.prepay')}</th><th>{k('eb.list')}</th><th /></tr>
+                      </thead>
+                      <tbody>
+                        {preview.earlyBooking.map((e, i) => (
+                          <tr key={i}>
+                            <td className="sp-c0">{e.roomType || k('eb.allRooms')}</td>
+                            <td>{e.bookFrom ? `${d(e.bookFrom)} – ${e.bookTo ? d(e.bookTo) : ''}` : e.bookTo ? k('eb.until', { date: d(e.bookTo) }) : '—'}</td>
+                            <td>{e.stayFrom && e.stayTo ? `${d(e.stayFrom)} – ${d(e.stayTo)}` : '—'}</td>
+                            <td><b>−{n(e.discountPct)} %</b></td>
+                            <td>{e.prepaymentPct ? (e.prepaymentDueDate ? k('eb.prepUntil', { pct: n(e.prepaymentPct), date: d(e.prepaymentDueDate) }) : `${n(e.prepaymentPct)} %`) : '—'}</td>
+                            <td>{e.listDate ? d(e.listDate) : '—'}</td>
+                            <td>{!e.roomTypeKnown ? <span className="sp-tag">{k('eb.skip')}</span> : <span className={`sp-tag ${e.exists ? '' : 'new'}`}>{e.exists ? k('update') : k('create')}</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <label className="sp-eb-opt">
+                    <input type="checkbox" checked={importPromotions} onChange={(e) => setImportPromotions(e.target.checked)} />
+                    {k('eb.importAsPromos')}
+                  </label>
+                  {importPromotions && groups.length > 0 && (
+                    <div className="sp-eb-groups">
+                      <span className="sp-muted">{k('eb.forGroups')}</span>
+                      <div className="rtp-chips">
+                        <button type="button" className={`rtp-chip${!promoGroups.length ? ' on' : ''}`} onClick={() => setPromoGroups([])}>{k('eb.allGroups')}</button>
+                        {groups.map((g) => (
+                          <button key={g.id} type="button" className={`rtp-chip${promoGroups.includes(g.id) ? ' on' : ''}`} onClick={() => setPromoGroups(promoGroups.includes(g.id) ? promoGroups.filter((x) => x !== g.id) : [...promoGroups, g.id])}>{g.name}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {importPromotions && <div className="sp-muted" style={{ marginTop: 6 }}>{k('eb.hint')}</div>}
+                </>
+              )}
+
               <div className="sp-opts">
                 {preview.stalePeriods.length > 0 && (
                   <label>
@@ -154,6 +201,8 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
               </div>
               {result.roomTypesCreated.length > 0 && <div className="sp-note">{k('createdRooms', { list: result.roomTypesCreated.join(', ') })}</div>}
               {result.dailyCleared > 0 && <div className="sp-note">{k('dailyCleared', { count: result.dailyCleared })}</div>}
+              {!!(result.promotionsCreated || result.promotionsUpdated) && <div className="sp-note">{k('eb.result', { created: result.promotionsCreated || 0, updated: result.promotionsUpdated || 0 })}</div>}
+              {!!result.promotionsSkipped && <div className="sp-note warn">{k('eb.skipped', { count: result.promotionsSkipped })}</div>}
             </div>
           )}
         </div>

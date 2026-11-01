@@ -73,6 +73,21 @@ export interface ParsedPriceListCategory {
   rows: ParsedPriceListRow[];
 }
 
+/** Строка раннего бронирования прайса: окно брони, период проживания, скидка, предоплата (% и срок) */
+export interface ParsedEarlyBooking {
+  /** «Tüm Oda Tipleri» / «All room types» — null (все), иначе название категории как в файле */
+  roomType: string | null;
+  bookFrom: string | null;
+  bookTo: string | null;
+  stayFrom: string | null;
+  stayTo: string | null;
+  discountPct: number;
+  prepaymentPct: number;
+  prepaymentDueDate: string | null;
+  /** «Liste Gönderim Tarihi» — до какой даты отправить список гостей (для туроператоров) */
+  listDate: string | null;
+}
+
 export interface ParsedPriceList {
   /** лист, с которого взят прайс, и все листы книги */
   sheet: string | null;
@@ -80,6 +95,7 @@ export interface ParsedPriceList {
   currency: string | null;
   periods: ParsedPriceListPeriod[];
   categories: ParsedPriceListCategory[];
+  earlyBooking: ParsedEarlyBooking[];
   warnings: string[];
 }
 
@@ -90,6 +106,99 @@ const BUDGET_RE = /b[üu]t[çc]e|budget|бюджет|maliyet/i;
 const ALLOTMENT_RE = /allotment|kontenjan|квота/i;
 /** дальше прайса — раннее бронирование и условия: не категории и не размещения */
 const STOP_RE = /erken\s*rezerv|early\s*book|ранн\S*\s*брон|^\s*(not|notes?|примечани|şartlar|conditions)\b/i;
+
+const EB_HEAD_RE = /erken\s*rezerv|early\s*book|ранн\S*\s*брон/i;
+const ALL_ROOMS_RE = /t[üu]m\s*oda|all\s*room|все\s*(типы|номера|категории)/i;
+
+/** Дата ячейки: ISO, дд.мм.гггг и дд.мм.гг (01.04.27 → 2027-04-01) */
+export function parseLooseDate(raw: string | undefined): string | null {
+  const s = String(raw ?? '').trim();
+  const full = parseSheetDate(s);
+  if (full) return full;
+  const m = /^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2})(?!\d)/.exec(s);
+  if (!m) return null;
+  const iso = `20${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const d = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso ? iso : null;
+}
+
+/** «01.04.27 - 10.11.27» → [с, по] */
+function parseDateRange(raw: string | undefined): [string | null, string | null] {
+  const parts = String(raw ?? '').split(/\s+[-–—]\s+|\s*[–—]\s*|\s+-\s*|\s*-\s+/).map((x) => parseLooseDate(x));
+  return parts.length >= 2 ? [parts[0], parts[1]] : [parts[0] ?? null, null];
+}
+
+/** Доля или проценты: 0,3 → 30; 30 → 30; «30%» → 30 */
+function pctOf(raw: string | undefined): number | null {
+  const v = num(String(raw ?? '').replace('%', ''));
+  if (v === null || v < 0) return null;
+  return round2(v <= 1 ? v * 100 : v);
+}
+
+/**
+ * Блок «ERKEN REZERVASYON / EARLY BOOKING» под прайсом: строка заголовков (Oda Tipi | Rezervasyon Dönemi ×2 |
+ * Konaklama Tarihi | EB İndirim Oranı | Liste Gönderim Tarihi | EB Ödeme Tarihi | Ödeme Tutarı), дальше строки условий
+ * до пустой строки или примечаний «*». В первой строке окна брони бывает только «по» (бронь до 31.01).
+ */
+export function parseEarlyBookingBlock(rows: string[][], headIdx: number, warnings: string[]): ParsedEarlyBooking[] {
+  let h = -1;
+  for (let i = headIdx; i < Math.min(rows.length, headIdx + 4); i++) {
+    if (rows[i].some((c) => /oda\s*tip|room\s*type|тип\s*номер/i.test(c || '')) && rows[i].some((c) => /ndirim|discount|ebd|скидк/i.test(c || ''))) {
+      h = i;
+      break;
+    }
+  }
+  if (h < 0) {
+    warnings.push('eb_no_header');
+    return [];
+  }
+  const head = rows[h].map((c) => (c || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim());
+  const find = (re: RegExp) => head.findIndex((c) => re.test(c));
+  const cRoom = find(/oda tip|room type|тип номер/);
+  const bookCols = head.map((c, i) => (/rezervasyon dönem|rezervasyon donem|booking (window|period)|период брони|окно брони/.test(c) ? i : -1)).filter((i) => i >= 0);
+  const cStay = find(/konaklama|stay|прожив/);
+  const cDisc = find(/ndirim|discount|ebd|скидк/);
+  const cList = find(/liste|list date|список/);
+  const cPayDate = find(/ödeme tarih|odeme tarih|payment date|срок оплат|дата оплат/);
+  const cPayPct = find(/ödeme tutar|odeme tutar|ödeme oran|payment ?%|payment (amount|rate)|предоплат|сумма оплат/);
+  const out: ParsedEarlyBooking[] = [];
+  for (let r = h + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const label = (row[cRoom >= 0 ? cRoom : 0] || '').trim();
+    if (!row.some((c) => (c || '').trim())) {
+      if (out.length) break;
+      continue;
+    }
+    if (label.startsWith('*')) break;
+    const discountPct = cDisc >= 0 ? pctOf(row[cDisc]) : null;
+    if (!discountPct) continue;
+    // окно брони: две колонки (с / по) или одна; если дата одна — это «по»
+    const bookDates = bookCols.map((c) => parseLooseDate(row[c]));
+    let bookFrom: string | null = null;
+    let bookTo: string | null = null;
+    if (bookDates.length >= 2) [bookFrom, bookTo] = [bookDates[0], bookDates[1]];
+    else if (bookDates.length === 1) {
+      const range = parseDateRange(row[bookCols[0]]);
+      [bookFrom, bookTo] = range[1] ? range : [null, range[0]];
+    }
+    if (bookFrom && !bookTo) [bookFrom, bookTo] = [null, bookFrom];
+    const [stayFrom, stayTo] = cStay >= 0 ? parseDateRange(row[cStay]) : [null, null];
+    const payPct = cPayPct >= 0 ? pctOf(row[cPayPct]) : null;
+    out.push({
+      roomType: !label || ALL_ROOMS_RE.test(label) ? null : label.replace(/\s+/g, ' '),
+      bookFrom,
+      bookTo,
+      stayFrom,
+      stayTo,
+      discountPct: Math.min(90, discountPct),
+      prepaymentPct: payPct ? Math.min(100, payPct) : 0,
+      prepaymentDueDate: cPayDate >= 0 ? parseLooseDate(row[cPayDate]) : null,
+      listDate: cList >= 0 ? parseLooseDate(row[cList]) : null,
+    });
+  }
+  if (!out.length) warnings.push('eb_empty');
+  return out;
+}
 
 /** Лист: явно выбранный, иначе первый, где есть строки дат периодов */
 export async function parseHotelPriceListSheet(file: { buffer: Buffer; originalname?: string }, sheet?: string | null): Promise<ParsedPriceList> {
@@ -146,6 +255,7 @@ async function parseOne(file: { buffer: Buffer; originalname?: string }, sheet?:
   const cats: RawCat[] = [];
   let globalBudget: Array<number | null> | null = null;
   const warnings: string[] = [];
+  let earlyBooking: ParsedEarlyBooking[] = [];
 
   for (let r = startIdx + 2; r < rows.length; r++) {
     const row = rows[r];
@@ -155,7 +265,12 @@ async function parseOne(file: { buffer: Buffer; originalname?: string }, sheet?:
     const values = cols.map((c) => num(row[c]));
     const hasValues = values.some((v) => v !== null);
     if (!label && !hasValues) continue;
-    if (STOP_RE.test(label)) break;
+    if (STOP_RE.test(label)) {
+      // раннее бронирование под прайсом — отдельный блок условий
+      const ebAt = rows.slice(r).findIndex((x) => EB_HEAD_RE.test((x[0] || '').trim()));
+      if (ebAt >= 0) earlyBooking = parseEarlyBookingBlock(rows, r + ebAt, warnings);
+      break;
+    }
     if (label.startsWith('*')) continue;
     if (ALLOTMENT_RE.test(label)) continue;
     if (MIN_NIGHTS_RE.test(label) || MIN_NIGHTS_RE.test(coefCell)) {
@@ -273,6 +388,7 @@ async function parseOne(file: { buffer: Buffer; originalname?: string }, sheet?:
       isPeak: isPeak[i],
     })),
     categories,
+    earlyBooking,
     warnings,
   };
 }
