@@ -54,6 +54,13 @@ export class Hotel {
   @Column({ type: 'uuid', nullable: true })
   referenceMarketGroupId: string | null;
 
+  /** Онлайн-регистрация: отправлять ссылку гостю за N дней до заезда (null — не отправлять сама), предлагать апгрейд */
+  @Column({ type: 'smallint', nullable: true })
+  precheckinAutoDays: number | null;
+
+  @Column({ type: 'boolean', default: true })
+  precheckinUpgrades: boolean;
+
   /** Плановая выручка на сезон/период — используется в воронке выручки в аналитике. */
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
   seasonRevenueTarget: string;

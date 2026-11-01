@@ -1148,3 +1148,85 @@
 .px-scope .pe-old{margin-right:8px;font-weight:400;color:var(--fg-3)}
 .px-scope .pe-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-2);cursor:pointer;margin:0}
 @media (max-width:640px){.px-scope .prm-check-form{grid-template-columns:1fr 1fr}.px-scope .prm-revoke{flex-direction:column;align-items:flex-start}}
+/* профили гостей (gp-*): метки VIP / чёрный список / «N-й раз», предпочтения, подсказки в форме брони, дубли */
+.px-scope .gp-name{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.px-scope .gp-badges{display:inline-flex;gap:4px;flex-wrap:wrap}
+.px-scope .gp-badge{font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.04em;padding:1px 6px;border-radius:5px;border:1px solid var(--line-2);background:#fff;color:var(--fg-2);white-space:nowrap}
+.px-scope .gp-badge.vip{background:#222;border-color:#222;color:#fff}
+.px-scope .gp-badge.repeat{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .gp-badge.black{background:#fbecef;border-color:#f0c8cf;color:#9a1f31}
+.px-scope .gp-prefs{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.px-scope .gp-prefs span{font-size:10.5px;padding:1px 7px;border-radius:999px;background:var(--bg-soft);color:var(--fg-2)}
+.px-scope .gp-prefs span.warn{background:#fbf2dc;color:#7a4a09}
+.px-scope .gp-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap}
+.px-scope .gp-table td.num,.px-scope .gp-table th.num,.px-scope .gp-dup th.num,.px-scope .gp-dup td.num{text-align:right}
+.px-scope .gp-next{color:#1d3f6b;font-weight:600}
+.px-scope .gp-pager{justify-content:center}
+.px-scope .gp-h1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.px-scope .gp-black{margin-top:14px}
+.px-scope .gp-fs{border:0;padding:0;margin:0;min-width:0}
+.px-scope .gp-fs:disabled{opacity:.6}
+.px-scope .gp-consent{align-self:end}
+.px-scope .gp-stats>div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-3);font-size:12.5px}
+.px-scope .gp-stats>div:last-child{border-bottom:0}
+.px-scope .gp-stats>div span{color:var(--fg-3)}
+.px-scope .gp-stats>div b{font-family:var(--ff-mono-ui);font-size:12.5px;text-align:right}
+.px-scope .gp-status{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line-2)}
+.px-scope .gp-status.s-checked_in{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .gp-status.s-confirmed,.px-scope .gp-status.s-pending{background:#eef3f9;border-color:#bcd0e6;color:#1d3f6b}
+.px-scope .gp-status.s-cancelled,.px-scope .gp-status.s-no_show{background:#fbecef;border-color:#f0c8cf;color:#9a1f31}
+.px-scope .gp-dupline{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line-3)}
+.px-scope .gp-dups{display:flex;flex-direction:column;gap:12px}
+.px-scope .gp-dup{border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:12px 14px}
+.px-scope .gp-dup.weak{border-style:dashed}
+.px-scope .gp-dup-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.px-scope .gp-dup-head .btn{margin-left:auto}
+.px-scope .gp-reason{font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:#eef3f9;color:#1d3f6b}
+.px-scope .gp-reason.r-name{background:var(--bg-soft);color:var(--fg-2)}
+.px-scope .gp-lookup{position:relative}
+.px-scope .gp-hits{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line-2);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.08);max-height:280px;overflow:auto}
+.px-scope .gp-hits-head{padding:8px 12px;font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);border-bottom:1px solid var(--line-3)}
+.px-scope .gp-hits button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;padding:8px 12px;border:0;border-bottom:1px solid var(--line-3);background:#fff;cursor:pointer;font-family:inherit;font-size:12.5px}
+.px-scope .gp-hits button:hover{background:var(--bg-muted)}
+.px-scope .gp-linked{margin-top:6px;border:1px solid var(--line-2);border-radius:10px;padding:8px 10px;background:var(--bg-muted);font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+.px-scope .gp-linked.black{background:#fbecef;border-color:#f0c8cf}
+.px-scope .gp-linked-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.px-scope .gp-linked a{color:#222;font-weight:600;text-decoration:none}
+.px-scope .gp-linked-warn{color:#9a1f31;font-weight:600}
+/* групповые брони (grp-*): статус группы, заполненность rooming list, строки номеров с именем в строке */
+.px-scope .grp-status{font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;border:1px solid var(--line-2);vertical-align:middle;white-space:nowrap}
+.px-scope .grp-status.s-tentative{background:#fbf2dc;border-color:#f0d9a8;color:#7a4a09}
+.px-scope .grp-status.s-definite{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .grp-status.s-cancelled{background:#fbecef;border-color:#f0c8cf;color:#9a1f31}
+.px-scope .grp-bar{height:6px;border-radius:3px;background:var(--bg-soft);overflow:hidden;min-width:90px}
+.px-scope .grp-bar span{display:block;height:100%;background:#222}
+.px-scope .grp-late{color:#9a1f31}
+.px-scope .grp-debt{color:#9a1f31}
+.px-scope .bk-table td.num,.px-scope .bk-table th.num{text-align:right}
+.px-scope .grp-actions{flex-wrap:wrap;justify-content:flex-end}
+.px-scope .grp-line{display:flex;gap:8px;align-items:end;margin-bottom:8px;flex-wrap:wrap}
+.px-scope .grp-line select{flex:1;min-width:160px}
+.px-scope .grp-line label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--fg-3)}
+.px-scope .grp-line input{width:80px}
+.px-scope .grp-name{width:100%;min-width:160px;border:1px solid transparent;border-radius:7px;padding:5px 8px;font:inherit;font-weight:600;background:transparent}
+.px-scope .grp-name:hover,.px-scope .grp-name:focus{border-color:var(--line-2);background:#fff}
+.px-scope .grp-name.pending::placeholder{color:#b07a1e;font-weight:400}
+.px-scope .grp-rooms tr.grp-off td{color:var(--fg-3);text-decoration:line-through}
+.px-scope .grp-link{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.px-scope .grp-link a{font-weight:600;color:#222}
+/* узкий экран: KPI отелей в две колонки (перебивает сетку, заданную на странице), кнопки шапки переносятся, а не обрезаются */
+@media (max-width:640px){
+  .px-scope .htl-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .px-scope .htl-hero-r{flex-shrink:1;flex-wrap:wrap;max-width:100%}
+  .px-scope .sp-eb td{white-space:normal}
+}
+.px-scope .sp-eb td{white-space:normal}
+/* онлайн-регистрация у персонала (pcs-*): статус ссылки, заявки на допродажу */
+.px-scope .pcs{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);white-space:nowrap}
+.px-scope .pcs.s-completed,.px-scope .pcs.s-approved{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .pcs.s-sent,.px-scope .pcs.s-opened{background:#eef3f9;border-color:#bcd0e6;color:#1d3f6b}
+.px-scope .pcs.s-requested{background:#fbf2dc;border-color:#f0d9a8;color:#7a4a09}
+.px-scope .pcs.s-declined,.px-scope .pcs.s-none,.px-scope .pcs.s-new{color:var(--fg-3)}
+.px-scope .pcs-req{margin-top:4px;font-size:11px;color:#7a4a09;font-weight:600}
+.px-scope .pc-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.px-scope .pc-desc{width:100%;min-width:160px;padding:5px 8px;border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:12.5px}

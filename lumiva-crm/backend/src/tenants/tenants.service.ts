@@ -24,6 +24,7 @@ import {
   applyTenantModuleToggle,
   buildPlanEntitlements,
   COMPONENT_KEYS,
+  componentDefault,
   isComponentAllowedByPlan,
   isCustomDomainIncludedInPlan,
   isModuleAllowedByPlan,
@@ -975,9 +976,8 @@ export class TenantsService {
 
     return COMPONENT_KEYS.map((key) => ({
       key,
-      enabled: typeof enabledComponents[key] === 'boolean'
-        ? enabledComponents[key] as boolean
-        : planAllowed(key),
+      // явно заданное в pl1 — как есть (в том числе сверх тарифа); не задано — прежний общий тумблер, иначе тариф
+      enabled: typeof enabledComponents[key] === 'boolean' ? enabledComponents[key] as boolean : planAllowed(key) && componentDefault(key, enabledComponents as Record<string, boolean>),
       allowedByPlan: planAllowed(key),
       plan: normalizeTenantPlan(tenant.plan),
     }));

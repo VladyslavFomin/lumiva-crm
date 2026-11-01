@@ -29,3 +29,42 @@
 .gr-foot{font-size:11px;color:#999;max-width:520px;text-align:center}
 .gr-spin{width:28px;height:28px;border:3px solid #e3e3e0;border-top-color:#222;border-radius:50%;margin:0 auto;animation:gr-spin .8s linear infinite}
 @keyframes gr-spin{to{transform:rotate(360deg)}}
+/* онлайн-регистрация (pc-*): даты брони, гости, предложения отеля */
+.pc .pc-stay{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px}
+.pc .pc-stay>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pc .pc-stay span{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.04em}
+.pc .pc-stay b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.pc .pc-stay em{font-style:normal;font-size:12px;color:#777}
+.pc-h2{font-family:var(--ff-heading, inherit);font-size:18px;margin:0 0 6px;font-weight:600}
+.pc-guest{border-top:1px solid #efefec;padding-top:14px;margin-top:14px}
+.pc-guest:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.pc-guest-head{display:flex;justify-content:space-between;align-items:center}
+.pc-scan{border:1px solid #222;background:#fff;border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.pc-scan:disabled{opacity:.5}
+.pc-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pc-add{margin-top:14px}
+.pc-check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-top:14px;line-height:1.4;cursor:pointer}
+.pc-check input{width:20px!important;height:20px;flex:none;margin-top:1px}
+.pc-offer{border:1px solid #e3e3e0;border-radius:12px;margin-top:8px;overflow:hidden}
+.pc-offer.on{border-color:#222;box-shadow:inset 0 0 0 1px #222}
+.pc-offer-main{display:flex;align-items:center;gap:12px;width:100%;padding:12px;background:#fff;border:0;text-align:left;cursor:pointer;font-family:inherit;color:#222}
+.pc-offer-main:disabled{cursor:default;background:#fafafa}
+.pc-tick{width:22px;height:22px;border-radius:6px;border:1px solid #ccc;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px}
+.pc-offer.on .pc-tick{background:#222;border-color:#222;color:#fff}
+.pc-offer-text{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.pc-offer-text b{font-size:14px;font-weight:600}
+.pc-offer-text em{font-style:normal;font-size:12px;color:#777}
+.pc-price{font-size:14px;font-weight:600;white-space:nowrap}
+.pc-qty{display:flex;align-items:center;gap:10px;padding:0 12px 12px 46px;font-size:13px;color:#777}
+.pc-qty button{width:32px;height:32px;border-radius:8px;border:1px solid #e3e3e0;background:#fff;font-size:16px;cursor:pointer}
+.pc-qty b{color:#222;min-width:18px;text-align:center}
+.pc-total{margin-top:12px;font-weight:600;text-align:right}
+.pc-req{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #efefec;flex-wrap:wrap}
+.pc-req:first-of-type{border-top:0}
+.pc-req>div{flex:1;display:flex;flex-direction:column;min-width:0}
+.pc-req>div span{font-size:12px;color:#777}
+.pc-st{font-size:12px;padding:3px 9px;border-radius:999px;background:#fbf2dc;color:#7a4a09}
+.pc-st.s-approved{background:#eaf4ee;color:#175c3d}
+.pc-st.s-declined{background:#f3f3f1;color:#777}
+.pc-x{border:0;background:none;color:#9a1f31;font-size:12px;cursor:pointer;font-family:inherit}
+@media (max-width:420px){.pc .pc-stay{grid-template-columns:1fr 1fr}.pc-row{grid-template-columns:1fr}}

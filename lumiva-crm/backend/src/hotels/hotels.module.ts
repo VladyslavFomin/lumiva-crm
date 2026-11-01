@@ -95,6 +95,15 @@ import { HotelRatePlansController } from './hotel-rate-plans.controller';
 import { HotelPromotion } from './hotel-promotion.entity';
 import { HotelPromotionsService } from './hotel-promotions.service';
 import { HotelPromotionsController } from './hotel-promotions.controller';
+import { HotelGuestProfile } from './hotel-guest-profile.entity';
+import { HotelGuestProfilesService } from './hotel-guest-profiles.service';
+import { HotelGuestProfilesController } from './hotel-guest-profiles.controller';
+import { HotelGroup } from './hotel-group.entity';
+import { HotelGroupsService } from './hotel-groups.service';
+import { HotelGroupsController } from './hotel-groups.controller';
+import { HotelPrecheckin, HotelUpsellRequest } from './hotel-precheckin.entities';
+import { HotelPrecheckinService } from './hotel-precheckin.service';
+import { HotelPrecheckinController, HotelPrecheckinPublicController } from './hotel-precheckin.controller';
 import { HotelChannelsService } from './hotel-channels.service';
 import { HotelChannelsScheduler } from './hotel-channels.scheduler';
 import { HotelChannelAriState, HotelChannelConnection, HotelChannelLog, HotelChannelMapping } from './hotel-channel.entities';
@@ -113,6 +122,10 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
       HotelChannelAriState,
       HotelRatePlan,
       HotelPromotion,
+      HotelGuestProfile,
+      HotelGroup,
+      HotelPrecheckin,
+      HotelUpsellRequest,
       HotelGuestRequest,
       Hotel,
       HotelRoomType,
@@ -168,6 +181,10 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelAriController,
     HotelRatePlansController,
     HotelPromotionsController,
+    HotelGuestProfilesController,
+    HotelGroupsController,
+    HotelPrecheckinController,
+    HotelPrecheckinPublicController,
     HotelGuestCareController,
     HotelGuestCarePublicController,
     HotelHousekeepingController,
@@ -191,6 +208,9 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelAriService,
     HotelRatePlansService,
     HotelPromotionsService,
+    HotelGuestProfilesService,
+    HotelGroupsService,
+    HotelPrecheckinService,
     HotelGuestCareService,
     HotelChannelsScheduler,
     HotelsService,

@@ -7,6 +7,7 @@ import { HotelMarketGroup } from './hotel-market-group.entity';
 import { HotelRatePlan } from './hotel-rate-plan.entity';
 import { HOTEL_PROMOTION_TYPES, HotelPromotion, HotelPromotionType } from './hotel-promotion.entity';
 import { normalizeNumericInput } from './hotel-number.util';
+import { componentDefault } from '../tenants/plan-entitlements';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -45,8 +46,10 @@ export class HotelPromotionsService {
     return this.promos.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
   }
 
-  /** Действующие акции отеля — для расчёта цены */
-  active(tenantId: string, hotelId: string) {
+  /** Действующие акции отеля — для расчёта цены; компонент «Акции» выключен в pl1 — акций нет */
+  async active(tenantId: string, hotelId: string) {
+    const [t] = await this.promos.manager.query(`SELECT "enabledComponents" FROM tenants WHERE id = $1`, [tenantId]);
+    if (!componentDefault('hotels_promotions', t?.enabledComponents || {})) return [];
     return this.promos.find({ where: { tenantId, hotelId, active: true }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
   }
 

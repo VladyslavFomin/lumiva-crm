@@ -486,6 +486,11 @@ export interface HotelReservation {
   depositDueDate?: string | null;
   /** тариф брони */
   ratePlanId?: string | null;
+  /** профиль гостя-контакта (история, VIP, предпочтения) */
+  guestProfileId?: string | null;
+  /** групповая бронь и «гость ещё не указан» (ждёт rooming list) */
+  groupId?: string | null;
+  roomingPending?: boolean;
   /** акции отеля в цене брони (снимок) и признак «акции сняты» */
   promotions?: HotelAppliedPromotion[];
   promotionsOff?: boolean;
@@ -527,6 +532,8 @@ export interface HotelReservationGuest {
   migrationCard?: string;
   visaNumber?: string;
   entryPurpose?: 'tourism' | 'business' | 'private' | 'work' | 'study' | 'other' | '';
+  /** профиль гостя — ставит сервер сопоставлением */
+  profileId?: string | null;
 }
 
 /** Россия по свободному тексту страны отеля — тот же признак, что isRussia на сервере. */
@@ -799,6 +806,111 @@ export const updateRatePlan = (id: string, dto: HotelRatePlanInput) => api.patch
 export const makeDefaultRatePlan = (id: string) => api.post<HotelRatePlan>(`/hotels/rate-plans/${id}/default`, {});
 export const deleteRatePlan = (id: string) => api.delete<{ ok: boolean }>(`/hotels/rate-plans/${id}`);
 
+/* ---------- онлайн-регистрация и допродажи ---------- */
+
+export type HotelPrecheckinStatus = 'new' | 'sent' | 'opened' | 'completed';
+export interface HotelPrecheckinRow {
+  reservationId: string; guestName: string; guestEmail: string | null; checkIn: string; checkOut: string; pax: number; roomTypeName: string; guestsFilled: number;
+  status: HotelPrecheckinStatus | null; sentAt: string | null; completedAt: string | null; eta: string | null; flight: string | null; needTransfer: boolean; requestsText: string | null;
+  upsells: { requested: number; approved: number };
+}
+export interface HotelUpsellRequest {
+  id: string; reservationId: string; kind: 'upgrade' | 'early_checkin' | 'late_checkout' | 'extra'; name: string; quantity: number; amount: number;
+  status: 'requested' | 'approved' | 'declined'; note: string | null; decidedAt: string | null; createdAt: string; guestName: string; checkIn: string | null; checkOut: string | null; reservationStatus: string | null;
+}
+const PC = '/hotels/precheckin';
+export const fetchPrecheckins = (q: { hotelId: string; from?: string; to?: string }) => api.get<{ from: string; to: string; autoDays: number | null; upgrades: boolean; items: HotelPrecheckinRow[] }>(PC, { params: q });
+export const fetchUpsellRequests = (q: { hotelId: string; status?: string }) => api.get<HotelUpsellRequest[]>(`${PC}/requests`, { params: q });
+export const decideUpsell = (id: string, approve: boolean, note?: string) => api.post<HotelUpsellRequest>(`${PC}/requests/${id}/${approve ? 'approve' : 'decline'}`, { note });
+export const precheckinLink = (reservationId: string) => api.post<{ token: string; url: string; status: HotelPrecheckinStatus; sentAt: string | null; completedAt: string | null }>(`${PC}/${reservationId}/link`, {});
+export const precheckinSend = (reservationId: string) => api.post<{ ok: boolean; sentTo: string }>(`${PC}/${reservationId}/send`, {});
+export const savePrecheckinSettings = (hotelId: string, dto: { precheckinAutoDays?: number | null; precheckinUpgrades?: boolean }) => api.patch<{ precheckinAutoDays: number | null; precheckinUpgrades: boolean }>(`${PC}/settings/${hotelId}`, dto);
+
+/* ---------- групповые брони и rooming list ---------- */
+
+export type HotelGroupStatus = 'tentative' | 'definite' | 'cancelled';
+export interface HotelGroupSummary { rooms: number; cancelled: number; named: number; pax: number; inHouse: number; checkedOut: number; withUnit: number; byType: Array<{ roomTypeId: string; count: number }>; total: number; paid: number; balance: number; currency: string }
+export interface HotelGroup {
+  id: string; hotelId: string; code: string; name: string; agencyId: string | null; contractId: string | null; blockId: string | null; ratePlanId: string | null;
+  contactName: string | null; contactEmail: string | null; contactPhone: string | null; checkIn: string; checkOut: string; status: HotelGroupStatus;
+  optionUntil: string | null; roomingDue: string | null; billing: 'group' | 'individual'; notes: string | null; createdAt: string;
+  hotelName: string; partnerName: string | null; summary: HotelGroupSummary;
+}
+export interface HotelGroupRoom {
+  id: string; guestName: string; roomingPending: boolean; roomTypeId: string; roomTypeName: string; roomUnitId: string | null; roomLabel: string | null;
+  checkIn: string; checkOut: string; status: HotelReservationStatus; pax: number; children: number; total: string; extrasTotal: string; paid: number;
+  guests: HotelReservationGuest[]; optionUntil: string | null;
+}
+export interface HotelGroupFull extends HotelGroup { roomTypes: Array<{ id: string; name: string }>; reservations: HotelGroupRoom[] }
+export interface HotelGroupRoomLine { roomTypeId: string; count: number; adults?: number; childAges?: Array<number | null> }
+export type HotelGroupInput = Partial<Pick<HotelGroup, 'name' | 'agencyId' | 'contractId' | 'blockId' | 'ratePlanId' | 'contactName' | 'contactEmail' | 'contactPhone' | 'checkIn' | 'checkOut' | 'status' | 'optionUntil' | 'roomingDue' | 'notes'>> & { hotelId?: string; rooms?: HotelGroupRoomLine[] };
+export interface HotelRoomingPreview {
+  columns: string[]; skipped: number;
+  rooms: Array<{ row: number; key: string | null; roomType: string | null; checkIn: string | null; checkOut: string | null; notes: string | null; roomTypeId: string | null; reservationId: string | null; reservationName: string | null; existing?: boolean; problem: 'unknown_room_type' | 'no_free_room' | null;
+    guests: Array<{ fullName: string; birthDate: string | null; age: number | null; childHint: boolean; passportNumber: string | null; nationality: string | null; gender: 'M' | 'F' | null }> }>;
+}
+const G = '/hotels/groups';
+export const fetchHotelGroups = (q: { hotelId?: string; status?: string; period?: 'upcoming' | 'past' | 'all' }) => api.get<HotelGroup[]>(G, { params: q });
+export const fetchHotelGroup = (id: string) => api.get<HotelGroupFull>(`${G}/${id}`);
+export const createHotelGroup = (dto: HotelGroupInput) => api.post<HotelGroupFull>(G, dto);
+export const updateHotelGroup = (id: string, dto: HotelGroupInput) => api.patch<HotelGroupFull>(`${G}/${id}`, dto);
+export const addHotelGroupRooms = (id: string, rooms: HotelGroupRoomLine[]) => api.post<HotelGroupFull>(`${G}/${id}/rooms`, { rooms });
+export const changeHotelGroupDates = (id: string, dto: { checkIn: string; checkOut: string; reservationIds?: string[] }) => api.post<{ updated: number; failed: Array<{ id: string; error?: string }>; group: HotelGroupFull }>(`${G}/${id}/dates`, dto);
+export const assignHotelGroupRooms = (id: string) => api.post<{ assigned: number; missing: number; group: HotelGroupFull }>(`${G}/${id}/assign-rooms`, {});
+export const previewHotelGroupRooming = (id: string, file: File) => { const f = new FormData(); f.append('file', file); return api.postForm<HotelRoomingPreview>(`${G}/${id}/rooming/preview`, f); };
+export const applyHotelGroupRooming = (id: string, file: File, addMissing: boolean) => { const f = new FormData(); f.append('file', file); f.append('addMissing', String(addMissing)); return api.postForm<{ applied: number; updated: number; added: number; failed: Array<{ row: number; name: string; error: string }>; group: HotelGroupFull }>(`${G}/${id}/rooming/apply`, f); };
+export const payHotelGroup = (id: string, dto: { amount: string; method: string; date?: string; note?: string }) => api.post<{ distributed: Array<{ id: string; amount: number }>; group: HotelGroupFull }>(`${G}/${id}/pay`, dto);
+export const cancelHotelGroupRooms = (id: string, dto: { reservationIds?: string[]; reason: string; fee: 'policy' | 'none'; note?: string }) => api.post<{ cancelled: number; failed: Array<{ id: string; error: string }>; group: HotelGroupFull }>(`${G}/${id}/cancel-rooms`, dto);
+export const hotelGroupStay = (id: string, action: 'check_in' | 'check_out') => api.post<{ done: number; failed: Array<{ id: string; name: string; error: string }>; group: HotelGroupFull }>(`${G}/${id}/stay`, { action });
+
+/* ---------- профили гостей ---------- */
+
+export const HOTEL_GUEST_PREFERENCES = [
+  'high_floor', 'low_floor', 'quiet_room', 'sea_view', 'near_elevator', 'twin_beds', 'double_bed', 'extra_pillow',
+  'baby_cot', 'accessible', 'non_smoking', 'late_arrival', 'early_breakfast', 'vegetarian', 'gluten_free', 'no_alcohol',
+] as const;
+export interface HotelGuestStats { stays: number; nights: number; bookings: number; cancelled: number; revenue: Record<string, number>; lastStay: string | null; nextStay: string | null }
+export interface HotelGuestProfile {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  language: string | null;
+  birthDate: string | null;
+  gender: 'M' | 'F' | null;
+  documentType: 'passport' | 'id_card' | 'other' | null;
+  documentNumber: string | null;
+  documentExpiry: string | null;
+  vip: boolean;
+  blacklisted: boolean;
+  blacklistReason: string | null;
+  preferences: string[];
+  allergies: string | null;
+  notes: string | null;
+  marketingConsent: boolean;
+  anonymizedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stats: HotelGuestStats;
+}
+export interface HotelGuestStay { id: string; hotelId: string; hotelName: string; currency: string; roomTypeName: string; roomNumber: string | null; checkIn: string; checkOut: string; status: HotelReservation['status']; total: string; pax: number; guestName: string; source: string; isContact: boolean }
+export interface HotelGuestDuplicateRef { id: string; fullName: string; email: string | null; phone: string | null; country: string | null; birthDate: string | null; documentNumber: string | null; reason: 'document' | 'email' | 'phone' | 'name_birth' | 'name' }
+export interface HotelGuestProfileFull extends HotelGuestProfile { stays: HotelGuestStay[]; duplicates: HotelGuestDuplicateRef[] }
+export interface HotelGuestList { items: HotelGuestProfile[]; total: number; page: number; pageSize: number; counts: { total: number; vip: number; blacklisted: number; repeat: number; upcoming: number }; unlinked: number }
+export interface HotelGuestBrief { id: string; fullName: string; vip: boolean; blacklisted: boolean; blacklistReason: string | null; preferences: string[]; allergies: string | null; notes?: string | null; stays?: number; stats?: HotelGuestStats }
+export type HotelGuestProfileInput = Partial<Omit<HotelGuestProfile, 'id' | 'stats' | 'anonymizedAt' | 'createdAt' | 'updatedAt'>>;
+export const fetchGuestProfiles = (q: { search?: string; filter?: string; country?: string; sort?: string; page?: number }) => api.get<HotelGuestList>('/hotels/guests', { params: q });
+export const fetchGuestProfile = (id: string) => api.get<HotelGuestProfileFull>(`/hotels/guests/${id}`);
+export const fetchGuestBrief = (id: string) => api.get<HotelGuestBrief | null>(`/hotels/guests/${id}/brief`);
+export const lookupGuestProfiles = (q: string) => api.get<HotelGuestProfile[]>('/hotels/guests/lookup', { params: { q } });
+export const createGuestProfile = (dto: HotelGuestProfileInput) => api.post<HotelGuestProfile>('/hotels/guests', dto);
+export const updateGuestProfile = (id: string, dto: HotelGuestProfileInput) => api.patch<HotelGuestProfile>(`/hotels/guests/${id}`, dto);
+export const anonymizeGuestProfile = (id: string) => api.post<HotelGuestProfile>(`/hotels/guests/${id}/anonymize`, {});
+export const mergeGuestProfiles = (targetId: string, sourceIds: string[]) => api.post<{ id: string; merged: number }>('/hotels/guests/merge', { targetId, sourceIds });
+export const fetchGuestDuplicates = () => api.get<Array<{ reason: HotelGuestDuplicateRef['reason']; profiles: Array<HotelGuestDuplicateRef & { vip: boolean; blacklisted: boolean; createdAt: string; stats: HotelGuestStats }> }>>('/hotels/guests/duplicates');
+export const backfillGuestProfiles = () => api.post<{ processed: number; linked: number; remaining: number }>('/hotels/guests/backfill', {});
+
 /* ---------- акции отеля: раннее бронирование, горящие, спецпредложения, длительное проживание ---------- */
 
 export type HotelPromotionType = 'early_booking' | 'last_minute' | 'spo' | 'long_stay';
@@ -958,6 +1070,36 @@ export interface HotelPriceListResult {
   periodsCreated: number; periodsUpdated: number; periodsRemoved: number; roomTypesCreated: string[]; roomTypesUpdated: number;
   rowsCreated: number; rowsUpdated: number; overrides: number; dailyCleared: number;
   promotionsCreated?: number; promotionsUpdated?: number; promotionsSkipped?: number;
+}
+
+export interface HotelMarketSheetPreview {
+  sheet: string | null; sheets: string[]; currency: string | null; hotelCurrency: string; currencyMismatch: boolean; mode: 'dates' | 'order'; referenceGroupId: string | null;
+  group: { id: string; name: string; importedSheet: string | null; importedAt: string | null } | null;
+  periods: Array<{ id: string; startDate: string; endDate: string; basePP: number; sheet: { startDate: string; endDate: string; ppBase: number } | null }>;
+  unusedSheetPeriods: Array<{ startDate: string; endDate: string }>;
+  categories: Array<{ name: string; roomTypeId: string | null; isBase: boolean; sheetOffset: number; hotelOffset: number | null; ownPeriods: number }>;
+  earlyBooking: Array<{ discountPct: number; bookFrom: string | null; bookTo: string | null }>;
+  warnings: string[];
+}
+export interface HotelMarketSheetResult { groupId: string; groupName: string; periods: number; roomCells: number; mode: 'dates' | 'order'; promotionsCreated: number; promotionsUpdated: number }
+export function previewMarketSheet(hotelId: string, file: File, sheet: string | null, groupId: string | null) {
+  const f = new FormData();
+  f.append('file', file);
+  f.append('hotelId', hotelId);
+  if (sheet) f.append('sheet', sheet);
+  if (groupId) f.append('groupId', groupId);
+  return api.postForm<HotelMarketSheetPreview>('/hotels/price-list-import/market/preview', f);
+}
+export function applyMarketSheet(hotelId: string, file: File, o: { sheet: string | null; groupId: string | null; newGroupName: string | null; fxRate: number | null; importPromotions: boolean }) {
+  const f = new FormData();
+  f.append('file', file);
+  f.append('hotelId', hotelId);
+  if (o.sheet) f.append('sheet', o.sheet);
+  if (o.groupId) f.append('groupId', o.groupId);
+  if (o.newGroupName) f.append('newGroupName', o.newGroupName);
+  if (o.fxRate) f.append('fxRate', String(o.fxRate));
+  f.append('importPromotions', String(o.importPromotions));
+  return api.postForm<HotelMarketSheetResult>('/hotels/price-list-import/market/apply', f);
 }
 
 export function previewPriceListImport(hotelId: string, file: File, sheet?: string | null) {
@@ -1212,6 +1354,8 @@ export interface HotelFrontDeskToday {
   noShowCandidates: HotelReservation[];
   optionsExpiring: HotelReservation[];
   inHouseCount: number;
+  /** профили гостей броней дня: VIP, чёрный список, сколько раз жил, предпочтения */
+  guestProfiles?: Record<string, HotelGuestBrief & { stays: number }>;
 }
 
 export interface HotelCancellationQuote {
@@ -2142,7 +2286,7 @@ export const setFolioRouting = (id: string, accommodationFolio: HotelFolioKind) 
 export const addFolioPayment = (id: string, dto: { date?: string; amount: string; method: string; note?: string; folio?: HotelFolioKind; refund?: boolean }) =>
   api.post<HotelReservation>(`/hotels/reservations/${id}/payments`, dto);
 
-export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number }
+export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number; sellOnline?: boolean; description?: string | null; priceMode?: 'per_stay' | 'per_night' | 'per_person' }
 export interface HotelCashShift {
   id: string; hotelId: string; status: 'open' | 'closed'; openedBy: string | null; openedAt: string; openingCash: string;
   closedBy: string | null; closedAt: string | null; countedCash: string | null; expectedCash: string | null; difference: string | null; totals: Record<string, number> | null; note: string | null;

@@ -86,6 +86,8 @@ export interface HotelReservationGuest {
   motherName?: string;
   /** Когда гость отмечен переданным в KBS / МВД */
   kbsReportedAt?: string | null;
+  /** профиль гостя (hotel_guest_profiles) — проставляется сопоставлением по документу / имени */
+  profileId?: string | null;
   /** Россия, миграционный учёт иностранцев: место рождения, дата выдачи документа, миграционная карта, виза, цель въезда */
   birthPlace?: string;
   documentIssueDate?: string;
@@ -263,6 +265,18 @@ export class HotelReservation {
   /** Тариф брони (питание, условия отмены и предоплаты); null — без тарифа (контракт, блок, старые брони) */
   @Column({ type: 'uuid', nullable: true })
   ratePlanId: string | null;
+
+  /** Групповая бронь (hotel_groups) — номер группы */
+  @Column({ type: 'uuid', nullable: true })
+  groupId: string | null;
+
+  /** Номер группы ещё без гостя (ждёт rooming list) — имя-заглушка, профиль гостя не создаётся */
+  @Column({ type: 'boolean', default: false })
+  roomingPending: boolean;
+
+  /** Профиль гостя-контакта брони (история проживаний, VIP, предпочтения) */
+  @Column({ type: 'uuid', nullable: true })
+  guestProfileId: string | null;
 
   /** Акции отеля в цене брони — снимок на момент расчёта (имя, %, сумма скидки, условие предоплаты) */
   @Column({ type: 'jsonb', default: [] })

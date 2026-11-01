@@ -67,6 +67,7 @@ export const COMPONENT_KEYS = [
   'email',
   'telegram',
   'whatsapp',
+  'instagram',
   'chat',
   'client_accounts',
   'sms',
@@ -79,11 +80,26 @@ export const COMPONENT_KEYS = [
   'hotels_calendar',
   'hotels_analytics',
   'hotels_reviews',
+  'hotels_partners',
+  'hotels_groups',
+  'hotels_guests',
+  'hotels_rack',
+  'hotels_housekeeping',
+  'hotels_guest_care',
+  'hotels_precheckin',
+  'hotels_cashier',
+  'hotels_pos',
+  'hotels_guest_register',
+  'hotels_rate_plans',
+  'hotels_promotions',
+  'hotels_revenue',
+  'hotels_channels',
   'products',
   'team_calendar',
   'analytics',
   'helpdesk',
   'esign',
+  'media',
   'phone_system',
   'ai_office',
   'ai_employees',
@@ -161,6 +177,7 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   custom_objects: 'standard',
   telegram: 'professional',
   whatsapp: 'professional',
+  instagram: 'professional',
   chat: 'professional',
   client_accounts: 'enterprise',
   sms: 'standard',
@@ -173,11 +190,26 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   hotels_calendar: 'standard',
   hotels_analytics: 'standard',
   hotels_reviews: 'standard',
+  hotels_partners: 'standard',
+  hotels_groups: 'standard',
+  hotels_guests: 'standard',
+  hotels_rack: 'standard',
+  hotels_housekeeping: 'standard',
+  hotels_guest_care: 'standard',
+  hotels_precheckin: 'standard',
+  hotels_cashier: 'standard',
+  hotels_pos: 'standard',
+  hotels_guest_register: 'standard',
+  hotels_rate_plans: 'standard',
+  hotels_promotions: 'standard',
+  hotels_revenue: 'standard',
+  hotels_channels: 'standard',
   products: 'standard',
   team_calendar: 'standard',
   analytics: 'standard',
   helpdesk: 'standard',
   esign: 'standard',
+  media: 'standard',
   phone_system: 'standard',
   ai_office: 'standard',
   ai_employees: 'standard',
@@ -284,13 +316,38 @@ function buildState(
   const next: Record<string, boolean> = {};
   for (const key of keys) {
     if (!isAllowed(key)) continue;
-    if (typeof current?.[key] === 'boolean') {
-      next[key] = current[key];
-    } else {
-      next[key] = true;
-    }
+    next[key] = componentDefault(key, current);
   }
   return next;
+}
+
+/**
+ * Разделы отелей, вынесенные 2026-11-01 из общих тумблеров в свои: пока свой не задан явно, наследуют прежний
+ * («Сегодня» выключен у клиента → уборка, касса и т. п. тоже скрыты, а не появляются сами).
+ */
+export const COMPONENT_LEGACY_PARENT: Record<string, string> = {
+  hotels_partners: 'hotels_reservations',
+  hotels_groups: 'hotels_reservations',
+  hotels_guests: 'hotels_reservations',
+  hotels_rack: 'hotels_frontdesk',
+  hotels_housekeeping: 'hotels_frontdesk',
+  hotels_guest_care: 'hotels_frontdesk',
+  hotels_precheckin: 'hotels_frontdesk',
+  hotels_cashier: 'hotels_frontdesk',
+  hotels_pos: 'hotels_frontdesk',
+  hotels_guest_register: 'hotels_frontdesk',
+  hotels_rate_plans: 'hotels_pricing',
+  hotels_promotions: 'hotels_pricing',
+  hotels_revenue: 'hotels_pricing',
+  hotels_channels: 'hotels_pricing',
+};
+
+/** Значение тумблера: явно заданное, иначе прежнего общего тумблера (если он задан), иначе включён */
+export function componentDefault(key: string, current: Record<string, boolean> | null | undefined): boolean {
+  if (typeof current?.[key] === 'boolean') return current[key];
+  const parent = COMPONENT_LEGACY_PARENT[key];
+  if (parent && typeof current?.[parent] === 'boolean') return current[parent];
+  return true;
 }
 
 export function buildPlanEntitlements(input: {

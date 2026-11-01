@@ -47,6 +47,10 @@ export class HotelExtraService {
   @Column({ type: 'varchar', length: 16, default: 'other' }) category: HotelExtraCategory;
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 }) price: string;
   @Column({ type: 'boolean', default: true }) active: boolean;
+  /** предлагать гостю в онлайн-регистрации (допродажа); цена — за проживание, за ночь или за гостя */
+  @Column({ type: 'boolean', default: false }) sellOnline: boolean;
+  @Column({ type: 'text', nullable: true }) description: string | null;
+  @Column({ type: 'varchar', length: 12, default: 'per_stay' }) priceMode: 'per_stay' | 'per_night' | 'per_person';
   @Column({ type: 'integer', default: 0 }) sortOrder: number;
   @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
   @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;

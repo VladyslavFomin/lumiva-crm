@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelNightAuditService } from './hotel-night-audit.service';
+import { HotelPrecheckinService } from './hotel-precheckin.service';
 
 /** Жизненный цикл броней отеля: автоснятие просроченных опционов (PMS-024). */
 @Injectable()
@@ -13,7 +14,25 @@ export class HotelLifecycleScheduler {
   constructor(
     private readonly reservations: HotelReservationsService,
     private readonly nightAudit: HotelNightAuditService,
+    private readonly precheckin: HotelPrecheckinService,
   ) {}
+
+  private precheckinBusy = false;
+
+  /** Онлайн-регистрация: письма гостям за N дней до заезда (раз в час, повторно не отправляет) */
+  @Cron('7 * * * *')
+  async precheckinAutoSend() {
+    if (this.precheckinBusy) return;
+    this.precheckinBusy = true;
+    try {
+      const n = await this.precheckin.autoSend();
+      if (n) this.log.log(`precheckin links sent: ${n}`);
+    } catch (e) {
+      this.log.warn(`precheckin auto-send: ${(e as Error).message}`);
+    } finally {
+      this.precheckinBusy = false;
+    }
+  }
 
   @Cron('*/10 * * * *')
   async expireOptions() {

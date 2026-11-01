@@ -35,6 +35,23 @@ export class HotelMarketGroup {
   @Column({ type: 'jsonb', default: {} })
   periodPP: Record<string, string>;
 
+  /** Свой PP категории на период в этом рынке ({ [roomTypeId]: { [periodId]: "PP" } }) — важнее PP группы и разницы категорий */
+  @Column({ type: 'jsonb', default: {} })
+  roomPP: Record<string, Record<string, string>>;
+
+  /** Рыночный лист импортирован из другой валюты: валюта листа и курс в валюту отеля (цены уже пересчитаны) */
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  sourceCurrency: string | null;
+
+  @Column({ type: 'numeric', precision: 14, scale: 6, nullable: true })
+  fxRate: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  importedSheet: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  importedAt: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

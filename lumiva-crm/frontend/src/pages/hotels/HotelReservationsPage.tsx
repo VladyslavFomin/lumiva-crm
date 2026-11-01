@@ -60,6 +60,8 @@ import {
 import { ReservationHistoryPanel } from './ReservationHistory';
 import { todayIso } from './partners/partnerUtils';
 import { FolioPanel } from './folio/FolioPanel';
+import { GuestBriefCard, GuestLookupField } from './guests/GuestLookup';
+import { PrecheckinDrawerBox } from './precheckin/PrecheckinDrawerBox';
 import { NightlyRatesSummary, QuoteBreakdown } from './pricing/QuoteBreakdown';
 import { GuestsPicker, isInfant, matchOccupancyByAges, splitGuests } from './pricing/GuestsPicker';
 import { CancelReservationDialog, NoShowDialog, ReservationClosedNote, hotelErrorText } from './ReservationLifecycle';
@@ -378,6 +380,14 @@ export const HotelReservationsPage: React.FC = () => {
               </div>
             </div>
             <div className="bk-drawer-body">
+              {selected.groupId && (
+                <div className="pe-box grp-link" style={{ marginTop: 0, marginBottom: 12 }}>
+                  <span>{selected.roomingPending ? t('crm.hotels.groups.drawerPending') : t('crm.hotels.groups.drawerPart')}</span>
+                  <a href={`/hotels/groups/${selected.groupId}`}>{t('crm.hotels.groups.openGroup')}</a>
+                </div>
+              )}
+              {selected.guestProfileId && <div style={{ marginBottom: 12 }}><GuestBriefCard profileId={selected.guestProfileId} /></div>}
+              {['confirmed', 'pending'].includes(selected.status) && !selected.roomingPending && <PrecheckinDrawerBox reservation={selected} />}
               <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.hotelRoomType')}</div><div className="v" style={{ fontSize: 12.5 }}>{hotelById.get(selected.hotelId)?.name}<br /><span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>{roomTypeById.get(selected.roomTypeId)?.name}</span></div></div>
                 <div className="htl-info-item">
@@ -762,6 +772,8 @@ export const ReservationModal: React.FC<{
   const canOption = !initial || initial.status === 'pending' || initial.status === 'confirmed';
   const [guests, setGuests] = useState<HotelReservationGuest[]>(initial?.guests || []);
   const [guestCountry, setGuestCountry] = useState<string | null>(initial?.guestCountry || null);
+  /** профиль гостя: выбран из подсказок (иначе сервер подберёт по email / телефону / документу) */
+  const [guestProfileId, setGuestProfileId] = useState<string | null>(initial?.guestProfileId || null);
   const [saleCountry, setSaleCountry] = useState<string | null>(initial?.saleCountry || null);
   /** '' — подобрать автоматически по партнёру/отелю/дате, 'none' — без контракта */
   const [contractId, setContractId] = useState<string>(initial ? initial.contractId || 'none' : '');
@@ -1035,6 +1047,7 @@ export const ReservationModal: React.FC<{
       // предоплату по тарифу считает сервер, если её не правили руками
       ...(serverDeposit ? {} : { depositAmount }),
       ratePlanId: planApplies ? ratePlanId || 'none' : null,
+      ...(guestProfileId !== (initial?.guestProfileId ?? null) ? { guestProfileId } : {}),
       ...(planApplies && priceMode === 'auto' && promotionsOff !== !!initial?.promotionsOff ? { promotionsOff } : {}),
       earlyCheckIn,
       lateCheckOut,
@@ -1066,7 +1079,21 @@ export const ReservationModal: React.FC<{
         <div className="bk-modal-body">
           {lockedBy && <div className="pe-box warn" style={{ marginTop: 0, marginBottom: 12 }}>{t('crm.hotels.live.lockedBy', { name: otherLock?.userName || lockedBy })}</div>}
           <label>{t('crm.hotels.reservations.modal.guestLabel')}</label>
-          <input value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+          <GuestLookupField
+            name={guestName}
+            onName={setGuestName}
+            email={guestEmail}
+            phone={guestPhone}
+            profileId={guestProfileId}
+            onPick={(p) => {
+              setGuestProfileId(p.id);
+              setGuestName(p.fullName);
+              if (!guestEmail && p.email) setGuestEmail(p.email);
+              if (!guestPhone && p.phone) setGuestPhone(p.phone);
+              if (!guestCountry && p.country) setGuestCountry(p.country);
+            }}
+            onUnlink={() => setGuestProfileId(null)}
+          />
           <div className="bk-row2">
             <div><label>{t('crm.hotels.reservations.modal.guestEmailLabel')}</label><input value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} /></div>
             <div><label>{t('crm.hotels.reservations.modal.guestPhoneLabel')}</label><input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} /></div>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAlertModal } from '../../../contexts/AlertModalContext';
 import { Ic, HTL_ICON } from '../HotelIcons';
+import { MarketSheetPane } from './MarketSheetPane';
 import { previewPriceListImport, applyPriceListImport, fetchMarketGroups, type HotelMarketGroup, type HotelPriceListPreview, type HotelPriceListResult } from '../../../api/hotels';
 
 /** Импорт прайс-листа сезона из Excel: предпросмотр (что найдено и что изменится) → применить */
@@ -19,6 +20,8 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
   const [replacePeriods, setReplacePeriods] = useState(true);
   const [clearDaily, setClearDaily] = useState(true);
   const [sheet, setSheet] = useState<string | null>(null);
+  /** base — прайс сезона отеля; market — лист другого рынка в цены группы рынков */
+  const [mode, setMode] = useState<'base' | 'market'>('base');
   // раннее бронирование листа → акции отеля; для каких групп рынков (лист прайса обычно — один рынок)
   const [importPromotions, setImportPromotions] = useState(true);
   const [promoGroups, setPromoGroups] = useState<string[]>([]);
@@ -60,8 +63,13 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
       <div className="bk-modal sp-import lv-dialog" role="dialog" aria-modal="true">
         <div className="bk-modal-head">
           <h3>{k('title')}</h3>
+          <div className="htl-seg mk-mode">
+            <button type="button" className={mode === 'base' ? 'on' : ''} onClick={() => setMode('base')}>{k('modeBase')}</button>
+            <button type="button" className={mode === 'market' ? 'on' : ''} onClick={() => setMode('market')}>{k('modeMarket')}</button>
+          </div>
           <button type="button" onClick={onClose} aria-label={k('close')}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
+        {mode === 'market' ? <MarketSheetPane hotelId={hotelId} groups={groups} onClose={onClose} onDone={onDone} /> : (<>
         <div className="bk-modal-body">
           {!result && (
             <div className="sp-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) pick(f); }}>
@@ -216,6 +224,7 @@ export const SeasonImportModal: React.FC<{ hotelId: string; onClose: () => void;
             </>
           )}
         </div>
+        </>)}
       </div>
     </div>,
     document.body,

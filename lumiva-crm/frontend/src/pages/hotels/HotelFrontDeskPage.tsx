@@ -6,6 +6,7 @@ import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
+import { GuestBadges, GuestPreferences } from './guests/GuestShared';
 import { HousekeepingBadge } from './HotelDetailPage';
 import { CountrySelect } from './CountrySelect';
 import { CancelReservationDialog, NoShowDialog, hotelErrorText } from './ReservationLifecycle';
@@ -155,15 +156,19 @@ export const HotelFrontDeskPage: React.FC = () => {
     );
   };
 
-  const guestCell = (r: HotelReservation) => (
+  const guestCell = (r: HotelReservation) => {
+    const gp = r.guestProfileId ? data?.guestProfiles?.[r.guestProfileId] : undefined;
+    return (
     <div className="htl-fd-guest">
-      <b>{r.guestName}</b>
+      <span className="gp-name"><b>{r.guestName}</b>{gp && <GuestBadges g={gp} compact />}</span>
+      {gp && (gp.preferences.length > 0 || gp.allergies) && <GuestPreferences list={gp.preferences} allergies={gp.allergies} />}
       <em>
         {r.bookingCode ? `${r.bookingCode} · ` : ''}{fd('paxShort', { pax: r.pax, children: r.children || 0 })}{r.boardType ? ` · ${r.boardType}` : ''}
         {r.isComplimentary ? ` · ${fd('comp')}` : ''}{r.source === 'walk_in' ? ` · walk-in` : ''}
       </em>
     </div>
-  );
+    );
+  };
 
   const payCell = (r: HotelReservation) => {
     const total = (Number(r.total) || 0) + (Number(r.extrasTotal) || 0);

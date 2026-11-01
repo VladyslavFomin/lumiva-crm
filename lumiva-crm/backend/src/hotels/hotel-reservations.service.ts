@@ -40,6 +40,7 @@ import { businessDateOf, folioSummary, hotelToday, HotelFolioService } from './h
 import { HotelRatePlansService, ratePlanPenalty, ratePlanPrepayment } from './hotel-rate-plans.service';
 import type { HotelRatePlan } from './hotel-rate-plan.entity';
 import { mergePrepayment, promotionsPrepayment } from './hotel-promotions.util';
+import { HotelGuestProfilesService } from './hotel-guest-profiles.service';
 
 export interface HotelReservationWriteOptions {
   /** Never populated from the HTTP request body — set only by the reservation-import flow for
@@ -50,6 +51,11 @@ export interface HotelReservationWriteOptions {
   allowClosed?: boolean;
   /** Цены по ночам из менеджера каналов (бронь OTA): итог брони — их сумма, без пересчёта прайсом */
   channelNights?: HotelNightlyRate[];
+  /** номер групповой брони: без писем и автоматизаций на каждый номер (группа сообщает о себе сама) */
+  quiet?: boolean;
+  /** группа и «гость ещё не указан» — только из сервиса групп */
+  groupId?: string | null;
+  roomingPending?: boolean;
 }
 
 /** Возврат вместе с отменой / no-show */
@@ -141,6 +147,8 @@ export interface HotelReservationInput {
   otaCode?: string | null;
   /** тариф брони; не задан — тариф отеля по умолчанию (кроме контракта, блока и канала); 'none' — явно без тарифа */
   ratePlanId?: string | null;
+  /** профиль гостя-контакта, выбранный в форме (подсказка «найден гость»); null — отвязать и подобрать заново */
+  guestProfileId?: string | null;
   /** снять акции отеля с брони (гость не внёс предоплату по условиям акции и т. п.) / вернуть — цена пересчитывается */
   promotionsOff?: boolean;
   /** кто берёт оплату по брони канала (property / ota) и способ оплаты — только из менеджера каналов */
@@ -266,6 +274,7 @@ export class HotelReservationsService {
     private readonly folio: HotelFolioService,
     private readonly rates: HotelRateEngineService,
     private readonly ratePlans: HotelRatePlansService,
+    private readonly guestProfiles: HotelGuestProfilesService,
   ) {}
 
   /**
@@ -311,6 +320,21 @@ export class HotelReservationsService {
     row.ratePlanId = plan?.id ?? null;
     if (plan) row.boardType = plan.boardType;
     return plan;
+  }
+
+  /** Профиль гостя для брони (контакт + состав) — сбой сопоставления пишем в лог, бронь сохраняется */
+  private async linkGuestProfile(tenantId: string, saved: HotelReservation, opts: { profileId?: string | null; contactChanged?: boolean }) {
+    // номер группы без гостя: имя — заглушка «Группа · 3», профиль не создаём
+    if (saved.roomingPending) return;
+    try {
+      const res = await this.guestProfiles.syncReservation(tenantId, saved.id, opts);
+      if (res) {
+        saved.guestProfileId = res.guestProfileId;
+        saved.guests = res.guests;
+      }
+    } catch (e) {
+      console.error('Hotel guest profile sync failed:', (e as Error)?.message || e);
+    }
   }
 
   /**
@@ -561,6 +585,8 @@ export class HotelReservationsService {
       depositAmount: dto.depositAmount !== undefined ? normalizeNumericInput(dto.depositAmount) : '0',
       promotionsOff: dto.promotionsOff === true,
       promotions: [],
+      groupId: options.groupId ?? null,
+      roomingPending: options.roomingPending === true,
       earlyCheckIn: dto.earlyCheckIn ?? false,
       lateCheckOut: dto.lateCheckOut ?? false,
       notes: dto.notes ?? null,
@@ -628,8 +654,9 @@ export class HotelReservationsService {
     // предоплата по тарифу, если сумму не задали явно
     if (dto.depositAmount === undefined) await this.applyPrepayment(tenantId, row, plan);
     const saved = await this.repo.save(row);
+    await this.linkGuestProfile(tenantId, saved, dto.guestProfileId ? { profileId: dto.guestProfileId } : {});
 
-    try {
+    if (!options.quiet) try {
       const [hotel, roomType, adminEmails] = await Promise.all([
         this.hotelRepo.findOne({ where: { id: saved.hotelId, tenantId } }),
         this.roomTypeRepo.findOne({ where: { id: saved.roomTypeId, tenantId } }),
@@ -727,8 +754,12 @@ export class HotelReservationsService {
     // привязка к каналу меняется только при загрузке из канала
     for (const k of ['channelConnectionId', 'channelBookingId']) delete normalized[k];
     if (normalized.paymentCollect !== undefined && !['ota', 'property', null].includes(normalized.paymentCollect)) delete normalized.paymentCollect;
-    // тариф ставится через applyRatePlan (с проверкой), срок предоплаты — дата или пусто
+    // тариф ставится через applyRatePlan (с проверкой), срок предоплаты — дата или пусто; профиль гостя — сопоставлением
     delete normalized.ratePlanId;
+    delete normalized.guestProfileId;
+    for (const k of ['groupId', 'roomingPending']) delete normalized[k];
+    // номер группы получил гостя — заглушка снята
+    if (row.roomingPending && dto.guestName !== undefined && String(dto.guestName).trim() && dto.guestName !== row.guestName) normalized.roomingPending = false;
     if (normalized.depositDueDate !== undefined && normalized.depositDueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(normalized.depositDueDate))) delete normalized.depositDueDate;
     Object.assign(row, normalized);
     // состав гостей поменялся, а размещение явно не прислали — подбираем заново по составу
@@ -786,8 +817,13 @@ export class HotelReservationsService {
     }
     if (planChanged && !plan && !promotionsPrepayment(row.promotions, toNum(row.total))) row.depositDueDate = null;
     const saved = await this.repo.save(row);
+    // профиль гостя: выбран в форме / сменился контакт / поменялся состав — сопоставляем заново (ошибка не ломает правку брони)
+    const contactChanged = ['guestName', 'guestEmail', 'guestPhone'].some((k) => (dto as any)[k] !== undefined && (dto as any)[k] !== (before as any)[k]);
+    if (dto.guestProfileId !== undefined || contactChanged || dto.guests !== undefined || dto.guestCountry !== undefined) {
+      await this.linkGuestProfile(tenantId, saved, { ...(dto.guestProfileId !== undefined ? { profileId: dto.guestProfileId } : {}), contactChanged });
+    }
 
-    try {
+    if (!options.quiet) try {
       const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
       const statusChanged = dto.status !== undefined && dto.status !== fromStatus;
       let hotel: Hotel | null = null;

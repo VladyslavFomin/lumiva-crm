@@ -9,6 +9,7 @@ import { HotelsSubnav } from './HotelsSubnav';
 import { SeasonPriceSheet } from './pricing/SeasonPriceSheet';
 import { RatePlansPanel } from './pricing/RatePlansPanel';
 import { PromotionsPanel } from './pricing/PromotionsPanel';
+import { useTenantComponents } from '../../hooks/useTenantComponents';
 import { Ic, HTL_ICON } from './HotelIcons';
 import {
   fetchHotels,
@@ -261,6 +262,12 @@ export const HotelPricingPage: React.FC = () => {
       return v === 'daily' || v === 'plans' || v === 'promos' ? v : 'season';
     } catch { return 'season'; }
   });
+  // тарифы и акции — свои тумблеры в pl1; выключенный вид не показываем
+  const { isEnabled, loaded: componentsLoaded } = useTenantComponents();
+  useEffect(() => {
+    if (!componentsLoaded) return;
+    if ((view === 'plans' && !isEnabled('hotels_rate_plans')) || (view === 'promos' && !isEnabled('hotels_promotions'))) setViewState('season');
+  }, [componentsLoaded, view]); // eslint-disable-line react-hooks/exhaustive-deps
   const setView = (v: 'season' | 'plans' | 'promos' | 'daily') => {
     setViewState(v);
     try { localStorage.setItem('hotels.pricing.view', v); } catch { /* приватный режим */ }
@@ -547,8 +554,8 @@ export const HotelPricingPage: React.FC = () => {
             </select>
             <div className="htl-seg" role="tablist">
               <button type="button" role="tab" aria-selected={view === 'season'} className={view === 'season' ? 'on' : ''} onClick={() => setView('season')}>{t('crm.hotels.season.viewSeason')}</button>
-              <button type="button" role="tab" aria-selected={view === 'plans'} className={view === 'plans' ? 'on' : ''} onClick={() => setView('plans')}>{t('crm.hotels.season.viewPlans')}</button>
-              <button type="button" role="tab" aria-selected={view === 'promos'} className={view === 'promos' ? 'on' : ''} onClick={() => setView('promos')}>{t('crm.hotels.season.viewPromos')}</button>
+              {isEnabled('hotels_rate_plans') && <button type="button" role="tab" aria-selected={view === 'plans'} className={view === 'plans' ? 'on' : ''} onClick={() => setView('plans')}>{t('crm.hotels.season.viewPlans')}</button>}
+              {isEnabled('hotels_promotions') && <button type="button" role="tab" aria-selected={view === 'promos'} className={view === 'promos' ? 'on' : ''} onClick={() => setView('promos')}>{t('crm.hotels.season.viewPromos')}</button>}
               <button type="button" role="tab" aria-selected={view === 'daily'} className={view === 'daily' ? 'on' : ''} onClick={() => setView('daily')}>{t('crm.hotels.season.viewDaily')}</button>
             </div>
             {view === 'daily' && (

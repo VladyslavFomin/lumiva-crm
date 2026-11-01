@@ -104,3 +104,10 @@
 .px-scope .sp-eb td,.px-scope .sp-eb th{text-align:left}
 .px-scope .sp-eb-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:10px}
 .px-scope .sp-eb-groups{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+/* импорт рыночного листа */
+.px-scope .sp-import .bk-modal-head{gap:12px}
+.px-scope .mk-mode{margin-left:auto}
+.px-scope .mk-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.px-scope .mk-row input{padding:6px 10px;border:1px solid var(--line-2);border-radius:8px;font:inherit;font-size:12.5px}
+.px-scope .mk-fx input{width:90px;padding:5px 8px;border:1px solid #f0d9a8;border-radius:7px;font:inherit;background:#fff}
+.px-scope .mk-cats>div{grid-template-columns:minmax(0,1fr) auto auto}

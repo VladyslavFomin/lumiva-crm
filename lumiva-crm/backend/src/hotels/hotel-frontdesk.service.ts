@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HotelReservation } from './hotel-reservation.entity';
+import { HotelGuestProfilesService } from './hotel-guest-profiles.service';
+import { Hotel } from './hotel.entity';
+import { hotelToday } from './hotel-folio.service';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -19,10 +22,15 @@ export class HotelFrontDeskService {
   constructor(
     @InjectRepository(HotelReservation)
     private readonly repo: Repository<HotelReservation>,
+    @InjectRepository(Hotel)
+    private readonly hotels: Repository<Hotel>,
+    private readonly guestProfiles: HotelGuestProfilesService,
   ) {}
 
   async today(tenantId: string, date?: string, hotelId?: string) {
-    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayIso();
+    // день стойки по времени отеля (в Турции с 21:00 UTC уже завтра); все отели — по первому отелю тенанта
+    const hotel = await this.hotels.findOne({ where: hotelId ? { id: hotelId, tenantId } : { tenantId }, order: { createdAt: 'ASC' } as any });
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : hotel ? hotelToday(hotel) : todayIso();
 
     const base = () => {
       const qb = this.repo.createQueryBuilder('r').where('r.tenantId = :tenantId', { tenantId });
@@ -44,8 +52,13 @@ export class HotelFrontDeskService {
       base().andWhere('r.status = :st', { st: 'pending' }).andWhere('r.optionUntil IS NOT NULL').andWhere('r.optionUntil < :until', { until: new Date(`${addDays(day, 2)}T00:00:00Z`) }).orderBy('r.optionUntil', 'ASC').getMany(),
     ]);
 
+    // гость: VIP, чёрный список, сколько раз жил, предпочтения — чтобы стойка видела до заселения
+    const all = [...arrivals, ...arrived, ...departures, ...departed, ...inHouse, ...overdue, ...noShowCandidates, ...optionsExpiring];
+    const guestProfiles = await this.guestProfiles.briefMany(tenantId, [...new Set(all.map((r) => r.guestProfileId).filter((x): x is string => !!x))]);
+
     return {
       date: day,
+      guestProfiles,
       arrivals,
       arrived,
       departures,

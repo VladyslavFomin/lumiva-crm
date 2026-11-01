@@ -273,6 +273,10 @@ export class HotelFolioService {
     if (dto.price !== undefined) row.price = normalizeNumericInput(dto.price as any);
     if (dto.active !== undefined) row.active = !!dto.active;
     if (dto.sortOrder !== undefined) row.sortOrder = Math.round(num(dto.sortOrder));
+    if (dto.sellOnline !== undefined) row.sellOnline = !!dto.sellOnline;
+    if (dto.description !== undefined) row.description = String(dto.description || '').trim().slice(0, 1000) || null;
+    if (dto.priceMode !== undefined) row.priceMode = dto.priceMode === 'per_night' || dto.priceMode === 'per_person' ? dto.priceMode : 'per_stay';
+    if (row.sellOnline && !(num(row.price) > 0)) throw bad('HOTEL_EXTRA_ONLINE_PRICE', 'Для продажи онлайн укажите цену услуги');
     return this.extras.save(row);
   }
 

@@ -183,6 +183,7 @@ const HotelHousekeepingPage = lazy(() => import('../pages/hotels/housekeeping/Ho
 const HotelMyHousekeepingPage = lazy(() => import('../pages/hotels/housekeeping/HotelMyHousekeepingPage').then((m) => ({ default: m.HotelMyHousekeepingPage })));
 const HotelCashierPage = lazy(() => import('../pages/hotels/folio/HotelCashierPage').then((m) => ({ default: m.HotelCashierPage })));
 const HotelGuestCarePage = lazy(() => import('../pages/hotels/HotelGuestCarePage').then((m) => ({ default: m.HotelGuestCarePage })));
+const PrecheckinPublicPage = lazy(() => import('../pages/hotels/PrecheckinPublicPage').then((m) => ({ default: m.PrecheckinPublicPage })));
 const GuestRequestPublicPage = lazy(() => import('../pages/hotels/GuestRequestPublicPage').then((m) => ({ default: m.GuestRequestPublicPage })));
 const HotelChannelsPage = lazy(() => import('../pages/hotels/HotelChannelsPage').then((m) => ({ default: m.HotelChannelsPage })));
 const HotelNightAuditPage = lazy(() => import('../pages/hotels/folio/HotelNightAuditPage').then((m) => ({ default: m.HotelNightAuditPage })));
@@ -194,6 +195,11 @@ const HotelPartnersPage = lazy(() => import('../pages/hotels/partners/HotelPartn
 const HotelPartnerPage = lazy(() => import('../pages/hotels/partners/HotelPartnerPage').then((m) => ({ default: m.HotelPartnerPage })));
 const HotelContractPage = lazy(() => import('../pages/hotels/partners/HotelContractPage').then((m) => ({ default: m.HotelContractPage })));
 const HotelGuestRegisterPage = lazy(() => import('../pages/hotels/partners/HotelGuestRegisterPage').then((m) => ({ default: m.HotelGuestRegisterPage })));
+const HotelPrecheckinPage = lazy(() => import('../pages/hotels/precheckin/HotelPrecheckinPage').then((m) => ({ default: m.HotelPrecheckinPage })));
+const HotelGroupsPage = lazy(() => import('../pages/hotels/groups/HotelGroupsPage').then((m) => ({ default: m.HotelGroupsPage })));
+const HotelGroupPage = lazy(() => import('../pages/hotels/groups/HotelGroupPage').then((m) => ({ default: m.HotelGroupPage })));
+const HotelGuestsPage = lazy(() => import('../pages/hotels/guests/HotelGuestsPage').then((m) => ({ default: m.HotelGuestsPage })));
+const HotelGuestProfilePage = lazy(() => import('../pages/hotels/guests/HotelGuestProfilePage').then((m) => ({ default: m.HotelGuestProfilePage })));
 const HotelInventoryPage = lazy(() => import('../pages/hotels/partners/HotelInventoryPage').then((m) => ({ default: m.HotelInventoryPage })));
 const HotelAnalyticsPage = lazy(() => import('../pages/hotels/HotelAnalyticsPage').then((m) => ({ default: m.HotelAnalyticsPage })));
 const ReviewsFeedPage = lazy(() => import('../pages/hotels/reputation/ReviewsFeedPage').then((m) => ({ default: m.ReviewsFeedPage })));
@@ -477,6 +483,7 @@ export const AppRouter: React.FC = () => {
         />
         <Route path="/esign/:token" element={<EsignPublicPage />} />
         <Route path="/g/:token" element={<GuestRequestPublicPage />} />
+        <Route path="/c/:token" element={<PrecheckinPublicPage />} />
 
         <Route
           path="/bi"
@@ -1358,6 +1365,11 @@ export const AppRouter: React.FC = () => {
         <Route path="/hotels/partners/:id" element={<ProtectedRoute><HotelPartnerPage /></ProtectedRoute>} />
         <Route path="/hotels/contracts/:id" element={<ProtectedRoute><HotelContractPage /></ProtectedRoute>} />
         <Route path="/hotels/inventory" element={<ProtectedRoute><HotelInventoryPage /></ProtectedRoute>} />
+        <Route path="/hotels/groups" element={<ProtectedRoute><HotelGroupsPage /></ProtectedRoute>} />
+        <Route path="/hotels/precheckin" element={<ProtectedRoute><HotelPrecheckinPage /></ProtectedRoute>} />
+        <Route path="/hotels/groups/:id" element={<ProtectedRoute><HotelGroupPage /></ProtectedRoute>} />
+        <Route path="/hotels/guests" element={<ProtectedRoute><HotelGuestsPage /></ProtectedRoute>} />
+        <Route path="/hotels/guests/:id" element={<ProtectedRoute><HotelGuestProfilePage /></ProtectedRoute>} />
         <Route path="/hotels/rack" element={<ProtectedRoute><HotelRackPage /></ProtectedRoute>} />
         <Route path="/hotels/housekeeping" element={<ProtectedRoute><HotelHousekeepingPage /></ProtectedRoute>} />
         <Route path="/hotels/housekeeping/my" element={<ProtectedRoute><HotelMyHousekeepingPage /></ProtectedRoute>} />

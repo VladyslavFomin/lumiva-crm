@@ -51,9 +51,9 @@ export interface SeasonCell {
  */
 export function seasonCell(
   period: HotelPricingPeriod,
-  roomType: Pick<HotelRoomType, 'pricingMode' | 'ppNetOffset' | 'periodPP' | 'isBaseRoomType'>,
+  roomType: Pick<HotelRoomType, 'pricingMode' | 'ppNetOffset' | 'periodPP' | 'isBaseRoomType'> & { id?: string },
   occ: Pick<HotelRoomOccupancyType, 'coefficient' | 'peakCoefficient' | 'periodOverrides'> | null,
-  group: Pick<HotelMarketGroup, 'adjustmentPct' | 'periodPP'> | null,
+  group: (Pick<HotelMarketGroup, 'adjustmentPct' | 'periodPP'> & { roomPP?: HotelMarketGroup['roomPP'] | null }) | null,
 ): SeasonCell | null {
   const basePP = toNum(period.ppBase);
   const own = toNum(roomType.periodPP?.[period.id]);
@@ -62,7 +62,9 @@ export function seasonCell(
   if (!(refPP > 0)) return null;
   const diff = basePP > 0 ? refPP - basePP : 0;
   const manual = group ? toNum(group.periodPP?.[period.id]) : 0;
-  const pp = round2(manual > 0 ? manual + diff : refPP * (1 + (group ? toNum(group.adjustmentPct) : 0) / 100));
+  // свой PP категории в этом рынке (рыночный лист с другой разницей категорий) — важнее PP группы + разницы
+  const roomOwn = group && roomType.id ? toNum(group.roomPP?.[roomType.id]?.[period.id]) : 0;
+  const pp = round2(roomOwn > 0 ? roomOwn : manual > 0 ? manual + diff : refPP * (1 + (group ? toNum(group.adjustmentPct) : 0) / 100));
   const budget = toNum(period.budgetPP) > 0 ? round2(toNum(period.budgetPP) + diff) : 0;
   const coefficient = occ ? occupancyCoefficient(occ, period) : 1;
   const ov = occ?.periodOverrides?.[period.id];
@@ -154,7 +156,7 @@ export class HotelsPricingService {
   /* ---------- market groups ---------- */
 
   listMarketGroups(tenantId: string, hotelId: string) {
-    return this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC' } });
+    return this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
   }
 
   async createMarketGroup(tenantId: string, hotelId: string, name: string) {
@@ -250,7 +252,7 @@ export class HotelsPricingService {
     if (!roomType) throw new NotFoundException('Тип номера не найден');
     const groups = await this.marketGroupsRepo.find({
       where: { tenantId, hotelId: roomType.hotelId },
-      order: { sortOrder: 'ASC' },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
     const rows = await this.ratesRepo
       .createQueryBuilder('r')
@@ -384,7 +386,7 @@ export class HotelsPricingService {
     if (!fields.length) throw new BadRequestException({ code: 'HOTEL_BULK_NO_FIELDS', message: 'Не задано ни одного значения' });
     const discount = dto.discountPct !== undefined && String(dto.discountPct).trim() !== '' ? toNum(normalizeNumericInput(String(dto.discountPct))) : null;
     if (discount !== null && (discount < 0 || discount > 100)) throw new BadRequestException({ code: 'HOTEL_BULK_BAD_DISCOUNT', message: 'Скидка должна быть от 0 до 100%' });
-    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId: roomType.hotelId } });
+    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId: roomType.hotelId }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
     const groupIds = (dto.marketGroupIds || []).filter((id) => groups.some((g) => g.id === id));
     if (!groupIds.length) throw new BadRequestException({ code: 'HOTEL_MARKET_GROUP_NOT_FOUND', message: 'Группа рынков не найдена' });
     const weekdays = (dto.weekdays || []).filter((w) => w >= 1 && w <= 7);
@@ -455,7 +457,7 @@ export class HotelsPricingService {
     const baseRoomType = await this.roomTypesRepo.findOne({
       where: { tenantId, hotelId, isBaseRoomType: true },
     });
-    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId } });
+    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
     const referenceMarketGroupId = hotel.referenceMarketGroupId || groups[0]?.id || null;
     const periods = await this.periodsRepo.find({ where: { tenantId, hotelId }, order: { startDate: 'ASC' } });
 
@@ -491,7 +493,7 @@ export class HotelsPricingService {
     const baseRoomType = await this.roomTypesRepo.findOne({
       where: { tenantId, hotelId, isBaseRoomType: true },
     });
-    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId } });
+    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
     const hotelReferenceGroupId = hotel.referenceMarketGroupId || groups[0]?.id || null;
     const referenceMarketGroupId = marketGroupId && groups.some((g) => g.id === marketGroupId) ? marketGroupId : hotelReferenceGroupId;
     const isReferenceGroup = referenceMarketGroupId === hotelReferenceGroupId;
@@ -620,7 +622,7 @@ export class HotelsPricingService {
     const out = new Map<string, { price: number; pp: number; budget: number; groupId: string | null; fallback: boolean; own: boolean }>();
     if (!occ || !dates.length) return out;
     const [groups, baseRoomType, periods] = await Promise.all([
-      this.marketGroupsRepo.find({ where: { tenantId, hotelId: hotel.id } }),
+      this.marketGroupsRepo.find({ where: { tenantId, hotelId: hotel.id }, order: { sortOrder: 'ASC', createdAt: 'ASC' } }),
       this.roomTypesRepo.findOne({ where: { tenantId, hotelId: hotel.id, isBaseRoomType: true } }),
       this.periodsRepo.find({ where: { tenantId, hotelId: hotel.id }, order: { startDate: 'ASC' } }),
     ]);
@@ -685,7 +687,7 @@ export class HotelsPricingService {
     const hotel = await this.hotelsRepo.findOne({ where: { id: hotelId, tenantId } });
     if (!hotel) throw new NotFoundException('Отель не найден');
     const [groups, periods, roomTypes] = await Promise.all([
-      this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC' } }),
+      this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC', createdAt: 'ASC' } }),
       this.periodsRepo.find({ where: { tenantId, hotelId }, order: { startDate: 'ASC' } }),
       this.roomTypesRepo.find({ where: { tenantId, hotelId }, order: { createdAt: 'ASC' } }),
     ]);

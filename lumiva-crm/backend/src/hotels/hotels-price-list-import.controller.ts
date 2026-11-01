@@ -21,6 +21,29 @@ export class HotelsPriceListImportController {
     return this.importService.preview(user.tenantId, dto.hotelId, file, dto.sheet || null);
   }
 
+  /** Рыночный лист (другая группа рынков): предпросмотр */
+  @Post('market/preview')
+  @UseInterceptors(FileInterceptor('file'))
+  previewMarket(@CurrentUser() user: CurrentUserPayload, @UploadedFile() file: any, @Body() dto: { hotelId: string; sheet?: string; groupId?: string }) {
+    return this.importService.previewMarket(user.tenantId, dto.hotelId, file, dto.sheet || null, dto.groupId || null);
+  }
+
+  @Post('market/apply')
+  @UseInterceptors(FileInterceptor('file'))
+  applyMarket(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: any,
+    @Body() dto: { hotelId: string; sheet?: string; groupId?: string; newGroupName?: string; fxRate?: string; importPromotions?: string },
+  ) {
+    return this.importService.applyMarket(user.tenantId, dto.hotelId, file, {
+      sheet: dto.sheet || null,
+      groupId: dto.groupId || null,
+      newGroupName: dto.newGroupName || null,
+      fxRate: dto.fxRate ? Number(String(dto.fxRate).replace(',', '.')) : null,
+      importPromotions: flag(dto.importPromotions),
+    });
+  }
+
   @Post('apply')
   @UseInterceptors(FileInterceptor('file'))
   apply(

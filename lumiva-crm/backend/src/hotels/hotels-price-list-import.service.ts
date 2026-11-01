@@ -13,6 +13,13 @@ import { parseHotelPriceListSheet, type ParsedPriceList } from './hotel-price-li
 const key = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 const str = (n: number) => String(Math.round(n * 100) / 100);
 const dmy = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+/** 2023-01-31 + 4 года → 2027-01-31 (29.02 → 28.02) */
+const shiftYear = (iso: string | null, years: number) => {
+  if (!iso || !years) return iso;
+  const y = Number(iso.slice(0, 4)) + years;
+  const md = iso.slice(5) === '02-29' && !(y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? '02-28' : iso.slice(5);
+  return `${y}-${md}`;
+};
 const sameSet = (a: string[] | null | undefined, b: string[]) => [...(a || [])].sort().join(',') === [...b].sort().join(',');
 
 export interface PriceListApplyOptions {
@@ -159,6 +166,171 @@ export class HotelsPriceListImportService {
       row.description = e.listDate ? `List: ${dmy(e.listDate)}` : row.description ?? null;
       await m.save(row);
     }
+  }
+
+  /**
+   * Сопоставление рыночного листа с прайсом отеля: периоды — по датам (совпадают или перекрываются больше чем наполовину),
+   * если ни один не совпал и периодов столько же — по порядку (лист прошлого года); категории — по названию.
+   */
+  private async marketPlan(m: EntityManager, tenantId: string, hotel: Hotel, parsed: ParsedPriceList) {
+    const [periods, roomTypes] = await Promise.all([
+      m.find(HotelPricingPeriod, { where: { tenantId, hotelId: hotel.id }, order: { startDate: 'ASC' } }),
+      m.find(HotelRoomType, { where: { tenantId, hotelId: hotel.id } }),
+    ]);
+    if (!periods.length) throw new BadRequestException({ code: 'HOTEL_MARKET_NO_BASE', message: 'Сначала импортируйте базовый прайс сезона — рынок считается от его периодов' });
+    const days = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000) + 1;
+    const overlap = (p: HotelPricingPeriod, x: { startDate: string; endDate: string }) => {
+      const from = p.startDate > x.startDate ? p.startDate : x.startDate;
+      const to = p.endDate < x.endDate ? p.endDate : x.endDate;
+      return to >= from ? days(from, to) : 0;
+    };
+    let mode: 'dates' | 'order' = 'dates';
+    let map = periods.map((p) => {
+      const best = parsed.periods.map((x, i) => ({ i, o: overlap(p, x) })).sort((a, b) => b.o - a.o)[0];
+      return best && best.o * 2 > days(p.startDate, p.endDate) ? best.i : -1;
+    });
+    if (map.every((i) => i < 0) && parsed.periods.length === periods.length) {
+      mode = 'order';
+      map = periods.map((_, i) => i);
+    }
+    const roomMatch = parsed.categories.map((c) => roomTypes.find((r) => key(r.name) === key(c.name)) || null);
+    return { periods, roomTypes, map, mode, roomMatch };
+  }
+
+  /** Предпросмотр рыночного листа: периоды, PP минимальной категории по периодам, категории с другой разницей, EB, валюта */
+  async previewMarket(tenantId: string, hotelId: string, file: any, sheet: string | null, groupId: string | null) {
+    const { hotel, parsed } = await this.load(tenantId, hotelId, file, sheet);
+    const p = await this.marketPlan(this.dataSource.manager, tenantId, hotel, parsed);
+    const group = groupId ? await this.dataSource.getRepository(HotelMarketGroup).findOne({ where: { id: groupId, tenantId, hotelId: hotel.id } }) : null;
+    const base = parsed.categories.find((c) => c.isBase);
+    const hotelCurrency = (hotel.currency || 'EUR').toUpperCase();
+    return {
+      sheet: parsed.sheet,
+      sheets: parsed.sheets,
+      currency: parsed.currency,
+      hotelCurrency,
+      currencyMismatch: !!parsed.currency && parsed.currency !== hotelCurrency,
+      mode: p.mode,
+      referenceGroupId: await this.referenceGroupId(this.dataSource.manager, tenantId, hotel),
+      group: group ? { id: group.id, name: group.name, importedSheet: group.importedSheet, importedAt: group.importedAt } : null,
+      periods: p.periods.map((hp, i) => ({ id: hp.id, startDate: hp.startDate, endDate: hp.endDate, basePP: Number(hp.ppBase), sheet: p.map[i] >= 0 ? parsed.periods[p.map[i]] : null })),
+      unusedSheetPeriods: parsed.periods.filter((_, i) => !p.map.includes(i)).map((x) => ({ startDate: x.startDate, endDate: x.endDate })),
+      categories: parsed.categories.map((c, i) => {
+        const rt = p.roomMatch[i];
+        const hotelDiff = rt ? (rt.isBaseRoomType ? 0 : Number(rt.ppNetOffset) || 0) : null;
+        const own = p.periods.filter((hp, j) => {
+          const si = p.map[j];
+          if (si < 0 || !rt) return false;
+          const pp = c.pp[si];
+          const bpp = base?.pp[si];
+          return !!pp && !!bpp && Math.abs(pp - bpp - (hotelDiff ?? 0)) > 0.005 && !(rt.periodPP?.[hp.id]);
+        }).length;
+        return { name: c.name, roomTypeId: rt?.id ?? null, isBase: c.isBase, sheetOffset: c.offset, hotelOffset: hotelDiff, ownPeriods: own };
+      }),
+      earlyBooking: parsed.earlyBooking,
+      warnings: parsed.warnings,
+    };
+  }
+
+  /**
+   * Рыночный лист → цены группы рынков: PP минимальной категории на период (periodPP), свой PP категорий, где разница в
+   * рынке другая (roomPP), всё в валюте отеля по курсу. Раннее бронирование листа — акции этой группы.
+   */
+  async applyMarket(tenantId: string, hotelId: string, file: any, opts: { sheet?: string | null; groupId?: string | null; newGroupName?: string | null; fxRate?: number | null; importPromotions?: boolean }) {
+    const { hotel, parsed } = await this.load(tenantId, hotelId, file, opts.sheet);
+    const hotelCurrency = (hotel.currency || 'EUR').toUpperCase();
+    const mismatch = !!parsed.currency && parsed.currency !== hotelCurrency;
+    const fx = mismatch ? Number(opts.fxRate) : 1;
+    if (mismatch && !(fx > 0 && fx < 100000)) {
+      throw new BadRequestException({ code: 'HOTEL_MARKET_FX', message: `Лист в ${parsed.currency}, отель в ${hotelCurrency} — укажите курс` });
+    }
+    return this.dataSource.transaction(async (m) => {
+      const p = await this.marketPlan(m, tenantId, hotel, parsed);
+      if (p.map.every((i) => i < 0)) {
+        throw new BadRequestException({ code: 'HOTEL_MARKET_PERIODS', message: 'Периоды листа не совпадают с прайсом отеля ни по датам, ни по количеству' });
+      }
+      const repo = m.getRepository(HotelMarketGroup);
+      let group: HotelMarketGroup | null = null;
+      // цены опорной группы — это базовый прайс; рынок — всегда отдельная группа
+      const refId = await this.referenceGroupId(m, tenantId, hotel);
+      if (opts.groupId && opts.groupId === refId) {
+        throw new BadRequestException({ code: 'HOTEL_MARKET_REFERENCE', message: 'Это опорная группа — её цены и есть базовый прайс. Выберите другую группу или создайте новую' });
+      }
+      if (!refId) {
+        // групп ещё нет: первая группа станет опорной — заводим её под базовый прайс, рынок пойдёт второй
+        const c = String(hotel.country || '').toUpperCase();
+        const ref = await repo.save(repo.create({ tenantId, hotelId: hotel.id, name: c === 'TR' || /türk|turk/i.test(c) ? 'Baz fiyat' : /^(RU|BY|KZ|UA)$/.test(c) || /росс/i.test(c) ? 'Базовый прайс' : 'Base price', sortOrder: 0, adjustmentPct: '0', periodPP: {}, roomPP: {} }));
+        await m.update(Hotel, { id: hotel.id, tenantId }, { referenceMarketGroupId: ref.id } as any);
+      }
+      if (opts.groupId) {
+        group = await repo.findOne({ where: { id: opts.groupId, tenantId, hotelId: hotel.id } });
+        if (!group) throw new BadRequestException({ code: 'HOTEL_PROMO_SCOPE', message: 'Группа рынков не из этого отеля' });
+      } else {
+        const name = String(opts.newGroupName || parsed.sheet || '').trim().slice(0, 255);
+        if (!name) throw new BadRequestException({ code: 'HOTEL_MARKET_GROUP', message: 'Выберите группу рынков или введите название новой' });
+        group = await repo.findOne({ where: { tenantId, hotelId: hotel.id, name } });
+        if (!group) {
+          const count = await repo.count({ where: { tenantId, hotelId: hotel.id } });
+          group = repo.create({ tenantId, hotelId: hotel.id, name, sortOrder: count, adjustmentPct: '0', periodPP: {}, roomPP: {} });
+        }
+      }
+      const base = parsed.categories.find((c) => c.isBase);
+      const conv = (v: number) => str(v * fx);
+      // PP группы — минимальная категория листа; периоды листа без пары не трогаем
+      const periodPP: Record<string, string> = { ...(group.periodPP || {}) };
+      const roomPP: Record<string, Record<string, string>> = { ...(group.roomPP || {}) };
+      let periodsSet = 0;
+      let roomCells = 0;
+      p.periods.forEach((hp, j) => {
+        const si = p.map[j];
+        if (si < 0) return;
+        const bpp = base?.pp[si] ?? parsed.periods[si].ppBase;
+        if (bpp > 0) {
+          periodPP[hp.id] = conv(bpp);
+          periodsSet++;
+        }
+        parsed.categories.forEach((c, ci) => {
+          const rt = p.roomMatch[ci];
+          if (!rt) return;
+          const pp = c.pp[si];
+          const hotelDiff = rt.isBaseRoomType ? 0 : Number(rt.ppNetOffset) || 0;
+          const own = rt.periodPP?.[hp.id] ? Number(rt.periodPP[hp.id]) - Number(hp.ppBase) : null;
+          // сравниваем в валюте отеля: «+3 £» после курса — уже не «+3 €» прайса
+          const expected = bpp * fx + (own ?? hotelDiff);
+          const cell = { ...(roomPP[rt.id] || {}) };
+          if (pp && bpp && Math.abs(pp * fx - expected) > 0.005) {
+            cell[hp.id] = conv(pp);
+            roomCells++;
+          } else {
+            delete cell[hp.id];
+          }
+          roomPP[rt.id] = cell;
+        });
+      });
+      group.periodPP = periodPP;
+      group.roomPP = Object.fromEntries(Object.entries(roomPP).filter(([, v]) => Object.keys(v).length));
+      group.sourceCurrency = mismatch ? parsed.currency : null;
+      group.fxRate = mismatch ? String(fx) : null;
+      group.importedSheet = (parsed.sheet || '').slice(0, 100) || null;
+      group.importedAt = new Date();
+      group = await repo.save(group);
+      const result = { groupId: group.id, groupName: group.name, periods: periodsSet, roomCells, mode: p.mode, promotionsCreated: 0, promotionsUpdated: 0, promotionsSkipped: 0 };
+      if (opts.importPromotions !== false && parsed.earlyBooking.length) {
+        const existing = await m.find(HotelPromotion, { where: { tenantId, hotelId: hotel.id, origin: 'import', type: 'early_booking' } });
+        // окна EB листа прошлого года при сопоставлении «по порядку» сдвигаем на разницу лет
+        const shift = p.mode === 'order' ? Number(p.periods[0].startDate.slice(0, 4)) - Number(parsed.periods[p.map[0]].startDate.slice(0, 4)) : 0;
+        const moved: ParsedPriceList = shift ? { ...parsed, earlyBooking: parsed.earlyBooking.map((e) => ({ ...e, bookFrom: shiftYear(e.bookFrom, shift), bookTo: shiftYear(e.bookTo, shift), stayFrom: shiftYear(e.stayFrom, shift), stayTo: shiftYear(e.stayTo, shift), prepaymentDueDate: shiftYear(e.prepaymentDueDate, shift), listDate: shiftYear(e.listDate, shift) })) } : parsed;
+        await this.applyEarlyBooking(m, tenantId, hotel, moved, existing, [group.id], result);
+      }
+      return result;
+    });
+  }
+
+  /** Опорная группа рынков: заданная у отеля, иначе первая (как в расчёте цены) */
+  private async referenceGroupId(m: EntityManager, tenantId: string, hotel: Hotel): Promise<string | null> {
+    const groups = await m.find(HotelMarketGroup, { where: { tenantId, hotelId: hotel.id }, order: { sortOrder: 'ASC', createdAt: 'ASC' } as any });
+    const ref = (hotel as any).referenceMarketGroupId;
+    return ref && groups.some((g) => g.id === ref) ? ref : groups[0]?.id ?? null;
   }
 
   async apply(tenantId: string, hotelId: string, file: any, opts: PriceListApplyOptions) {
