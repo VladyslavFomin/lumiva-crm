@@ -20,6 +20,8 @@ import {
   downloadReservationFolio,
   sendFolioEmail,
   fetchQuote,
+  fetchRatePlans,
+  type HotelRatePlan,
   fetchMarketGroups,
   type HotelQuote,
   fetchHotels,
@@ -90,6 +92,12 @@ export const HotelReservationsPage: React.FC = () => {
   const [agencyFilter, setAgencyFilter] = useState('all');
   const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<HotelReservation | null>(null);
+  // тарифы отеля открытой брони — для названия тарифа в карточке
+  const [drawerPlans, setDrawerPlans] = useState<HotelRatePlan[]>([]);
+  useEffect(() => {
+    if (!selected?.hotelId) return;
+    fetchRatePlans(selected.hotelId).then(setDrawerPlans).catch(() => setDrawerPlans([]));
+  }, [selected?.hotelId]);
   const [modalState, setModalState] = useState<'new' | HotelReservation | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -479,12 +487,32 @@ export const HotelReservationsPage: React.FC = () => {
                 </select>
               </div>
 
-              {selected.depositAmount && Number(selected.depositAmount) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 13 }}>
-                  <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.deposit')}</span>
-                  <span style={{ fontWeight: 600 }}>{fmt(Number(selected.depositAmount), curOf(selected))}</span>
-                </div>
-              )}
+              {selected.ratePlanId && (() => {
+                const p = drawerPlans.find((x) => x.id === selected.ratePlanId);
+                return p ? (
+                  <div className="rtp-terms">
+                    <span>{t('crm.hotels.ratePlans.formLabel')}: {p.code} · {p.name}</span>
+                    <span className={p.refundable ? 'ok' : 'nrf'}>{p.refundable ? t('crm.hotels.ratePlans.refundable') : t('crm.hotels.ratePlans.nonRefundable')}</span>
+                  </div>
+                ) : null;
+              })()}
+              {selected.depositAmount && Number(selected.depositAmount) > 0 && (() => {
+                const paid = (selected.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+                const due = Number(selected.depositAmount);
+                const todayIso = new Date().toISOString().slice(0, 10);
+                const state = paid + 0.009 >= due ? 'paid' : selected.depositDueDate && selected.depositDueDate < todayIso ? 'overdue' : 'due';
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 13 }}>
+                    <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.reservations.drawer.deposit')}</span>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600 }}>{fmt(due, curOf(selected))}</span>
+                      <span className={`rtp-dep s-${state}`}>
+                        {state === 'paid' ? t('crm.hotels.ratePlans.depPaid') : state === 'overdue' ? t('crm.hotels.ratePlans.depOverdue', { date: selected.depositDueDate }) : selected.depositDueDate ? t('crm.hotels.ratePlans.depDue', { date: selected.depositDueDate }) : t('crm.hotels.ratePlans.depOpen')}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })()}
 
               {(selected.priceMode === 'auto' || selected.source === 'channel') && selected.nightlyRates?.length ? <NightlyRatesSummary nights={selected.nightlyRates} currency={curOf(selected)} /> : null}
               {selected.source === 'channel' && selected.paymentCollect && (
@@ -687,6 +715,11 @@ export const ReservationModal: React.FC<{
   const [grossPerNight, setGrossPerNight] = useState(initial?.grossPerNight || '0');
   const [discountPct, setDiscountPct] = useState(initial?.discountPct || '0');
   const [depositAmount, setDepositAmount] = useState(initial?.depositAmount || '0');
+  /** предоплату правили руками — иначе её считает сервер по тарифу */
+  const [depositTouched, setDepositTouched] = useState(false);
+  const [ratePlans, setRatePlans] = useState<HotelRatePlan[]>([]);
+  /** '' — без тарифа; при создании подставляется тариф по умолчанию */
+  const [ratePlanId, setRatePlanId] = useState<string>(initial?.ratePlanId || '');
   const [earlyCheckIn, setEarlyCheckIn] = useState(initial?.earlyCheckIn || false);
   const [lateCheckOut, setLateCheckOut] = useState(initial?.lateCheckOut || false);
   const [notes, setNotes] = useState(initial?.notes || '');
@@ -707,6 +740,16 @@ export const ReservationModal: React.FC<{
   const [commissionPct, setCommissionPct] = useState(initial ? String(Number(initial.commissionPct) || '') : '');
   const [contracts, setContracts] = useState<HotelContract[]>([]);
   const [blocks, setBlocks] = useState<HotelRoomBlock[]>([]);
+  // тарифы отеля; новая бронь — тариф по умолчанию
+  useEffect(() => {
+    if (!hotelId) { setRatePlans([]); return; }
+    fetchRatePlans(hotelId)
+      .then((list) => {
+        setRatePlans(list);
+        if (!initial) setRatePlanId(list.find((p) => p.isDefault && p.active)?.id || '');
+      })
+      .catch(() => setRatePlans([]));
+  }, [hotelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addGuestRow = () => setGuests((prev) => [...prev, { id: crypto.randomUUID(), fullName: '', citizenship: '', passportNumber: '', passportExpiry: '', age: '', note: null }]);
   const updateGuestRow = (id: string, patch: Partial<HotelReservationGuest>) =>
@@ -871,11 +914,21 @@ export const ReservationModal: React.FC<{
   const partnerRateSource = block?.ratePerNight ? 'block' : contractRate ? 'contract' : null;
   // единый расчёт цены по ночам (блок → контракт → календарь → сезон по рынку гостя / цена рынка → база)
   const quoteContractId = blockId ? null : contractId === 'none' ? null : contractId || autoContract?.id || null;
+  // тариф — только для прямой продажи по прайсу: у контракта и блока свои условия
+  const planApplies = !blockId && !quoteContractId;
+  const planOptions = ratePlans.filter((p) => (p.active && p.sellDirect && (!p.roomTypeIds?.length || p.roomTypeIds.includes(roomTypeId))) || p.id === ratePlanId);
+  const plan = planApplies ? ratePlans.find((p) => p.id === ratePlanId) || null : null;
+  // выбранный тариф не действует для нового типа номера — сбрасываем на тариф по умолчанию
+  useEffect(() => {
+    if (!ratePlanId || !roomTypeId) return;
+    const p = ratePlans.find((x) => x.id === ratePlanId);
+    if (p && p.roomTypeIds?.length && !p.roomTypeIds.includes(roomTypeId)) setRatePlanId(ratePlans.find((x) => x.isDefault && x.active && (!x.roomTypeIds?.length || x.roomTypeIds.includes(roomTypeId)))?.id || '');
+  }, [roomTypeId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (priceMode !== 'auto') return;
     if (!roomTypeId || !checkIn || !checkOut || checkOut <= checkIn) { setQuote(null); return; }
     const timer = window.setTimeout(() => {
-      fetchQuote({ roomTypeId, occupancyTypeId: occupancyTypeId || undefined, adults, childAges, checkIn, checkOut, market: market || undefined, guestCountry: guestCountry || undefined, contractId: quoteContractId || undefined, blockId: blockId || undefined })
+      fetchQuote({ roomTypeId, occupancyTypeId: occupancyTypeId || undefined, adults, childAges, checkIn, checkOut, market: market || undefined, guestCountry: guestCountry || undefined, contractId: quoteContractId || undefined, blockId: blockId || undefined, ratePlanId: planApplies ? ratePlanId || 'none' : undefined })
         .then((q) => {
           setQuote(q);
           setQuoteError('');
@@ -885,7 +938,7 @@ export const ReservationModal: React.FC<{
         .catch((e) => { setQuote(null); setQuoteError(hotelErrorText(t, e, '')); });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [priceMode, roomTypeId, occupancyTypeId, adults, childAges.join(','), checkIn, checkOut, market, guestCountry, quoteContractId, blockId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [priceMode, roomTypeId, occupancyTypeId, adults, childAges.join(','), checkIn, checkOut, market, guestCountry, quoteContractId, blockId, ratePlanId, planApplies]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // акции контракта — только для новой брони и пока скидку не правили руками
   const discountTouched = React.useRef(false);
@@ -940,7 +993,9 @@ export const ReservationModal: React.FC<{
       ppPerNight,
       grossPerNight,
       discountPct,
-      depositAmount,
+      // предоплату по тарифу считает сервер, если её не правили руками
+      ...(plan && !depositTouched ? {} : { depositAmount }),
+      ratePlanId: planApplies ? ratePlanId || 'none' : null,
       earlyCheckIn,
       lateCheckOut,
       notes: notes || null,
@@ -950,7 +1005,7 @@ export const ReservationModal: React.FC<{
       marketId: markets.find((m) => m.code === market)?.id ?? null,
       ...(contractId === '' ? {} : { contractId: contractId === 'none' ? null : contractId }),
       blockId: blockId || null,
-      boardType: boardType || null,
+      ...(plan ? {} : { boardType: boardType || null }),
       ...(commissionPct !== '' ? { commissionPct } : {}),
     } as Partial<HotelReservation>;
     const req = initial ? updateReservation(initial.id, dto) : createReservation(dto);
@@ -1054,14 +1109,36 @@ export const ReservationModal: React.FC<{
                 {blocks.map((b) => <option key={b.id} value={b.id}>{b.name} · {b.dateFrom} — {b.dateTo}</option>)}
               </select>
             </div>
-            <div>
+            {planApplies && ratePlans.length > 0 ? (
+              <div>
+                <label>{t('crm.hotels.ratePlans.formLabel')}</label>
+                <select value={ratePlanId} onChange={(e) => setRatePlanId(e.target.value)}>
+                  <option value="">{t('crm.hotels.ratePlans.noPlan')}</option>
+                  {planOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} · {p.name} · {p.boardType}{p.refundable ? '' : ` · ${t('crm.hotels.ratePlans.nrfShort')}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {!plan && <div>
               <label>{t('crm.hotels.reservations.modal.boardLabel')}</label>
               <select value={boardType} onChange={(e) => setBoardType(e.target.value)}>
                 <option value="">{effectiveContract ? t('crm.hotels.reservations.modal.fromContract', { v: effectiveContract.boardType }) : '—'}</option>
                 {HOTEL_BOARD_TYPES.map((b) => <option key={b} value={b}>{b} · {t(`crm.hotels.board.${b}`)}</option>)}
               </select>
-            </div>
+            </div>}
           </div>
+          {plan && (
+            <div className="rtp-terms">
+              <span>{plan.boardType} · {t(`crm.hotels.board.${plan.boardType}`)}</span>
+              <span className={plan.refundable ? 'ok' : 'nrf'}>{plan.refundable ? t('crm.hotels.ratePlans.refundable') : t('crm.hotels.ratePlans.nonRefundable')}</span>
+              {quote?.prepayment && quote.prepayment.amount > 0 && (
+                <span>{t('crm.hotels.ratePlans.prepayLine', { amount: money(quote.prepayment.amount, hotels.find((h) => h.id === hotelId)?.currency, i18n.language), date: quote.prepayment.dueDate ? new Date(`${quote.prepayment.dueDate}T00:00:00`).toLocaleDateString(i18n.language) : '—' })}</span>
+              )}
+            </div>
+          )}
           <div className="bk-row2">
             <div>
               <label>{t('crm.hotels.reservations.modal.commissionLabel')}</label>
@@ -1117,7 +1194,7 @@ export const ReservationModal: React.FC<{
             <div><label>{t('crm.hotels.reservations.modal.discountLabel')}</label><input value={discountPct} onChange={(e) => { discountTouched.current = true; setDiscountPct(e.target.value); }} /></div>
           </div>
           <label>{t('crm.hotels.reservations.modal.depositLabel')}</label>
-          <input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+          <input value={plan && !depositTouched && quote?.prepayment ? String(quote.prepayment.amount) : depositAmount} onChange={(e) => { setDepositTouched(true); setDepositAmount(e.target.value); }} />
           <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer', margin: 0 }}>
               <input type="checkbox" checked={earlyCheckIn} onChange={(e) => setEarlyCheckIn(e.target.checked)} />

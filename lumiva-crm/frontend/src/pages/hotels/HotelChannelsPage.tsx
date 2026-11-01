@@ -18,6 +18,8 @@ import {
   fetchMarketGroups,
   fetchOccupancyTypes,
   fetchRoomTypes,
+  fetchRatePlans,
+  type HotelRatePlan,
   pullChannel,
   pushChannel,
   saveChannelMappings,
@@ -36,7 +38,7 @@ import {
 } from '../../api/hotels';
 import './hotels-design.css';
 
-interface PlanRow { externalRatePlanId: string; occupancyTypeId: string | null; marketGroupId: string | null; active: boolean }
+interface PlanRow { externalRatePlanId: string; occupancyTypeId: string | null; marketGroupId: string | null; ratePlanId: string | null; active: boolean }
 interface RoomMap { ext: string; extName: string | null; plans: PlanRow[] }
 
 /** Сопоставления из API → по типу номера: номер в канале и список тарифов (несколько тарифов на один номер — BAR, B&B…) */
@@ -47,7 +49,7 @@ function toRoomMaps(roomTypes: HotelRoomType[], mappings: HotelChannelMapping[])
     out[rt.id] = {
       ext: mine[0]?.externalRoomTypeId || '',
       extName: mine[0]?.externalName || null,
-      plans: mine.filter((m) => m.externalRatePlanId).map((m) => ({ externalRatePlanId: m.externalRatePlanId!, occupancyTypeId: m.occupancyTypeId, marketGroupId: m.marketGroupId, active: m.active })),
+      plans: mine.filter((m) => m.externalRatePlanId).map((m) => ({ externalRatePlanId: m.externalRatePlanId!, occupancyTypeId: m.occupancyTypeId, marketGroupId: m.marketGroupId, ratePlanId: m.ratePlanId ?? null, active: m.active })),
     };
   }
   return out;
@@ -58,8 +60,8 @@ function toMappings(maps: Record<string, RoomMap>): HotelChannelMapping[] {
   for (const [roomTypeId, m] of Object.entries(maps)) {
     if (!m.ext) continue;
     const plans = m.plans.filter((p) => p.externalRatePlanId);
-    if (!plans.length) out.push({ roomTypeId, externalRoomTypeId: m.ext, externalName: m.extName, externalRatePlanId: null, occupancyTypeId: null, marketGroupId: null, active: true });
-    for (const p of plans) out.push({ roomTypeId, externalRoomTypeId: m.ext, externalName: m.extName, externalRatePlanId: p.externalRatePlanId, occupancyTypeId: p.occupancyTypeId, marketGroupId: p.marketGroupId, active: p.active });
+    if (!plans.length) out.push({ roomTypeId, externalRoomTypeId: m.ext, externalName: m.extName, externalRatePlanId: null, occupancyTypeId: null, marketGroupId: null, ratePlanId: null, active: true });
+    for (const p of plans) out.push({ roomTypeId, externalRoomTypeId: m.ext, externalName: m.extName, externalRatePlanId: p.externalRatePlanId, occupancyTypeId: p.occupancyTypeId, marketGroupId: p.marketGroupId, ratePlanId: p.ratePlanId, active: p.active });
   }
   return out;
 }
@@ -84,6 +86,7 @@ export const HotelChannelsPage: React.FC = () => {
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
   const [occ, setOcc] = useState<Record<string, HotelRoomOccupancyType[]>>({});
   const [groups, setGroups] = useState<HotelMarketGroup[]>([]);
+  const [ourPlans, setOurPlans] = useState<HotelRatePlan[]>([]);
   const [maps, setMaps] = useState<Record<string, RoomMap>>({});
   const [dirty, setDirty] = useState(false);
   const [logs, setLogs] = useState<HotelChannelLogRow[]>([]);
@@ -96,9 +99,10 @@ export const HotelChannelsPage: React.FC = () => {
 
   const load = useCallback(async () => {
     if (!hotelId) return;
-    const [list, rts, gs] = await Promise.all([fetchChannels(hotelId).catch(() => []), fetchRoomTypes(hotelId).catch(() => []), fetchMarketGroups(hotelId).catch(() => [])]);
+    const [list, rts, gs, rps] = await Promise.all([fetchChannels(hotelId).catch(() => []), fetchRoomTypes(hotelId).catch(() => []), fetchMarketGroups(hotelId).catch(() => []), fetchRatePlans(hotelId).catch(() => [] as HotelRatePlan[])]);
     setRoomTypes(rts);
     setGroups(gs);
+    setOurPlans(rps);
     const occMap: Record<string, HotelRoomOccupancyType[]> = {};
     await Promise.all(rts.map((r) => fetchOccupancyTypes(r.id).then((o) => { occMap[r.id] = o; }).catch(() => { occMap[r.id] = []; })));
     setOcc(occMap);
@@ -316,6 +320,12 @@ export const HotelChannelsPage: React.FC = () => {
                                     {(occ[rt.id] || []).map((o) => <option key={o.id} value={o.id}>{o.label} · ×{Number(o.coefficient)}</option>)}
                                   </select>
                                 )}
+                                {ourPlans.length > 0 && (
+                                  <select value={p.ratePlanId || ''} onChange={(e) => setPlan(rt.id, i, { ratePlanId: e.target.value || null })} title={k('ourPlan')}>
+                                    <option value="">{k('ourPlanNone')}</option>
+                                    {ourPlans.filter((x) => !x.roomTypeIds?.length || x.roomTypeIds.includes(rt.id)).map((x) => <option key={x.id} value={x.id}>{x.code} · {x.name}{x.active ? '' : ` (${k('ourPlanOff')})`}</option>)}
+                                  </select>
+                                )}
                                 {!derived && (
                                   <select value={p.marketGroupId || ''} onChange={(e) => setPlan(rt.id, i, { marketGroupId: e.target.value || null })} title={k('colGroup')}>
                                     <option value="">{k('groupReference')}</option>
@@ -330,7 +340,7 @@ export const HotelChannelsPage: React.FC = () => {
                             );
                           })}
                           {plansFor(m.ext).some((x) => !usedPlans.has(x.id)) && (
-                            <button type="button" className="btn btn-sm ch-add" onClick={() => setRoom(rt.id, { plans: [...m.plans, { externalRatePlanId: plansFor(m.ext).find((x) => !usedPlans.has(x.id))?.id || '', occupancyTypeId: null, marketGroupId: null, active: true }] })}>
+                            <button type="button" className="btn btn-sm ch-add" onClick={() => setRoom(rt.id, { plans: [...m.plans, { externalRatePlanId: plansFor(m.ext).find((x) => !usedPlans.has(x.id))?.id || '', occupancyTypeId: null, marketGroupId: null, ratePlanId: null, active: true }] })}>
                               <Ic d={HTL_ICON.plus} size={12} />{k('addPlan')}
                             </button>
                           )}

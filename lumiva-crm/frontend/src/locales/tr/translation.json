@@ -20635,7 +20635,10 @@
           "rule": "“{{contract}}” kontrat politikası: girişe {{days}} günden az kala iptal — ceza {{penalty}}",
           "nights": "{{count}} gece",
           "noRuleHit": "“{{contract}}” kontrat politikasına göre ceza yok",
-          "noContract": "Kontrat yok — varsayılan ceza 0, elle girebilirsiniz"
+          "noContract": "Kontrat yok — varsayılan ceza 0, elle girebilirsiniz",
+          "nonRefundable": "İadesiz tarife {{plan}}: tüm tutar kesilir",
+          "planRule": "Tarife {{plan}}: girişten {{days}} günden az kala iptal — ceza {{penalty}}",
+          "planFree": "Tarife {{plan}}: iptal şu an ücretsiz"
         },
         "totalLine": "Rezervasyon tutarı {{total}} · önerilen ceza {{suggested}}",
         "paidWarn": "Misafir zaten {{paid}} ödedi — rezervasyon kartında iade veya kesinti yapın",
@@ -21349,7 +21352,8 @@
         "childInfant": "bebek — ücretsiz, bebek yatağı",
         "maxStay": "Bu giriş tarihi için maksimum geceden fazla: {{count}}",
         "closedArrival": "Giriş tarihi girişe kapalı",
-        "closedDeparture": "Çıkış tarihi çıkışa kapalı"
+        "closedDeparture": "Çıkış tarihi çıkışa kapalı",
+        "boardIncluded": "Tarifeye göre {{board}} pansiyon ({{amount}}) fiyata dahil"
       },
       "guestsPicker": {
         "title": "Misafirler",
@@ -21515,7 +21519,10 @@
             "derived": "Kanal fiyatı ana tarifeden türetir"
           }
         },
-        "tasks": "Kanal görevleri:"
+        "tasks": "Kanal görevleri:",
+        "ourPlan": "Bizim tarife",
+        "ourPlanNone": "Liste fiyatı, tarife yok",
+        "ourPlanOff": "kapalı"
       },
       "guestCare": {
         "kicker": "yeni {{n}} · işlemde {{w}}",
@@ -21686,7 +21693,8 @@
           "sheetHint": "dosyada birden fazla sayfa var — pazarın fiyat listesini seçin"
         },
         "kicker": "Fiyat listesi · kişi başı",
-        "subtitle": "Otelin tüm fiyat listesi tek tabloda, Excel’deki gibi: dönemler, kategoriler, konaklamalar. Fiyatlar en düşük kategorinin dönem PP’sinden hesaplanır."
+        "subtitle": "Otelin tüm fiyat listesi tek tabloda, Excel’deki gibi: dönemler, kategoriler, konaklamalar. Fiyatlar en düşük kategorinin dönem PP’sinden hesaplanır.",
+        "viewPlans": "Tarifeler"
       },
       "ari": {
         "loading": "Takvim yükleniyor…",
@@ -21760,6 +21768,109 @@
           "cancel": "İptal",
           "apply": "Uygula"
         }
+      },
+      "ratePlans": {
+        "kicker": "TARİFELER · PANSİYON, İPTAL, ÖN ÖDEME",
+        "subtitle": "Sezon fiyat listesi üzerine tarifeler: ek ücretli pansiyon, indirimli iadesiz, iptal ve ön ödeme koşulları. Varsayılan tarife yeni rezervasyonlara uygulanır.",
+        "lead": "Tarife fiyatı = sezon fiyatı ± düzeltme + yetişkin ve çocuklar için pansiyon (bebekler ücretsiz). İptal ve ön ödeme rezervasyonun tarifesine göre hesaplanır.",
+        "loading": "Tarifeler yükleniyor…",
+        "loadError": "Tarifeler yüklenemedi",
+        "saveError": "Tarife kaydedilemedi",
+        "add": "Tarife",
+        "emptyTitle": "Henüz tarife yok",
+        "emptyText": "Tarife olmadan rezervasyon pansiyonsuz ve iptal koşulsuz sezon listesinden fiyatlanır. Örneğin BAR (iadeli) ve NRF (iadesiz −%10) ekleyin.",
+        "col": {
+          "plan": "Tarife",
+          "board": "Pansiyon",
+          "price": "Fiyat",
+          "cancel": "İptal",
+          "prepay": "Ön ödeme",
+          "where": "Satış yeri"
+        },
+        "default": "varsayılan",
+        "off": "kapalı",
+        "adjNone": "liste fiyatı",
+        "nonRefundable": "İadesiz",
+        "freeCancel": "Her zaman ücretsiz iptal",
+        "freeUntil": "Girişten {{days}} gün öncesine kadar ücretsiz",
+        "prepNone": "Ön ödeme yok",
+        "prepFull": "tüm tutar",
+        "prepNights_one": "{{count}} gece",
+        "prepNights_other": "{{count}} gece",
+        "prepBefore": "{{what}}, girişten {{days}} gün önce",
+        "prepOnBooking": "{{what}}, rezervasyonda",
+        "boardLine": "yetişkin {{adult}} · çocuk {{child}} gecelik",
+        "minNightsShort": "min. {{n}} gece",
+        "whereDirect": "resepsiyon",
+        "whereWebsite": "web sitesi",
+        "makeDefault": "Varsayılan yap",
+        "madeDefault": "{{code}} artık varsayılan tarife",
+        "saved": "Tarife kaydedildi",
+        "deleted": "Tarife silindi",
+        "delete": "Tarifeyi sil",
+        "deleteBody": "Tarife silinsin mi? Rezervasyonları varsa silinemez — kapatın.",
+        "newTitle": "Yeni tarife",
+        "sheetHint": "Koşullar yeni rezervasyonlara ve mevcutların yeniden fiyatlanmasına uygulanır.",
+        "cancel": "İptal",
+        "save": "Kaydet",
+        "secMain": "Tarife",
+        "code": "Kod",
+        "name": "Ad",
+        "description": "Açıklama",
+        "descriptionPh": "Neler dahil, kimin için",
+        "secBoard": "Pansiyon",
+        "board": "Pansiyon tipi",
+        "boardAdult": "Yetişkin başı gecelik ek ücret, {{currency}}",
+        "boardChild": "Çocuk başı gecelik ek ücret, {{currency}}",
+        "boardHint": "Fiyat listesi zaten daha iyi pansiyon içeriyorsa negatif ek ücret (liste AI, tarife BB — −20). 2 yaş altı bebekler ücretsiz.",
+        "secPrice": "Fiyat",
+        "adjust": "Oda fiyatı düzeltmesi",
+        "minNights": "Minimum gece",
+        "adjustHint": "−%10 iadesizi ucuzlatır, +%15 esnek tarifeyi pahalılaştırır. Düzeltme oda fiyatına uygulanır, pansiyon üstüne eklenir.",
+        "secCancel": "İptal",
+        "refundable": "İadeli",
+        "cancelLess": "Girişten",
+        "daysPenalty": "günden az kala iptal — ceza",
+        "nights": "gece",
+        "removeRule": "Kuralı kaldır",
+        "cancelHint": "Uyan en katı kural uygulanır.",
+        "addRule": "Kural",
+        "nrfHint": "İptalde rezervasyon tutarının tamamı kesilir.",
+        "secPrepay": "Ön ödeme",
+        "prepay": "Ön ödeme",
+        "prepType": {
+          "none": "Ön ödeme yok",
+          "percent": "Tutarın yüzdesi",
+          "nights": "İlk geceler",
+          "full": "Tüm tutar"
+        },
+        "prepPercent": "Yüzde, %",
+        "prepNightsLabel": "Gece",
+        "prepDue": "Vade, girişten gün önce",
+        "prepDueBefore": "girişten bu kadar gün önce (rezervasyon daha geç ise hemen)",
+        "prepDueNow": "0 — rezervasyonda",
+        "secWhere": "Geçerli olduğu yer",
+        "rooms": "Oda tipleri",
+        "allRooms": "Tümü",
+        "sellDirect": "Resepsiyonda ve rezervasyon formunda sat",
+        "sellWebsite": "Web sitesinde sat",
+        "active": "Tarife açık",
+        "err": {
+          "code": "Kod girin",
+          "name": "Ad girin",
+          "adjust": "Düzeltme sınır dışında",
+          "prepPercent": "Ön ödeme yüzdesi 1–100 olmalı",
+          "prepNights": "Ön ödemeli gece sayısını girin",
+          "defaultOff": "Varsayılan tarife kapatılamaz"
+        },
+        "formLabel": "Tarife",
+        "noPlan": "Tarife yok (yalnızca liste)",
+        "nrfShort": "iadesiz",
+        "prepayLine": "Ön ödeme {{amount}}, son tarih {{date}}",
+        "depPaid": "ödendi",
+        "depDue": "son tarih {{date}}",
+        "depOverdue": "gecikti ({{date}})",
+        "depOpen": "ödenmedi"
       }
     },
     "telephony": {

@@ -135,7 +135,17 @@ export const CancelReservationDialog: React.FC<{ reservation: Res; currency?: st
       .finally(() => setBusy(false));
   };
 
-  const ruleText = quote?.rule
+  const ruleText = quote?.nonRefundable
+    ? k('policy.nonRefundable', { plan: quote.ratePlan ? `${quote.ratePlan.code} · ${quote.ratePlan.name}` : '—' })
+    : quote?.ratePlan && quote.rule
+    ? k('policy.planRule', {
+        plan: `${quote.ratePlan.code} · ${quote.ratePlan.name}`,
+        days: quote.rule.daysBefore,
+        penalty: quote.rule.penaltyType === 'nights' ? k('policy.nights', { count: quote.rule.value }) : `${quote.rule.value}%`,
+      })
+    : quote?.ratePlan
+    ? k('policy.planFree', { plan: `${quote.ratePlan.code} · ${quote.ratePlan.name}` })
+    : quote?.rule
     ? k('policy.rule', {
         contract: quote.contractName || '—',
         days: quote.rule.daysBefore,

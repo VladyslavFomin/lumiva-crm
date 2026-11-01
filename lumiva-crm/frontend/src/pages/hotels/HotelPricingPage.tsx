@@ -7,6 +7,7 @@ import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { SeasonPriceSheet } from './pricing/SeasonPriceSheet';
+import { RatePlansPanel } from './pricing/RatePlansPanel';
 import { Ic, HTL_ICON } from './HotelIcons';
 import {
   fetchHotels,
@@ -253,10 +254,13 @@ export const HotelPricingPage: React.FC = () => {
   const [selFocus, setSelFocus] = useState<CellPos | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   // «Прайс сезона» (весь прайс-лист периодами) или «По дням» (точечные правки Net по датам)
-  const [view, setViewState] = useState<'season' | 'daily'>(() => {
-    try { return localStorage.getItem('hotels.pricing.view') === 'daily' ? 'daily' : 'season'; } catch { return 'season'; }
+  const [view, setViewState] = useState<'season' | 'plans' | 'daily'>(() => {
+    try {
+      const v = localStorage.getItem('hotels.pricing.view');
+      return v === 'daily' || v === 'plans' ? v : 'season';
+    } catch { return 'season'; }
   });
-  const setView = (v: 'season' | 'daily') => {
+  const setView = (v: 'season' | 'plans' | 'daily') => {
     setViewState(v);
     try { localStorage.setItem('hotels.pricing.view', v); } catch { /* приватный режим */ }
   };
@@ -532,9 +536,9 @@ export const HotelPricingPage: React.FC = () => {
         <HotelsSubnav active="pricing" />
         <div className="htl-hero">
           <div>
-            <div className="kicker"><span className="dot" />{view === 'season' ? t('crm.hotels.season.kicker') : t('crm.hotels.pricing.kicker')}</div>
+            <div className="kicker"><span className="dot" />{view === 'season' ? t('crm.hotels.season.kicker') : view === 'plans' ? t('crm.hotels.ratePlans.kicker') : t('crm.hotels.pricing.kicker')}</div>
             <h1>{t('crm.hotels.pricing.title')}</h1>
-            <p className="sub">{view === 'season' ? t('crm.hotels.season.subtitle') : t('crm.hotels.pricing.subtitle')}</p>
+            <p className="sub">{view === 'season' ? t('crm.hotels.season.subtitle') : view === 'plans' ? t('crm.hotels.ratePlans.subtitle') : t('crm.hotels.pricing.subtitle')}</p>
           </div>
           <div data-tour="pricing-select" className="htl-hero-r io-toolbar">
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
@@ -542,6 +546,7 @@ export const HotelPricingPage: React.FC = () => {
             </select>
             <div className="htl-seg" role="tablist">
               <button type="button" role="tab" aria-selected={view === 'season'} className={view === 'season' ? 'on' : ''} onClick={() => setView('season')}>{t('crm.hotels.season.viewSeason')}</button>
+              <button type="button" role="tab" aria-selected={view === 'plans'} className={view === 'plans' ? 'on' : ''} onClick={() => setView('plans')}>{t('crm.hotels.season.viewPlans')}</button>
               <button type="button" role="tab" aria-selected={view === 'daily'} className={view === 'daily' ? 'on' : ''} onClick={() => setView('daily')}>{t('crm.hotels.season.viewDaily')}</button>
             </div>
             {view === 'daily' && (
@@ -565,6 +570,7 @@ export const HotelPricingPage: React.FC = () => {
             onChanged={() => loadPeriods(hotelId)}
           />
         )}
+        {view === 'plans' && hotelId && <RatePlansPanel hotelId={hotelId} currency={hotels.find((h) => h.id === hotelId)?.currency} />}
         {view === 'season' && editing === 'new' && <PeriodEditor onCancel={() => setEditing(null)} onSave={addPeriod} />}
         {view === 'season' && addingGroup && <MarketGroupDialog onCancel={() => setAddingGroup(false)} onSave={addMarketGroup} />}
 

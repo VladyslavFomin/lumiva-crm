@@ -482,6 +482,10 @@ export interface HotelReservation {
   checkedInAt: string | null;
   checkedOutAt: string | null;
   depositAmount: string;
+  /** срок предоплаты по тарифу */
+  depositDueDate?: string | null;
+  /** тариф брони */
+  ratePlanId?: string | null;
   payments: HotelReservationPayment[];
   earlyCheckIn: boolean;
   lateCheckOut: boolean;
@@ -754,6 +758,43 @@ export function createPricingPeriod(hotelId: string, dto: HotelPeriodInput & { s
 export function updatePricingPeriod(id: string, dto: HotelPeriodInput) {
   return api.patch<HotelPricingPeriod>(`/hotels/pricing-periods/${id}`, dto);
 }
+
+/* ---------- тарифы: питание, невозвратный, условия отмены и предоплаты ---------- */
+
+export type HotelBoardCode = 'RO' | 'BB' | 'HB' | 'FB' | 'AI' | 'UAI';
+export const HOTEL_BOARD_CODES: HotelBoardCode[] = ['RO', 'BB', 'HB', 'FB', 'AI', 'UAI'];
+export interface HotelCancelRule { daysBefore: number; penaltyType: 'percent' | 'nights'; value: number }
+export interface HotelRatePlan {
+  id: string;
+  hotelId: string;
+  code: string;
+  name: string;
+  description: string | null;
+  boardType: HotelBoardCode;
+  boardSupplementAdult: string;
+  boardSupplementChild: string;
+  adjustType: 'percent' | 'amount';
+  adjustValue: string;
+  refundable: boolean;
+  cancellationPolicy: HotelCancelRule[];
+  prepaymentType: 'none' | 'percent' | 'nights' | 'full';
+  prepaymentValue: string;
+  prepaymentDueDays: number;
+  minNights: number;
+  roomTypeIds: string[];
+  sellDirect: boolean;
+  sellWebsite: boolean;
+  isDefault: boolean;
+  active: boolean;
+  sortOrder: number;
+}
+export type HotelRatePlanInput = Partial<Omit<HotelRatePlan, 'id' | 'hotelId'>> & { hotelId?: string };
+
+export const fetchRatePlans = (hotelId: string) => api.get<HotelRatePlan[]>('/hotels/rate-plans', { params: { hotelId } });
+export const createRatePlan = (dto: HotelRatePlanInput) => api.post<HotelRatePlan>('/hotels/rate-plans', dto);
+export const updateRatePlan = (id: string, dto: HotelRatePlanInput) => api.patch<HotelRatePlan>(`/hotels/rate-plans/${id}`, dto);
+export const makeDefaultRatePlan = (id: string) => api.post<HotelRatePlan>(`/hotels/rate-plans/${id}/default`, {});
+export const deleteRatePlan = (id: string) => api.delete<{ ok: boolean }>(`/hotels/rate-plans/${id}`);
 
 /* ---------- календарь ограничений (ARI): свободно, цена, стоп, закрыто на заезд / выезд, мин. / макс. ночей ---------- */
 
@@ -1117,6 +1158,9 @@ export interface HotelCancellationQuote {
   contractId: string | null;
   contractName: string | null;
   rule: { daysBefore: number; penaltyType: 'percent' | 'nights'; value: number } | null;
+  /** условия отмены по тарифу брони (если нет контракта) */
+  ratePlan?: { id: string; code: string; name: string; refundable: boolean } | null;
+  nonRefundable?: boolean;
   suggestedFee: number;
   paid: number;
   /** счёт, на который ложится проживание (и штраф) */
@@ -2090,7 +2134,7 @@ export const fetchPickup = (hotelId: string, horizon: number) => api.get<HotelPi
 /* ---------- единый расчёт цены ---------- */
 
 export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base' | 'channel';
-export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number }
+export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number; boardAmount?: number }
 export interface HotelQuote {
   nights: HotelNightlyRate[];
   total: number;
@@ -2105,10 +2149,12 @@ export interface HotelQuote {
   marketGroupId: string | null;
   marketGroupGuessed: boolean;
   priority: 'season' | 'market';
+  ratePlan?: { id: string; code: string; name: string; boardType: string; refundable: boolean } | null;
+  prepayment?: { amount: number; dueDate: string | null } | null;
   currency: string;
   warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'max_stay' | 'closed_arrival' | 'closed_departure' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
 }
-export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null> }) =>
+export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; ratePlanId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null> }) =>
   api.get<HotelQuote>('/hotels/reservations/quote', { params: { ...q, ...(childAges?.length ? { childAges: childAges.map((a) => (a === null ? '-' : String(a))).join(',') } : {}) } });
 export const autoMapMarketGroups = (hotelId: string) => api.post<{ mapped: number; unmapped: number }>(`/hotels/${hotelId}/markets/auto-groups`, {});
 
@@ -2140,6 +2186,8 @@ export interface HotelChannelMapping {
   active: boolean;
   /** режим тарифа в канале (читается при сохранении сопоставления) */
   ratePlanMeta?: HotelChannelRatePlanMeta | null;
+  /** наш тариф для цены этого тарифа канала */
+  ratePlanId?: string | null;
 }
 export interface HotelChannelConnection {
   id: string;

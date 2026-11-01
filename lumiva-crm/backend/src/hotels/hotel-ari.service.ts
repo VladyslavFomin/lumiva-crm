@@ -47,6 +47,8 @@ export interface AriPriceRequest {
   /** вместо размещения — число взрослых: размещение подбирается как у брони */
   adults?: number | null;
   marketGroupId?: string | null;
+  /** наш тариф (корректировка, питание за 2 взрослых); нет — «чистый» прайс */
+  ratePlanId?: string | null;
 }
 
 export interface AriSnapshot {
@@ -160,7 +162,7 @@ export class HotelAriService {
       for (let i = 0; i < dates.length; i += 366) {
         const checkIn = dates[i];
         const checkOut = addDaysIso(dates[Math.min(dates.length - 1, i + 365)], 1);
-        const q = await this.rates.quote(tenantId, { roomTypeId: p.roomTypeId, occupancyTypeId, checkIn, checkOut, marketGroupId: p.marketGroupId ?? null });
+        const q = await this.rates.quote(tenantId, { roomTypeId: p.roomTypeId, occupancyTypeId, checkIn, checkOut, marketGroupId: p.marketGroupId ?? null, ratePlanId: p.ratePlanId ?? null, useDefaultRatePlan: false });
         for (const n of q.nights) map.set(n.date, n.price > 0 ? round2(n.price) : null);
       }
       out.prices.set(p.key, map);

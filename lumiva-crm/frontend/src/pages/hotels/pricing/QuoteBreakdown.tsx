@@ -58,7 +58,7 @@ export const QuoteBreakdown: React.FC<{
     <div className="pe-box">
       <div className="pe-head">
         <b>{k('auto')}</b>
-        <span>{marketGroupName ? k('byGroup', { group: marketGroupName }) : k('byReference')}{quote.marketGroupGuessed ? ` · ${k('guessed')}` : ''}</span>
+        <span>{marketGroupName ? k('byGroup', { group: marketGroupName }) : k('byReference')}{quote.marketGroupGuessed ? ` · ${k('guessed')}` : ''}{quote.ratePlan ? ` · ${quote.ratePlan.code}` : ''}</span>
       </div>
       <div className="pe-rows">
         {segments(quote).map((g) => (
@@ -86,6 +86,9 @@ export const QuoteBreakdown: React.FC<{
             </span>
           ))}
         </div>
+      )}
+      {quote.ratePlan && quote.nights.some((n) => n.boardAmount) && (
+        <div className="pe-note">{k('boardIncluded', { board: quote.ratePlan.boardType, amount: money(quote.nights.reduce((s, n) => s + (n.boardAmount || 0), 0), currency, loc) })}</div>
       )}
       <div className="pe-total"><span>{k('total')}</span><b>{money(quote.total, currency, loc)}</b></div>
       {netContract && <div className="pe-note">{k('netContract')}</div>}

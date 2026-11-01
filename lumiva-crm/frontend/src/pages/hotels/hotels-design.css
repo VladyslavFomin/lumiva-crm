@@ -1041,7 +1041,9 @@
 .px-scope .ch-room-head .arrow{color:var(--fg-3);text-align:center}
 .px-scope .ch-room select,.px-scope .ch-plan-row select{width:100%;padding:6px 8px;border:1px solid var(--line-2);border-radius:7px;font-size:12px;background:#fff;font-family:inherit;min-width:0}
 .px-scope .ch-plans{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-left:12px;border-left:2px solid var(--line-2)}
-.px-scope .ch-plan-row{display:grid;grid-template-columns:minmax(180px,2fr) auto minmax(150px,1.3fr) minmax(130px,1fr) auto 28px;align-items:center;gap:8px}
+.px-scope .ch-plan-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.px-scope .ch-plan-row>select{flex:1 1 150px;width:auto}
+.px-scope .ch-plan-row>select:first-child{flex:2 1 200px}
 .px-scope .ch-plan{font-family:var(--ff-mono-ui);font-size:9.5px;padding:2px 7px;border-radius:5px;white-space:nowrap;background:var(--bg-soft);color:var(--fg-2)}
 .px-scope .ch-plan.m-per_person{background:#eef3f9;color:#1769d1}
 .px-scope .ch-plan.m-derived{background:#fbf2dc;color:#7a4a09}
@@ -1072,3 +1074,42 @@
 /* модалка, открытая из боковой карточки (бронь, шахматка), — поверх карточки */
 .px-scope .bk-modal-back.over-sheet{z-index:80}
 .px-scope .bk-modal.over-sheet{z-index:81}
+
+/* тарифы (2026-11-01) */
+.px-scope .rtp-wrap{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.px-scope .rtp-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.px-scope .rtp-bar .htl-sub{max-width:720px;margin:0}
+.px-scope .rtp-table-wrap{border:1px solid var(--line-2);border-radius:12px;background:#fff;overflow-x:auto}
+.px-scope .rtp-table{width:100%;border-collapse:collapse;min-width:900px}
+.px-scope .rtp-table th{text-align:left;padding:10px 14px;font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);background:var(--bg-muted);border-bottom:1px solid var(--line-2);white-space:nowrap}
+.px-scope .rtp-table td{padding:11px 14px;font-size:12.5px;border-bottom:1px solid var(--line-3);vertical-align:top}
+.px-scope .rtp-table tr:last-child td{border-bottom:0}
+.px-scope .rtp-table tbody tr{cursor:pointer}
+.px-scope .rtp-table tbody tr:hover td{background:var(--bg-muted)}
+.px-scope .rtp-table tr.off td{color:var(--fg-3)}
+.px-scope .rtp-table td.mono{font-family:var(--ff-mono-ui);font-size:12px}
+.px-scope .rtp-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.px-scope .rtp-code{font-family:var(--ff-mono-ui);font-size:11px;padding:2px 7px;border-radius:5px;background:var(--bg-soft);color:var(--ink)}
+.px-scope .rtp-tag{font-family:var(--ff-mono-ui);font-size:9.5px;padding:2px 6px;border-radius:5px;background:var(--bg-soft);color:var(--fg-2)}
+.px-scope .rtp-tag.def{background:#222;color:#fff}
+.px-scope .rtp-pill{font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line-2);white-space:nowrap}
+.px-scope .rtp-pill.ok{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .rtp-pill.nrf{background:#fbf2dc;border-color:#f0d9a8;color:#7a4a09}
+.px-scope .rtp-actions{text-align:right;white-space:nowrap}
+.px-scope .rtp-empty{padding:48px 20px;text-align:center;border:1px solid var(--line-2);border-radius:12px;background:#fff;color:var(--fg-3);font-size:12.5px}
+.px-scope .rtp-empty h4{font-size:15px;font-weight:600;color:#222;margin:0 0 6px}
+.px-scope .rtp-empty p{margin:0 auto 16px;max-width:560px}
+.px-scope .rtp-inline{display:flex;gap:8px;align-items:center}
+.px-scope .rtp-inline input{flex:1;min-width:0}
+.px-scope .rtp-chips{display:flex;gap:6px;flex-wrap:wrap}
+.px-scope .rtp-chip{padding:5px 11px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:#555;font-size:12px;cursor:pointer;font-family:inherit}
+.px-scope .rtp-chip.on{background:#222;border-color:#222;color:#fff}
+.px-scope .rtp-check{display:flex;align-items:center;gap:8px;font-size:12.5px;grid-column:span 2}
+.px-scope .rtp-terms{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:11.5px}
+.px-scope .rtp-terms span{padding:3px 9px;border-radius:999px;border:1px solid var(--line-2);color:var(--fg-2);background:#fff}
+.px-scope .rtp-terms span.ok{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .rtp-terms span.nrf{background:#fbf2dc;border-color:#f0d9a8;color:#7a4a09}
+.px-scope .rtp-dep{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2)}
+.px-scope .rtp-dep.s-paid{background:#eaf4ee;border-color:#c5e3d2;color:#175c3d}
+.px-scope .rtp-dep.s-due{background:#fbf2dc;border-color:#f0d9a8;color:#7a4a09}
+.px-scope .rtp-dep.s-overdue{background:#fbecef;border-color:#f0c8cf;color:#9a1f31}

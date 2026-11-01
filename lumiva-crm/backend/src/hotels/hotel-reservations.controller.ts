@@ -104,6 +104,9 @@ export class HotelReservationsController {
       guestCountry: q.guestCountry || null,
       contractId: q.contractId || null,
       blockId: q.blockId || null,
+      // тариф: id; «none» — без тарифа (чистый прайс), не задан — тариф по умолчанию
+      ratePlanId: q.ratePlanId && q.ratePlanId !== 'none' ? q.ratePlanId : null,
+      useDefaultRatePlan: q.ratePlanId !== 'none',
       // состав гостей: adults=2&childAges=5,8,- («-» — возраст не указан)
       adults: q.adults ? Number(q.adults) : null,
       childAges: typeof q.childAges === 'string' && q.childAges !== '' ? q.childAges.split(',').map((v: string) => (v === '-' || v === '' ? null : Number(v))) : null,

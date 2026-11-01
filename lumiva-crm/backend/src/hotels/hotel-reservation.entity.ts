@@ -52,6 +52,8 @@ export interface HotelNightlyRate {
   date: string;
   price: number;
   source: HotelRateSource;
+  /** питание по тарифу за ночь (входит в price) */
+  boardAmount?: number;
   /** Скидка календаря на дату, % (уже учтена в price) */
   discountPct?: number;
   /** Цена на человека (PP) этой ночи = price ÷ коэффициент размещения — для аналитики PP */
@@ -249,6 +251,14 @@ export class HotelReservation {
 
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
   depositAmount: string;
+
+  /** Срок предоплаты (depositAmount) по тарифу / акции; null — без срока */
+  @Column({ type: 'date', nullable: true })
+  depositDueDate: string | null;
+
+  /** Тариф брони (питание, условия отмены и предоплаты); null — без тарифа (контракт, блок, старые брони) */
+  @Column({ type: 'uuid', nullable: true })
+  ratePlanId: string | null;
 
   /** Simple payment ledger — appended to by addPayment/removePayment, drives the auto-suggested
    * paidStatus (see HotelReservationsService.suggestPaidStatus). paidStatus itself stays directly

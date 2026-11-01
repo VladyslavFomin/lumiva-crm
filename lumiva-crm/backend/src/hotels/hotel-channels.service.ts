@@ -8,6 +8,7 @@ import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
 import { HotelMarketGroup } from './hotel-market-group.entity';
 import { HotelReservation, HotelNightlyRate } from './hotel-reservation.entity';
 import { HotelAgency } from './hotel-agency.entity';
+import { HotelRatePlan } from './hotel-rate-plan.entity';
 import {
   HotelChannelAriState,
   HotelChannelConnection,
@@ -115,6 +116,7 @@ export class HotelChannelsService implements OnModuleInit {
     @InjectRepository(HotelMarketGroup) private readonly groups: Repository<HotelMarketGroup>,
     @InjectRepository(HotelReservation) private readonly reservationsRepo: Repository<HotelReservation>,
     @InjectRepository(HotelAgency) private readonly agencies: Repository<HotelAgency>,
+    @InjectRepository(HotelRatePlan) private readonly ratePlans: Repository<HotelRatePlan>,
     private readonly ari: HotelAriService,
     private readonly reservations: HotelReservationsService,
     private readonly live: HotelLiveService,
@@ -335,9 +337,10 @@ export class HotelChannelsService implements OnModuleInit {
    */
   async saveMappings(tenantId: string, id: string, rows: Array<Partial<HotelChannelMapping>>) {
     const c = await this.get(tenantId, id);
-    const [types, groups] = await Promise.all([
+    const [types, groups, ourPlans] = await Promise.all([
       this.roomTypes.find({ where: { tenantId, hotelId: c.hotelId } }),
       this.groups.find({ where: { tenantId, hotelId: c.hotelId } }),
+      this.ratePlans.find({ where: { tenantId, hotelId: c.hotelId } }),
     ]);
     const occ = types.length ? await this.occupancy.find({ where: { tenantId, roomTypeId: In(types.map((t) => t.id)) } }) : [];
     let plans: Array<HotelChannelRatePlanMeta & { id: string; roomTypeId: string | null }> = [];
@@ -359,6 +362,9 @@ export class HotelChannelsService implements OnModuleInit {
       if (planId && plans.length && !plan) throw new BadRequestException({ code: 'HOTEL_CHANNEL_MAPPING', message: 'Тариф не найден в канале' });
       if (plan?.roomTypeId && plan.roomTypeId !== ext) throw new BadRequestException({ code: 'HOTEL_CHANNEL_MAPPING_PLAN', message: 'Тариф канала относится к другому типу номера' });
       const o = r.occupancyTypeId ? occ.find((x) => x.id === r.occupancyTypeId && x.roomTypeId === rt.id) : null;
+      const our = r.ratePlanId ? ourPlans.find((x) => x.id === r.ratePlanId) : null;
+      if (r.ratePlanId && !our) throw new BadRequestException({ code: 'HOTEL_CHANNEL_MAPPING', message: 'Наш тариф не из этого отеля' });
+      if (our?.roomTypeIds?.length && !our.roomTypeIds.includes(rt.id)) throw new BadRequestException({ code: 'HOTEL_RATE_PLAN_ROOM', message: 'Наш тариф не действует для этого типа номера' });
       return this.mappings.create({
         tenantId,
         connectionId: c.id,
@@ -367,6 +373,7 @@ export class HotelChannelsService implements OnModuleInit {
         marketGroupId: r.marketGroupId && groups.some((g) => g.id === r.marketGroupId) ? r.marketGroupId : null,
         externalRoomTypeId: ext.slice(0, 80),
         externalRatePlanId: planId,
+        ratePlanId: planId ? our?.id ?? null : null,
         externalName: r.externalName ? String(r.externalName).slice(0, 255) : null,
         active: r.active !== false,
         ratePlanMeta: plan ? { sellMode: plan.sellMode, rateMode: plan.rateMode, occupancies: plan.occupancies } : null,
@@ -444,15 +451,17 @@ export class HotelChannelsService implements OnModuleInit {
           const o = matchOccupancyByAges(occTypes.filter((x) => x.roomTypeId === m.roomTypeId), n, []);
           if (!o) continue;
           const key = `${m.id}|${n}`;
-          priceReq.push({ key, roomTypeId: m.roomTypeId, occupancyTypeId: o.id, marketGroupId: m.marketGroupId });
+          priceReq.push({ key, roomTypeId: m.roomTypeId, occupancyTypeId: o.id, marketGroupId: m.marketGroupId, ratePlanId: m.ratePlanId });
           list.push({ occupancy: n, key });
         }
         planOcc.set(m.id, list);
       } else {
-        priceReq.push({ key: m.id, roomTypeId: m.roomTypeId, occupancyTypeId: m.occupancyTypeId, adults: m.occupancyTypeId ? null : 2, marketGroupId: m.marketGroupId });
+        priceReq.push({ key: m.id, roomTypeId: m.roomTypeId, occupancyTypeId: m.occupancyTypeId, adults: m.occupancyTypeId ? null : 2, marketGroupId: m.marketGroupId, ratePlanId: m.ratePlanId });
       }
     }
     const snap = await this.ari.snapshot(c.tenantId, hotel, roomIds, dates, priceReq);
+    const planIds = [...new Set(maps.map((m) => m.ratePlanId).filter((x): x is string => !!x))];
+    const ourPlans = planIds.length ? await this.ratePlans.find({ where: { tenantId: c.tenantId, id: In(planIds) } }) : [];
 
     // наличие: тип номера канала может быть сопоставлен с одним нашим — берём первое сопоставление
     for (const m of maps) {
@@ -483,7 +492,10 @@ export class HotelChannelsService implements OnModuleInit {
           }
         }
         const noPrice = !derived && !(price && price > 0) && !rs;
-        map.set(d, { r: price && price > 0 ? price : null, rs, s: r.stop || noPrice, msa: r.minStay, max: r.maxStay, cta: r.closedToArrival, ctd: r.closedToDeparture });
+        // минимум ночей — строже из периода / календаря и нашего тарифа; выключенный тариф не продаётся
+        const our = m.ratePlanId ? ourPlans.find((x) => x.id === m.ratePlanId) : null;
+        const msa = Math.max(r.minStay, our?.minNights || 1);
+        map.set(d, { r: price && price > 0 ? price : null, rs, s: r.stop || noPrice || (!!our && !our.active), msa, max: r.maxStay, cta: r.closedToArrival, ctd: r.closedToDeparture });
       }
       rates.set(m.externalRatePlanId, map);
     }

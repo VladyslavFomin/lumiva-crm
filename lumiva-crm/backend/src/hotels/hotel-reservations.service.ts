@@ -37,6 +37,8 @@ import { HotelRoomOutage } from './hotel-housekeeping.entities';
 import { HotelFolioLine } from './hotel-folio.entities';
 import { HotelRateEngineService } from './hotel-rate-engine.service';
 import { businessDateOf, folioSummary, hotelToday, HotelFolioService } from './hotel-folio.service';
+import { HotelRatePlansService, ratePlanPenalty, ratePlanPrepayment } from './hotel-rate-plans.service';
+import type { HotelRatePlan } from './hotel-rate-plan.entity';
 
 export interface HotelReservationWriteOptions {
   /** Never populated from the HTTP request body — set only by the reservation-import flow for
@@ -136,6 +138,8 @@ export interface HotelReservationInput {
   channelBookingId?: string | null;
   otaName?: string | null;
   otaCode?: string | null;
+  /** тариф брони; не задан — тариф отеля по умолчанию (кроме контракта, блока и канала); 'none' — явно без тарифа */
+  ratePlanId?: string | null;
   /** кто берёт оплату по брони канала (property / ota) и способ оплаты — только из менеджера каналов */
   paymentCollect?: 'property' | 'ota' | null;
   channelPaymentType?: string | null;
@@ -148,7 +152,7 @@ const HISTORY_FIELDS = [
   'hotelId', 'roomTypeId', 'roomUnitId', 'occupancyTypeId', 'agencyId', 'contractId', 'blockId',
   'guestName', 'guestEmail', 'guestPhone', 'pax', 'children', 'checkIn', 'checkOut', 'status', 'paidStatus',
   'boardType', 'market', 'guestCountry', 'saleCountry', 'costPerNight', 'ppPerNight', 'grossPerNight',
-  'discountPct', 'commissionPct', 'total', 'depositAmount', 'earlyCheckIn', 'lateCheckOut', 'notes',
+  'discountPct', 'commissionPct', 'total', 'depositAmount', 'depositDueDate', 'ratePlanId', 'earlyCheckIn', 'lateCheckOut', 'notes',
   'optionUntil', 'isComplimentary', 'compReason', 'compNote', 'cancelReason', 'cancelNote', 'cancellationFee', 'priceMode',
 ] as const;
 
@@ -258,6 +262,7 @@ export class HotelReservationsService {
     private readonly folioLinesRepo: Repository<HotelFolioLine>,
     private readonly folio: HotelFolioService,
     private readonly rates: HotelRateEngineService,
+    private readonly ratePlans: HotelRatePlansService,
   ) {}
 
   /**
@@ -285,6 +290,40 @@ export class HotelReservationsService {
     return { adults: Math.max(1, (row.pax || 1) - ages.length), childAges: ages };
   }
 
+  /**
+   * Тариф брони: у контракта, блока и брони из канала — свои условия (без тарифа). Иначе явно выбранный (того же отеля и
+   * для этого типа номера) или тариф по умолчанию. Питание брони — из тарифа.
+   */
+  private async applyRatePlan(tenantId: string, row: HotelReservation, requested: string | null | undefined): Promise<HotelRatePlan | null> {
+    if (row.contractId || row.blockId || row.source === 'channel') {
+      row.ratePlanId = null;
+      return null;
+    }
+    // 'none' — явно без тарифа (чистый прайс); null / не задан — тариф по умолчанию
+    if (requested === 'none') {
+      row.ratePlanId = null;
+      return null;
+    }
+    const plan = await this.ratePlans.resolve(tenantId, row.hotelId, row.roomTypeId, requested === undefined ? row.ratePlanId : requested);
+    row.ratePlanId = plan?.id ?? null;
+    if (plan) row.boardType = plan.boardType;
+    return plan;
+  }
+
+  /** Предоплата по тарифу: сумма и срок от итога брони (бронь сделана в день создания по времени отеля) */
+  private async applyPrepayment(tenantId: string, row: HotelReservation, plan: HotelRatePlan | null) {
+    if (!plan || row.isComplimentary) {
+      if (plan === null && row.depositDueDate) row.depositDueDate = null;
+      return;
+    }
+    const hotel = await this.hotelRepo.findOne({ where: { id: row.hotelId, tenantId } });
+    const bookedOn = row.createdAt ? hotelToday(hotel, row.createdAt) : hotelToday(hotel);
+    const nights = row.nightlyRates?.length ? row.nightlyRates.map((n) => toNum(n.price)) : Array.from({ length: nightsBetween(row.checkIn, row.checkOut) }, () => toNum(row.grossPerNight));
+    const p = ratePlanPrepayment(plan, { total: toNum(row.total), nights, checkIn: row.checkIn, bookedOn });
+    row.depositAmount = String(p.amount);
+    row.depositDueDate = p.dueDate;
+  }
+
   /** strict — состав гостей прислала форма: нет размещения под него → ошибка; иначе (API/старые брони по pax) — как раньше */
   private async applyAutoPrice(tenantId: string, row: HotelReservation, strict = false) {
     const q = await this.rates.quote(tenantId, {
@@ -298,6 +337,8 @@ export class HotelReservationsService {
       guestCountry: row.guestCountry,
       contractId: row.contractId,
       blockId: row.blockId,
+      ratePlanId: row.ratePlanId,
+      useDefaultRatePlan: false,
     });
     if (q.warnings.some((w) => w.code === 'no_occupancy')) {
       const g = q.guests;
@@ -541,6 +582,7 @@ export class HotelReservationsService {
       if (promo.pct) row.discountPct = String(promo.pct);
     }
     await this.applyGuests(tenantId, row, dto);
+    const plan = await this.applyRatePlan(tenantId, row, dto.ratePlanId ?? null);
     const strictGuests = dto.adults !== undefined || dto.childAges !== undefined;
     const noPriceGiven = (v: unknown) => v === undefined || v === null || v === '';
     // импорт истории (skipValidation) без цен не пересчитываем прайсом — переносим как есть
@@ -566,6 +608,8 @@ export class HotelReservationsService {
       }
     }
     this.computeTotals(row);
+    // предоплата по тарифу, если сумму не задали явно
+    if (dto.depositAmount === undefined) await this.applyPrepayment(tenantId, row, plan);
     const saved = await this.repo.save(row);
 
     try {
@@ -665,15 +709,22 @@ export class HotelReservationsService {
     // привязка к каналу меняется только при загрузке из канала
     for (const k of ['channelConnectionId', 'channelBookingId']) delete normalized[k];
     if (normalized.paymentCollect !== undefined && !['ota', 'property', null].includes(normalized.paymentCollect)) delete normalized.paymentCollect;
+    // тариф ставится через applyRatePlan (с проверкой), срок предоплаты — дата или пусто
+    delete normalized.ratePlanId;
+    if (normalized.depositDueDate !== undefined && normalized.depositDueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(normalized.depositDueDate))) delete normalized.depositDueDate;
     Object.assign(row, normalized);
     // состав гостей поменялся, а размещение явно не прислали — подбираем заново по составу
     const guestsChanged = (await this.applyGuests(tenantId, row, dto)) || (dto.pax !== undefined && dto.pax !== before.pax) || (dto.children !== undefined && Number(dto.children) !== before.children);
     if (guestsChanged && dto.occupancyTypeId === undefined) row.occupancyTypeId = null;
     if (termsChanged) await this.applyPartnerTerms(tenantId, row, dto);
+    // тариф: прислали другой, или сменился тип номера / отель / партнёрские условия — проверяем заново
+    const planTouched = dto.ratePlanId !== undefined || datesOrRoomChanged || termsChanged;
+    const plan = planTouched ? await this.applyRatePlan(tenantId, row, dto.ratePlanId !== undefined ? dto.ratePlanId : row.ratePlanId) : row.ratePlanId ? await this.ratePlans.get(tenantId, row.ratePlanId).catch(() => null) : null;
+    const planChanged = (row.ratePlanId ?? null) !== (before.ratePlanId ?? null);
     // цена: явно «по прайсу» → пересчёт; бронь в авто-режиме и поменялись условия цены → пересчёт; прислали цену руками → ручная
     // себестоимость — не цена продажи, её правка режим цены не меняет; сравниваем числа ("120" и "120.00" — одно)
     const manualPriceSent = dto.priceMode !== 'auto' && (['ppPerNight', 'grossPerNight'] as const).some((k) => dto[k] !== undefined && Number(normalizeNumericInput(dto[k])) !== Number((before as any)[k]));
-    const priceInputsChanged = datesOrRoomChanged || termsChanged || guestsChanged || (dto.occupancyTypeId !== undefined && dto.occupancyTypeId !== before.occupancyTypeId) || (dto.market !== undefined && dto.market !== before.market);
+    const priceInputsChanged = datesOrRoomChanged || termsChanged || guestsChanged || planChanged || (dto.occupancyTypeId !== undefined && dto.occupancyTypeId !== before.occupancyTypeId) || (dto.market !== undefined && dto.market !== before.market);
     if (dto.priceMode === 'auto' || (row.priceMode === 'auto' && !manualPriceSent && priceInputsChanged)) {
       await this.applyAutoPrice(tenantId, row, dto.adults !== undefined || dto.childAges !== undefined);
     } else if (manualPriceSent || dto.priceMode === 'manual') {
@@ -700,6 +751,9 @@ export class HotelReservationsService {
       throw new BadRequestException({ code: 'HOTEL_MOVE_UNIT_OOO', message: 'Номер выведен из эксплуатации на эти даты' });
     }
     this.computeTotals(row);
+    // предоплата по тарифу пересчитывается, если поменялись тариф или сумма, а её не задали явно (оплаченную не трогаем)
+    if (dto.depositAmount === undefined && plan && (planChanged || toNum(row.total) !== toNum(before.total))) await this.applyPrepayment(tenantId, row, plan);
+    if (planChanged && !plan) row.depositDueDate = null;
     const saved = await this.repo.save(row);
 
     try {
@@ -1076,13 +1130,18 @@ export class HotelReservationsService {
     const today = await this.todayFor(tenantId, row.hotelId);
     const daysBefore = Math.round((Date.parse(`${row.checkIn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
     const contract = row.contractId ? await this.contracts.get(tenantId, row.contractId).catch(() => null) : null;
-    const { rule, fee } = cancellationPenalty(contract?.cancellationPolicy, daysBefore, total, nightly);
+    // условия отмены: контракт партнёра, иначе тариф брони
+    const plan = !contract && row.ratePlanId ? await this.ratePlans.get(tenantId, row.ratePlanId).catch(() => null) : null;
+    const byPlan = plan ? ratePlanPenalty(plan, daysBefore, total, nightly) : null;
+    const { rule, fee } = byPlan ? { rule: byPlan.rule, fee: byPlan.fee } : cancellationPenalty(contract?.cancellationPolicy, daysBefore, total, nightly);
     return {
       daysBefore,
       total: round2(total),
       firstNight: round2(nightly),
       contractId: contract?.id ?? null,
       contractName: contract?.name ?? null,
+      ratePlan: plan ? { id: plan.id, code: plan.code, name: plan.name, refundable: plan.refundable } : null,
+      nonRefundable: !!byPlan?.nonRefundable,
       rule,
       suggestedFee: fee,
       paid: round2((row.payments || []).reduce((sum, p) => sum + toNum(p.amount), 0)),

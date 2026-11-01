@@ -12,6 +12,9 @@ import { HotelRoomBlock } from './hotel-room-block.entity';
 import { HotelContract } from './hotel-contract.entity';
 import { HotelNightlyRate, HotelRateSource } from './hotel-reservation.entity';
 import { HotelsPricingService, occupancyCoefficient } from './hotels-pricing.service';
+import { HotelRatePlansService, ratePlanNight, ratePlanPrepayment } from './hotel-rate-plans.service';
+import { isInfant } from './hotel-occupancy.util';
+import { hotelToday } from './hotel-folio.service';
 import { normalizeCountry } from '../common/countries';
 import { ChildRateLine, childRateLines, matchOccupancyByAges, normalizeChildAges, splitGuests } from './hotel-occupancy.util';
 
@@ -50,6 +53,10 @@ export interface HotelQuoteInput {
   strictOccupancy?: boolean;
   /** группа рынков напрямую (выгрузка тарифа в канал) — важнее рынка/страны гостя */
   marketGroupId?: string | null;
+  /** тариф (питание, корректировка, отмена, предоплата); не задан — тариф по умолчанию, у контракта/блока — без тарифа */
+  ratePlanId?: string | null;
+  /** false — не брать тариф по умолчанию (расчёт «чистого» прайса) */
+  useDefaultRatePlan?: boolean;
 }
 
 export interface HotelQuote {
@@ -73,6 +80,9 @@ export interface HotelQuote {
   marketGroupGuessed: boolean;
   /** всегда 'season': плоская цена рынка больше не участвует (поле оставлено для старых клиентов API) */
   priority: 'season' | 'market';
+  /** тариф расчёта и предоплата по нему (сумма и срок) */
+  ratePlan: { id: string; code: string; name: string; boardType: string; refundable: boolean } | null;
+  prepayment: { amount: number; dueDate: string | null } | null;
   currency: string;
   /** min_stay / max_stay / release — условия заезда (value — ночей / дней release); closed_arrival / closed_departure — дата закрыта
    * на заезд / выезд; below_budget — PP ночи ниже бюджета */
@@ -98,6 +108,7 @@ export class HotelRateEngineService {
     @InjectRepository(HotelRoomBlock) private readonly blocks: Repository<HotelRoomBlock>,
     @InjectRepository(HotelContract) private readonly contracts: Repository<HotelContract>,
     private readonly pricing: HotelsPricingService,
+    private readonly ratePlans: HotelRatePlansService,
   ) {}
 
   /** Группа рынков по странам рынка и названию группы: Batı Avrupa ↔ DE/GB…, Doğu Avrupa ↔ RU/UA…, İç Pazar ↔ страна отеля */
@@ -226,6 +237,21 @@ export class HotelRateEngineService {
     const contractRate = contract ? num(contract.rooms?.find((l) => l.roomTypeId === roomType.id)?.rate) : 0;
     const ovByDate = new Map(overrides.map((o) => [o.date, o]));
 
+    // тариф: у цен контракта и блока свои условия — тариф к ним не применяется
+    const plan = blockRate > 0 || contractRate > 0 || (!input.ratePlanId && input.useDefaultRatePlan === false)
+      ? null
+      : await this.ratePlans.resolve(tenantId, hotel.id, roomType.id, input.ratePlanId || null);
+    // питание по тарифу — за взрослых и платящих детей (младенцы до 2 лет бесплатно)
+    const agesIn = normalizeChildAges(input.childAges);
+    const boardGuests = guests
+      ? { adults: guests.adults, children: agesIn.filter((a) => (a === null || a < guests!.childMaxAge) && !isInfant(a)).length }
+      : { adults: occ?.adults ?? 2, children: occ?.children || 0 };
+    if (plan && plan.minNights > 1 && dates.length < plan.minNights) {
+      const cur = stayRule.find((w) => w.code === 'min_stay');
+      if (cur) cur.value = Math.max(cur.value || 1, plan.minNights);
+      else stayRule.push({ code: 'min_stay', dates: [input.checkIn], value: plan.minNights });
+    }
+
     const nights: HotelNightlyRate[] = [];
     const seasonVals: number[] = [];
     const warn = { no_price: [] as string[], blocked: [] as string[], group_fallback: [] as string[], below_budget: [] as string[] };
@@ -260,19 +286,30 @@ export class HotelRateEngineService {
       if (!(price > 0)) warn.no_price.push(d);
       const coef = occ ? occupancyCoefficient(occ, periodOf(d)) : 0;
       const ppNight = source === 'season' && season ? season.pp * (discountPct > 0 ? 1 - discountPct / 100 : 1) : coef > 0 ? price / coef : price;
-      if (season?.budget && price > 0 && source !== 'block' && source !== 'contract' && ppNight < season.budget - 0.005) warn.below_budget.push(d);
+      // тариф: корректировка цены номера (PP — в той же пропорции) + питание за ночь
+      let boardAmount = 0;
+      let ppPlan = ppNight;
+      if (plan && price > 0) {
+        const rp = ratePlanNight(price, plan, boardGuests);
+        ppPlan = ppNight * (rp.room / price);
+        boardAmount = rp.board;
+        price = rp.price;
+      }
+      if (season?.budget && price > 0 && source !== 'block' && source !== 'contract' && ppPlan < season.budget - 0.005) warn.below_budget.push(d);
       // дети по политике: доля цены взрослого (PP) за каждого
-      const childAmount = price > 0 && childLines.length ? ppNight * childLines.reduce((s, c) => s + c.share, 0) : 0;
+      const childAmount = price > 0 && childLines.length ? ppPlan * childLines.reduce((s, c) => s + c.share, 0) : 0;
       nights.push({
         date: d,
         price: round2(price + childAmount),
         source,
-        pp: round2(ppNight),
+        pp: round2(ppPlan),
         ...(discountPct > 0 ? { discountPct } : {}),
         ...(childLines.length ? { childAmount: round2(childAmount) } : {}),
+        ...(boardAmount ? { boardAmount: round2(boardAmount) } : {}),
       });
     }
     const total = round2(nights.reduce((s, n) => s + n.price, 0));
+    const prepayment = plan ? ratePlanPrepayment(plan, { total, nights: nights.map((n) => n.price), checkIn: input.checkIn, bookedOn: hotelToday(hotel) }) : null;
     return {
       nights,
       total,
@@ -287,6 +324,8 @@ export class HotelRateEngineService {
       marketGroupId,
       marketGroupGuessed: guessed,
       priority: 'season',
+      ratePlan: plan ? { id: plan.id, code: plan.code, name: plan.name, boardType: plan.boardType, refundable: plan.refundable } : null,
+      prepayment,
       currency: (hotel.currency || '').toUpperCase(),
       warnings: [
         ...(noOccupancy ? [{ code: 'no_occupancy' as const, dates: [] }] : []),

@@ -74,6 +74,8 @@ export class HotelChannelMapping {
   @Column({ type: 'uuid', nullable: true }) marketGroupId: string | null;
   @Column({ type: 'varchar', length: 80 }) externalRoomTypeId: string;
   @Column({ type: 'varchar', length: 80, nullable: true }) externalRatePlanId: string | null;
+  /** наш тариф, по которому считается цена этого тарифа канала; null — прайс без тарифа */
+  @Column({ type: 'uuid', nullable: true }) ratePlanId: string | null;
   @Column({ type: 'varchar', length: 255, nullable: true }) externalName: string | null;
   @Column({ type: 'boolean', default: true }) active: boolean;
   /** режим тарифа в канале (за номер / за человека, производный) — читается при сопоставлении и полной выгрузке */

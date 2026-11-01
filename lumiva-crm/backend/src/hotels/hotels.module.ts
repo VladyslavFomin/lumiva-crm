@@ -89,6 +89,9 @@ import { User } from '../users/user.entity';
 import { HotelChannelsController, HotelChannelsPublicController } from './hotel-channels.controller';
 import { HotelAriController } from './hotel-ari.controller';
 import { HotelAriService } from './hotel-ari.service';
+import { HotelRatePlan } from './hotel-rate-plan.entity';
+import { HotelRatePlansService } from './hotel-rate-plans.service';
+import { HotelRatePlansController } from './hotel-rate-plans.controller';
 import { HotelChannelsService } from './hotel-channels.service';
 import { HotelChannelsScheduler } from './hotel-channels.scheduler';
 import { HotelChannelAriState, HotelChannelConnection, HotelChannelLog, HotelChannelMapping } from './hotel-channel.entities';
@@ -105,6 +108,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
       HotelChannelMapping,
       HotelChannelLog,
       HotelChannelAriState,
+      HotelRatePlan,
       HotelGuestRequest,
       Hotel,
       HotelRoomType,
@@ -158,6 +162,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelChannelsController,
     HotelChannelsPublicController,
     HotelAriController,
+    HotelRatePlansController,
     HotelGuestCareController,
     HotelGuestCarePublicController,
     HotelHousekeepingController,
@@ -179,6 +184,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelLiveSubscriber,
     HotelChannelsService,
     HotelAriService,
+    HotelRatePlansService,
     HotelGuestCareService,
     HotelChannelsScheduler,
     HotelsService,

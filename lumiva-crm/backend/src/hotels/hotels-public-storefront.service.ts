@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { HotelRatePlansService } from './hotel-rate-plans.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
@@ -39,6 +40,7 @@ export class HotelsPublicStorefrontService {
     private readonly roomTypesService: HotelRoomTypesService,
     private readonly gallery: HotelsGalleryService,
     private readonly reservations: HotelReservationsService,
+    private readonly ratePlans: HotelRatePlansService,
   ) {}
 
   async resolveTenantId(clientKey: string): Promise<string> {
@@ -82,6 +84,8 @@ export class HotelsPublicStorefrontService {
       pricePerNight: number;
       nights: number;
       total: number;
+      ratePlan: { code: string; name: string; boardType: string; refundable: boolean } | null;
+      prepayment: { amount: number; dueDate: string | null } | null;
     }> = [];
 
     for (const hotel of hotels) {
@@ -96,7 +100,10 @@ export class HotelsPublicStorefrontService {
         if (!firstOccupancy) continue;
 
         // тот же расчёт по ночам, что и у брони (сезоны, календарь, скидки дат); ночь без цены — не продаём
-        const quote = await this.reservations.quote(tenantId, { roomTypeId: roomType.id, occupancyTypeId: firstOccupancy.id, checkIn, checkOut }).catch(() => null);
+        // на сайте — тариф, который продаётся на сайте (по умолчанию, если он такой); нет — чистый прайс
+        const plan = await this.ratePlans.websitePlan(tenantId, hotel.id, roomType.id);
+        const quote = await this.reservations.quote(tenantId, { roomTypeId: roomType.id, occupancyTypeId: firstOccupancy.id, checkIn, checkOut, ratePlanId: plan?.id ?? null, useDefaultRatePlan: false }).catch(() => null);
+        if (quote && plan && quote.warnings.some((w) => w.code === 'min_stay')) continue;
         if (!quote || quote.warnings.some((w) => w.code === 'no_price' || w.code === 'blocked')) continue;
 
         results.push({
@@ -111,6 +118,8 @@ export class HotelsPublicStorefrontService {
           pricePerNight: quote.average,
           nights,
           total: quote.total,
+          ratePlan: quote.ratePlan ? { code: quote.ratePlan.code, name: quote.ratePlan.name, boardType: quote.ratePlan.boardType, refundable: quote.ratePlan.refundable } : null,
+          prepayment: quote.prepayment && quote.prepayment.amount > 0 ? quote.prepayment : null,
         });
       }
     }
@@ -212,6 +221,7 @@ export class HotelsPublicStorefrontService {
     // Цена всегда считается на сервере прайсом по ночам (priceMode=auto) — витрина не доверяет клиенту сумму брони.
 
     const bookingCode = await this.generateBookingCode();
+    const plan = await this.ratePlans.websitePlan(tenantId, dto.hotelId, dto.roomTypeId);
     const reservation = await this.reservations.create(
       tenantId,
       {
@@ -227,6 +237,7 @@ export class HotelsPublicStorefrontService {
         priceMode: 'auto',
         status: 'pending',
         source: 'website',
+        ratePlanId: plan?.id ?? 'none',
         notes: dto.notes ?? null,
         bookingCode,
       },

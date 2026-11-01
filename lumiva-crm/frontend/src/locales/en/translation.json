@@ -20659,7 +20659,10 @@
           "rule": "Contract “{{contract}}” policy: cancellation less than {{days}} days before — penalty {{penalty}}",
           "nights": "{{count}} nights",
           "noRuleHit": "No penalty under contract “{{contract}}” policy",
-          "noContract": "No contract — default penalty is 0, you can enter one manually"
+          "noContract": "No contract — default penalty is 0, you can enter one manually",
+          "nonRefundable": "Non-refundable plan {{plan}}: the whole amount is kept",
+          "planRule": "Plan {{plan}}: cancellation less than {{days}} days before — penalty {{penalty}}",
+          "planFree": "Plan {{plan}}: cancellation is free now"
         },
         "totalLine": "Booking total {{total}} · suggested penalty {{suggested}}",
         "paidWarn": "The guest has already paid {{paid}} — process a refund or retention on the reservation card",
@@ -21377,7 +21380,8 @@
         "childInfant": "infant — free, baby cot",
         "maxStay": "More than the maximum nights for this arrival date: {{count}}",
         "closedArrival": "The arrival date is closed to arrival",
-        "closedDeparture": "The departure date is closed to departure"
+        "closedDeparture": "The departure date is closed to departure",
+        "boardIncluded": "Board {{board}} by the plan ({{amount}}) is included"
       },
       "guestsPicker": {
         "title": "Guests",
@@ -21543,7 +21547,10 @@
             "derived": "The channel derives the price from the parent rate plan"
           }
         },
-        "tasks": "Channel tasks:"
+        "tasks": "Channel tasks:",
+        "ourPlan": "Our rate plan",
+        "ourPlanNone": "Price list, no plan",
+        "ourPlanOff": "off"
       },
       "guestCare": {
         "kicker": "new {{n}} · in progress {{w}}",
@@ -21714,7 +21721,8 @@
           "sheetHint": "the workbook has several sheets — pick the market’s price list"
         },
         "kicker": "Price list · per person",
-        "subtitle": "The whole hotel price list in one table, like in Excel: periods, categories, occupancies. Prices derive from the lowest category’s period PP."
+        "subtitle": "The whole hotel price list in one table, like in Excel: periods, categories, occupancies. Prices derive from the lowest category’s period PP.",
+        "viewPlans": "Rate plans"
       },
       "ari": {
         "loading": "Loading the calendar…",
@@ -21788,6 +21796,109 @@
           "cancel": "Cancel",
           "apply": "Apply"
         }
+      },
+      "ratePlans": {
+        "kicker": "RATE PLANS · BOARD, CANCELLATION, PREPAYMENT",
+        "subtitle": "Rate plans on top of the season price list: board with a supplement, non-refundable with a discount, cancellation and prepayment terms. The default plan is used for new bookings.",
+        "lead": "Plan price = season price ± adjustment + board for adults and children (infants free). Cancellation and prepayment follow the booking’s plan.",
+        "loading": "Loading rate plans…",
+        "loadError": "Could not load rate plans",
+        "saveError": "Could not save the rate plan",
+        "add": "Rate plan",
+        "emptyTitle": "No rate plans yet",
+        "emptyText": "Without plans a booking is priced from the season list with no board and no cancellation terms. Add, for example, BAR (refundable) and NRF (non-refundable −10%).",
+        "col": {
+          "plan": "Rate plan",
+          "board": "Board",
+          "price": "Price",
+          "cancel": "Cancellation",
+          "prepay": "Prepayment",
+          "where": "Sold at"
+        },
+        "default": "default",
+        "off": "off",
+        "adjNone": "as price list",
+        "nonRefundable": "Non-refundable",
+        "freeCancel": "Free cancellation any time",
+        "freeUntil": "Free until {{days}} days before arrival",
+        "prepNone": "No prepayment",
+        "prepFull": "full amount",
+        "prepNights_one": "{{count}} night",
+        "prepNights_other": "{{count}} nights",
+        "prepBefore": "{{what}} {{days}} days before arrival",
+        "prepOnBooking": "{{what}} on booking",
+        "boardLine": "adult {{adult}} · child {{child}} per night",
+        "minNightsShort": "min. {{n}} nights",
+        "whereDirect": "front desk",
+        "whereWebsite": "website",
+        "makeDefault": "Make default",
+        "madeDefault": "{{code}} is now the default plan",
+        "saved": "Rate plan saved",
+        "deleted": "Rate plan deleted",
+        "delete": "Delete rate plan",
+        "deleteBody": "Delete this rate plan? If it already has bookings it cannot be deleted — turn it off instead.",
+        "newTitle": "New rate plan",
+        "sheetHint": "Terms apply to new bookings and to repricing existing ones.",
+        "cancel": "Cancel",
+        "save": "Save",
+        "secMain": "Rate plan",
+        "code": "Code",
+        "name": "Name",
+        "description": "Description",
+        "descriptionPh": "What is included, for whom",
+        "secBoard": "Board",
+        "board": "Board type",
+        "boardAdult": "Supplement per adult per night, {{currency}}",
+        "boardChild": "Supplement per child per night, {{currency}}",
+        "boardHint": "A negative supplement if the price list already includes a better board (AI list, BB plan — −20). Infants under 2 are free.",
+        "secPrice": "Price",
+        "adjust": "Room price adjustment",
+        "minNights": "Minimum nights",
+        "adjustHint": "−10% makes the non-refundable plan cheaper, +15% a flexible one more expensive. The adjustment applies to the room price; board comes on top.",
+        "secCancel": "Cancellation",
+        "refundable": "Refundable",
+        "cancelLess": "Cancellation less than",
+        "daysPenalty": "days before — penalty",
+        "nights": "nights",
+        "removeRule": "Remove rule",
+        "cancelHint": "The strictest matching rule applies.",
+        "addRule": "Rule",
+        "nrfHint": "The whole booking amount is kept on cancellation.",
+        "secPrepay": "Prepayment",
+        "prepay": "Prepayment",
+        "prepType": {
+          "none": "No prepayment",
+          "percent": "Percent of the total",
+          "nights": "First nights",
+          "full": "Full amount"
+        },
+        "prepPercent": "Percent, %",
+        "prepNightsLabel": "Nights",
+        "prepDue": "Due, days before arrival",
+        "prepDueBefore": "days before arrival (if booked later — at once)",
+        "prepDueNow": "0 — at booking",
+        "secWhere": "Where it applies",
+        "rooms": "Room types",
+        "allRooms": "All",
+        "sellDirect": "Sell at the front desk and in the booking form",
+        "sellWebsite": "Sell on the website",
+        "active": "Rate plan is on",
+        "err": {
+          "code": "Enter a code",
+          "name": "Enter a name",
+          "adjust": "Adjustment is out of range",
+          "prepPercent": "Prepayment percent must be 1–100",
+          "prepNights": "Enter the number of prepaid nights",
+          "defaultOff": "The default plan cannot be turned off"
+        },
+        "formLabel": "Rate plan",
+        "noPlan": "No rate plan (price list only)",
+        "nrfShort": "non-refundable",
+        "prepayLine": "Prepayment {{amount}} by {{date}}",
+        "depPaid": "paid",
+        "depDue": "by {{date}}",
+        "depOverdue": "overdue ({{date}})",
+        "depOpen": "not paid"
       }
     },
     "telephony": {
