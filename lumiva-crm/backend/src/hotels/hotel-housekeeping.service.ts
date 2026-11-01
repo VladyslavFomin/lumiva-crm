@@ -5,6 +5,7 @@ import { Hotel } from './hotel.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
 import { HotelRoomUnit } from './hotel-room-unit.entity';
 import { HotelReservation } from './hotel-reservation.entity';
+import { isInfant } from './hotel-occupancy.util';
 import {
   HOTEL_ISSUE_CATEGORIES,
   HOTEL_LOST_CATEGORIES,
@@ -35,6 +36,9 @@ const bad = (code: string, message: string) => new BadRequestException({ code, m
 /** Неработающий номер в этот день (OOO/OOS): dateFrom ≤ день < dateTo (или до устранения) */
 export const outageActiveOn = (o: Pick<HotelRoomOutage, 'dateFrom' | 'dateTo'>, date: string) => o.dateFrom <= date && (!o.dateTo || date < o.dateTo);
 export const outageOverlaps = (o: Pick<HotelRoomOutage, 'dateFrom' | 'dateTo'>, from: string, to: string) => o.dateFrom < to && (!o.dateTo || o.dateTo > from);
+
+/** Младенцы брони (до 2 лет) — горничной поставить детскую кроватку */
+const babyCots = (r: Pick<HotelReservation, 'childAges'> | null | undefined) => (r?.childAges || []).filter(isInfant).length;
 
 const CREDITS: Record<HotelHkTaskKind, number> = { departure: 3, arrival: 2, vacant_dirty: 2, stayover: 1 };
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
@@ -295,6 +299,7 @@ export class HotelHousekeepingService {
           lateCheckOut: t.kind === 'departure' ? r?.lateCheckOut ?? false : false,
           nextArrival: next ? { guestName: next.guestName, earlyCheckIn: next.earlyCheckIn } : null,
           departed: t.kind === 'departure' ? r?.status === 'checked_out' : null,
+          babyCots: t.kind === 'departure' ? babyCots(next) : babyCots(r),
         };
       })
       .sort((a, b) => b.priority - a.priority || collator.compare(a.unit?.floor || '', b.unit?.floor || '') || collator.compare(a.unit?.label || '', b.unit?.label || ''));
@@ -442,6 +447,7 @@ export class HotelHousekeepingService {
         earlyCheckIn: r?.earlyCheckIn ?? false,
         lateCheckOut: r?.lateCheckOut ?? false,
         departed: t.kind === 'departure' ? r?.status === 'checked_out' : null,
+        babyCots: t.kind === 'departure' ? 0 : babyCots(r),
       };
     });
     const order = { in_progress: 0, pending: 1, done: 2, skipped: 3, inspected: 4 } as Record<string, number>;

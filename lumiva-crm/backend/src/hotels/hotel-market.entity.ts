@@ -7,9 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-/** Плоский рынок продаж (TR/DE/RU/UK) для вкладки «Рынки и цены» — быстрый
- * одноцветный прайс по типу номера, независимый от подробной ежедневной таблицы
- * HotelDailyMarketRate (см. решение пользователя в plan mode: не объединять). */
+/** Рынок продаж (TR/DE/RU/UK): страны гостя → группа рынков, по которой считается цена.
+ * Плоская цена рынка (HotelRoomMarketPrice) с 2026-10-30 в расчёт не идёт — цена рынка = прайс сезона ± группа. */
 @Entity('hotel_markets')
 @Index(['tenantId', 'hotelId'])
 export class HotelMarket {

@@ -67,9 +67,10 @@ export const HotelMyHousekeepingPage: React.FC = () => {
         </div>
         <span className={`hk-task s-${x.status}`}>{k(`taskStatus.${x.status}`)}</span>
       </div>
-      {(x.earlyCheckIn || x.lateCheckOut || (x.kind === 'departure' && x.departed === false) || x.note) && (
+      {(x.earlyCheckIn || x.lateCheckOut || !!x.babyCots || (x.kind === 'departure' && x.departed === false) || x.note) && (
         <div className="tags">
           {x.earlyCheckIn && <span className="warn">{k('earlyArrival')}</span>}
+          {!!x.babyCots && <span className="warn">{t('crm.hotels.guestsPicker.babyCot', { count: x.babyCots })}</span>}
           {x.lateCheckOut && <span>{k('lateDeparture')}</span>}
           {x.kind === 'departure' && x.departed === false && <span className="warn">{k('notYetLeft')}</span>}
           {x.note && <span>{x.note}</span>}

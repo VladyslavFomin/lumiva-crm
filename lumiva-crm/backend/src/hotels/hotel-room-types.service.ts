@@ -20,6 +20,7 @@ const guestsFor = (dto: Partial<HotelRoomOccupancyType>) => {
   return {
     adults: dto.adults !== undefined && dto.adults !== null ? clampInt(dto.adults, 0, 20) : parsed.adults,
     children: dto.children !== undefined ? clampInt(dto.children, 0, 10) : parsed.children,
+    infants: dto.infants !== undefined && dto.infants !== null ? clampInt(dto.infants, 0, 4) : parsed.infants,
   };
 }
 
@@ -104,7 +105,7 @@ export class HotelRoomTypesService {
     const previousStopSale = rt.stopSale;
 
     // Базовый тип у отеля ровно один: true — переносим отметку сюда, false игнорируем (снять можно только выбрав другой)
-    const { isBaseRoomType: makeBase, id: _id, tenantId: _t, hotelId: _h, createdAt: _c, updatedAt: _u, ...normalized } = dto as any;
+    const { isBaseRoomType: makeBase, periodPP: _pp, id: _id, tenantId: _t, hotelId: _h, createdAt: _c, updatedAt: _u, ...normalized } = dto as any;
     if (makeBase === true && !rt.isBaseRoomType) {
       await this.repo.update({ tenantId, hotelId: rt.hotelId, isBaseRoomType: true }, { isBaseRoomType: false });
       rt.isBaseRoomType = true;
@@ -369,6 +370,7 @@ export class HotelRoomTypesService {
         roomTypeId,
         label: dto.label ?? 'Новое размещение',
         coefficient: dto.coefficient !== undefined ? normalizeNumericInput(dto.coefficient) : '1',
+        peakCoefficient: dto.peakCoefficient !== undefined && dto.peakCoefficient !== null && Number(normalizeNumericInput(dto.peakCoefficient)) > 0 ? normalizeNumericInput(dto.peakCoefficient) : null,
         paidChildCount: dto.paidChildCount ?? 0,
         ...guestsFor(dto),
         sortOrder: dto.sortOrder ?? 0,
@@ -381,8 +383,14 @@ export class HotelRoomTypesService {
     if (!row) throw new NotFoundException('Строка размещения не найдена');
     const { id: _id, tenantId: _t, roomTypeId: _r, ...normalized } = dto as Partial<HotelRoomOccupancyType>;
     if (normalized.coefficient !== undefined) normalized.coefficient = normalizeNumericInput(normalized.coefficient);
+    if (normalized.peakCoefficient !== undefined) {
+      const peak = normalized.peakCoefficient === null || String(normalized.peakCoefficient).trim() === '' ? null : normalizeNumericInput(normalized.peakCoefficient);
+      normalized.peakCoefficient = peak !== null && Number(peak) > 0 ? peak : null;
+    }
     if (normalized.adults !== undefined) normalized.adults = normalized.adults === null ? null : clampInt(normalized.adults, 0, 20);
     if (normalized.children !== undefined) normalized.children = clampInt(normalized.children, 0, 10);
+    if (normalized.infants !== undefined) normalized.infants = clampInt(normalized.infants, 0, 4);
+    else if (normalized.label !== undefined) normalized.infants = occupancyGuestsFromLabel(normalized.label).infants;
     // переименовали, а состав не задан явно — подставляем из нового названия
     if (normalized.label !== undefined && normalized.adults === undefined && row.adults === null) Object.assign(normalized, guestsFor(normalized));
     Object.assign(row, normalized);
@@ -394,6 +402,15 @@ export class HotelRoomTypesService {
     if (!row) throw new NotFoundException('Строка размещения не найдена');
     await this.occupancyTypesRepo.remove(row);
     return { ok: true };
+  }
+
+  async setPeriodPP(tenantId: string, id: string, periodId: string, pp: string | number | null) {
+    const rt = await this.get(tenantId, id);
+    const next = { ...(rt.periodPP || {}) };
+    if (pp === null || pp === undefined || String(pp).trim() === '' || !(Number(normalizeNumericInput(pp)) > 0)) delete next[periodId];
+    else next[periodId] = normalizeNumericInput(pp);
+    rt.periodPP = next;
+    return this.repo.save(rt);
   }
 
   /** Ручное переопределение цены для конкретной пары (размещение, период) — реальные

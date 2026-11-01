@@ -6,6 +6,7 @@ import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
+import { SeasonPriceSheet } from './pricing/SeasonPriceSheet';
 import { Ic, HTL_ICON } from './HotelIcons';
 import {
   fetchHotels,
@@ -251,6 +252,15 @@ export const HotelPricingPage: React.FC = () => {
   const [selAnchor, setSelAnchor] = useState<CellPos | null>(null);
   const [selFocus, setSelFocus] = useState<CellPos | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // «Прайс сезона» (весь прайс-лист периодами) или «По дням» (точечные правки Net по датам)
+  const [view, setViewState] = useState<'season' | 'daily'>(() => {
+    try { return localStorage.getItem('hotels.pricing.view') === 'daily' ? 'daily' : 'season'; } catch { return 'season'; }
+  });
+  const setView = (v: 'season' | 'daily') => {
+    setViewState(v);
+    try { localStorage.setItem('hotels.pricing.view', v); } catch { /* приватный режим */ }
+  };
+  const [seasonVersion, setSeasonVersion] = useState(0);
 
   useEffect(() => {
     fetchHotels()
@@ -283,7 +293,7 @@ export const HotelPricingPage: React.FC = () => {
 
   const addMarketGroup = (name: string) =>
     createMarketGroup(hotelId, name)
-      .then(() => { setAddingGroup(false); loadMarketGroups(hotelId); })
+      .then(() => { setAddingGroup(false); loadMarketGroups(hotelId); setSeasonVersion((v) => v + 1); })
       .catch((e) => showAlert(e.message || t('crm.hotels.pricing.addGroupError'), { variant: 'error' }));
 
   const renameMarketGroup = (id: string, name: string) => {
@@ -368,6 +378,7 @@ export const HotelPricingPage: React.FC = () => {
       .then(() => {
         setEditing(null);
         loadPeriods(hotelId);
+        setSeasonVersion((v) => v + 1);
       })
       .catch((e) => showAlert(e.message || t('crm.hotels.pricing.createPeriodError'), { variant: 'error' }));
   };
@@ -521,21 +532,44 @@ export const HotelPricingPage: React.FC = () => {
         <HotelsSubnav active="pricing" />
         <div className="htl-hero">
           <div>
-            <div className="kicker"><span className="dot" />{t('crm.hotels.pricing.kicker')}</div>
+            <div className="kicker"><span className="dot" />{view === 'season' ? t('crm.hotels.season.kicker') : t('crm.hotels.pricing.kicker')}</div>
             <h1>{t('crm.hotels.pricing.title')}</h1>
-            <p className="sub">{t('crm.hotels.pricing.subtitle')}</p>
+            <p className="sub">{view === 'season' ? t('crm.hotels.season.subtitle') : t('crm.hotels.pricing.subtitle')}</p>
           </div>
           <div data-tour="pricing-select" className="htl-hero-r io-toolbar">
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
               {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
             </select>
-            <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)}>
-              {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <button className="btn" disabled={!roomTypeId || !marketGroups.length} onClick={() => setShowBulk(true)}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.pricing.bulk.open')}</button>
-            <button data-tour="pricing-import" className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.pricing.importBtn')}</button>
+            <div className="htl-seg" role="tablist">
+              <button type="button" role="tab" aria-selected={view === 'season'} className={view === 'season' ? 'on' : ''} onClick={() => setView('season')}>{t('crm.hotels.season.viewSeason')}</button>
+              <button type="button" role="tab" aria-selected={view === 'daily'} className={view === 'daily' ? 'on' : ''} onClick={() => setView('daily')}>{t('crm.hotels.season.viewDaily')}</button>
+            </div>
+            {view === 'daily' && (
+              <>
+                <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)}>
+                  {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <button className="btn" disabled={!roomTypeId || !marketGroups.length} onClick={() => setShowBulk(true)}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.pricing.bulk.open')}</button>
+                <button data-tour="pricing-import" className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.pricing.importBtn')}</button>
+              </>
+            )}
           </div>
         </div>
+
+        {view === 'season' && hotelId && (
+          <SeasonPriceSheet
+            hotelId={hotelId}
+            version={seasonVersion}
+            onAddPeriod={() => setEditing('new')}
+            onAddGroup={() => setAddingGroup(true)}
+            onChanged={() => loadPeriods(hotelId)}
+          />
+        )}
+        {view === 'season' && editing === 'new' && <PeriodEditor onCancel={() => setEditing(null)} onSave={addPeriod} />}
+        {view === 'season' && addingGroup && <MarketGroupDialog onCancel={() => setAddingGroup(false)} onSave={addMarketGroup} />}
+
+        {view === 'daily' && (<>
+        <div className="pe-box" style={{ marginTop: 16 }}>{t('crm.hotels.season.dailyNote')}</div>
 
         <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em', marginTop: 16 }}>
           {t('crm.hotels.pricing.periodsLabel')}
@@ -742,6 +776,7 @@ export const HotelPricingPage: React.FC = () => {
           <b style={{ color: 'var(--ink)' }}>Brüt</b> — {t('crm.hotels.pricing.legend.gross')} · <b style={{ color: 'var(--ink)' }}>İndirim</b> — {t('crm.hotels.pricing.legend.discount')} ·{' '}
           <b style={{ color: 'var(--ink)' }}>Net</b> — {t('crm.hotels.pricing.legend.net')}
         </div>
+        </>)}
       </div>
 
       {showImport && (

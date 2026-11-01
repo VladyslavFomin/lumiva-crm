@@ -32,6 +32,10 @@ export class HotelRoomOccupancyType {
   @Column({ type: 'numeric', precision: 8, scale: 2, default: 1 })
   coefficient: string;
 
+  /** Коэффициент в пиковые периоды (HotelPricingPeriod.isPeak); null — как обычный */
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  peakCoefficient: string | null;
+
   @Column({ type: 'integer', default: 0 })
   paidChildCount: number;
 
@@ -41,6 +45,10 @@ export class HotelRoomOccupancyType {
 
   @Column({ type: 'smallint', default: 0 })
   children: number;
+
+  /** Младенцы (INF, до 2 лет) в размещении — бесплатно, нужна детская кроватка */
+  @Column({ type: 'smallint', default: 0 })
+  infants: number;
 
   @Column({ type: 'integer', default: 0 })
   sortOrder: number;

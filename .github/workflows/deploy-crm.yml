@@ -42,9 +42,25 @@ jobs:
             npm ci
             npm run build
 
-            echo "==> API: rebuild & restart via Docker"
+            echo "==> API: rebuild image"
             cd ../infra
             docker compose build api
+
+            # Миграции — новым образом ДО перезапуска API: иначе новый код стартует на старой схеме (500 на отелях и др.).
+            # Есть неприменённые — сначала копия БД в deploy-backups (только в этом случае: копия ~100 МБ).
+            echo "==> DB: pending migrations"
+            PENDING=$(docker compose run --rm --no-deps -T api npm run -s migration:show 2>/dev/null | grep -c '\[ \]' || true)
+            echo "pending: ${PENDING:-0}"
+            if [ "${PENDING:-0}" -gt 0 ]; then
+              mkdir -p ../deploy-backups
+              BACKUP="../deploy-backups/db-before-ci-$(date -u +%Y%m%d-%H%M%S).dump"
+              docker exec lumiva_crm_db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$BACKUP"
+              test -s "$BACKUP"
+              echo "backup: $BACKUP"
+              docker compose run --rm --no-deps -T api npm run migration:run
+            fi
+
+            echo "==> API: restart"
             docker compose up -d api
 
             echo "==> Frontend: build SPA"

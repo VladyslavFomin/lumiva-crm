@@ -771,7 +771,7 @@ const RackSheet: React.FC<{
               <div className="htl-rack-facts">
                 <div><span>{k('sheet.dates')}</span><b>{fmtDate(r.checkIn, lang)} – {fmtDate(r.checkOut, lang)}</b><em>{k('nights', { count: nightsOf(r.checkIn, r.checkOut) })}</em></div>
                 <div><span>{k('sheet.room')}</span><b>{unit ? unit.label : k('noRoom')}</b><em>{rack.roomTypes.find((x) => x.id === r.roomTypeId)?.name}</em></div>
-                <div><span>{k('sheet.guests')}</span><b>{k('paxLine', { pax: r.pax, children: r.children })}</b><em>{r.boardType ? `${r.boardType} · ${t(`crm.hotels.board.${r.boardType}`)}` : '—'}</em></div>
+                <div><span>{k('sheet.guests')}</span><b>{k('paxLine', { pax: r.pax, children: r.children })}</b><em>{[r.infants ? t('crm.hotels.guestsPicker.babyCot', { count: r.infants }) : '', r.boardType ? `${r.boardType} · ${t(`crm.hotels.board.${r.boardType}`)}` : ''].filter(Boolean).join(' · ') || '—'}</em></div>
                 <div><span>{k('sheet.partner')}</span><b>{agencyName || k('sheet.direct')}</b><em>{r.guestCountry ? <CountryTag code={r.guestCountry} /> : '—'}</em></div>
                 <div><span>{k('sheet.payment')}</span><b>{money(paid, cur, lang)} / {money(total, cur, lang)}</b><em>{t(`crm.hotels.reservations.paidStatus.${r.paidStatus}`)}</em></div>
                 <div><span>{k('sheet.contact')}</span><b>{r.guestPhone || '—'}</b><em>{r.guestEmail || '—'}</em></div>

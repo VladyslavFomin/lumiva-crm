@@ -30,6 +30,8 @@ function cellToString(value: any, numFmt?: string): string {
   }
   if (typeof value === 'object') {
     if (typeof value.text === 'string') return value.text.trim();
+    // формула, результат которой — дата (в прайсах начало периода часто «=конец прошлого + 1»)
+    if (value.result instanceof Date) return cellToString(value.result);
     if (typeof value.result === 'number') {
       return numFmt && numFmt.includes('%') ? String(value.result * 100) : String(value.result).trim();
     }
@@ -41,7 +43,18 @@ function cellToString(value: any, numFmt?: string): string {
   return String(value).trim();
 }
 
-async function readXlsxRawRows(buffer: Buffer): Promise<string[][]> {
+/** Названия непустых листов книги (прайс-лист часто держит по листу на рынок) */
+export async function xlsxSheetNames(buffer: Buffer): Promise<string[]> {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.load(buffer as any);
+  } catch {
+    return [];
+  }
+  return workbook.worksheets.filter((w) => w.rowCount > 0).map((w) => w.name);
+}
+
+async function readXlsxRawRows(buffer: Buffer, sheetName?: string): Promise<string[][]> {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as any);
@@ -50,7 +63,7 @@ async function readXlsxRawRows(buffer: Buffer): Promise<string[][]> {
       'Не удалось прочитать этот Excel-файл. Поддерживается только современный формат .xlsx. Пересохраните файл как .xlsx или CSV.',
     );
   }
-  const sheet = workbook.worksheets[0];
+  const sheet = (sheetName && workbook.worksheets.find((w) => w.name === sheetName)) || workbook.worksheets[0];
   if (!sheet) return [];
   const rows: string[][] = [];
   for (let rowNum = 1; rowNum <= sheet.rowCount; rowNum++) {
@@ -73,10 +86,10 @@ function readCsvRawRows(content: string): string[][] {
   return lines.map((l) => splitCsvLine(l, delimiter).map((c) => c.replace(/^"|"$/g, '').trim()));
 }
 
-async function readRawRows(file: { buffer: Buffer; originalname?: string }): Promise<string[][]> {
+export async function readRawRows(file: { buffer: Buffer; originalname?: string }, sheetName?: string): Promise<string[][]> {
   const filename = (file.originalname || '').toLowerCase();
   return filename.endsWith('.xlsx') || filename.endsWith('.xls')
-    ? readXlsxRawRows(file.buffer)
+    ? readXlsxRawRows(file.buffer, sheetName)
     : readCsvRawRows(file.buffer.toString('utf-8'));
 }
 
@@ -206,7 +219,7 @@ export interface ParsedRoomPricingSheet {
   occupancyRows: Array<{ label: string; values: string[] }>;
 }
 
-function isPpReferenceRowLabel(label: string): boolean {
+export function isPpReferenceRowLabel(label: string): boolean {
   const nk = normHeaderKey(label);
   return nk.includes('pp_in_dbl') || nk.includes('pp_net') || (nk.includes('pp') && nk.includes('dbl'));
 }

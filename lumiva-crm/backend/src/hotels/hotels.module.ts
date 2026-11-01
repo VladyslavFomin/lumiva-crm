@@ -43,6 +43,7 @@ import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelsReservationsImportService } from './hotels-reservations-import.service';
 import { HotelsPricingImportService } from './hotels-pricing-import.service';
 import { HotelsRoomPricingImportService } from './hotels-room-pricing-import.service';
+import { HotelsPriceListImportService } from './hotels-price-list-import.service';
 import { HotelRoomUnitsService } from './hotel-room-units.service';
 import { HotelAvailabilityService } from './hotel-availability.service';
 import { HotelFrontDeskService } from './hotel-frontdesk.service';
@@ -69,6 +70,7 @@ import { HotelFrontDeskController } from './hotel-frontdesk.controller';
 import { HotelsReservationsImportController } from './hotels-reservations-import.controller';
 import { HotelsPricingImportController } from './hotels-pricing-import.controller';
 import { HotelsRoomPricingImportController } from './hotels-room-pricing-import.controller';
+import { HotelsPriceListImportController } from './hotels-price-list-import.controller';
 import { HotelsInfoImportController } from './hotels-info-import.controller';
 import { HotelFeedController } from './hotel-feed.controller';
 import { HotelsPublicStorefrontController } from './hotels-public-storefront.controller';
@@ -161,6 +163,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelsReservationsImportController,
     HotelsPricingImportController,
     HotelsRoomPricingImportController,
+    HotelsPriceListImportController,
     HotelsInfoImportController,
     HotelFeedController,
     HotelsPublicStorefrontController,
@@ -189,6 +192,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelsReservationsImportService,
     HotelsPricingImportService,
     HotelsRoomPricingImportService,
+    HotelsPriceListImportService,
     HotelRoomUnitsService,
     HotelAvailabilityService,
     HotelFrontDeskService,

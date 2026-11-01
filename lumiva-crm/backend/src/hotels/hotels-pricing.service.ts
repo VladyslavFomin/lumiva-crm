@@ -23,6 +23,75 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+const clampInt = (v: unknown, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(v) || 0)));
+const blankNum = (v: unknown) => v === null || v === undefined || String(v).trim() === '';
+
+/** Коэффициент размещения на период: в пиковый — пиковый, если задан */
+export function occupancyCoefficient(occ: Pick<HotelRoomOccupancyType, 'coefficient' | 'peakCoefficient'>, period: Pick<HotelPricingPeriod, 'isPeak'> | null | undefined) {
+  const peak = toNum(occ.peakCoefficient);
+  return period?.isPeak && peak > 0 ? peak : toNum(occ.coefficient);
+}
+
+export interface SeasonCell {
+  /** PP категории для группы рынков */
+  pp: number;
+  /** цена размещения (PP × коэффициент или ручная цена ячейки, пересчитанная на рынок) */
+  price: number;
+  /** бюджет PP категории (бюджет периода + разница категории); 0 — не задан */
+  budget: number;
+  coefficient: number;
+  override: boolean;
+}
+
+/**
+ * Прайс сезона на период: PP периода (минимальная категория) → + разница категории (или свой PP категории на период)
+ * → рынок: свой PP группы на период + разница категории, иначе × (1 + надбавка %) → × коэффициент размещения (пиковый в пик).
+ * Ручная цена ячейки (periodOverrides) задана для опорного рынка — для другого рынка пересчитывается в той же пропорции.
+ * null — у периода нет PP.
+ */
+export function seasonCell(
+  period: HotelPricingPeriod,
+  roomType: Pick<HotelRoomType, 'pricingMode' | 'ppNetOffset' | 'periodPP' | 'isBaseRoomType'>,
+  occ: Pick<HotelRoomOccupancyType, 'coefficient' | 'peakCoefficient' | 'periodOverrides'> | null,
+  group: Pick<HotelMarketGroup, 'adjustmentPct' | 'periodPP'> | null,
+): SeasonCell | null {
+  const basePP = toNum(period.ppBase);
+  const own = toNum(roomType.periodPP?.[period.id]);
+  const offset = roomType.isBaseRoomType || roomType.pricingMode === 'fixed_rate' ? 0 : toNum(roomType.ppNetOffset);
+  const refPP = own > 0 ? own : basePP > 0 ? basePP + offset : 0;
+  if (!(refPP > 0)) return null;
+  const diff = basePP > 0 ? refPP - basePP : 0;
+  const manual = group ? toNum(group.periodPP?.[period.id]) : 0;
+  const pp = round2(manual > 0 ? manual + diff : refPP * (1 + (group ? toNum(group.adjustmentPct) : 0) / 100));
+  const budget = toNum(period.budgetPP) > 0 ? round2(toNum(period.budgetPP) + diff) : 0;
+  const coefficient = occ ? occupancyCoefficient(occ, period) : 1;
+  const ov = occ?.periodOverrides?.[period.id];
+  if (occ && !blankNum(ov) && toNum(ov) > 0) {
+    return { pp, price: round2((toNum(ov) * pp) / refPP), budget, coefficient, override: true };
+  }
+  return { pp, price: round2(pp * coefficient), budget, coefficient, override: false };
+}
+
+export interface HotelPeriodInput {
+  startDate?: string;
+  endDate?: string;
+  ppBase?: string | number;
+  budgetPP?: string | number;
+  minNights?: number;
+  releaseDays?: number;
+  isPeak?: boolean;
+}
+
+function periodFields(dto: HotelPeriodInput): Partial<HotelPricingPeriod> {
+  const out: Partial<HotelPricingPeriod> = {};
+  if (dto.ppBase !== undefined) out.ppBase = normalizeNumericInput(dto.ppBase);
+  if (dto.budgetPP !== undefined) out.budgetPP = normalizeNumericInput(dto.budgetPP);
+  if (dto.minNights !== undefined) out.minNights = clampInt(dto.minNights, 1, 60);
+  if (dto.releaseDays !== undefined) out.releaseDays = clampInt(dto.releaseDays, 0, 365);
+  if (dto.isPeak !== undefined) out.isPeak = !!dto.isPeak;
+  return out;
+}
+
 @Injectable()
 export class HotelsPricingService {
   constructor(
@@ -95,10 +164,25 @@ export class HotelsPricingService {
     );
   }
 
-  async updateMarketGroup(tenantId: string, id: string, name: string) {
+  /** periodPP: { periodId, pp } — свой PP группы на период (pp пусто/null — снова по надбавке %) */
+  async updateMarketGroup(
+    tenantId: string,
+    id: string,
+    dto: { name?: string; adjustmentPct?: string | number; periodPP?: { periodId: string; pp: string | number | null } },
+  ) {
     const row = await this.marketGroupsRepo.findOne({ where: { id, tenantId } });
     if (!row) throw new NotFoundException('Группа рынков не найдена');
-    row.name = name;
+    if (typeof dto.name === 'string' && dto.name.trim()) row.name = dto.name.trim();
+    if (dto.adjustmentPct !== undefined) {
+      const pct = toNum(normalizeNumericInput(dto.adjustmentPct));
+      row.adjustmentPct = String(Math.min(500, Math.max(-90, pct)));
+    }
+    if (dto.periodPP?.periodId) {
+      const next = { ...(row.periodPP || {}) };
+      if (blankNum(dto.periodPP.pp)) delete next[dto.periodPP.periodId];
+      else next[dto.periodPP.periodId] = normalizeNumericInput(dto.periodPP.pp);
+      row.periodPP = next;
+    }
     return this.marketGroupsRepo.save(row);
   }
 
@@ -129,21 +213,25 @@ export class HotelsPricingService {
     return this.periodsRepo.find({ where: { tenantId, hotelId }, order: { startDate: 'ASC' } });
   }
 
-  createPeriod(tenantId: string, hotelId: string, dto: { startDate: string; endDate: string }) {
+  createPeriod(tenantId: string, hotelId: string, dto: HotelPeriodInput & { startDate: string; endDate: string }) {
     return this.periodsRepo.save(
       this.periodsRepo.create({
         tenantId,
         hotelId,
         startDate: dto.startDate,
         endDate: dto.endDate,
+        ...periodFields(dto),
       }),
     );
   }
 
-  async updatePeriod(tenantId: string, id: string, dto: { startDate?: string; endDate?: string }) {
+  async updatePeriod(tenantId: string, id: string, dto: HotelPeriodInput) {
     const row = await this.periodsRepo.findOne({ where: { id, tenantId } });
     if (!row) throw new NotFoundException('Период не найден');
-    Object.assign(row, dto);
+    if (dto.startDate) row.startDate = dto.startDate;
+    if (dto.endDate) row.endDate = dto.endDate;
+    if (row.endDate < row.startDate) throw new BadRequestException({ code: 'HOTEL_PERIOD_DATES', message: 'Конец периода раньше начала' });
+    Object.assign(row, periodFields(dto));
     return this.periodsRepo.save(row);
   }
 
@@ -377,9 +465,9 @@ export class HotelsPricingService {
         startDate: p.startDate,
         endDate: p.endDate,
         avgNetPP:
-          baseRoomType && referenceMarketGroupId
+          (baseRoomType && referenceMarketGroupId
             ? round2(await this.averageNetPP(tenantId, baseRoomType.id, referenceMarketGroupId, p.startDate, p.endDate))
-            : 0,
+            : 0) || toNum(p.ppBase),
       })),
     );
     return { currency: 'EUR', rows };
@@ -436,6 +524,16 @@ export class HotelsPricingService {
           : 0;
     }
 
+    // нет дневных цен за период — прайс сезона (PP периода + разница ± рынок)
+    const selGroup = !isReferenceGroup ? groups.find((g) => g.id === referenceMarketGroupId) || null : null;
+    const seasonByPeriod: Record<string, SeasonCell | null> = {};
+    for (const p of periods) {
+      seasonByPeriod[p.id] = referenceNetPPByPeriod[p.id] > 0 ? null : seasonCell(p, roomType, null, selGroup);
+      if (seasonByPeriod[p.id]) {
+        referenceNetPPByPeriod[p.id] = seasonCell(p, { pricingMode: 'offset', ppNetOffset: '0', periodPP: {}, isBaseRoomType: true }, null, selGroup)?.pp ?? 0;
+      }
+    }
+
     const offset = roomType.isBaseRoomType ? 0 : toNum(roomType.ppNetOffset);
     // The base actually multiplied by each occupancy coefficient — referenceNetPP + offset for
     // 'offset' rooms (this IS "PP Net + разница"), or just referenceNetPP for 'fixed_rate' rooms
@@ -443,15 +541,22 @@ export class HotelsPricingService {
     const effectiveBasePPByPeriod: Record<string, number> = {};
     for (const p of periods) {
       const referenceNetPP = referenceNetPPByPeriod[p.id];
-      effectiveBasePPByPeriod[p.id] =
-        roomType.pricingMode === 'fixed_rate' ? referenceNetPP : round2(referenceNetPP + offset);
+      effectiveBasePPByPeriod[p.id] = seasonByPeriod[p.id]
+        ? seasonByPeriod[p.id]!.pp
+        : roomType.pricingMode === 'fixed_rate' ? referenceNetPP : round2(referenceNetPP + offset);
     }
 
     const rows = occupancyTypes.map((occ) => {
-      const coef = toNum(occ.coefficient);
       const pricesByPeriod: Record<string, number> = {};
       const overriddenPeriods: string[] = [];
       for (const p of periods) {
+        const coef = occupancyCoefficient(occ, p);
+        if (seasonByPeriod[p.id]) {
+          const c = seasonCell(p, roomType, occ, selGroup)!;
+          pricesByPeriod[p.id] = c.price;
+          if (c.override) overriddenPeriods.push(p.id);
+          continue;
+        }
         const override = isReferenceGroup ? occ.periodOverrides?.[p.id] : undefined;
         if (override !== undefined && override !== null && override !== '') {
           pricesByPeriod[p.id] = round2(toNum(override));
@@ -464,6 +569,7 @@ export class HotelsPricingService {
         id: occ.id,
         label: occ.label,
         coefficient: occ.coefficient,
+        peakCoefficient: occ.peakCoefficient,
         paidChildCount: occ.paidChildCount,
         adults: occ.adults,
         children: occ.children,
@@ -488,18 +594,20 @@ export class HotelsPricingService {
         endDate: p.endDate,
         referenceNetPP: referenceNetPPByPeriod[p.id],
         effectiveBasePP: effectiveBasePPByPeriod[p.id],
+        isPeak: p.isPeak,
+        fromSeason: !!seasonByPeriod[p.id],
       })),
       occupancyRows: rows,
     };
   }
 
   /**
-   * Прайс по каждой ночи — то, что видно в таблице «Цены по рынкам продаж» на эту дату (без усреднения за период):
-   *   ручная цена периода для размещения (только опорная группа) →
-   *   собственный Net этого типа номера на дату × коэффициент (если тип не базовый и Net заполнен) →
-   *   (Net базового типа на дату + разница типа) × коэффициент (fixed_rate: Net × коэффициент).
-   * Сначала группа рынка гостя; если у неё на дату нет Net — опорная группа (fallback=true).
-   * Разница у самого базового типа не применяется — он и есть точка отсчёта.
+   * Прайс по каждой ночи. По группе рынка гостя (нет групп — без рынка):
+   *   1) правка по дням в таблице «Цены и рынки»: ручная цена периода для размещения (опорная группа, у периода нет PP) →
+   *      собственный Net типа номера на дату × коэффициент → (Net базового типа на дату + разница) × коэффициент;
+   *   2) прайс сезона (seasonCell): PP периода + разница категории ± рынок × коэффициент (пиковый в пик).
+   * Если у группы гостя ничего нет — то же по опорной группе (fallback=true).
+   * budget — бюджет PP категории на дату по прайсу сезона (0 — не задан).
    */
   async dailyPrices(
     tenantId: string,
@@ -508,51 +616,177 @@ export class HotelsPricingService {
     occ: HotelRoomOccupancyType | null,
     marketGroupId: string | null,
     dates: string[],
-  ): Promise<Map<string, { price: number; pp: number; groupId: string; fallback: boolean; own: boolean }>> {
-    const out = new Map<string, { price: number; pp: number; groupId: string; fallback: boolean; own: boolean }>();
+  ): Promise<Map<string, { price: number; pp: number; budget: number; groupId: string | null; fallback: boolean; own: boolean }>> {
+    const out = new Map<string, { price: number; pp: number; budget: number; groupId: string | null; fallback: boolean; own: boolean }>();
     if (!occ || !dates.length) return out;
     const [groups, baseRoomType, periods] = await Promise.all([
       this.marketGroupsRepo.find({ where: { tenantId, hotelId: hotel.id } }),
       this.roomTypesRepo.findOne({ where: { tenantId, hotelId: hotel.id, isBaseRoomType: true } }),
-      this.periodsRepo.find({ where: { tenantId, hotelId: hotel.id } }),
+      this.periodsRepo.find({ where: { tenantId, hotelId: hotel.id }, order: { startDate: 'ASC' } }),
     ]);
     const refId = hotel.referenceMarketGroupId && groups.some((g) => g.id === hotel.referenceMarketGroupId) ? hotel.referenceMarketGroupId : groups[0]?.id || null;
     const guestId = marketGroupId && groups.some((g) => g.id === marketGroupId) ? marketGroupId : refId;
-    const order = [guestId, refId].filter((g, i, a): g is string => !!g && a.indexOf(g) === i);
-    if (!order.length) return out;
+    const order: Array<string | null> = [guestId, refId].filter((g, i, a) => a.indexOf(g) === i);
+    const groupById = new Map(groups.map((g) => [g.id, g]));
     const base = baseRoomType || roomType;
     const isBase = base.id === roomType.id;
-    const rows = await this.ratesRepo.find({
-      where: { tenantId, roomTypeId: In([...new Set([roomType.id, base.id])]), marketGroupId: In(order), date: In(dates) },
-    });
+    const groupIds = order.filter((g): g is string => !!g);
+    const rows = groupIds.length
+      ? await this.ratesRepo.find({
+          where: { tenantId, roomTypeId: In([...new Set([roomType.id, base.id])]), marketGroupId: In(groupIds), date: In(dates) },
+        })
+      : [];
     const net = new Map(rows.map((r) => [`${r.roomTypeId}|${r.marketGroupId}|${r.date}`, toNum(r.netPP)]));
-    const coef = toNum(occ.coefficient);
     const offset = isBase ? 0 : toNum(roomType.ppNetOffset);
+    const rt = { ...roomType, isBaseRoomType: isBase };
     for (const d of dates) {
+      const period = periods.find((p) => d >= p.startDate && d <= p.endDate) || null;
+      const coef = occupancyCoefficient(occ, period);
       for (const g of order) {
         const fallback = g !== guestId;
-        if (g === refId) {
-          const period = periods.find((p) => d >= p.startDate && d <= p.endDate);
-          const ov = period ? occ.periodOverrides?.[period.id] : undefined;
-          if (ov !== undefined && ov !== null && ov !== '' && toNum(ov) > 0) {
-            out.set(d, { price: round2(toNum(ov)), pp: coef > 0 ? round2(toNum(ov) / coef) : round2(toNum(ov)), groupId: g, fallback, own: false });
+        // группа, чью надбавку применяем: опорная — без надбавки
+        const group = g && g !== refId ? groupById.get(g) || null : null;
+        const season = period ? seasonCell(period, rt, occ, group) : null;
+        const budget = season?.budget || 0;
+        if (g) {
+          if (g === refId && period && !season) {
+            const ov = occ.periodOverrides?.[period.id];
+            if (ov !== undefined && ov !== null && ov !== '' && toNum(ov) > 0) {
+              out.set(d, { price: round2(toNum(ov)), pp: coef > 0 ? round2(toNum(ov) / coef) : round2(toNum(ov)), budget, groupId: g, fallback, own: false });
+              break;
+            }
+          }
+          const own = isBase ? 0 : net.get(`${roomType.id}|${g}|${d}`) || 0;
+          if (own > 0) {
+            out.set(d, { price: round2(own * coef), pp: own, budget, groupId: g, fallback, own: true });
+            break;
+          }
+          const baseNet = net.get(`${base.id}|${g}|${d}`) || 0;
+          if (baseNet > 0) {
+            const pp = roomType.pricingMode === 'fixed_rate' ? baseNet : baseNet + offset;
+            out.set(d, { price: round2(pp * coef), pp, budget, groupId: g, fallback, own: false });
             break;
           }
         }
-        const own = isBase ? 0 : net.get(`${roomType.id}|${g}|${d}`) || 0;
-        if (own > 0) {
-          out.set(d, { price: round2(own * coef), pp: own, groupId: g, fallback, own: true });
-          break;
-        }
-        const baseNet = net.get(`${base.id}|${g}|${d}`) || 0;
-        if (baseNet > 0) {
-          const pp = roomType.pricingMode === 'fixed_rate' ? baseNet : baseNet + offset;
-          out.set(d, { price: round2(pp * coef), pp: roomType.pricingMode === 'fixed_rate' ? baseNet : pp, groupId: g, fallback, own: false });
+        if (season) {
+          out.set(d, { price: season.price, pp: season.pp, budget, groupId: g, fallback, own: false });
           break;
         }
       }
     }
     return out;
+  }
+
+  /**
+   * «Прайс сезона» — весь прайс-лист отеля одной таблицей (как Excel): периоды × категории × размещения
+   * по выбранной группе рынков. Здесь же бюджет и запас до него, и сколько дней периода перебито правками по дням.
+   */
+  async getSeasonPrice(tenantId: string, hotelId: string, marketGroupId?: string | null) {
+    const hotel = await this.hotelsRepo.findOne({ where: { id: hotelId, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    const [groups, periods, roomTypes] = await Promise.all([
+      this.marketGroupsRepo.find({ where: { tenantId, hotelId }, order: { sortOrder: 'ASC' } }),
+      this.periodsRepo.find({ where: { tenantId, hotelId }, order: { startDate: 'ASC' } }),
+      this.roomTypesRepo.find({ where: { tenantId, hotelId }, order: { createdAt: 'ASC' } }),
+    ]);
+    const refId = hotel.referenceMarketGroupId && groups.some((g) => g.id === hotel.referenceMarketGroupId) ? hotel.referenceMarketGroupId : groups[0]?.id || null;
+    const selId = marketGroupId && groups.some((g) => g.id === marketGroupId) ? marketGroupId : refId;
+    const group = selId && selId !== refId ? groups.find((g) => g.id === selId) || null : null;
+    const occs = roomTypes.length
+      ? await this.occupancyTypesRepo.find({ where: { tenantId, roomTypeId: In(roomTypes.map((r) => r.id)) }, order: { sortOrder: 'ASC' } })
+      : [];
+    // базовая категория — первой (минимальная, от неё считаются остальные)
+    roomTypes.sort((a, b) => Number(b.isBaseRoomType) - Number(a.isBaseRoomType));
+
+    // правки по дням (Net в таблице по дням) важнее прайса сезона — показываем, где они есть
+    const dailyCount = new Map<string, number>();
+    if (periods.length && roomTypes.length && selId) {
+      const raw = await this.ratesRepo
+        .createQueryBuilder('r')
+        .select('r.roomTypeId', 'roomTypeId')
+        .addSelect('r.date', 'date')
+        .where('r.tenantId = :tenantId', { tenantId })
+        .andWhere('r.roomTypeId IN (:...ids)', { ids: roomTypes.map((r) => r.id) })
+        .andWhere('r.marketGroupId IN (:...gids)', { gids: [...new Set([selId, refId].filter(Boolean))] })
+        .andWhere('r.netPP > 0')
+        .andWhere('r.date >= :from AND r.date <= :to', { from: periods[0].startDate, to: periods[periods.length - 1].endDate })
+        .distinct(true)
+        .getRawMany<{ roomTypeId: string; date: string | Date }>();
+      const base = roomTypes.find((r) => r.isBaseRoomType);
+      for (const r of raw) {
+        const d = typeof r.date === 'string' ? r.date.slice(0, 10) : new Date(r.date).toISOString().slice(0, 10);
+        const p = periods.find((x) => d >= x.startDate && d <= x.endDate);
+        if (!p) continue;
+        // Net базового типа на дату действует и на все типы, у которых нет своего Net
+        const targets = base && r.roomTypeId === base.id ? roomTypes.map((x) => x.id) : [r.roomTypeId];
+        for (const id of targets) dailyCount.set(`${id}|${p.id}`, (dailyCount.get(`${id}|${p.id}`) || 0) + 1);
+      }
+    }
+
+    const overlaps: Array<[string, string]> = [];
+    for (let i = 1; i < periods.length; i++) {
+      if (periods[i].startDate <= periods[i - 1].endDate) overlaps.push([periods[i - 1].id, periods[i].id]);
+    }
+
+    return {
+      currency: (hotel.currency || 'EUR').toUpperCase(),
+      referenceGroupId: refId,
+      marketGroupId: selId,
+      isReference: !group,
+      groups: groups.map((g) => ({ id: g.id, name: g.name, adjustmentPct: toNum(g.adjustmentPct), periodPP: g.periodPP || {} })),
+      periods: periods.map((p) => ({
+        id: p.id,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        ppBase: toNum(p.ppBase),
+        budgetPP: toNum(p.budgetPP),
+        minNights: p.minNights,
+        releaseDays: p.releaseDays,
+        isPeak: p.isPeak,
+        /** PP минимальной категории для выбранного рынка */
+        marketPP: seasonCell(p, { pricingMode: 'offset', ppNetOffset: '0', periodPP: {}, isBaseRoomType: true }, null, group)?.pp ?? 0,
+        marketPPManual: group ? toNum(group.periodPP?.[p.id]) > 0 : false,
+      })),
+      overlaps,
+      roomTypes: roomTypes.map((rt) => {
+        const cells: Record<string, { pp: number; budget: number; margin: number | null; ownPP: boolean; dailyDays: number } | null> = {};
+        for (const p of periods) {
+          const c = seasonCell(p, rt, null, group);
+          cells[p.id] = c
+            ? { pp: c.pp, budget: c.budget, margin: c.budget > 0 ? round2(c.pp - c.budget) : null, ownPP: toNum(rt.periodPP?.[p.id]) > 0, dailyDays: dailyCount.get(`${rt.id}|${p.id}`) || 0 }
+            : null;
+        }
+        return {
+          id: rt.id,
+          name: rt.name,
+          sizeM2: rt.sizeM2 !== null ? toNum(rt.sizeM2) : null,
+          area: typeof rt.infoFields?.area === 'string' ? rt.infoFields.area : null,
+          quantity: rt.quantity,
+          isBase: rt.isBaseRoomType,
+          pricingMode: rt.pricingMode,
+          ppNetOffset: toNum(rt.ppNetOffset),
+          periods: cells,
+          rows: occs
+            .filter((o) => o.roomTypeId === rt.id)
+            .map((o) => {
+              const prices: Record<string, { price: number; coefficient: number; override: boolean } | null> = {};
+              for (const p of periods) {
+                const c = seasonCell(p, rt, o, group);
+                prices[p.id] = c ? { price: c.price, coefficient: c.coefficient, override: c.override } : null;
+              }
+              return {
+                id: o.id,
+                label: o.label,
+                coefficient: toNum(o.coefficient),
+                peakCoefficient: o.peakCoefficient === null ? null : toNum(o.peakCoefficient),
+                adults: o.adults,
+                children: o.children,
+                prices,
+              };
+            }),
+        };
+      }),
+    };
   }
 
   /** Price lookup for the reservation form's auto-fill — reuses getRoomPricing's already-computed

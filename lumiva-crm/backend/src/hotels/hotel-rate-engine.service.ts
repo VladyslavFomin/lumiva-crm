@@ -5,15 +5,15 @@ import { Hotel } from './hotel.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
 import { HotelMarket } from './hotel-market.entity';
 import { HotelMarketGroup } from './hotel-market-group.entity';
-import { HotelRoomMarketPrice } from './hotel-room-market-price.entity';
+import { HotelPricingPeriod } from './hotel-pricing-period.entity';
 import { HotelRoomDateOverride } from './hotel-room-date-override.entity';
 import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
 import { HotelRoomBlock } from './hotel-room-block.entity';
 import { HotelContract } from './hotel-contract.entity';
 import { HotelNightlyRate, HotelRateSource } from './hotel-reservation.entity';
-import { HotelsPricingService } from './hotels-pricing.service';
+import { HotelsPricingService, occupancyCoefficient } from './hotels-pricing.service';
 import { normalizeCountry } from '../common/countries';
-import { ChildRateLine, childRateLines, matchOccupancy, normalizeChildAges, splitGuests } from './hotel-occupancy.util';
+import { ChildRateLine, childRateLines, matchOccupancyByAges, normalizeChildAges, splitGuests } from './hotel-occupancy.util';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -56,13 +56,14 @@ export interface HotelQuote {
   nights: HotelNightlyRate[];
   total: number;
   average: number;
-  /** средняя сезонная цена (PP/ночь в карточке) — до календаря и рыночной цены */
+  /** средняя сезонная цена (PP/ночь в карточке) — до календаря */
   seasonAverage: number;
   /** средняя цена на человека за ночь (price ÷ коэффициент размещения) */
   ppAverage: number;
   occupancyTypeId: string | null;
   /** состав, по которому подобрано размещение (дети старше childMaxAge — уже среди взрослых) */
-  guests: { adults: number; children: number; grown: number; childMaxAge: number } | null;
+  /** infants — дети младше 2 лет: бесплатно, нужна детская кроватка */
+  guests: { adults: number; children: number; grown: number; infants: number; childMaxAge: number } | null;
   /** доплаты за детей по детской политике (доля цены взрослого) — пусто, если дети входят в размещение */
   childLines: ChildRateLine[];
   childPolicySource: 'contract' | 'hotel' | null;
@@ -70,16 +71,18 @@ export interface HotelQuote {
   marketGroupId: string | null;
   /** группа подобрана автоматически (у рынка не задана) */
   marketGroupGuessed: boolean;
+  /** всегда 'season': плоская цена рынка больше не участвует (поле оставлено для старых клиентов API) */
   priority: 'season' | 'market';
   currency: string;
-  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy'; dates: string[] }>;
+  /** min_stay / release — условия периода заезда (value — мин. ночей / дней release); below_budget — PP ночи ниже бюджета */
+  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
 }
 
 /**
  * Единый расчёт цены брони по ночам. Порядок на каждую ночь:
- * блок → контракт партнёра → цена календаря на дату → прайс дня с размещением по группе рынка гостя
- * (Net этой даты, см. HotelsPricingService.dailyPrices) / плоская цена рынка (что важнее — настройка отеля) → базовая цена номера; скидка календаря на дату — сверху
- * (кроме цен партнёра, они уже договорные).
+ * блок → контракт партнёра → цена календаря на дату → прайс по группе рынка гостя (правка по дням, иначе прайс сезона:
+ * PP периода + разница категории ± рынок × коэффициент, см. HotelsPricingService.dailyPrices) → базовая цена номера;
+ * скидка календаря на дату — сверху (кроме цен партнёра, они уже договорные). Плоская цена рынка в расчёт не идёт.
  */
 @Injectable()
 export class HotelRateEngineService {
@@ -88,7 +91,7 @@ export class HotelRateEngineService {
     @InjectRepository(HotelRoomType) private readonly roomTypes: Repository<HotelRoomType>,
     @InjectRepository(HotelMarket) private readonly markets: Repository<HotelMarket>,
     @InjectRepository(HotelMarketGroup) private readonly groups: Repository<HotelMarketGroup>,
-    @InjectRepository(HotelRoomMarketPrice) private readonly marketPrices: Repository<HotelRoomMarketPrice>,
+    @InjectRepository(HotelPricingPeriod) private readonly periods: Repository<HotelPricingPeriod>,
     @InjectRepository(HotelRoomDateOverride) private readonly overrides: Repository<HotelRoomDateOverride>,
     @InjectRepository(HotelRoomOccupancyType) private readonly occupancy: Repository<HotelRoomOccupancyType>,
     @InjectRepository(HotelRoomBlock) private readonly blocks: Repository<HotelRoomBlock>,
@@ -186,7 +189,7 @@ export class HotelRateEngineService {
       const byPolicy = childPolicy.length > 0 && split.children > 0 && (!occ || !occ.children);
       if (byPolicy) childLines = childRateLines(childPolicy, kids);
       if (!occ) {
-        occ = matchOccupancy(occTypes, split.adults, byPolicy ? 0 : split.children);
+        occ = matchOccupancyByAges(occTypes, split.adults, byPolicy ? [] : kids);
         if (!occ && input.strictOccupancy === false) occ = occTypes[0] || null;
         noOccupancy = !occ && input.strictOccupancy !== false;
       }
@@ -194,26 +197,30 @@ export class HotelRateEngineService {
       occ = occTypes[0] || null;
     }
 
-    // прайс по каждой ночи из таблицы «Цены по рынкам продаж»: группа рынка гостя, иначе опорная
-    const daily = await this.pricing.dailyPrices(tenantId, hotel, roomType, occ, marketGroupId, dates);
+    // прайс по каждой ночи: правки по дням → прайс сезона по группе рынка гостя, иначе опорная
+    const [daily, periods] = await Promise.all([
+      this.pricing.dailyPrices(tenantId, hotel, roomType, occ, marketGroupId, dates),
+      this.periods.find({ where: { tenantId, hotelId: hotel.id }, order: { startDate: 'ASC' } }),
+    ]);
     const seasonPrice = (d: string) => daily.get(d) || null;
-
-    // плоская цена рынка — только по действующему рынку отеля (старые строки удалённых рынков не в счёт)
-    let marketFlat = 0;
-    if (market) {
-      const mp = await this.marketPrices.findOne({ where: { tenantId, roomTypeId: roomType.id, marketId: market.id } });
-      marketFlat = num(mp?.price);
+    const periodOf = (d: string) => periods.find((p) => d >= p.startDate && d <= p.endDate) || null;
+    // условия периода заезда: минимум ночей и release (дней до заезда)
+    const arrival = periodOf(input.checkIn);
+    const stayRule: HotelQuote['warnings'] = [];
+    if (arrival && arrival.minNights > 1 && dates.length < arrival.minNights) stayRule.push({ code: 'min_stay', dates: [input.checkIn], value: arrival.minNights });
+    if (arrival && arrival.releaseDays > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (addDays(today, arrival.releaseDays) > input.checkIn) stayRule.push({ code: 'release', dates: [input.checkIn], value: arrival.releaseDays });
     }
+
     const base = num(roomType.basePrice);
     const blockRate = block && block.roomTypeId === roomType.id ? num(block.ratePerNight) : 0;
     const contractRate = contract ? num(contract.rooms?.find((l) => l.roomTypeId === roomType.id)?.rate) : 0;
-    const priority: 'season' | 'market' = hotel.pricingPriority === 'market' ? 'market' : 'season';
     const ovByDate = new Map(overrides.map((o) => [o.date, o]));
 
     const nights: HotelNightlyRate[] = [];
     const seasonVals: number[] = [];
-    const warn = { no_price: [] as string[], blocked: [] as string[], group_fallback: [] as string[], };
-    const coef = occ ? num(occ.coefficient) : 0;
+    const warn = { no_price: [] as string[], blocked: [] as string[], group_fallback: [] as string[], below_budget: [] as string[] };
     for (const d of dates) {
       const ov = ovByDate.get(d);
       let price = 0;
@@ -233,9 +240,8 @@ export class HotelRateEngineService {
           price = num(ov.price);
           source = 'calendar';
         } else {
-          const order: Array<[HotelRateSource, number]> = priority === 'market'
-            ? [['market', marketFlat], ['season', season?.price || 0], ['base', base]]
-            : [['season', season?.price || 0], ['market', marketFlat], ['base', base]];
+          // цена рынка = прайс сезона по группе рынка гостя (± надбавка группы); нет прайса — базовая цена номера
+          const order: Array<[HotelRateSource, number]> = [['season', season?.price || 0], ['base', base]];
           const hit = order.find(([, v]) => v > 0);
           if (hit) [source, price] = hit;
           if (source === 'season' && season?.fallback) warn.group_fallback.push(d);
@@ -244,7 +250,9 @@ export class HotelRateEngineService {
         if (discountPct > 0 && price > 0) price = price * (1 - discountPct / 100);
       }
       if (!(price > 0)) warn.no_price.push(d);
+      const coef = occ ? occupancyCoefficient(occ, periodOf(d)) : 0;
       const ppNight = source === 'season' && season ? season.pp * (discountPct > 0 ? 1 - discountPct / 100 : 1) : coef > 0 ? price / coef : price;
+      if (season?.budget && price > 0 && source !== 'block' && source !== 'contract' && ppNight < season.budget - 0.005) warn.below_budget.push(d);
       // дети по политике: доля цены взрослого (PP) за каждого
       const childAmount = price > 0 && childLines.length ? ppNight * childLines.reduce((s, c) => s + c.share, 0) : 0;
       nights.push({
@@ -270,10 +278,11 @@ export class HotelRateEngineService {
       marketId: market?.id ?? null,
       marketGroupId,
       marketGroupGuessed: guessed,
-      priority,
+      priority: 'season',
       currency: (hotel.currency || '').toUpperCase(),
       warnings: [
         ...(noOccupancy ? [{ code: 'no_occupancy' as const, dates: [] }] : []),
+        ...stayRule,
         ...(Object.keys(warn) as Array<keyof typeof warn>).filter((k) => warn[k].length).map((code) => ({ code, dates: warn[code] })),
       ],
     };

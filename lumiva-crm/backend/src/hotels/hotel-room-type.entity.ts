@@ -50,6 +50,10 @@ export class HotelRoomType {
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
   ppNetOffset: string;
 
+  /** Свой PP категории на период прайса сезона ({ [periodId]: "PP" }), когда разница не постоянная — важнее «PP базы + разница» */
+  @Column({ type: 'jsonb', default: {} })
+  periodPP: Record<string, string>;
+
   /** Ровно один тип номера на отель должен быть true — его Daily Market Rate.netPP
    * служит базой (referenceNetPP) для всех остальных типов номеров этого отеля. */
   @Column({ type: 'boolean', default: false })

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { isInfant } from './hotel-occupancy.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Hotel } from './hotel.entity';
@@ -92,6 +93,8 @@ export class HotelRackService {
         guestCountry: r.guestCountry,
         pax: r.pax,
         children: r.children,
+        /** младенцы до 2 лет — бесплатно, нужна детская кроватка */
+        infants: (r.childAges || []).filter(isInfant).length,
         checkIn: r.checkIn,
         checkOut: r.checkOut,
         status: r.status,

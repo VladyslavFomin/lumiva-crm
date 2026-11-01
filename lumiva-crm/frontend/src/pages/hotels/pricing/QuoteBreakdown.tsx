@@ -48,11 +48,14 @@ export const QuoteBreakdown: React.FC<{
   const blocked = quote.warnings.find((w) => w.code === 'blocked');
   const fallback = quote.warnings.find((w) => w.code === 'group_fallback');
   const noOcc = quote.warnings.some((w) => w.code === 'no_occupancy');
+  const minStay = quote.warnings.find((w) => w.code === 'min_stay');
+  const release = quote.warnings.find((w) => w.code === 'release');
+  const lowBudget = quote.warnings.find((w) => w.code === 'below_budget');
   return (
     <div className="pe-box">
       <div className="pe-head">
         <b>{k('auto')}</b>
-        <span>{marketGroupName ? k('byGroup', { group: marketGroupName }) : k('byReference')}{quote.marketGroupGuessed ? ` · ${k('guessed')}` : ''} · {k(`priority.${quote.priority}`)}</span>
+        <span>{marketGroupName ? k('byGroup', { group: marketGroupName }) : k('byReference')}{quote.marketGroupGuessed ? ` · ${k('guessed')}` : ''}</span>
       </div>
       <div className="pe-rows">
         {segments(quote).map((g) => (
@@ -76,7 +79,7 @@ export const QuoteBreakdown: React.FC<{
           {quote.childLines.map((c, i) => (
             <span key={c.childNo}>
               {i > 0 && ' · '}
-              {c.age === null ? k('childNoAge', { n: c.childNo }) : k('childAge', { n: c.childNo, age: c.age })} — {c.share === 0 ? k('childFree') : c.share === 1 ? k('childAsAdult') : `${Math.round(c.share * 100)}%`}
+              {c.age === null ? k('childNoAge', { n: c.childNo }) : k('childAge', { n: c.childNo, age: c.age })} — {c.reason === 'infant' ? k('childInfant') : c.share === 0 ? k('childFree') : c.share === 1 ? k('childAsAdult') : `${Math.round(c.share * 100)}%`}
             </span>
           ))}
         </div>
@@ -86,6 +89,9 @@ export const QuoteBreakdown: React.FC<{
       {missing && !noOcc && <div className="pe-note warn">{k('missing', { dates: missing.dates.map(d).join(', ') })}</div>}
       {blocked && <div className="pe-note warn">{k('blocked', { dates: blocked.dates.map(d).join(', ') })}</div>}
       {fallback && <div className="pe-note">{k('fallback')}</div>}
+      {minStay && <div className="pe-note warn">{k('minStay', { count: minStay.value })}</div>}
+      {release && <div className="pe-note warn">{k('release', { count: release.value })}</div>}
+      {lowBudget && <div className="pe-note warn">{k('belowBudget', { dates: lowBudget.dates.map(d).join(', ') })}</div>}
       {noOcc && <div className="pe-note warn">{k('noOccupancy', { adults: quote.guests?.adults ?? '?', children: quote.guests?.children ?? 0 })}</div>}
     </div>
   );

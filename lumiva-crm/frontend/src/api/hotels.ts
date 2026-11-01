@@ -102,6 +102,10 @@ export interface HotelMarketGroup {
   hotelId: string;
   name: string;
   sortOrder: number;
+  /** надбавка (+) / скидка (−) в % к прайсу сезона */
+  adjustmentPct?: string;
+  /** свой PP минимальной категории на период */
+  periodPP?: Record<string, string>;
 }
 
 export interface HotelPricingPeriod {
@@ -110,7 +114,14 @@ export interface HotelPricingPeriod {
   hotelId: string;
   startDate: string;
   endDate: string;
+  ppBase?: string;
+  budgetPP?: string;
+  minNights?: number;
+  releaseDays?: number;
+  isPeak?: boolean;
 }
+
+export type HotelPeriodInput = { startDate?: string; endDate?: string; ppBase?: string; budgetPP?: string; minNights?: number; releaseDays?: number; isPeak?: boolean };
 
 export interface HotelDailyMarketRateGroup {
   marketGroupId: string;
@@ -136,6 +147,10 @@ export interface HotelRoomOccupancyType {
   roomTypeId: string;
   label: string;
   coefficient: string;
+  /** коэффициент в пиковые периоды; null — как обычный */
+  peakCoefficient?: string | null;
+  /** младенцы (INF, до 2 лет) в размещении: бесплатно, нужна детская кроватка */
+  infants?: number;
   paidChildCount: number;
   /** состав размещения — форма брони подбирает размещение по взрослым + детям */
   adults: number | null;
@@ -717,8 +732,8 @@ export function createMarketGroup(hotelId: string, name: string) {
   return api.post<HotelMarketGroup>(`/hotels/${hotelId}/market-groups`, { name });
 }
 
-export function updateMarketGroup(id: string, name: string) {
-  return api.patch<HotelMarketGroup>(`/hotels/market-groups/${id}`, { name });
+export function updateMarketGroup(id: string, dto: string | { name?: string; adjustmentPct?: string; periodPP?: { periodId: string; pp: string | null } }) {
+  return api.patch<HotelMarketGroup>(`/hotels/market-groups/${id}`, typeof dto === 'string' ? { name: dto } : dto);
 }
 
 export function deleteMarketGroup(id: string) {
@@ -729,12 +744,82 @@ export function fetchPricingPeriods(hotelId: string) {
   return api.get<HotelPricingPeriod[]>(`/hotels/${hotelId}/pricing-periods`);
 }
 
-export function createPricingPeriod(hotelId: string, dto: { startDate: string; endDate: string }) {
+export function createPricingPeriod(hotelId: string, dto: HotelPeriodInput & { startDate: string; endDate: string }) {
   return api.post<HotelPricingPeriod>(`/hotels/${hotelId}/pricing-periods`, dto);
 }
 
-export function updatePricingPeriod(id: string, dto: { startDate?: string; endDate?: string }) {
+export function updatePricingPeriod(id: string, dto: HotelPeriodInput) {
   return api.patch<HotelPricingPeriod>(`/hotels/pricing-periods/${id}`, dto);
+}
+
+/* ---------- прайс сезона: PP периода → + разница категории → × коэффициент → ± рынок ---------- */
+
+export interface HotelSeasonPrice {
+  currency: string;
+  referenceGroupId: string | null;
+  marketGroupId: string | null;
+  isReference: boolean;
+  groups: Array<{ id: string; name: string; adjustmentPct: number; periodPP: Record<string, string> }>;
+  periods: Array<{
+    id: string; startDate: string; endDate: string; ppBase: number; budgetPP: number; minNights: number; releaseDays: number; isPeak: boolean;
+    marketPP: number; marketPPManual: boolean;
+  }>;
+  overlaps: Array<[string, string]>;
+  roomTypes: Array<{
+    id: string; name: string; sizeM2: number | null; area: string | null; quantity: number; isBase: boolean; pricingMode: 'offset' | 'fixed_rate'; ppNetOffset: number;
+    periods: Record<string, { pp: number; budget: number; margin: number | null; ownPP: boolean; dailyDays: number } | null>;
+    rows: Array<{
+      id: string; label: string; coefficient: number; peakCoefficient: number | null; adults: number | null; children: number;
+      prices: Record<string, { price: number; coefficient: number; override: boolean } | null>;
+    }>;
+  }>;
+}
+
+export function fetchSeasonPrice(hotelId: string, marketGroupId?: string | null) {
+  return api.get<HotelSeasonPrice>(`/hotels/${hotelId}/season-price`, { params: marketGroupId ? { marketGroupId } : {} });
+}
+
+export function setRoomTypePeriodPP(roomTypeId: string, periodId: string, pp: string | null) {
+  return api.post<HotelRoomType>(`/hotels/room-types/${roomTypeId}/period-pp/${periodId}`, { pp });
+}
+
+export interface HotelPriceListPreview {
+  sheet: string | null;
+  sheets: string[];
+  currency: string | null;
+  hotelCurrency: string;
+  currencyMismatch: boolean;
+  periods: Array<{ startDate: string; endDate: string; ppBase: number; minNights: number | null; releaseDays: number | null; budgetPP: number | null; isPeak: boolean; exists: boolean }>;
+  categories: Array<{
+    name: string; area: string | null; sizeM2: number | null; isBase: boolean; offset: number; ownPeriods: number; pp: Array<number | null>; exists: boolean;
+    rows: Array<{ label: string; coefficient: number; peakCoefficient: number | null; adults: number | null; children: number; infants: number; overrides: number; exists: boolean }>;
+  }>;
+  stalePeriods: Array<{ id: string; startDate: string; endDate: string }>;
+  dailyDays: number;
+  warnings: string[];
+}
+
+export interface HotelPriceListResult {
+  periodsCreated: number; periodsUpdated: number; periodsRemoved: number; roomTypesCreated: string[]; roomTypesUpdated: number;
+  rowsCreated: number; rowsUpdated: number; overrides: number; dailyCleared: number;
+}
+
+export function previewPriceListImport(hotelId: string, file: File, sheet?: string | null) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('hotelId', hotelId);
+  if (sheet) form.append('sheet', sheet);
+  return api.postForm<HotelPriceListPreview>('/hotels/price-list-import/preview', form);
+}
+
+export function applyPriceListImport(hotelId: string, file: File, opts: { replacePeriods: boolean; clearDaily: boolean; sheet?: string | null }) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('hotelId', hotelId);
+  if (opts.sheet) form.append('sheet', opts.sheet);
+  form.append('replacePeriods', String(opts.replacePeriods));
+  form.append('clearDaily', String(opts.clearDaily));
+  return api.postForm<HotelPriceListResult>('/hotels/price-list-import/apply', form);
 }
 
 export function deletePricingPeriod(id: string) {
@@ -1054,6 +1139,8 @@ export interface HotelRackReservation {
   guestCountry: string | null;
   pax: number;
   children: number;
+  /** младенцы до 2 лет — нужна детская кроватка */
+  infants?: number;
   checkIn: string;
   checkOut: string;
   status: HotelReservationStatus;
@@ -1737,6 +1824,8 @@ export interface HotelHkTask {
   earlyCheckIn: boolean;
   lateCheckOut: boolean;
   nextArrival?: { guestName: string; earlyCheckIn: boolean } | null;
+  /** сколько детских кроваток поставить (младенцы заезжающей/живущей брони) */
+  babyCots?: number;
   departed: boolean | null;
   hotelName?: string;
 }
@@ -1949,15 +2038,15 @@ export interface HotelQuote {
   seasonAverage: number;
   ppAverage?: number;
   occupancyTypeId: string | null;
-  guests?: { adults: number; children: number; grown: number; childMaxAge: number } | null;
-  childLines?: Array<{ childNo: number; age: number | null; share: number; reason: 'rule' | 'no_rule' | 'no_age' }>;
+  guests?: { adults: number; children: number; grown: number; infants?: number; childMaxAge: number } | null;
+  childLines?: Array<{ childNo: number; age: number | null; share: number; reason: 'rule' | 'no_rule' | 'no_age' | 'infant' }>;
   childPolicySource?: 'contract' | 'hotel' | null;
   marketId: string | null;
   marketGroupId: string | null;
   marketGroupGuessed: boolean;
   priority: 'season' | 'market';
   currency: string;
-  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy'; dates: string[] }>;
+  warnings: Array<{ code: 'no_price' | 'blocked' | 'group_fallback' | 'no_occupancy' | 'min_stay' | 'release' | 'below_budget'; dates: string[]; value?: number }>;
 }
 export const fetchQuote = ({ childAges, ...q }: { roomTypeId: string; occupancyTypeId?: string; checkIn: string; checkOut: string; marketId?: string; market?: string; guestCountry?: string; contractId?: string; blockId?: string; adults?: number; childAges?: Array<number | null> }) =>
   api.get<HotelQuote>('/hotels/reservations/quote', { params: { ...q, ...(childAges?.length ? { childAges: childAges.map((a) => (a === null ? '-' : String(a))).join(',') } : {}) } });

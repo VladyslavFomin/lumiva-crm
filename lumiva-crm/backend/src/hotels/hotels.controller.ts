@@ -28,7 +28,7 @@ import { RbacGuard } from '../rbac/rbac.guard';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
-import { HotelsPricingService } from './hotels-pricing.service';
+import { HotelsPricingService, type HotelPeriodInput } from './hotels-pricing.service';
 import { HotelRateEngineService } from './hotel-rate-engine.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
@@ -259,6 +259,18 @@ export class HotelsController {
     return this.roomTypes.setOccupancyOverride(user.tenantId, id, periodId, dto.price);
   }
 
+  /** Свой PP категории на период прайса сезона (pp пусто/null — снова «PP базы + разница») */
+  @Post('room-types/:id/period-pp/:periodId')
+  @RequirePermission('hotels_manage_pricing', 'write')
+  setRoomTypePeriodPP(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('periodId', new ParseUUIDPipe()) periodId: string,
+    @Body() dto: { pp: string | number | null },
+  ) {
+    return this.roomTypes.setPeriodPP(user.tenantId, id, periodId, dto.pp);
+  }
+
   @Get('room-types/:roomTypeId/daily-rates')
   getDailyRates(
     @CurrentUser() user: CurrentUserPayload,
@@ -337,9 +349,9 @@ export class HotelsController {
   updateMarketGroup(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: { name: string },
+    @Body() dto: { name?: string; adjustmentPct?: string | number; periodPP?: { periodId: string; pp: string | number | null } },
   ) {
-    return this.pricing.updateMarketGroup(user.tenantId, id, dto.name);
+    return this.pricing.updateMarketGroup(user.tenantId, id, dto);
   }
 
   @Delete('market-groups/:id')
@@ -355,7 +367,7 @@ export class HotelsController {
   updatePeriod(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: { startDate?: string; endDate?: string },
+    @Body() dto: HotelPeriodInput,
   ) {
     return this.pricing.updatePeriod(user.tenantId, id, dto);
   }
@@ -540,9 +552,19 @@ export class HotelsController {
   createPeriod(
     @CurrentUser() user: CurrentUserPayload,
     @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
-    @Body() dto: { startDate: string; endDate: string },
+    @Body() dto: HotelPeriodInput & { startDate: string; endDate: string },
   ) {
     return this.pricing.createPeriod(user.tenantId, hotelId, dto);
+  }
+
+  /** Прайс сезона: весь прайс-лист отеля (периоды × категории × размещения) по группе рынков */
+  @Get(':hotelId/season-price')
+  getSeasonPrice(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+    @Query('marketGroupId') marketGroupId?: string,
+  ) {
+    return this.pricing.getSeasonPrice(user.tenantId, hotelId, marketGroupId || null);
   }
 
   @Get(':hotelId/pricing/period-summary')

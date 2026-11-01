@@ -27,8 +27,6 @@ import {
   createMarket,
   updateMarket,
   deleteMarket,
-  fetchMarketPrices,
-  upsertMarketPrice,
   fetchGalleryCategories,
   createGalleryCategory,
   renameGalleryCategory,
@@ -52,7 +50,6 @@ import {
   type Hotel,
   type HotelRoomType,
   type HotelMarket,
-  type HotelRoomMarketPrice,
   type HotelGalleryCategory,
   type HotelPhoto,
   type HotelFactsheetItem,
@@ -83,10 +80,6 @@ function formatHotelMoney(v: number, currency: string | undefined) {
 
 type Tab = 'rooms' | 'calendar' | 'markets' | 'info' | 'gallery' | 'reviews' | 'settings';
 
-function pctDiff(base: number, val: number) {
-  if (!base) return 0;
-  return Math.round(((val - base) / base) * 100);
-}
 
 const RoomTypeModal: React.FC<{
   hotelId: string;
@@ -452,11 +445,10 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
   );
 };
 
-const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; currency?: string }> = ({ hotelId, roomTypes, currency }) => {
+const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; currency?: string }> = ({ hotelId, roomTypes }) => {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [markets, setMarkets] = useState<HotelMarket[]>([]);
-  const [pricesByRoom, setPricesByRoom] = useState<Record<string, HotelRoomMarketPrice[]>>({});
   const [showAddMarket, setShowAddMarket] = useState(false);
   const [newMarketCode, setNewMarketCode] = useState('');
   const [newMarketName, setNewMarketName] = useState('');
@@ -470,32 +462,12 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; curren
       .then(setMarkets)
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.loadMarketsError'), { variant: 'error' }));
     fetchMarketGroups(hotelId).then(setGroups).catch(() => setGroups([]));
-    Promise.all(roomTypes.map((r) => fetchMarketPrices(r.id).then((p) => [r.id, p] as const)))
-      .then((pairs) => setPricesByRoom(Object.fromEntries(pairs)))
-      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.loadPricesError'), { variant: 'error' }));
   };
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelId, roomTypes.length]);
-
-  const priceFor = (roomId: string, marketId: string) => {
-    const row = (pricesByRoom[roomId] || []).find((p) => p.marketId === marketId);
-    return row?.price ?? '0';
-  };
-
-  const update = (roomId: string, marketId: string, val: string) => {
-    upsertMarketPrice(roomId, marketId, val)
-      .then((row) => {
-        setPricesByRoom((prev) => {
-          const list = (prev[roomId] || []).filter((p) => p.marketId !== marketId);
-          list.push(row as any);
-          return { ...prev, [roomId]: list };
-        });
-      })
-      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.saveCellError'), { variant: 'error' }));
-  };
 
   const addMarket = () => {
     if (!newMarketCode.trim() || !newMarketName.trim()) {
@@ -556,80 +528,45 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; curren
         <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.hotels.detail.marketsTab.subtitle')}</div>
         <button className="btn btn-sm" onClick={() => setShowAddMarket(true)}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.detail.marketsTab.addMarket')}</button>
       </div>
-      <div className="mkt-table-wrap">
-        <table className="mkt-table">
-          <thead>
-            <tr>
-              <th>{t('crm.hotels.detail.marketsTab.colRoomType')}</th>
-              <th>{t('crm.hotels.detail.marketsTab.colBase')}</th>
-              {markets.map((m) => (
-                <th key={m.id}>
-                  {editingMarketId === m.id ? (
-                    <input
-                      autoFocus
-                      defaultValue={m.name}
-                      style={{ width: 100, padding: '3px 6px', fontSize: 11.5, fontWeight: 400, textTransform: 'none' }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') renameMarket(m.id, (e.target as HTMLInputElement).value);
-                        if (e.key === 'Escape') setEditingMarketId(null);
-                      }}
-                      onBlur={(e) => renameMarket(m.id, e.target.value)}
-                    />
-                  ) : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <span className="mkt-flag">{m.code.toUpperCase()}</span>
-                      <span style={{ cursor: 'pointer' }} onClick={() => setEditingMarketId(m.id)} title={t('crm.hotels.detail.marketsTab.rename')}>{m.name}</span>
-                      <button
-                        style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
-                        title={t('crm.hotels.detail.marketsTab.deleteTitle')}
-                        onClick={() => removeMarket(m)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {roomTypes.map((r) => (
-              <tr key={r.id}>
-                <td className="room-cell">{r.name}</td>
-                <td style={{ fontFamily: 'var(--ff-mono)', color: 'var(--fg-3)' }}>{Number(r.basePrice).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency || ''}</td>
-                {markets.map((m) => {
-                  const val = Number(priceFor(r.id, m.id));
-                  const diff = pctDiff(Number(r.basePrice), val);
-                  return (
-                    <td key={m.id}>
-                      {/* key с ценой: цены приходят после первой отрисовки — без него поле навсегда показывало 0 и при уходе из поля могло записать 0 */}
-                      <input
-                        key={`${r.id}-${m.id}-${val}`}
-                        className="mkt-price-input"
-                        defaultValue={val}
-                        onBlur={(e) => Number(e.target.value) !== val && update(r.id, m.id, e.target.value)}
-                      />
-                      <span className={`mkt-diff${diff > 0 ? ' up' : diff < 0 ? ' down' : ''}`}>{diff > 0 ? '+' : ''}{diff}%</span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="pe-box" style={{ marginBottom: 12 }}>
+        {t('crm.hotels.season.marketsExplain')}{' '}
+        <a className="lnk" href="/hotels/pricing">{t('crm.hotels.season.openSeason')}</a>
       </div>
-
       <div className="htl-panel" style={{ marginTop: 16 }}>
         <h3 className="htl-h3">{t('crm.hotels.detail.marketsTab.countriesTitle')}</h3>
         <p className="htl-sub" style={{ margin: '-4px 0 12px' }}>{t('crm.hotels.detail.marketsTab.countriesHint')}</p>
         {markets.map((m) => (
           <div key={m.id} className="htl-mkt-row">
-            <div className="nm"><span className="mkt-flag">{m.code.toUpperCase()}</span> {m.name}</div>
+            <div className="nm">
+              <span className="mkt-flag">{m.code.toUpperCase()}</span>{' '}
+              {editingMarketId === m.id ? (
+                <input
+                  autoFocus
+                  defaultValue={m.name}
+                  style={{ width: 120, padding: '3px 6px', fontSize: 12 }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') renameMarket(m.id, (e.target as HTMLInputElement).value);
+                    if (e.key === 'Escape') setEditingMarketId(null);
+                  }}
+                  onBlur={(e) => renameMarket(m.id, e.target.value)}
+                />
+              ) : (
+                <span style={{ cursor: 'pointer' }} onClick={() => setEditingMarketId(m.id)} title={t('crm.hotels.detail.marketsTab.rename')}>{m.name}</span>
+              )}
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: '0 4px', fontSize: 14, lineHeight: 1 }}
+                title={t('crm.hotels.detail.marketsTab.deleteTitle')}
+                onClick={() => removeMarket(m)}
+              >
+                ×
+              </button>
+            </div>
             <CountryMultiSelect value={m.countryCodes || []} onChange={(codes) => setMarketCountries(m, codes)} />
             {groups.length > 0 && (
               <select className="pe-group" value={m.marketGroupId || ''} onChange={(e) => setMarketGroup(m, e.target.value)} title={t('crm.hotels.priceEngine.groupHint')}>
                 <option value="">{t('crm.hotels.priceEngine.groupAuto')}</option>
-                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}{Number(g.adjustmentPct) ? ` (${Number(g.adjustmentPct) > 0 ? '+' : ''}${Number(g.adjustmentPct)}%)` : ''}</option>)}
               </select>
             )}
           </div>
@@ -1318,7 +1255,6 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
   const [checkIn, setCheckIn] = useState(hotel.checkInTime);
   const [checkOut, setCheckOut] = useState(hotel.checkOutTime);
   const [allowOverbooking, setAllowOverbooking] = useState(hotel.allowOverbooking);
-  const [pricingPriority, setPricingPriority] = useState<'season' | 'market'>(hotel.pricingPriority === 'market' ? 'market' : 'season');
   const [childMaxAge, setChildMaxAge] = useState(String(hotel.childMaxAge ?? 12));
   const [childPolicy, setChildPolicy] = useState<HotelChildPolicyRule[]>(hotel.childPolicy || []);
   const [savingBasics, setSavingBasics] = useState(false);
@@ -1361,7 +1297,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
 
   const saveBasics = () => {
     setSavingBasics(true);
-    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut, allowOverbooking, pricingPriority, childMaxAge: Math.min(18, Math.max(1, Math.round(Number(childMaxAge) || 12))), childPolicy })
+    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut, allowOverbooking, childMaxAge: Math.min(18, Math.max(1, Math.round(Number(childMaxAge) || 12))), childPolicy })
       .then(() => onSaved())
       .catch((e) => showAlert(e.message || t('crm.hotels.detail.settings.saveError'), { variant: 'error' }))
       .finally(() => setSavingBasics(false));
@@ -1432,14 +1368,6 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
         <input type="checkbox" checked={allowOverbooking} onChange={(e) => setAllowOverbooking(e.target.checked)} />
         {t('crm.hotels.detail.settings.overbookingLabel')}
       </label>
-      <div style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{t('crm.hotels.priceEngine.priorityTitle')}</div>
-        <div className="sub" style={{ fontSize: 12, color: 'var(--fg-3)', margin: '2px 0 8px' }}>{t('crm.hotels.priceEngine.priorityHint')}</div>
-        <div className="htl-seg">
-          <button type="button" className={pricingPriority === 'season' ? 'on' : ''} onClick={() => setPricingPriority('season')}>{t('crm.hotels.priceEngine.priority.season')}</button>
-          <button type="button" className={pricingPriority === 'market' ? 'on' : ''} onClick={() => setPricingPriority('market')}>{t('crm.hotels.priceEngine.priority.market')}</button>
-        </div>
-      </div>
       <div style={{ marginTop: 14 }}>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{t('crm.hotels.guestsPicker.settingTitle')}</div>
         <div className="sub" style={{ fontSize: 12, color: 'var(--fg-3)', margin: '2px 0 8px' }}>

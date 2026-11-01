@@ -59,7 +59,7 @@ import { ReservationHistoryPanel } from './ReservationHistory';
 import { todayIso } from './partners/partnerUtils';
 import { FolioPanel } from './folio/FolioPanel';
 import { NightlyRatesSummary, QuoteBreakdown } from './pricing/QuoteBreakdown';
-import { GuestsPicker, matchOccupancy, splitGuests } from './pricing/GuestsPicker';
+import { GuestsPicker, isInfant, matchOccupancyByAges, splitGuests } from './pricing/GuestsPicker';
 import { CancelReservationDialog, NoShowDialog, ReservationClosedNote, hotelErrorText } from './ReservationLifecycle';
 import './hotels-design.css';
 import { DateInput } from '../../components/ui/DateInput';
@@ -404,7 +404,7 @@ export const HotelReservationsPage: React.FC = () => {
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.checkIn')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.checkIn}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.checkOut')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.checkOut}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.nights')}</div><div className="v" style={{ fontSize: 12.5 }}>{nights(selected.checkIn, selected.checkOut)}</div></div>
-                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.pax')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.pax}</div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.pax')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.pax}{(selected.childAges || []).some(isInfant) ? ` · ${t('crm.hotels.guestsPicker.babyCot', { count: (selected.childAges || []).filter(isInfant).length })}` : ''}</div></div>
               </div>
 
               {(selected.earlyCheckIn || selected.lateCheckOut) && (
@@ -841,7 +841,8 @@ export const ReservationModal: React.FC<{
   const guestSplit = splitGuests(adults, childAges, childMaxAge);
   // есть детская политика (контракта или отеля) — дети доплачиваются по ней, размещение подбирается по взрослым
   const childPolicy = effectiveContract?.childPolicy?.length ? effectiveContract.childPolicy : hotels.find((h) => h.id === hotelId)?.childPolicy || [];
-  const autoOccupancy = matchOccupancy(occupancyTypes, guestSplit.adults, guestSplit.children > 0 && childPolicy.length ? 0 : guestSplit.children);
+  const kidAges = childAges.filter((a) => a === null || a < childMaxAge);
+  const autoOccupancy = matchOccupancyByAges(occupancyTypes, guestSplit.adults, guestSplit.children > 0 && childPolicy.length ? [] : kidAges);
   const occupancyTypeId = occupancyOverride || autoOccupancy?.id || '';
   const occupancy = occupancyTypes.find((o) => o.id === occupancyTypeId) || null;
   // при редактировании: размещение брони не совпадает с составом — значит его выбрали вручную

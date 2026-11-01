@@ -250,6 +250,7 @@ const PlanTab: React.FC<{ hotelId: string; hotels: Hotel[]; lang: string }> = ({
                             {[
                               x.kind === 'departure' && x.nextArrival ? k('turnover') : '',
                               x.earlyCheckIn ? k('earlyArrival') : '',
+                              x.babyCots ? t('crm.hotels.guestsPicker.babyCot', { count: x.babyCots }) : '',
                               x.lateCheckOut ? k('lateDeparture') : '',
                               x.kind === 'departure' && x.departed === false ? k('notYetLeft') : '',
                             ].filter(Boolean).join(' · ')}
