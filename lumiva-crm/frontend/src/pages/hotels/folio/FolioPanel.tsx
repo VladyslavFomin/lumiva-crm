@@ -20,6 +20,9 @@ import {
   type HotelFolioKind,
 } from '../../../api/hotels';
 import { DateInput } from '../../../components/ui/DateInput';
+import { useTenantComponents } from '../../../hooks/useTenantComponents';
+import { EInvoiceModal } from './EInvoiceModal';
+import { EInvoiceDocs } from './EInvoiceDocs';
 
 const METHODS = ['cash', 'card', 'bank_transfer', 'other'];
 
@@ -39,6 +42,10 @@ export const FolioPanel: React.FC<{
   const [busy, setBusy] = useState(false);
   const [charge, setCharge] = useState({ extraServiceId: '', kind: 'extra', description: '', quantity: '1', unitPrice: '', folio: 'guest' as HotelFolioKind, serviceDate: '' });
   const [pay, setPay] = useState({ amount: '', method: 'card', note: '', folio: 'guest' as HotelFolioKind, refund: false });
+  const { isEnabled } = useTenantComponents();
+  const einvoiceOn = isEnabled('hotels_einvoice');
+  const [einvoiceFolio, setEinvoiceFolio] = useState<HotelFolioKind | null>(null);
+  const [docsKey, setDocsKey] = useState(0);
   const hasPartner = !!reservation.agencyId;
   const m = (n: number | string) => money(Number(n), currency, loc);
   const err = (e: unknown, fb: string) => showAlert(hotelErrorText(t, e, fb), { variant: 'error' });
@@ -189,7 +196,14 @@ export const FolioPanel: React.FC<{
           </button>
         ))}
         <button className="btn btn-sm" disabled={busy || !reservation.guestEmail} title={reservation.guestEmail ? undefined : t('crm.hotels.reservations.drawer.noEmailTitle')} onClick={email}>{k('email')}</button>
+        {einvoiceOn && folios.map((f) => (
+          <button key={`ei-${f}`} className="btn btn-sm" onClick={() => setEinvoiceFolio(f)}>
+            <Ic d={HTL_ICON.check} size={12} />{t('crm.hotels.einvoice.button', { folio: k(`folios.${f}`) })}
+          </button>
+        ))}
       </div>
+      {einvoiceOn && <EInvoiceDocs key={docsKey} reservationId={reservation.id} />}
+      {einvoiceFolio && <EInvoiceModal reservationId={reservation.id} folio={einvoiceFolio} onClose={() => setEinvoiceFolio(null)} onIssued={() => setDocsKey((x) => x + 1)} />}
     </div>
   );
 };

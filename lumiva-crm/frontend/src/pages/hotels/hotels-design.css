@@ -1290,3 +1290,46 @@
 .px-scope .pos-attach{margin-top:8px;padding:6px 10px;border:1px solid var(--line-2);border-radius:8px;font:inherit;font-size:12.5px}
 @media (max-width:900px){.px-scope .pos-till{grid-template-columns:1fr}.px-scope .pos-cart{position:static}}
 .px-scope .pos-guest .lnk{font-size:12px;margin-left:auto}
+
+/* e-Fatura / e-Arşiv: окно выставления по фолио (.ei-*), список документов, настройки интегратора */
+/* окно открывается поверх панели брони (z 61) — подложка и окно выше неё */
+.px-scope .bk-modal-back.ei-back{z-index:70}
+.px-scope .bk-modal.ei-dialog{width:min(1040px, calc(100vw - 32px));z-index:71}
+.px-scope .ei-sec{margin:16px 0 8px;font-family:var(--ff-mono-ui);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .ei-kind{margin-bottom:10px}
+.px-scope .ei-grid{display:grid;grid-template-columns:repeat(4, minmax(0,1fr));gap:10px 12px;margin-top:8px}
+.px-scope .bk-modal .ei-f{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0;font-size:inherit;color:inherit}
+.px-scope .bk-modal .ei-f.wide{grid-column:span 2}
+.px-scope .bk-modal .ei-f span{font-size:11.5px;color:var(--fg-2)}
+.px-scope .bk-modal .ei-f em{font-style:normal;font-size:10.5px;color:var(--fg-3)}
+.px-scope .bk-modal .ei-f input{height:36px;border:1px solid var(--line-2);border-radius:10px;padding:0 10px;font:inherit;font-size:13px;background:#fff;min-width:0}
+.px-scope .bk-modal .ei-abroad{align-self:end;height:36px;margin:0}
+.px-scope .ei-lines{border:1px solid var(--line-2);border-radius:12px;overflow:hidden}
+.px-scope .ei-ln{display:grid;grid-template-columns:minmax(0,1fr) 64px 104px 64px 64px 88px 112px;gap:6px;align-items:center;padding:6px 10px;border-top:1px solid var(--line-2)}
+.px-scope .ei-ln:first-child{border-top:0}
+.px-scope .ei-ln.head{background:var(--bg-muted);font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .ei-ln input{height:32px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px;min-width:0;background:#fff}
+.px-scope .ei-ln .num,.px-scope .ei-ln.head .num{text-align:right}
+.px-scope .ei-tot{display:flex;justify-content:flex-end;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12.5px}
+.px-scope .ei-tot div{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.px-scope .ei-tot span{font-size:10.5px;color:var(--fg-3)}
+.px-scope .ei-tot .g b{font-family:var(--ff-heading);font-size:18px}
+.px-scope .ei-warn{margin:8px 0;padding:8px 12px;border-radius:10px;background:#fbf3e6;color:#7a4b0c;font-size:12.5px;line-height:1.4}
+.px-scope .ei-docs{margin-top:10px}
+.px-scope .ei-st{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--bg-muted);color:var(--fg-2)}
+.px-scope .ei-st.s-issued{background:#e6f4ec;color:#175c3d}
+.px-scope .ei-st.s-error{background:#fbe9ec;color:#9a1f31}
+.px-scope .ei-st.s-sending{background:#eef0f6;color:#3b4766}
+.px-scope .ei-err{color:#9a1f31;max-width:360px;white-space:normal}
+.px-scope .ei-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.px-scope .ei-setup{grid-template-columns:repeat(3, minmax(0,1fr))}
+@media (max-width: 900px){
+  .px-scope .ei-grid,.px-scope .ei-setup{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .px-scope .ei-ln{grid-template-columns:repeat(3, minmax(0,1fr))}
+  .px-scope .ei-ln input:first-child{grid-column:1 / -1}
+  .px-scope .ei-ln.head{display:none}
+}
+@media (max-width: 560px){
+  .px-scope .ei-grid,.px-scope .ei-setup{grid-template-columns:minmax(0,1fr)}
+  .px-scope .bk-modal .ei-f.wide{grid-column:auto}
+}

@@ -89,6 +89,7 @@ export const COMPONENT_KEYS = [
   'hotels_precheckin',
   'hotels_cashier',
   'hotels_pos',
+  'hotels_einvoice',
   'hotels_guest_register',
   'hotels_rate_plans',
   'hotels_promotions',
@@ -199,6 +200,7 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   hotels_precheckin: 'standard',
   hotels_cashier: 'standard',
   hotels_pos: 'standard',
+  hotels_einvoice: 'standard',
   hotels_guest_register: 'standard',
   hotels_rate_plans: 'standard',
   hotels_promotions: 'standard',
@@ -335,6 +337,7 @@ export const COMPONENT_LEGACY_PARENT: Record<string, string> = {
   hotels_precheckin: 'hotels_frontdesk',
   hotels_cashier: 'hotels_frontdesk',
   hotels_pos: 'hotels_frontdesk',
+  hotels_einvoice: 'hotels_cashier',
   hotels_guest_register: 'hotels_frontdesk',
   hotels_rate_plans: 'hotels_pricing',
   hotels_promotions: 'hotels_pricing',
@@ -345,8 +348,10 @@ export const COMPONENT_LEGACY_PARENT: Record<string, string> = {
 /** Значение тумблера: явно заданное, иначе прежнего общего тумблера (если он задан), иначе включён */
 export function componentDefault(key: string, current: Record<string, boolean> | null | undefined): boolean {
   if (typeof current?.[key] === 'boolean') return current[key];
-  const parent = COMPONENT_LEGACY_PARENT[key];
-  if (parent && typeof current?.[parent] === 'boolean') return current[parent];
+  // цепочка: e-Fatura → касса → «Сегодня»
+  for (let parent = COMPONENT_LEGACY_PARENT[key], depth = 0; parent && depth < 5; parent = COMPONENT_LEGACY_PARENT[parent], depth++) {
+    if (typeof current?.[parent] === 'boolean') return current[parent];
+  }
   return true;
 }
 

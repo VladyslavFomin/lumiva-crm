@@ -27,10 +27,12 @@ import {
   type HotelExtraService,
   type HotelShiftPayment,
 } from '../../../api/hotels';
+import { useTenantComponents } from '../../../hooks/useTenantComponents';
+import { EInvoiceTab } from './EInvoiceTab';
 import '../hotels-design.css';
 
-type Tab = 'shift' | 'history' | 'extras' | 'fees';
-const TABS: Tab[] = ['shift', 'history', 'extras', 'fees'];
+type Tab = 'shift' | 'history' | 'extras' | 'fees' | 'einvoice';
+const TABS: Tab[] = ['shift', 'history', 'extras', 'fees', 'einvoice'];
 
 const useCk = () => {
   const { t, i18n } = useTranslation();
@@ -42,7 +44,9 @@ export const HotelCashierPage: React.FC = () => {
   const { k, t } = useCk();
   const [sp, setSp] = useSearchParams();
   const [hotels, setHotels] = useState<Hotel[]>([]);
-  const tab = (TABS.includes(sp.get('tab') as Tab) ? sp.get('tab') : 'shift') as Tab;
+  const { isEnabled } = useTenantComponents();
+  const tabs = TABS.filter((x) => x !== 'einvoice' || isEnabled('hotels_einvoice'));
+  const tab = (tabs.includes(sp.get('tab') as Tab) ? sp.get('tab') : 'shift') as Tab;
   const hotelId = sp.get('hotelId') || hotels[0]?.id || '';
   const hotel = hotels.find((h) => h.id === hotelId);
   const setParam = (patch: Record<string, string>) => setSp({ ...Object.fromEntries(sp.entries()), ...patch });
@@ -64,13 +68,14 @@ export const HotelCashierPage: React.FC = () => {
             {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
           </select>
           <div className="bk-savedviews" style={{ flex: 'none' }}>
-            {TABS.map((x) => <div key={x} className={`bk-sv-tab${tab === x ? ' active' : ''}`} onClick={() => setParam({ tab: x })}>{k(`tabs.${x}`)}</div>)}
+            {tabs.map((x) => <div key={x} className={`bk-sv-tab${tab === x ? ' active' : ''}`} onClick={() => setParam({ tab: x })}>{k(`tabs.${x}`)}</div>)}
           </div>
         </div>
         {!hotelId ? <div className="htl-empty"><h4>{t('crm.hotels.rack.noHotels')}</h4></div>
           : tab === 'shift' ? <ShiftTab hotelId={hotelId} currency={hotel?.currency} />
           : tab === 'history' ? <HistoryTab hotelId={hotelId} currency={hotel?.currency} />
           : tab === 'extras' ? <ExtrasTab hotelId={hotelId} currency={hotel?.currency} />
+          : tab === 'einvoice' ? <EInvoiceTab hotelId={hotelId} />
           : <FeesTab hotelId={hotelId} />}
       </div>
     </MainLayout>
@@ -201,6 +206,7 @@ const HistoryTab: React.FC<{ hotelId: string; currency?: string | null }> = ({ h
 
 const ExtrasTab: React.FC<{ hotelId: string; currency?: string | null }> = ({ hotelId, currency }) => {
   const { k, t } = useCk();
+  const vatOn = useTenantComponents().isEnabled('hotels_einvoice');
   const { showAlert, showConfirm } = useAlertModal();
   const [rows, setRows] = useState<HotelExtraService[] | null>(null);
   const [draft, setDraft] = useState({ name: '', category: 'fnb', price: '' });
@@ -228,13 +234,14 @@ const ExtrasTab: React.FC<{ hotelId: string; currency?: string | null }> = ({ ho
       {!rows ? <div className="htl-rack-skel">{[0, 1].map((i) => <div key={i} />)}</div> : !rows.length ? <div className="htl-empty"><h4>{k('noExtras')}</h4></div> : (
         <div className="bk-table-wrap">
           <table className="bk-table">
-            <thead><tr><th>{k('extraName')}</th><th>{k('category')}</th><th>{k('price', { currency: currency || '' })}</th><th>{k('active')}</th><th /></tr></thead>
+            <thead><tr><th>{k('extraName')}</th><th>{k('category')}</th><th>{k('price', { currency: currency || '' })}</th>{vatOn && <th>{t('crm.hotels.einvoice.extraVat')}</th>}<th>{k('active')}</th><th /></tr></thead>
             <tbody>
               {rows.map((x) => (
                 <tr key={x.id} className={x.active ? undefined : 'muted'}>
                   <td><input key={`n${x.id}${x.name}`} className="hk-cell wide" defaultValue={x.name} onBlur={(e) => e.target.value.trim() && e.target.value !== x.name && void save(x, { name: e.target.value })} /></td>
                   <td><select className="htl-fd-pick" value={x.category} onChange={(e) => void save(x, { category: e.target.value })}>{HOTEL_EXTRA_CATEGORIES.map((c) => <option key={c} value={c}>{k(`categories.${c}`)}</option>)}</select></td>
                   <td><input key={`p${x.id}${x.price}`} className="hk-cell" type="number" step="0.01" defaultValue={Number(x.price)} onBlur={(e) => Number(e.target.value) !== Number(x.price) && void save(x, { price: e.target.value })} /></td>
+                  {vatOn && <td><input key={`v${x.id}${x.vatPct ?? ''}`} className="hk-cell" type="number" min={0} max={100} step="1" placeholder={t('crm.hotels.einvoice.extraVatDefault')} defaultValue={x.vatPct === null || x.vatPct === undefined ? '' : Number(x.vatPct)} onBlur={(e) => { const v = e.target.value === '' ? null : e.target.value; if (String(v ?? '') !== String(x.vatPct === null || x.vatPct === undefined ? '' : Number(x.vatPct))) void save(x, { vatPct: v }); }} aria-label={t('crm.hotels.einvoice.extraVat')} /></td>}
                   <td><input type="checkbox" checked={x.active} onChange={(e) => void save(x, { active: e.target.checked })} aria-label={k('active')} /></td>
                   <td style={{ textAlign: 'right' }}><button className="btn btn-sm" onClick={() => void remove(x)} aria-label={t('crm.hotels.common.delete')}><Ic d={HTL_ICON.x} size={12} /></button></td>
                 </tr>

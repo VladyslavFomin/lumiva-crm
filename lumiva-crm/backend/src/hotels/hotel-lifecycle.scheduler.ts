@@ -4,6 +4,7 @@ import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelNightAuditService } from './hotel-night-audit.service';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelRevenueService } from './hotel-revenue.service';
+import { HotelEInvoiceService } from './hotel-einvoice.service';
 
 /** Жизненный цикл броней отеля: автоснятие просроченных опционов (PMS-024). */
 @Injectable()
@@ -17,9 +18,25 @@ export class HotelLifecycleScheduler {
     private readonly nightAudit: HotelNightAuditService,
     private readonly precheckin: HotelPrecheckinService,
     private readonly revenue: HotelRevenueService,
+    private readonly einvoice: HotelEInvoiceService,
   ) {}
 
   private revenueBusy = false;
+  private einvoiceBusy = false;
+
+  /** e-Fatura: документы в формировании у интегратора — опрос раз в минуту */
+  @Cron('* * * * *')
+  async einvoicePoll() {
+    if (this.einvoiceBusy) return;
+    this.einvoiceBusy = true;
+    try {
+      await this.einvoice.pollPending();
+    } catch (e) {
+      this.log.warn(`einvoice poll: ${(e as Error).message}`);
+    } finally {
+      this.einvoiceBusy = false;
+    }
+  }
 
   /** Рекомендации цены: автоприменение раз в сутки (ночью по UTC, до утренних продаж в Турции) */
   @Cron('20 1 * * *')

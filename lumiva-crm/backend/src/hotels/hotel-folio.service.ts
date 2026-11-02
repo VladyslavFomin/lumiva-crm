@@ -284,6 +284,11 @@ export class HotelFolioService {
       row.outletId = dto.outletId || null;
     }
     if (dto.aiIncluded !== undefined) row.aiIncluded = !!dto.aiIncluded;
+    if (dto.vatPct !== undefined) {
+      const v = dto.vatPct === null || dto.vatPct === '' ? null : Number(normalizeNumericInput(dto.vatPct));
+      if (v !== null && !(v >= 0 && v <= 100)) throw bad('HOTEL_EXTRA_VAT', 'Ставка KDV — от 0 до 100 %');
+      row.vatPct = v === null ? null : String(v);
+    }
     if (row.sellOnline && !(num(row.price) > 0)) throw bad('HOTEL_EXTRA_ONLINE_PRICE', 'Для продажи онлайн укажите цену услуги');
     return this.extras.save(row);
   }

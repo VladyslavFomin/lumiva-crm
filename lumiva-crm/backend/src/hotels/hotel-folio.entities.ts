@@ -54,6 +54,8 @@ export class HotelExtraService {
   /** позиция точки продаж (ресторан, бар…) и входит ли во «всё включено» */
   @Column({ type: 'uuid', nullable: true }) outletId: string | null;
   @Column({ type: 'boolean', default: false }) aiIncluded: boolean;
+  /** KDV услуги, % — для e-Fatura; null — ставка по умолчанию из настроек e-Fatura отеля */
+  @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true }) vatPct: string | null;
   @Column({ type: 'integer', default: 0 }) sortOrder: number;
   @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
   @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;

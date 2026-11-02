@@ -2327,7 +2327,7 @@ export const setFolioRouting = (id: string, accommodationFolio: HotelFolioKind) 
 export const addFolioPayment = (id: string, dto: { date?: string; amount: string; method: string; note?: string; folio?: HotelFolioKind; refund?: boolean }) =>
   api.post<HotelReservation>(`/hotels/reservations/${id}/payments`, dto);
 
-export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number; sellOnline?: boolean; description?: string | null; priceMode?: 'per_stay' | 'per_night' | 'per_person'; outletId?: string | null; aiIncluded?: boolean }
+export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number; sellOnline?: boolean; description?: string | null; priceMode?: 'per_stay' | 'per_night' | 'per_person'; outletId?: string | null; aiIncluded?: boolean; vatPct?: string | null }
 export interface HotelCashShift {
   id: string; hotelId: string; status: 'open' | 'closed'; openedBy: string | null; openedAt: string; openingCash: string;
   closedBy: string | null; closedAt: string | null; countedCash: string | null; expectedCash: string | null; difference: string | null; totals: Record<string, number> | null; note: string | null;
@@ -2535,3 +2535,45 @@ export const updateGuestRequest = (id: string, dto: { status?: HotelGuestRequest
   api.patch<HotelGuestRequest>(`/hotels/guest-care/${id}`, dto);
 export const fetchGuestQrLinks = (hotelId: string) => api.get<Array<{ roomUnitId: string; label: string; floor: string | null; token: string }>>(`/hotels/guest-care/qr/${hotelId}`);
 export const rotateGuestQr = (roomUnitId: string) => api.post<{ roomUnitId: string; token: string }>(`/hotels/guest-care/qr/rotate/${roomUnitId}`, {});
+
+// ─── e-Fatura / e-Arşiv (общий слой + адаптер интегратора, первый — Paraşüt) ───
+export type HotelEInvoiceStatus = 'sending' | 'issued' | 'error' | 'cancelled';
+export interface HotelEInvoiceSettings { invoiceSeries?: string | null; extrasVatPct?: number; accTaxMode?: 'line_tax' | 'separate_line' }
+export interface HotelEInvoiceConnection {
+  hotelId: string; connected: boolean; provider: 'parasut' | null; active: boolean; clientId?: string | null; username?: string | null; externalCompanyId?: string | null;
+  clientSecretMasked?: string | null; passwordSet?: boolean; settings: HotelEInvoiceSettings; lastCheckedAt?: string | null; lastError?: string | null;
+}
+export interface HotelEInvoiceRecipient { kind: 'person' | 'company'; name: string; taxNumber: string; taxOffice?: string | null; address?: string | null; city?: string | null; district?: string | null; country?: string | null; email?: string | null; phone?: string | null; abroad?: boolean }
+export interface HotelEInvoiceLine { kind: 'accommodation' | 'cancel_fee' | 'extra' | 'acc_tax'; description: string; quantity: number; unitPrice: number; vatPct: number; accTaxPct: number; discount: number; gross: number }
+export interface HotelEInvoiceTotals { net: number; accTax: number; vat: number; gross: number }
+export interface HotelEInvoiceDoc {
+  id: string; hotelId: string; reservationId: string; folio: HotelFolioKind; provider: string; status: HotelEInvoiceStatus; docType: 'e_archive' | 'e_invoice' | null;
+  issueDate: string; currency: string; exchangeRate: string | null; recipient: HotelEInvoiceRecipient; lines: HotelEInvoiceLine[]; totals: HotelEInvoiceTotals;
+  invoiceNo: string | null; error: string | null; issuedAt: string | null; cancelledAt: string | null; createdAt: string;
+}
+export interface HotelEInvoiceDraft {
+  reservationId: string; folio: HotelFolioKind; connected: boolean; provider: string | null; issueDate: string; currency: string; exchangeRate: number | null; exchangeRateDate: string | null;
+  recipient: HotelEInvoiceRecipient; lines: HotelEInvoiceLine[]; totals: HotelEInvoiceTotals; folioCharges: number; warnings: string[];
+  existing: Array<{ id: string; status: HotelEInvoiceStatus; invoiceNo: string | null; gross: number; createdAt: string }>;
+}
+const EI = '/hotels/einvoice';
+export const fetchEInvoiceConnection = (hotelId: string) => api.get<HotelEInvoiceConnection>(`${EI}/connection`, { params: { hotelId } });
+export const saveEInvoiceConnection = (dto: { hotelId: string; provider?: string; active?: boolean; clientId?: string; clientSecret?: string; username?: string; password?: string; externalCompanyId?: string; settings?: HotelEInvoiceSettings }) =>
+  api.patch<HotelEInvoiceConnection>(`${EI}/connection`, dto);
+export const testEInvoiceConnection = (hotelId: string) => api.post<{ ok: boolean }>(`${EI}/connection/test`, { hotelId });
+export const fetchEInvoiceDraft = (reservationId: string, folio: HotelFolioKind) => api.get<HotelEInvoiceDraft>(`${EI}/draft/${reservationId}`, { params: { folio } });
+export const issueEInvoice = (reservationId: string, dto: { folio: HotelFolioKind; recipient: HotelEInvoiceRecipient; lines: HotelEInvoiceLine[]; exchangeRate?: number | null; note?: string; allowAnother?: boolean }) =>
+  api.post<HotelEInvoiceDoc>(`${EI}/issue/${reservationId}`, dto);
+export const fetchEInvoices = (params: { hotelId?: string; reservationId?: string; status?: string }) => api.get<HotelEInvoiceDoc[]>(`${EI}/documents`, { params });
+export const refreshEInvoice = (id: string) => api.post<HotelEInvoiceDoc>(`${EI}/documents/${id}/refresh`, {});
+export const fetchEInvoicePdf = (id: string) => api.get<{ url: string }>(`${EI}/documents/${id}/pdf`);
+export const cancelEInvoice = (id: string) => api.post<HotelEInvoiceDoc>(`${EI}/documents/${id}/cancel`, {});
+
+/** Итоги строки так же, как на сервере и у интегратора: база − скидка → налог на проживание → KDV */
+export const eInvoiceLineTotals = (l: Pick<HotelEInvoiceLine, 'quantity' | 'unitPrice' | 'discount' | 'vatPct' | 'accTaxPct'>) => {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const net = r2(l.quantity * l.unitPrice - (l.discount || 0));
+  const acc = r2((net * (l.accTaxPct || 0)) / 100);
+  const vat = r2(((net + acc) * (l.vatPct || 0)) / 100);
+  return { net, acc, vat, gross: r2(net + acc + vat) };
+};
