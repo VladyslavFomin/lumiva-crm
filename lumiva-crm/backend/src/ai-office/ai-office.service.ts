@@ -1502,8 +1502,10 @@ ${[...products.map((p) => line('product', p)), ...services.map((p) => line('serv
   }
 
   async cancelPost(tenantId: string, id: string) {
-    const r: any[] = await this.depts.query(`UPDATE ai_office_posts SET status = 'cancelled' WHERE tenant_id = $1 AND id::text = $2 AND status = 'scheduled' RETURNING id`, [tenantId, id]);
-    if (!r.length) throw new BadRequestException('Post is not scheduled');
+    const r: any = await this.depts.query(`UPDATE ai_office_posts SET status = 'cancelled' WHERE tenant_id = $1 AND id::text = $2 AND status = 'scheduled' RETURNING id`, [tenantId, id]);
+    // UPDATE … RETURNING в TypeORM/pg приходит как [rows, affected] — длина ответа всегда 2
+    const rows = Array.isArray(r?.[0]) ? r[0] : r;
+    if (!rows?.length) throw new BadRequestException('Post is not scheduled');
     return { ok: true };
   }
 
