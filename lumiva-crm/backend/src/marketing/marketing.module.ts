@@ -12,11 +12,18 @@ import { YandexDirectApiService } from './yandex-direct/yandex-direct-api.servic
 import { VkAdsApiService } from './vk-ads/vk-ads-api.service';
 
 import { MarketingTraffic } from './marketing-traffic.entity';
+import { MarketingGa4Host } from './marketing-ga4-host.entity';
 import { MarketingUtmTemplate } from './marketing-utm-template.entity';
 import { MarketingUtmLink } from './marketing-utm-link.entity';
 import { MarketingOauthToken } from './marketing-oauth-token.entity';
 import { MetaAdsOauthService } from './meta-ads-oauth.service';
 import { IntegrationTokenExpiryScheduler } from './integration-token-expiry.scheduler';
+import { IntegrationOwnerNotifier } from './integration-owner-notifier.service';
+import { IntegrationHealthService } from './integration-health.service';
+import { Ga4RevenueAlertsScheduler } from './ga4-revenue-alerts.scheduler';
+import { IntegrationConnection } from '../integrations/integration-connection.entity';
+import { TelegramBot } from '../telegram-crm/telegram-bot.entity';
+import { InstagramAccount } from '../instagram-crm/instagram-account.entity';
 import { MailModule } from '../mail/mail.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SmmIntegration } from '../smm/smm-integration.entity';
@@ -44,6 +51,7 @@ import { LeadsModule } from '../leads/leads.module';
   imports: [
     TypeOrmModule.forFeature([
       MarketingTraffic,
+      MarketingGa4Host,
         MarketingAccountClient,
         ClientRevenueMonthly,
         MarketingUtmTemplate,
@@ -62,6 +70,9 @@ import { LeadsModule } from '../leads/leads.module';
         SeoPageSpeedMetric,
         SeoGscDaily,
         Lead,
+        IntegrationConnection,
+        TelegramBot,
+        InstagramAccount,
         ApiToken, // <- репозиторий для ApiTokenGuard
       ]),
     ApiTokensModule, // <- чтобы не ломать существующий /api-tokens/*
@@ -72,7 +83,7 @@ import { LeadsModule } from '../leads/leads.module';
     forwardRef(() => LeadsModule),
   ],
   controllers: [MarketingController],
-  providers: [MarketingService, MarketingRoiService, MetaAdsOauthService, IntegrationTokenExpiryScheduler, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
-  exports: [MarketingService, MarketingRoiService],
+  providers: [MarketingService, MarketingRoiService, MetaAdsOauthService, IntegrationTokenExpiryScheduler, IntegrationOwnerNotifier, IntegrationHealthService, Ga4RevenueAlertsScheduler, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
+  exports: [MarketingService, MarketingRoiService, IntegrationHealthService],
 })
 export class MarketingModule {}

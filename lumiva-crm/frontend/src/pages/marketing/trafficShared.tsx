@@ -60,10 +60,11 @@ export type Sums = {
   revenue: number;
   conversions: number;
   conversionValue: number;
+  cartValue: number;
 };
 
 export function sumRows(rows: TrafficItem[]): Sums & { ctr: number | null } {
-  const a: Sums = { impressions: 0, clicks: 0, sessions: 0, leads: 0, cost: 0, revenue: 0, conversions: 0, conversionValue: 0 };
+  const a: Sums = { impressions: 0, clicks: 0, sessions: 0, leads: 0, cost: 0, revenue: 0, conversions: 0, conversionValue: 0, cartValue: 0 };
   for (const r of rows) {
     a.impressions += r.impressions || 0;
     a.clicks += r.clicks || 0;
@@ -73,6 +74,7 @@ export function sumRows(rows: TrafficItem[]): Sums & { ctr: number | null } {
     a.revenue += r.revenue || 0;
     a.conversions += r.conversions || 0;
     a.conversionValue += r.conversionValue || 0;
+    a.cartValue += r.cartValue || 0;
   }
   /** Для GA4 «показы» = просмотры страниц (как клики) — отношение 1:1, не рекламный CTR. */
   const ctr = a.impressions > 0 && a.clicks !== a.impressions ? (a.clicks / a.impressions) * 100 : null;

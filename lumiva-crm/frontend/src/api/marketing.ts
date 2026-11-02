@@ -12,6 +12,8 @@ export type MarketingTrafficProviderBreakdown = {
   /** Конверсии / их ценность по данным рекламных площадок (Google Ads, Meta). */
   conversions?: number;
   conversionValue?: number;
+  /** Ценность корзин Google Ads — потенциальная выручка, в conversionValue не входит. */
+  cartValue?: number;
   currency: string;
 };
 
@@ -51,6 +53,7 @@ export type MarketingTrafficStats = {
     cost: number;
     conversions?: number;
     conversionValue?: number;
+    cartValue?: number;
     /** Валюта строки (если известна). */
     currency?: string;
   }>;
@@ -214,6 +217,7 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
         cost: num(o.cost),
         conversions: num(o.conversions),
         conversionValue: num(o.conversionValue ?? o.conversion_value),
+        cartValue: num(o.cartValue ?? o.cart_value),
         currency: rowCurrency,
       });
     }
@@ -240,6 +244,7 @@ export function normalizeMarketingTrafficStats(raw: unknown): MarketingTrafficSt
         cost: num(o.cost),
         conversions: num(o.conversions),
         conversionValue: num(o.conversionValue ?? o.conversion_value),
+        cartValue: num(o.cartValue ?? o.cart_value),
         currency: rowCurrency,
       };
     });
@@ -381,6 +386,32 @@ export async function fetchMarketingTrafficDaily(params: {
   return api.get<{ series: MarketingTrafficDailyPoint[] }>(
     `/marketing/traffic/daily${qs ? `?${qs}` : ''}`,
   );
+}
+
+export type Ga4HostAlert = {
+  type: 'revenue_stopped' | 'purchases_without_value' | 'no_revenue';
+  dataSource: string;
+  host: string | null;
+  lastRevenueDate?: string;
+  daysSince?: number;
+  sessionsSince?: number;
+  purchases?: number;
+  sessions?: number;
+};
+
+export type Ga4HostBreakdown = {
+  items: Array<{ dataSource: string; host: string; sessions: number; purchases: number; revenue: number; currency: string }>;
+  alerts: Ga4HostAlert[];
+  dataSourceLabels: Record<string, string>;
+};
+
+/** GET /marketing/traffic/ga4-hosts — GA4 по доменам (модули бронирования) + сигналы об обрыве выручки. */
+export async function fetchGa4HostBreakdown(params: { from?: string; to?: string }): Promise<Ga4HostBreakdown> {
+  const p = new URLSearchParams();
+  if (params.from) p.set('from', params.from);
+  if (params.to) p.set('to', params.to);
+  const qs = p.toString();
+  return api.get<Ga4HostBreakdown>(`/marketing/traffic/ga4-hosts${qs ? `?${qs}` : ''}`);
 }
 
 /** GET /marketing/traffic/by-country — агрегат по странам для карты / таблицы. */
@@ -557,9 +588,48 @@ export type MarketingIntegrationRow = {
   isActive: boolean;
   primaryId: string | null;
   settings: Record<string, unknown> | null;
+  /** Состояние последней синхронизации (cron, кнопка, ИИ) */
+  lastSyncAt?: string | null;
+  lastSyncStatus?: 'never' | 'ok' | 'error' | string;
+  lastError?: string | null;
+  lastSyncRows?: number | null;
+  failingSince?: string | null;
   createdAt: string;
   updatedAt: string;
 };
+
+export type IntegrationHealthStatus = 'ok' | 'error' | 'stale' | 'never' | 'expiring' | 'expired';
+
+export type IntegrationHealthItem = {
+  source: 'marketing' | 'connection' | 'telegram' | 'instagram';
+  id: string;
+  name: string;
+  provider: string;
+  status: IntegrationHealthStatus;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  since: string | null;
+  tokenExpiresAt: string | null;
+  link: string;
+};
+
+export async function fetchIntegrationHealth(): Promise<{ items: IntegrationHealthItem[]; problems: number }> {
+  const raw = await api.get<{ items?: IntegrationHealthItem[]; problems?: number }>('/marketing/integration-health');
+  const items = Array.isArray(raw?.items) ? raw.items : [];
+  return { items, problems: typeof raw?.problems === 'number' ? raw.problems : 0 };
+}
+
+/** Статус для бейджа по строке маркетинговой интеграции — та же логика, что IntegrationHealthService.marketingStatus. */
+export function marketingRowHealth(row: MarketingIntegrationRow, now = Date.now()): IntegrationHealthStatus {
+  const expRaw = row.settings?.tokenExpiresAt;
+  const exp = typeof expRaw === 'string' ? Date.parse(expRaw) : NaN;
+  if (Number.isFinite(exp) && exp <= now) return 'expired';
+  if (row.lastSyncStatus === 'error') return 'error';
+  if (!row.lastSyncAt) return 'never';
+  if (now - Date.parse(row.lastSyncAt) > 48 * 3600e3) return 'stale';
+  if (Number.isFinite(exp) && exp - now <= 7 * 864e5) return 'expiring';
+  return 'ok';
+}
 
 export async function fetchMarketingIntegrations(): Promise<
   MarketingIntegrationRow[]

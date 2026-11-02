@@ -26,6 +26,7 @@ import { LeadsService } from '../leads/leads.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 import { MarketingTraffic } from './marketing-traffic.entity';
+import { MarketingGa4Host } from './marketing-ga4-host.entity';
 import {
   buildMarketRegexPatterns,
   marketLabel,
@@ -245,6 +246,8 @@ export interface MarketingTrafficProviderBreakdown {
   cost: number;
   conversions?: number;
   conversionValue?: number;
+  /** Ценность корзин Google Ads — потенциальная выручка, в conversionValue не входит. */
+  cartValue?: number;
   /** Доминирующая валюта строк группы (по весу расхода+выручки). */
   currency: string;
 }
@@ -267,6 +270,7 @@ export interface MarketingTrafficChannelsStats {
   totalCost: number;
   totalConversions?: number;
   totalConversionValue?: number;
+  totalCartValue?: number;
   /** Число сырых строк в marketing_traffic за период (до агрегации по каналам). */
   totalRows: number;
   dataSources: string[];
@@ -290,6 +294,7 @@ export interface MarketingTrafficChannelsStats {
     cost: number;
     conversions?: number;
     conversionValue?: number;
+    cartValue?: number;
     /** Доминирующая валюта в агрегате (по весу расхода+выручки). */
   currency: string;
   }>;
@@ -312,6 +317,8 @@ export class MarketingService {
   constructor(
     @InjectRepository(MarketingTraffic)
     private readonly trafficRepo: Repository<MarketingTraffic>,
+    @InjectRepository(MarketingGa4Host)
+    private readonly ga4HostRepo: Repository<MarketingGa4Host>,
     @InjectRepository(MarketingUtmTemplate)
     private readonly utmRepo: Repository<MarketingUtmTemplate>,
     @InjectRepository(MarketingUtmLink)
@@ -806,6 +813,7 @@ export class MarketingService {
           .addSelect('COALESCE(SUM(t.cost), 0)', 'totalCost')
           .addSelect('COALESCE(SUM(t.conversions), 0)', 'totalConversions')
           .addSelect('COALESCE(SUM(t."conversionValue"), 0)', 'totalConversionValue')
+          .addSelect('COALESCE(SUM(t."cartValue"), 0)', 'totalCartValue')
           .getRawOne(),
         qb
           .clone()
@@ -828,6 +836,7 @@ export class MarketingService {
           .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
           .addSelect('COALESCE(SUM(t.conversions), 0)', 'conversions')
           .addSelect('COALESCE(SUM(t."conversionValue"), 0)', 'conversionValue')
+          .addSelect('COALESCE(SUM(t."cartValue"), 0)', 'cartValue')
           .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
           .groupBy(dsExpr)
           .addGroupBy('t.integrationId')
@@ -853,6 +862,7 @@ export class MarketingService {
           .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
           .addSelect('COALESCE(SUM(t.conversions), 0)', 'conversions')
           .addSelect('COALESCE(SUM(t."conversionValue"), 0)', 'conversionValue')
+          .addSelect('COALESCE(SUM(t."cartValue"), 0)', 'cartValue')
           .addSelect(CURRENCY_BY_MONEY_SQL, 'currency')
           .groupBy(dsExpr)
           .getRawMany(),
@@ -899,6 +909,7 @@ export class MarketingService {
         cost: num(r.cost as string),
         conversions: num(r.conversions as string),
         conversionValue: num(r.conversionValue as string),
+        cartValue: num(r.cartValue as string),
         currency: normTrafficCurrency(r.currency as string),
       };
     });
@@ -920,6 +931,7 @@ export class MarketingService {
           cost: num(r.cost as string),
           conversions: num(r.conversions as string),
           conversionValue: num(r.conversionValue as string),
+          cartValue: num(r.cartValue as string),
           currency: normTrafficCurrency(r.currency as string),
         };
       })
@@ -948,6 +960,7 @@ export class MarketingService {
       /** Конверсии и их ценность по данным рекламных площадок (Google Ads / Meta). */
       totalConversions: num(tr?.totalConversions as string),
       totalConversionValue: num(tr?.totalConversionValue as string),
+      totalCartValue: num(tr?.totalCartValue as string),
       totalRows,
       dataSources: [...dsSet].sort(),
       providerBreakdown,
@@ -1227,6 +1240,120 @@ export class MarketingService {
   /**
    * Агрегат по стране (ISO2 в поле country) за период и канал — для карты и таблицы в UI.
    */
+  /**
+   * GA4 по доменам: разбивка за период + сигналы об обрыве выручки (всегда по последним 90 дням,
+   * независимо от выбранного периода — обрыв важен «сейчас»).
+   */
+  async getGa4HostBreakdown(
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): Promise<{
+    items: Array<{ dataSource: string; host: string; sessions: number; purchases: number; revenue: number; currency: string }>;
+    alerts: Array<{
+      type: 'revenue_stopped' | 'purchases_without_value' | 'no_revenue';
+      dataSource: string;
+      host: string | null;
+      lastRevenueDate?: string;
+      daysSince?: number;
+      sessionsSince?: number;
+      purchases?: number;
+      sessions?: number;
+    }>;
+    dataSourceLabels: Record<string, string>;
+  }> {
+    const qb = this.ga4HostRepo
+      .createQueryBuilder('h')
+      .select('h.dataSource', 'dataSource')
+      .addSelect('h.host', 'host')
+      .addSelect('COALESCE(SUM(h.sessions), 0)', 'sessions')
+      .addSelect('COALESCE(SUM(h.purchases), 0)', 'purchases')
+      .addSelect('COALESCE(SUM(h.revenue), 0)', 'revenue')
+      .addSelect('MAX(h.currency)', 'currency')
+      .where('h.tenantId = :tenantId', { tenantId })
+      .groupBy('h.dataSource')
+      .addGroupBy('h.host')
+      .orderBy('COALESCE(SUM(h.sessions), 0)', 'DESC');
+    if (from) qb.andWhere('h.date >= :from', { from });
+    if (to) qb.andWhere('h.date <= :to', { to });
+    const num = (v: unknown) => Number(v) || 0;
+    const items = (await qb.getRawMany()).map((r: Record<string, unknown>) => ({
+      dataSource: String(r.dataSource),
+      host: String(r.host),
+      sessions: num(r.sessions),
+      purchases: num(r.purchases),
+      revenue: num(r.revenue),
+      currency: String(r.currency || 'EUR'),
+    }));
+
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - 90);
+    const daily = (await this.ga4HostRepo
+      .createQueryBuilder('h')
+      .select(['h.dataSource AS "dataSource"', 'h.host AS host', 'h.date AS date', 'h.sessions AS sessions', 'h.purchases AS purchases', 'h.revenue AS revenue'])
+      .where('h.tenantId = :tenantId', { tenantId })
+      .andWhere('h.date >= :since', { since: since.toISOString().slice(0, 10) })
+      .orderBy('h.date', 'ASC')
+      .getRawMany()) as Array<{ dataSource: string; host: string; date: string | Date; sessions: unknown; purchases: unknown; revenue: unknown }>;
+
+    const DAY = 86_400_000;
+    const iso = (d: string | Date) => (typeof d === 'string' ? d.slice(0, 10) : d.toISOString().slice(0, 10));
+    const byHost = new Map<string, Array<{ date: string; sessions: number; purchases: number; revenue: number }>>();
+    const lastDateByDs = new Map<string, string>();
+    for (const r of daily) {
+      const d = iso(r.date);
+      const k = `${r.dataSource}\t${r.host}`;
+      if (!byHost.has(k)) byHost.set(k, []);
+      byHost.get(k)!.push({ date: d, sessions: num(r.sessions), purchases: num(r.purchases), revenue: num(r.revenue) });
+      if ((lastDateByDs.get(r.dataSource) || '') < d) lastDateByDs.set(r.dataSource, d);
+    }
+
+    const alerts: Awaited<ReturnType<MarketingService['getGa4HostBreakdown']>>['alerts'] = [];
+    const dsTotals = new Map<string, { sessions: number; purchases: number; revenue: number }>();
+    for (const [k, days] of byHost) {
+      const [dataSource, host] = k.split('\t');
+      const t = dsTotals.get(dataSource) || { sessions: 0, purchases: 0, revenue: 0 };
+      for (const d of days) {
+        t.sessions += d.sessions;
+        t.purchases += d.purchases;
+        t.revenue += d.revenue;
+      }
+      dsTotals.set(dataSource, t);
+
+      const today = Date.parse(`${lastDateByDs.get(dataSource)}T00:00:00Z`);
+      const revDays = days.filter((d) => d.revenue > 0);
+      if (revDays.length >= 3) {
+        const first = Date.parse(`${revDays[0].date}T00:00:00Z`);
+        const last = Date.parse(`${revDays[revDays.length - 1].date}T00:00:00Z`);
+        const avgGap = (last - first) / DAY / (revDays.length - 1);
+        const threshold = Math.max(4, Math.ceil(avgGap * 3));
+        const daysSince = Math.round((today - last) / DAY);
+        const before = days.filter((d) => Date.parse(`${d.date}T00:00:00Z`) <= last);
+        const sessionsSince = days.filter((d) => Date.parse(`${d.date}T00:00:00Z`) > last).reduce((s, d) => s + d.sessions, 0);
+        // Сколько покупок ожидалось бы при обычной конверсии домена — иначе в низкий сезон
+        // несколько тихих дней на малом трафике выглядели бы как обрыв.
+        const sessBefore = before.reduce((s, d) => s + d.sessions, 0);
+        const buysBefore = before.reduce((s, d) => s + (d.purchases || (d.revenue > 0 ? 1 : 0)), 0);
+        const expected = sessBefore > 0 ? (sessionsSince * buysBefore) / sessBefore : 0;
+        if (daysSince >= threshold && sessionsSince >= 100 && expected >= 5) {
+          alerts.push({ type: 'revenue_stopped', dataSource, host, lastRevenueDate: revDays[revDays.length - 1].date, daysSince, sessionsSince });
+        }
+      }
+      const recent = days.filter((d) => Date.parse(`${d.date}T00:00:00Z`) > today - 14 * DAY);
+      const recentPurchases = recent.reduce((s, d) => s + d.purchases, 0);
+      if (recentPurchases >= 3 && recent.every((d) => d.revenue <= 0)) {
+        alerts.push({ type: 'purchases_without_value', dataSource, host, purchases: Math.round(recentPurchases) });
+      }
+    }
+    for (const [dataSource, t] of dsTotals) {
+      if (t.sessions >= 1000 && t.purchases <= 0 && t.revenue <= 0) {
+        alerts.push({ type: 'no_revenue', dataSource, host: null, sessions: t.sessions });
+      }
+    }
+
+    return { items, alerts, dataSourceLabels: await this.buildMarketingDataSourceLabels(tenantId) };
+  }
+
   async getTrafficByCountry(
     tenantId: string,
     from?: string,
@@ -2060,6 +2187,7 @@ export class MarketingService {
       row.primaryId = dto.primaryId?.trim() || null;
     }
 
+    const prevFlat = this.flattenNestedIntegrationSettings(this.parseSettingsObject(row.settings));
     const patchSettings =
       dto.settings !== undefined || dto.ga4ServiceAccountJson !== undefined;
     if (patchSettings) {
@@ -2077,7 +2205,37 @@ export class MarketingService {
       row.settings = Object.keys(base).length ? base : null;
     }
 
-    return this.integrationRepo.save(row);
+    const prevCurrency = String(prevFlat.currency || '').toUpperCase();
+    const saved = await this.integrationRepo.save(row);
+    const nextCurrency = String(
+      this.flattenNestedIntegrationSettings(this.parseSettingsObject(saved.settings)).currency || '',
+    )
+      .slice(0, 8)
+      .toUpperCase();
+    const prov = this.normalizeMarketingIntegrationProvider(saved.provider);
+    if (nextCurrency && nextCurrency !== prevCurrency && this.isMetaAdsProvider(prov)) {
+      // Валюта у строк Meta — только метка (суммы уже в валюте кабинета), поэтому меняем её у всех загруженных строк.
+      const peers = (await this.integrationRepo.find({ where: { tenantId } as any })).filter((r) =>
+        this.isMetaAdsProvider(this.normalizeMarketingIntegrationProvider(r.provider)),
+      ).length;
+      await this.relabelMetaTrafficCurrency(saved, nextCurrency, peers);
+    }
+    return saved;
+  }
+
+  /** Метка валюты у строк marketing_traffic Meta-кабинета; старые непомеченные строки — только если кабинет один. */
+  private async relabelMetaTrafficCurrency(row: MarketingIntegration, currency: string, metaPeers: number) {
+    const qb = this.trafficRepo
+      .createQueryBuilder()
+      .update(MarketingTraffic)
+      .set({ currency })
+      .where('tenantId = :tenantId', { tenantId: row.tenantId })
+      .andWhere('dataSource = :ds', { ds: 'meta_ads' })
+      .andWhere('currency <> :currency', { currency });
+    if (metaPeers > 1) qb.andWhere('integrationId = :id', { id: row.id });
+    else qb.andWhere('(integrationId = :id OR integrationId IS NULL)', { id: row.id });
+    const res = await qb.execute();
+    if (res.affected) this.log.log(`Meta Ads: валюта ${currency} у ${res.affected} строк (${row.id})`);
   }
 
   async deleteMarketingIntegration(tenantId: string, id: string) {
@@ -2732,15 +2890,90 @@ export class MarketingService {
       headers,
       qc,
     );
-    if (campaignRows.length) return { results: campaignRows, level: 'campaign' };
+    if (campaignRows.length) {
+      await this.attachGoogleAdsValueSplit(customerIdDigits, headers, from, to, 'campaign', campaignRows, logHint);
+      return { results: campaignRows, level: 'campaign' };
+    }
     const qu = this.googleAdsGaqlCustomerDailyStats(from, to);
     const customerRows = await this.googleAdsSearchAllPages(customerIdDigits, headers, qu);
     if (customerRows.length) {
       this.log.log(
         `${logHint}: customer ${customerIdDigits} — отчёт campaign пуст за ${from}…${to}, берём сводку customer (${customerRows.length} строк GAQL).`,
       );
+      await this.attachGoogleAdsValueSplit(customerIdDigits, headers, from, to, 'customer', customerRows, logHint);
     }
     return { results: customerRows, level: 'customer' };
+  }
+
+  /**
+   * conversions_value у Google Ads — сумма по ВСЕМ основным действиям: туда попадают и корзины
+   * (AddToCart с ценой номера), и клики/звонки со значением 1. Выручкой считаем только категории
+   * покупки, корзины/начатые бронирования — отдельно как потенциальную. Основные действия берём,
+   * если по ним есть ценность; иначе — все (покупка может быть заведена второстепенной, напр.
+   * импорт purchase из GA4, чтобы не менять ставки). Результат кладётся в row._valueSplit.
+   */
+  private async attachGoogleAdsValueSplit(
+    customerIdDigits: string,
+    headers: Record<string, string>,
+    from: string,
+    to: string,
+    level: 'campaign' | 'customer',
+    rows: any[],
+    logHint: string,
+  ): Promise<void> {
+    const purchaseCats = new Set(['PURCHASE', 'STORE_SALE']);
+    const cartCats = new Set(['ADD_TO_CART', 'BEGIN_CHECKOUT']);
+    let split: any[];
+    try {
+      split = await this.googleAdsSearchAllPages(
+        customerIdDigits,
+        headers,
+        level === 'campaign'
+          ? `SELECT campaign.id, segments.date, segments.conversion_action_category, metrics.conversions_value, metrics.all_conversions_value
+             FROM campaign
+             WHERE segments.date BETWEEN '${from}' AND '${to}' AND campaign.status IN (ENABLED, PAUSED, REMOVED)`
+          : `SELECT segments.date, segments.conversion_action_category, metrics.conversions_value, metrics.all_conversions_value
+             FROM customer
+             WHERE segments.date BETWEEN '${from}' AND '${to}'`,
+      );
+    } catch (e: unknown) {
+      // Без разбивки строки остаются как раньше (вся ценность основных действий).
+      this.log.warn(`${logHint}: разбивка ценности по категориям для ${customerIdDigits} не получена: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+    type Acc = { pPrimary: number; pAll: number; cPrimary: number; cAll: number };
+    const byKey = new Map<string, Acc>();
+    const tot = { pPrimary: 0, cPrimary: 0 };
+    const keyOf = (r: any) => {
+      const date = String(r?.segments?.date || '').slice(0, 10);
+      return level === 'campaign' ? `${String(r?.campaign?.id ?? '')}|${date}` : date;
+    };
+    for (const r of split) {
+      const cat = String(r?.segments?.conversionActionCategory || '').toUpperCase();
+      const isP = purchaseCats.has(cat);
+      if (!isP && !cartCats.has(cat)) continue;
+      const v = Number(r?.metrics?.conversionsValue) || 0;
+      const va = Number(r?.metrics?.allConversionsValue) || 0;
+      const k = keyOf(r);
+      const a = byKey.get(k) || { pPrimary: 0, pAll: 0, cPrimary: 0, cAll: 0 };
+      if (isP) {
+        a.pPrimary += v;
+        a.pAll += va;
+        tot.pPrimary += v;
+      } else {
+        a.cPrimary += v;
+        a.cAll += va;
+        tot.cPrimary += v;
+      }
+      byKey.set(k, a);
+    }
+    for (const r of rows) {
+      const a = byKey.get(keyOf(r));
+      r._valueSplit = {
+        purchase: a ? (tot.pPrimary > 0 ? a.pPrimary : a.pAll) : 0,
+        cart: a ? (tot.cPrimary > 0 ? a.cPrimary : a.cAll) : 0,
+      };
+    }
   }
 
   /** Из resourceName вида \"customers/1234567890\" — только цифры. */
@@ -2936,7 +3169,8 @@ export class MarketingService {
           currency: cur,
           impressions: picked.impressions,
           conversions: String(Math.round(picked.conversions * 100) / 100),
-          conversionValue: String(Math.round(picked.conversionsValue * 100) / 100),
+          conversionValue: String(Math.round((r?._valueSplit ? r._valueSplit.purchase : picked.conversionsValue) * 100) / 100),
+          cartValue: String(Math.round((r?._valueSplit?.cart || 0) * 100) / 100),
           allConversions: String(Math.round(Math.max(picked.allConversions, picked.conversions) * 100) / 100),
         }),
       );
@@ -3426,7 +3660,7 @@ export class MarketingService {
    *   синк обходит активные клиентские **не‑менеджерские** аккаунты и пишет источники `google_ads_<CID>`.
    */
   /** @returns число сохранённых строк marketing_traffic (0 если пропуск или нет данных). */
-  async syncGoogleAdsIntegration(row: MarketingIntegration): Promise<number> {
+  private async syncGoogleAdsIntegrationRaw(row: MarketingIntegration): Promise<number> {
     if (row.provider !== 'google_ads' || !row.isActive) return 0;
 
     const s = this.flattenNestedIntegrationSettings(
@@ -3434,10 +3668,9 @@ export class MarketingService {
     );
     const creds = this.pickGoogleAdsCredentialParts(s, row.primaryId);
     if (creds.missingHints.length) {
-      this.log.warn(
-        `Google Ads sync skipped for integration ${row.id}: ${creds.missingHints.join(' | ')}`,
+      throw new BadRequestException(
+        `Google Ads: не хватает данных подключения — ${creds.missingHints.join(' | ')}`,
       );
-      return 0;
     }
     const { refreshToken, customerIdRaw: primaryDigits, developerToken } = creds;
     let loginCustomerRaw = String(
@@ -3533,10 +3766,9 @@ export class MarketingService {
       }
 
       if (!clients.length) {
-        this.log.warn(
-          `Google Ads MCC sync (${row.id}): нет активных клиентских рекламных аккаунтов. Проверьте что Primary ID — Customer ID именно менеджерского счёта (MCC).`,
+        throw new BadRequestException(
+          'Google Ads: в менеджерском счёте (MCC) нет активных клиентских аккаунтов. Проверьте, что Primary ID — Customer ID именно менеджерского счёта.',
         );
-        return 0;
       }
 
       let totalRows = 0;
@@ -3685,6 +3917,74 @@ export class MarketingService {
       `Google Ads ${GOOGLE_ADS_API_VERSION}: saved ${trafficRows.length} rows (${tag}) tenant ${row.tenantId}`,
     );
     return trafficRows.length;
+  }
+
+  // --- Синхронизация с учётом состояния подключения ---
+  // Все входы (cron, кнопка «Синхр.», ИИ-инструменты, Meta OAuth) идут через эти обёртки,
+  // поэтому lastSyncAt / lastSyncStatus / lastError у интеграции всегда отражают последний запуск.
+
+  async syncGoogleAdsIntegration(row: MarketingIntegration): Promise<number> {
+    return this.trackSync(row, () => this.syncGoogleAdsIntegrationRaw(row));
+  }
+
+  async syncYandexMetrikaIntegration(row: MarketingIntegration): Promise<number> {
+    return this.trackSync(row, () => this.syncYandexMetrikaIntegrationRaw(row));
+  }
+
+  async syncGa4Integration(row: MarketingIntegration): Promise<number> {
+    return this.trackSync(row, () => this.syncGa4IntegrationRaw(row));
+  }
+
+  async syncMetaAdsIntegration(row: MarketingIntegration): Promise<number> {
+    return this.trackSync(row, () => this.syncMetaAdsIntegrationRaw(row));
+  }
+
+  async syncYandexDirectIntegration(row: MarketingIntegration): Promise<number> {
+    return this.trackSync(row, () => this.syncYandexDirectIntegrationRaw(row));
+  }
+
+  async syncVkAdsIntegration(row: MarketingIntegration): Promise<number> {
+    return this.trackSync(row, () => this.syncVkAdsIntegrationRaw(row));
+  }
+
+  private async trackSync(row: MarketingIntegration, run: () => Promise<number>): Promise<number> {
+    // выключенная интеграция не синхронизируется — состояние не трогаем
+    if (!row.isActive) return 0;
+    const startedAt = new Date();
+    try {
+      const n = await run();
+      await this.integrationRepo.update(
+        { id: row.id },
+        {
+          lastSyncAt: startedAt,
+          lastSyncStatus: 'ok',
+          lastError: null,
+          lastSyncRows: n,
+          failingSince: null,
+          healthNotifiedAt: null,
+        },
+      );
+      return n;
+    } catch (e: unknown) {
+      const msg = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
+      await this.integrationRepo
+        .createQueryBuilder()
+        .update(MarketingIntegration)
+        .set({
+          lastSyncAt: startedAt,
+          lastSyncStatus: 'error',
+          lastError: msg,
+          lastSyncRows: null,
+          failingSince: () => `COALESCE("failingSince", :startedAt)`,
+        })
+        .setParameter('startedAt', startedAt)
+        .where('id = :id', { id: row.id })
+        .execute()
+        .catch((err: unknown) =>
+          this.log.error(`trackSync: не удалось записать ошибку ${row.id}: ${err instanceof Error ? err.message : err}`),
+        );
+      throw e;
+    }
   }
 
   async syncAllActiveGoogleAds(): Promise<void> {
@@ -3841,7 +4141,7 @@ export class MarketingService {
    * GET stat/v1/data — визиты и просмотры по дням.
    * Настройки: counterId (или primaryId), oauthToken (OAuth-токен пользователя с доступом к счётчику).
    */
-  async syncYandexMetrikaIntegration(row: MarketingIntegration): Promise<number> {
+  private async syncYandexMetrikaIntegrationRaw(row: MarketingIntegration): Promise<number> {
     const s = this.flattenNestedIntegrationSettings(
       this.parseSettingsObject(row.settings),
     );
@@ -4061,7 +4361,7 @@ export class MarketingService {
    * GA4 Data API runReport — сессии и просмотры по дням с разбивкой по источнику / medium / кампании сессии.
    * dataSource: ga4_{propertyId}, чтобы несколько ресурсов GA4 не перетирали друг друга при синке.
    */
-  async syncGa4Integration(row: MarketingIntegration): Promise<number> {
+  private async syncGa4IntegrationRaw(row: MarketingIntegration): Promise<number> {
     const { access, propertyId, currency } = await this.resolveGa4ReportingAccess(row);
     const dataSourceTag = `ga4_${propertyId}`.slice(0, 80);
     const end = new Date();
@@ -4240,6 +4540,7 @@ export class MarketingService {
         // persistGa4PropertyDisplayName ниже пишет настройки из row.settings — без этого флаг потерялся бы.
         row.settings = nextSettings as any;
       }
+      await this.syncGa4HostsSafe(row, access, apiUrl, dataSourceTag, reportCurrency, date2, needsRevenueBackfill ? date1 : null);
       const displayName = await this.fetchGa4PropertyDisplayNameWithBearer(
         access,
         propertyId,
@@ -4274,6 +4575,107 @@ export class MarketingService {
         );
       }
       throw err;
+    }
+  }
+
+  /**
+   * GA4 по доменам (hostName) за день → marketing_ga4_hosts. Отдельный лёгкий отчёт: модуль бронирования
+   * обычно на своём домене, и по нему видно, чья выручка и когда она пропала. Первая синхронизация
+   * догружает 120 дней (для сигнала об обрыве нужна история), дальше — то же окно, что и основной отчёт.
+   * Ошибка здесь не роняет основную синхронизацию.
+   */
+  private async syncGa4HostsSafe(
+    row: MarketingIntegration,
+    access: string,
+    apiUrl: string,
+    dataSourceTag: string,
+    currency: string,
+    date2: string,
+    mainFrom: string | null,
+  ): Promise<void> {
+    try {
+      const settings = this.parseSettingsObject(row.settings);
+      const firstRun = !settings.ga4HostsBackfilledAt;
+      const start = new Date(`${date2}T00:00:00Z`);
+      start.setUTCDate(start.getUTCDate() - (firstRun ? 120 : 30));
+      let from = start.toISOString().slice(0, 10);
+      if (mainFrom && mainFrom < from) from = mainFrom;
+
+      type GaRow = { dimensionValues?: Array<{ value?: string }>; metricValues?: Array<{ value?: string }> };
+      const rows: GaRow[] = [];
+      const pageLimit = 25_000;
+      for (let offset = 0, guard = 0; guard < 20; guard += 1, offset += pageLimit) {
+        const res = await axios.post(
+          apiUrl,
+          {
+            dateRanges: [{ startDate: from, endDate: date2 }],
+            dimensions: [{ name: 'date' }, { name: 'hostName' }],
+            metrics: [{ name: 'sessions' }, { name: 'ecommercePurchases' }, { name: 'purchaseRevenue' }],
+            limit: pageLimit,
+            offset,
+          },
+          { headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' } },
+        );
+        const batch = res.data?.rows as GaRow[] | undefined;
+        if (!Array.isArray(batch) || !batch.length) break;
+        rows.push(...batch);
+        if (batch.length < pageLimit) break;
+      }
+
+      const merged = new Map<string, MarketingGa4Host>();
+      for (const r of rows) {
+        const date = this.ga4DimensionDateToIso(String(r.dimensionValues?.[0]?.value ?? ''));
+        if (!date) continue;
+        const host = (String(r.dimensionValues?.[1]?.value ?? '').trim().toLowerCase() || '(not set)').slice(0, 255);
+        const sessions = Number(r.metricValues?.[0]?.value ?? 0) || 0;
+        const purchases = Number(r.metricValues?.[1]?.value ?? 0) || 0;
+        const revenue = Number(r.metricValues?.[2]?.value ?? 0) || 0;
+        if (!sessions && !purchases && !revenue) continue;
+        const key = `${date}\t${host}`;
+        const prev = merged.get(key);
+        if (prev) {
+          prev.sessions += sessions;
+          prev.purchases = String(Number(prev.purchases) + purchases);
+          prev.revenue = String(Math.round((Number(prev.revenue) + revenue) * 100) / 100);
+          continue;
+        }
+        merged.set(
+          key,
+          this.ga4HostRepo.create({
+            tenantId: row.tenantId,
+            dataSource: dataSourceTag,
+            date,
+            host,
+            sessions,
+            purchases: String(purchases),
+            revenue: String(Math.round(revenue * 100) / 100),
+            currency,
+          }),
+        );
+      }
+
+      await this.ga4HostRepo.manager.transaction(async (em) => {
+        await em
+          .createQueryBuilder()
+          .delete()
+          .from(MarketingGa4Host)
+          .where('tenantId = :tenantId', { tenantId: row.tenantId })
+          .andWhere('dataSource = :ds', { ds: dataSourceTag })
+          .andWhere('date BETWEEN :from AND :to', { from, to: date2 })
+          .execute();
+        const list = [...merged.values()];
+        for (let i = 0; i < list.length; i += 1000) await em.save(MarketingGa4Host, list.slice(i, i + 1000));
+      });
+
+      if (firstRun) {
+        const next = { ...this.parseSettingsObject(row.settings), ga4HostsBackfilledAt: new Date().toISOString() };
+        await this.integrationRepo.update({ id: row.id }, { settings: next as any });
+        row.settings = next as any;
+      }
+      this.log.log(`GA4: домены — ${merged.size} строк за ${from}..${date2}, ${dataSourceTag}`);
+    } catch (e: unknown) {
+      const msg = axios.isAxiosError(e) ? JSON.stringify(e.response?.data || e.message).slice(0, 300) : e instanceof Error ? e.message : String(e);
+      this.log.warn(`GA4: отчёт по доменам для ${dataSourceTag} не получен: ${msg}`);
     }
   }
 
@@ -4335,7 +4737,7 @@ export class MarketingService {
    * Meta / Facebook Marketing API — дневные insights по рекламному аккаунту.
    * Нужны: access token с правами ads_read и ID счёта (только цифры или act_…).
    */
-  async syncMetaAdsIntegration(row: MarketingIntegration): Promise<number> {
+  private async syncMetaAdsIntegrationRaw(row: MarketingIntegration): Promise<number> {
     const { accessToken: token, actPath } =
       await this.getMetaAdsGraphCredentialsForWorkspace(row.tenantId, row.id);
     const s = this.flattenNestedIntegrationSettings(
@@ -4382,19 +4784,19 @@ export class MarketingService {
     try {
       let nextUrl: string | null = null;
       let useParams = true;
-      while (useParams || nextUrl) {
-        // Обрыв связи без HTTP-ответа (ECONNRESET, тайм-аут) у Graph API случается — повторяем до 3 раз.
-        const getWithRetry = async <T,>(url: string, cfg: Parameters<typeof axios.get>[1]) => {
-          for (let attempt = 1; ; attempt++) {
-            try {
-              return await axios.get<T>(url, { timeout: 120_000, ...cfg });
-            } catch (e: unknown) {
-              const noResponse = axios.isAxiosError(e) && !e.response;
-              if (!noResponse || attempt >= 3) throw e;
-              await new Promise((r) => setTimeout(r, 2000 * attempt));
-            }
+      // Обрыв связи без HTTP-ответа (ECONNRESET, тайм-аут) у Graph API случается — повторяем до 3 раз.
+      const getWithRetry = async <T,>(url: string, cfg: Parameters<typeof axios.get>[1]) => {
+        for (let attempt = 1; ; attempt++) {
+          try {
+            return await axios.get<T>(url, { timeout: 120_000, ...cfg });
+          } catch (e: unknown) {
+            const noResponse = axios.isAxiosError(e) && !e.response;
+            if (!noResponse || attempt >= 3) throw e;
+            await new Promise((r) => setTimeout(r, 2000 * attempt));
           }
-        };
+        }
+      };
+      while (useParams || nextUrl) {
         const res = await getWithRetry<any>(useParams ? baseUrl : (nextUrl as string), {
           params: useParams
             ? {
@@ -4480,6 +4882,19 @@ export class MarketingService {
         return 0;
       }
 
+      // spend в insights всегда в валюте самого кабинета — берём её из Meta, а не из ручной настройки
+      // (иначе лиры с меткой EUR завышали расход в ~50 раз).
+      let currency = String(s.currency || 'USD').slice(0, 8).toUpperCase() || 'USD';
+      try {
+        const acc = await getWithRetry<{ currency?: string }>(`https://graph.facebook.com/${graphVer}/${actPath}`, {
+          params: { fields: 'currency', access_token: token },
+        });
+        const c = String(acc.data?.currency || '').trim().toUpperCase();
+        if (/^[A-Z]{3}$/.test(c)) currency = c;
+      } catch {
+        /* нет ответа — остаётся валюта из настроек */
+      }
+
       const trafficRows: MarketingTraffic[] = [];
       for (const [key, m] of agg) {
         const dateStr = key.split('\0')[0];
@@ -4502,7 +4917,7 @@ export class MarketingService {
             projects: 0,
             cost: String(m.spend),
             revenue: '0',
-            currency: String(s.currency || 'USD').slice(0, 8) || 'USD',
+            currency,
             impressions: m.impressions,
             conversions: String(Math.round(m.conversions * 100) / 100),
             allConversions: String(Math.round(m.conversions * 100) / 100),
@@ -4543,12 +4958,15 @@ export class MarketingService {
         await del.execute();
       }
       await this.saveMarketingTrafficChunked(trafficRows);
+      // Строки вне окна синхронизации остались со старой меткой валюты — выравниваем по кабинету.
+      await this.relabelMetaTrafficCurrency(row, currency, metaIntegrations.length);
       const rawSettings = this.parseSettingsObject(row.settings);
       await this.integrationRepo.update(
         { id: row.id },
         {
           settings: {
             ...rawSettings,
+            currency,
             syncedCampaigns: ownCampaigns.slice(0, 500),
             // Типы действий из кабинета (с количеством) — для выбора «что считать конверсией».
             metaAvailableActions: Object.fromEntries(
@@ -4606,14 +5024,13 @@ export class MarketingService {
     }
   }
 
-  async syncYandexDirectIntegration(row: MarketingIntegration): Promise<number> {
+  private async syncYandexDirectIntegrationRaw(row: MarketingIntegration): Promise<number> {
     const s = this.flattenNestedIntegrationSettings(
       this.parseSettingsObject(row.settings),
     );
     const rawToken = String(s.oauthToken || s.token || '').trim();
     if (!rawToken) {
-      this.log.warn(`Yandex Direct sync skipped for integration ${row.id}: no oauthToken`);
-      return 0;
+      throw new BadRequestException('Яндекс Директ: нет OAuth-токена — переподключите аккаунт');
     }
     const token = this.normalizeMetrikaOAuthToken(rawToken);
     const clientLogin = String(s.clientLogin || s.client_login || '').trim() || undefined;
@@ -4670,15 +5087,14 @@ export class MarketingService {
     return trafficRows.length;
   }
 
-  async syncVkAdsIntegration(row: MarketingIntegration): Promise<number> {
+  private async syncVkAdsIntegrationRaw(row: MarketingIntegration): Promise<number> {
     const s = this.flattenNestedIntegrationSettings(
       this.parseSettingsObject(row.settings),
     );
     const clientId = String(s.clientId || s.client_id || '').trim();
     const clientSecret = String(s.clientSecret || s.client_secret || '').trim();
     if (!clientId || !clientSecret) {
-      this.log.warn(`VK Ads sync skipped for integration ${row.id}: no clientId/clientSecret`);
-      return 0;
+      throw new BadRequestException('VK Реклама: не указаны clientId и clientSecret');
     }
 
     const { from, to, lookbackDays } = this.resolveAdvertisingSyncInclusiveUtcRange(s);

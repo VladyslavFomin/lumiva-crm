@@ -7,7 +7,8 @@ import React, { startTransition, useCallback, useEffect, useMemo, useRef, useSta
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
-import { fetchMarketingTraffic, type MarketingTrafficStats } from '../../api/marketing';
+import { fetchGa4HostBreakdown, fetchMarketingTraffic, type Ga4HostBreakdown, type MarketingTrafficStats } from '../../api/marketing';
+import { Ga4HostAlerts, Ga4HostsCard } from './TrafficGa4Hosts';
 import { getLocale } from '../../i18n/utils';
 import { marketingDataSourceLabel, marketingProviderFamilyLabel } from '../../utils/marketingDataSourceLabel';
 import { cl, Ic } from '../contacts/CrmListShared';
@@ -165,6 +166,8 @@ type Channel = {
   cost: Money;
   /** Выручка CRM, у рекламных площадок — ценность конверсий. */
   rev: Money;
+  /** Ценность корзин Google Ads — потенциальная выручка. */
+  cart: Money;
 };
 
 /* ── раскрытая строка канала ── */
@@ -367,6 +370,21 @@ export const TrafficPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- без t, чтобы не ловить лишние перезапросы
   }, [range.from, range.to, dataSource, reloadKey]);
 
+  /** GA4 по доменам и сигналы об обрыве выручки — отдельный лёгкий запрос, ошибка не мешает странице. */
+  const [hosts, setHosts] = useState<Ga4HostBreakdown | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchGa4HostBreakdown({ from: range.from, to: range.to })
+      .then((res) => alive && setHosts(res))
+      .catch((e: unknown) => {
+        console.error(e);
+        if (alive) setHosts(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [range.from, range.to, reloadKey]);
+
   const items = useMemo(() => stats?.items ?? [], [stats]);
   const labels = stats?.dataSourceLabels;
   const integrationLabels = stats?.integrationLabels;
@@ -416,6 +434,7 @@ export const TrafficPage: React.FC = () => {
         const cur = dominantCurrency(rows);
         const costS = sumMoney(ctx, rows, (x) => x.cost);
         const revS = sumMoney(ctx, rows, (x) => (ads ? x.conversionValue || 0 : x.revenue));
+        const cartS = sumMoney(ctx, rows, (x) => (ads ? x.cartValue || 0 : 0));
         return {
           ds,
           rows,
@@ -428,6 +447,7 @@ export const TrafficPage: React.FC = () => {
           leads: ads ? agg.conversions : agg.leads,
           cost: { v: costS.v, c: costS.c ?? cur, miss: costS.miss || costS.c == null },
           rev: { v: revS.v, c: revS.c ?? cur, miss: revS.miss || revS.c == null },
+          cart: { v: cartS.v, c: cartS.c ?? cur, miss: cartS.miss || cartS.c == null },
         };
       });
   }, [items, accByDs, ctx, accountLabel]);
@@ -581,6 +601,7 @@ export const TrafficPage: React.FC = () => {
             </div>
           ) : stats ? (
             <div className={cl('tr-body', loading && 'is-loading')}>
+              {hosts && <Ga4HostAlerts alerts={hosts.alerts} dsLabel={dsLabel} fmt={fmt} />}
               <div data-tour="traffic-kpis" className="sm-kpis tr-kpis">
                 <div className="sm-kpi">
                   <span className="l">{t('crm.trafficPage.col.impressions')}</span>
@@ -693,7 +714,7 @@ export const TrafficPage: React.FC = () => {
                           const isOpen = open === c.ds;
                           const cplV = c.leads > 0 && c.cost.v > 0 ? c.cost.v / c.leads : null;
                           const roasV = c.cost.v > 0 && c.rev.v > 0 && c.cost.c === c.rev.c ? c.rev.v / c.cost.v : null;
-                          const placeholder = c.ads && a.conversions > 0 && a.conversionValue > 0 && a.conversionValue / a.conversions < 10;
+                          const placeholder = c.ads && !c.ds.startsWith('google_ads') && a.conversions > 0 && a.conversionValue > 0 && a.conversionValue / a.conversions < 10;
                           const sv = shareVal(c);
                           const toggle = () => setOpen(isOpen ? null : c.ds);
                           return (
@@ -774,7 +795,22 @@ export const TrafficPage: React.FC = () => {
                                       )}
                                     </>
                                   ) : (
-                                    <Dash />
+                                    <>
+                                      <Dash />
+                                      {c.ds === 'meta_ads' && c.cost.v > 0 && (
+                                        <span className="tr-cart-q" tabIndex={0} title={t('crm.trafficPage.metaRevenueHint')} aria-label={t('crm.trafficPage.metaRevenueHint')}>
+                                          ?
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                  {c.cart.v > 0 && (
+                                    <div className="tr-cart">
+                                      {t('crm.trafficPage.cart')} <MoneyBig m={c.cart} />
+                                      <span className="tr-cart-q" tabIndex={0} title={t('crm.trafficPage.cartHint')} aria-label={t('crm.trafficPage.cartHint')}>
+                                        ?
+                                      </span>
+                                    </div>
                                   )}
                                 </td>
                                 <td className="r">{roasV ? <b className={roasV >= 1 ? 'pos' : 'neg'}>{roasV.toFixed(2)}</b> : <Dash />}</td>
@@ -832,10 +868,12 @@ export const TrafficPage: React.FC = () => {
                   </div>
                 )}
                 <div className="tr-foot">
-                  {t('crm.trafficPage.footAds')}
+                  {t('crm.trafficPage.footAds')} {t('crm.trafficPage.footRevenueSource')}
                   {anyMiss && <> {t('crm.marketingCurrency.missingRateFootnote')}</>}
                 </div>
               </div>
+
+              {hosts && <Ga4HostsCard data={hosts} ctx={ctx} dsLabel={dsLabel} fmt={fmt} periodName={periodName} />}
 
               <div className="sm-card">
                 <div className="sm-card-head">

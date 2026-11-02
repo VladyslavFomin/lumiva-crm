@@ -23,6 +23,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.interface';
 
 import { MarketingService } from './marketing.service';
+import { IntegrationHealthService } from './integration-health.service';
 import { MetaAdsOauthService } from './meta-ads-oauth.service';
 import { MarketingRoiService, type RoiRevenueSource } from './marketing-roi.service';
 import { MetaAdsConnectDto, MetaAdsOAuthStartDto } from './dto/meta-ads-oauth.dto';
@@ -41,6 +42,7 @@ export class MarketingController {
     private readonly marketing: MarketingService,
     private readonly metaAdsOauth: MetaAdsOauthService,
     private readonly roi: MarketingRoiService,
+    private readonly health: IntegrationHealthService,
   ) {}
 
   /** Кабинеты, синхронизация которых идёт прямо сейчас (защита от параллельного запуска). */
@@ -185,6 +187,17 @@ export class MarketingController {
       integrationId?.trim() || undefined,
       { q, country },
     );
+  }
+
+  /** GA4 по доменам (модули бронирования) за период + сигналы «выручка пропала / покупки без суммы». */
+  @Get('traffic/ga4-hosts')
+  @UseGuards(JwtAuthGuard)
+  async getGa4Hosts(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.marketing.getGa4HostBreakdown(this.requireTenant(user), from?.trim() || undefined, to?.trim() || undefined);
   }
 
   @Get('traffic/by-country')
@@ -545,6 +558,13 @@ export class MarketingController {
     } catch {
       return fail();
     }
+  }
+
+  /** Состояние всех подключений тенанта (маркетинг + подключения хаба + Telegram-боты). */
+  @Get('integration-health')
+  @UseGuards(JwtAuthGuard)
+  integrationHealth(@CurrentUser() user: CurrentUserPayload) {
+    return this.health.getTenantHealth(this.requireTenant(user));
   }
 
   @Get('integrations')

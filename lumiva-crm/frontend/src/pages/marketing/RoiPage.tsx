@@ -868,6 +868,14 @@ export const RoiPage: React.FC = () => {
                 {SOURCE_LABEL[k]}
               </button>
             ))}
+            <span className="roi-q" tabIndex={0} title={t('crm.marketingRoi.sourceAdviceHint')} aria-label={t('crm.marketingRoi.sourceAdviceHint')}>
+              ?
+            </span>
+            {src.ads && src.ga4 && (
+              <span className="roi-dup" title={t('crm.marketingRoi.sourceAdviceHint')}>
+                {t('crm.marketingRoi.sourceDupWarn')}
+              </span>
+            )}
           </div>
           <div style={{ flex: 1 }} />
           <div className="roi-acts">

@@ -75,6 +75,11 @@ export class MarketingTraffic {
   @Column({ type: 'numeric', precision: 16, scale: 2, default: 0 })
   conversionValue: string;
 
+  /** Ценность корзин / начатых бронирований (Google Ads ADD_TO_CART, BEGIN_CHECKOUT) — потенциальная
+   * выручка: гость выбрал номер, но покупка не подтверждена. В conversionValue не входит. */
+  @Column({ type: 'numeric', precision: 16, scale: 2, default: 0 })
+  cartValue: string;
+
   /** Все конверсии площадки, включая вторичные (Google Ads all_conversions); для Meta = conversions. */
   @Column({ name: 'allConversions', type: 'numeric', precision: 14, scale: 2, default: 0 })
   allConversions: string;

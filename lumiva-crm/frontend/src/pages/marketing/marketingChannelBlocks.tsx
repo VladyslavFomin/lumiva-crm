@@ -403,7 +403,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
                     style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: '#1f8a5e', marginTop: 6, letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}
                   >
                     {fmtMoney(revenueRaw, provCur)}
-                    {ads && agg.conversions > 0 && agg.conversionValue > 0 && agg.conversionValue / agg.conversions < 10 ? (
+                    {ads && !ds.startsWith('google_ads') && agg.conversions > 0 && agg.conversionValue > 0 && agg.conversionValue / agg.conversions < 10 ? (
                       <div
                         style={{ fontFamily: 'inherit', fontSize: 10.5, fontWeight: 400, color: '#888', marginTop: 4, letterSpacing: 0 }}
                         title={t('crm.marketingChannelBlocks.placeholderValueHint', {

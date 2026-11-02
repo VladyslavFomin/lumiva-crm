@@ -35,6 +35,28 @@ export class MarketingIntegration {
   @Column({ type: 'jsonb', nullable: true })
   settings: any | null;
 
+  // Состояние синхронизации — пишет MarketingService.trackSync при любом запуске (cron, кнопка, ИИ)
+  @Column({ type: 'timestamptz', nullable: true })
+  lastSyncAt: Date | null;
+
+  // never / ok / error
+  @Column({ type: 'varchar', length: 16, default: 'never' })
+  lastSyncStatus: string;
+
+  @Column({ type: 'text', nullable: true })
+  lastError: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  lastSyncRows: number | null;
+
+  // Начало текущей серии ошибок
+  @Column({ type: 'timestamptz', nullable: true })
+  failingSince: Date | null;
+
+  // Владельцу уже сообщили о текущей серии ошибок
+  @Column({ type: 'timestamptz', nullable: true })
+  healthNotifiedAt: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
