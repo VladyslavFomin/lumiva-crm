@@ -43,6 +43,8 @@ export class MediaFile {
   /** Относительно uploads/ — `media/<tenantId>/<id>.<ext>`. Каталог закрыт от express.static (main.ts). */
   @Column({ type: 'varchar', length: 512 }) storagePath: string;
   @Column({ type: 'varchar', length: 512, nullable: true }) thumbPath: string | null;
+  /** PDF перепакован для браузера (media-pdf.util): null — ещё нет, false — оставлен как есть (подпись, шифр, ошибка) */
+  @Column({ type: 'boolean', nullable: true }) pdfOptimized: boolean | null;
   @Column({ type: 'integer', default: 0 }) downloads: number;
   @Column({ type: 'timestamptz', nullable: true }) lastDownloadAt: Date | null;
   @Column({ type: 'varchar', length: 255, nullable: true }) lastDownloadBy: string | null;

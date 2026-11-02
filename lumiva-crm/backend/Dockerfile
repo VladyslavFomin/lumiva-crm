@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-RUN apk add --no-cache font-dejavu
+RUN apk add --no-cache font-dejavu qpdf
 
 WORKDIR /app
 

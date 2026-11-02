@@ -40,6 +40,7 @@ import {
   mediaFormTitleDefault,
 } from './media.constants';
 import { previewSig, signPayload, type DownloadTicket } from './media-token.util';
+import { optimizePdfForWeb } from './media-pdf.util';
 
 export interface LinkInput {
   name?: string;
@@ -579,6 +580,10 @@ export class MediaService {
     file.storagePath = `media/${tenantId}/${file.id}${cls.ext ? '.' + cls.ext : ''}`;
     const finalAbs = joinUploadsAbsolute(file.storagePath);
     await rename(abs, finalAbs);
+    if (cls.kind === 'pdf' && Number(up.sizeBytes) <= 300 * 1024 * 1024) {
+      // sizeBytes оставляем исходным: по имени+размеру повторная загрузка папки не плодит дубли
+      file.pdfOptimized = (await optimizePdfForWeb(finalAbs, 120_000).catch(() => null)) !== null;
+    }
     if (thumb?.length && thumb.length < 2 * 1024 * 1024 && thumb[0] === 0xff && thumb[1] === 0xd8) {
       file.thumbPath = `media/${tenantId}/${file.id}.thumb.jpg`;
       await writeFile(joinUploadsAbsolute(file.thumbPath), thumb);
@@ -604,6 +609,26 @@ export class MediaService {
   }
 
   /** Брошенные загрузки (закрыли вкладку) — чистим через сутки. */
+  /** PDF, загруженные до перепаковки (или крупнее порога при загрузке): по нескольку за раз, по одному */
+  private pdfJob = false;
+  @Cron('*/10 * * * *')
+  async optimizeOldPdfs() {
+    if (this.pdfJob) return;
+    this.pdfJob = true;
+    try {
+      const rows = await this.files.find({ where: { kind: 'pdf', pdfOptimized: IsNull() }, order: { createdAt: 'DESC' }, take: 5 });
+      for (const f of rows) {
+        const abs = joinUploadsAbsolute(f.storagePath);
+        const before = await stat(abs).catch(() => null);
+        if (!before) { await this.files.update({ id: f.id }, { pdfOptimized: false }); continue; }
+        const size = await optimizePdfForWeb(abs).catch((e) => { this.logger.warn(`pdf optimize ${f.id}: ${e?.message || e}`); return null; });
+        await this.files.update({ id: f.id }, { pdfOptimized: size !== null });
+      }
+    } finally {
+      this.pdfJob = false;
+    }
+  }
+
   @Cron('17 * * * *')
   async purgeStaleUploads() {
     const old = await this.uploads.find({ where: { createdAt: LessThan(new Date(Date.now() - 24 * 3600 * 1000)) } });

@@ -53,6 +53,7 @@ export const PdfFlipbook: React.FC<{ src: string; name: string; labels: PdfFlipb
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const [doc, setDoc] = useState<PdfDoc | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loadedMb, setLoadedMb] = useState(0);
   const [ratio, setRatio] = useState(1.414);
   const [pages, setPages] = useState(0);
   const [mode, setMode] = useState<Mode>(savedMode);
@@ -77,7 +78,8 @@ export const PdfFlipbook: React.FC<{ src: string; name: string; labels: PdfFlipb
     let loaded: PdfDoc | null = null;
     setDoc(null);
     setFailed(false);
-    openPdf(src)
+    setLoadedMb(0);
+    openPdf(src, (b) => alive && setLoadedMb(b / 1048576))
       .then(async (d) => {
         loaded = d;
         if (!alive) { void d.destroy(); return; }
@@ -415,7 +417,7 @@ export const PdfFlipbook: React.FC<{ src: string; name: string; labels: PdfFlipb
         {failed ? (
           <div className="pfb-msg"><b>{labels.error}</b><span>{name}</span>{onDownload && <button type="button" className="pfb-btn" onClick={onDownload}>{labels.download}</button>}</div>
         ) : !doc ? (
-          <div className="pfb-msg"><i className="pfb-spin" /><span>{labels.loading}</span></div>
+          <div className="pfb-msg"><i className="pfb-spin" /><span>{labels.loading}</span>{loadedMb >= 0.1 && <span className="mono pfb-mb">{loadedMb.toFixed(1)} MB</span>}</div>
         ) : mode === 'book' ? (
           <>
             {/* тень под книгой и обрез (стопка страниц слева/справа) — за книгой, по видимой части */}

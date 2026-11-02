@@ -7,9 +7,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 export type PdfDoc = PDFDocumentProxy;
 
-/** Документ по ссылке: страницы подгружаются частями (Range), весь файл сразу не качается */
-export function openPdf(url: string): Promise<PdfDoc> {
-  return pdfjsLib.getDocument({ url, disableAutoFetch: true, rangeChunkSize: 1 << 20, isEvalSupported: false }).promise;
+/**
+ * Документ по ссылке: страницы подгружаются частями (Range), весь файл сразу не качается.
+ * Куски по 128 КБ: у пересохранённых PDF служебные таблицы разбросаны по файлу, и с крупными кусками до первой
+ * страницы приходилось качать ~половину файла. disableStream — без фоновой полной загрузки, она отнимала канал.
+ */
+export function openPdf(url: string, onProgress?: (loadedBytes: number) => void): Promise<PdfDoc> {
+  const task = pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true, rangeChunkSize: 128 * 1024, isEvalSupported: false });
+  if (onProgress) task.onProgress = ({ loaded }: { loaded: number }) => onProgress(loaded);
+  return task.promise;
 }
 
 /** Страница → JPEG (blob URL) шириной targetWidth CSS-пикселей с учётом плотности экрана (не больше 2×) */

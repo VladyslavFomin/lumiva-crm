@@ -91,6 +91,7 @@
 .pfb-th span{position:absolute;left:3px;bottom:3px;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff;font:10px var(--ff-mono-ui,ui-monospace,monospace)}
 
 .pfb-msg{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--pfb-tx2);font-size:14px;text-align:center}
+.pfb-mb{color:var(--pfb-tx3)}
 .pfb-msg b{color:var(--pfb-tx);font-weight:600}
 .pfb-btn{height:36px;padding:0 16px;border:0;border-radius:999px;background:#fff;color:#111 !important;font-size:13px}
 .pfb-spin{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,127,127,.25);border-top-color:rgba(127,127,127,.8);animation:pfbSpin .8s linear infinite}
