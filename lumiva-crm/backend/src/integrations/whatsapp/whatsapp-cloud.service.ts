@@ -3,6 +3,8 @@ import axios from 'axios';
 
 // v25: отправка по BSUID (поле `recipient`) — для клиентов, скрывших номер за username
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v25.0';
+/** WHATSAPP_GRAPH_HOST — только для тестового стенда (имитация Graph API) */
+const GRAPH_HOST = () => (process.env.WHATSAPP_GRAPH_HOST || 'https://graph.facebook.com').replace(/\/+$/, '');
 
 /** Ошибка Graph API с кодом Meta: по нему отличаем «токен недействителен» от «закрыто окно 24 ч». */
 export class WhatsappApiError extends Error {
@@ -68,7 +70,7 @@ export class WhatsappCloudService {
       throw new Error('WhatsApp: не указан access token');
     }
 
-    const url = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId.trim()}/messages`;
+    const url = `${GRAPH_HOST()}/${GRAPH_VERSION}/${phoneNumberId.trim()}/messages`;
 
     const res = await axios.post(
       url,
@@ -95,6 +97,43 @@ export class WhatsappCloudService {
 
     const messageId = data?.messages?.[0]?.id;
     return { messageId };
+  }
+
+  /**
+   * Сообщение по утверждённому шаблону Meta (template) — им можно написать первым, вне 24-часового окна.
+   * Параметры тела шаблона — {{1}}, {{2}}… по порядку.
+   */
+  async sendTemplateMessage(params: {
+    phoneNumberId: string;
+    accessToken: string;
+    to: string;
+    name: string;
+    language: string;
+    bodyParams: string[];
+  }): Promise<{ messageId?: string }> {
+    const { phoneNumberId, accessToken, to, name, language, bodyParams } = params;
+    const addressee = this.addressee(to);
+    if (!addressee) throw new Error('WhatsApp: укажите номер получателя (to) в формате E.164 без + или с +');
+    if (!phoneNumberId?.trim()) throw new Error('WhatsApp: не указан Phone number ID');
+    if (!accessToken?.trim()) throw new Error('WhatsApp: не указан access token');
+    if (!/^[a-z0-9_]{1,512}$/.test(name)) throw new Error('WhatsApp: имя шаблона — латиница в нижнем регистре, цифры и _');
+    const res = await axios.post(
+      `${GRAPH_HOST()}/${GRAPH_VERSION}/${phoneNumberId.trim()}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        ...addressee,
+        type: 'template',
+        template: {
+          name,
+          language: { code: language || 'en' },
+          ...(bodyParams.length ? { components: [{ type: 'body', parameters: bodyParams.map((text) => ({ type: 'text', text: text.slice(0, 1024) })) }] } : {}),
+        },
+      },
+      { headers: { Authorization: `Bearer ${accessToken.trim()}`, 'Content-Type': 'application/json' }, timeout: 20000, validateStatus: () => true },
+    );
+    const data = res.data as { error?: { message?: string }; messages?: { id?: string }[] };
+    if (res.status < 200 || res.status >= 300 || data?.error) throw apiError(res.status, data);
+    return { messageId: data?.messages?.[0]?.id };
   }
 
   /** GET phone-number-id — проверка токена без отправки сообщения; возвращает номер и его статус */

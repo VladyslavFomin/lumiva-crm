@@ -23,6 +23,8 @@ import {
   type HotelExtraService,
   type HotelPrecheckinRow,
   type HotelUpsellRequest,
+  installJourneyPresets,
+  type HotelPrecheckinAuto,
 } from '../../../api/hotels';
 import '../hotels-design.css';
 
@@ -94,7 +96,7 @@ export const HotelPrecheckinPage: React.FC = () => {
           <div className="htl-kpi"><div className="l">{k('kpi.arrivals')}</div><div className="v">{items.length}</div><div className="d">{data ? `${fmtDate(data.from, loc)} – ${fmtDate(data.to, loc)}` : ''}</div></div>
           <div className="htl-kpi"><div className="l">{k('kpi.done')}</div><div className="v">{items.length ? `${Math.round((done / items.length) * 100)}%` : '—'}</div><div className="d">{k('kpi.doneOf', { done, total: items.length })}</div></div>
           <div className="htl-kpi"><div className="l">{k('kpi.requests')}</div><div className="v">{tab === 'requests' && reqStatus === 'requested' ? pending.length : items.reduce((s, x) => s + x.upsells.requested, 0)}</div></div>
-          <div className="htl-kpi"><div className="l">{k('kpi.auto')}</div><div className="v">{data?.autoDays ? k('daysBefore', { count: data.autoDays }) : k('off')}</div></div>
+          <div className="htl-kpi"><div className="l">{k('kpi.auto')}</div><div className="v">{data?.auto?.active ? k('daysBefore', { count: data.auto.offsetDays }) : k('off')}</div></div>
         </div>
 
         <div className="htl-toolbar">
@@ -168,38 +170,50 @@ export const HotelPrecheckinPage: React.FC = () => {
           </div>
         ))}
 
-        {tab === 'settings' && hotelId && <PrecheckinSettings hotelId={hotelId} currency={cur} autoDays={data?.autoDays ?? null} upgrades={data?.upgrades ?? true} onSaved={load} />}
+        {tab === 'settings' && hotelId && <PrecheckinSettings hotelId={hotelId} currency={cur} auto={data?.auto ?? null} upgrades={data?.upgrades ?? true} onSaved={load} />}
       </div>
     </MainLayout>
   );
 };
 
 /** Автоотправка, апгрейды, какие услуги продавать онлайн и как считать их цену */
-const PrecheckinSettings: React.FC<{ hotelId: string; currency: string; autoDays: number | null; upgrades: boolean; onSaved: () => void }> = ({ hotelId, currency, autoDays, upgrades, onSaved }) => {
-  const { t } = useTranslation();
+const PrecheckinSettings: React.FC<{ hotelId: string; currency: string; auto: HotelPrecheckinAuto | null; upgrades: boolean; onSaved: () => void }> = ({ hotelId, currency, auto, upgrades, onSaved }) => {
+  const { t, i18n } = useTranslation();
   const k = (key: string, o?: Record<string, unknown>) => t(`crm.hotels.precheckin.${key}`, o);
   const loc = useLoc();
+  const navigate = useNavigate();
   const { showAlert } = useAlertModal();
-  const [days, setDays] = useState(autoDays ? String(autoDays) : '');
   const [up, setUp] = useState(upgrades);
   const [extras, setExtras] = useState<HotelExtraService[]>([]);
-  useEffect(() => { setDays(autoDays ? String(autoDays) : ''); setUp(upgrades); }, [autoDays, upgrades]);
+  useEffect(() => { setUp(upgrades); }, [upgrades]);
   const loadExtras = () => fetchExtras(hotelId).then(setExtras).catch(() => setExtras([]));
   useEffect(() => { void loadExtras(); }, [hotelId]); // eslint-disable-line react-hooks/exhaustive-deps
   const err = (e: unknown) => showAlert(hotelErrorText(t, e, k('error')), { variant: 'error' });
   const patchExtra = (x: HotelExtraService, dto: Partial<HotelExtraService>) => updateExtra(x.id, dto).then(() => loadExtras()).catch(err);
+  const lang = i18n.language?.startsWith('tr') ? 'tr' : i18n.language?.startsWith('en') ? 'en' : 'ru';
+  // автоотправка ссылки — автоматизация «путь гостя»; нет её — ставим готовый сценарий и открываем на проверку
+  const openAuto = () => {
+    if (auto) { navigate(`/app/automations/${auto.automationId}`); return; }
+    installJourneyPresets(lang, ['pre_arrival']).then((r) => { onSaved(); if (r.created[0]) navigate(`/app/automations/${r.created[0].id}`); }).catch(err);
+  };
   return (
     <div className="htl-cols">
       <div className="htl-col-main">
         <div className="htl-panel">
           <h3 className="htl-h3">{k('setLink')}</h3>
-          <div className="htl-form" style={{ gridTemplateColumns: 'repeat(2, minmax(0,1fr))' }}>
-            <div className="htl-f"><label>{k('autoDays')}</label><input type="number" min={1} max={30} value={days} placeholder={k('off')} onChange={(e) => setDays(e.target.value)} /></div>
-            <div className="htl-hint" style={{ alignSelf: 'end' }}>{k('autoHint')}</div>
+          <div className="pc-auto">
+            <div>
+              <b>{auto ? auto.name : k('autoNone')}</b>
+              <span className="htl-sub">{auto ? (auto.active ? k('autoOn', { count: auto.offsetDays, time: auto.sendTime }) : k('autoOff')) : k('autoNoneHint')}</span>
+            </div>
+            <button type="button" className="btn btn-sm" onClick={openAuto}>{auto ? k('autoOpen') : k('autoCreate')}</button>
+          </div>
+          <div className="htl-hint">{k('autoMovedHint')}</div>
+          <div className="htl-form" style={{ gridTemplateColumns: 'repeat(2, minmax(0,1fr))', marginTop: 12 }}>
             <label className="rtp-check"><input type="checkbox" checked={up} onChange={(e) => setUp(e.target.checked)} />{k('upgrades')}</label>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => savePrecheckinSettings(hotelId, { precheckinAutoDays: days.trim() ? Number(days) : null, precheckinUpgrades: up }).then(() => { showAlert(k('saved'), { variant: 'success' }); onSaved(); }).catch(err)}>{k('save')}</button>
+            <button className="btn btn-primary btn-sm" onClick={() => savePrecheckinSettings(hotelId, { precheckinUpgrades: up }).then(() => { showAlert(k('saved'), { variant: 'success' }); onSaved(); }).catch(err)}>{k('save')}</button>
           </div>
         </div>
         <div className="htl-panel">

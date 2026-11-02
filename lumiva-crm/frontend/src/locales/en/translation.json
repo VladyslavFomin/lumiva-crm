@@ -11043,7 +11043,8 @@
           "automations": "Automations",
           "history": "Run history",
           "integrations": "Integrations",
-          "usage": "Usage"
+          "usage": "Usage",
+          "guests": "Hotel guests"
         },
         "page": {
           "kicker": "Automations · active: {{count}}",
@@ -11185,7 +11186,8 @@
             "products": "Products",
             "aiOffice": "AI departments",
             "helpdesk": "Support",
-            "reviews": "Reviews"
+            "reviews": "Reviews",
+            "hotelGuest": "Guest journey (hotels)"
           },
           "triggerDesc": {
             "scheduled": "CRON or interval",
@@ -11480,7 +11482,39 @@
           "tokenHoursWithoutReply": "Hours without reply",
           "tokenOldRating": "Old rating",
           "tokenNewRating": "New rating",
-          "tokenReplyText": "Reply text"
+          "tokenReplyText": "Reply text",
+          "langMain": "Default",
+          "langMainHint": "The default text is sent when there is no variant for the guest’s language.",
+          "langVariantHint": "Variant for guests with language {{lang}} (taken from the booking country). Empty fields fall back to the default text.",
+          "defaultMailbox": "Default CRM mailbox",
+          "defaultMailboxHint": "The email goes from the mailbox chosen for CRM emails (Email → settings).",
+          "waTemplateSection": "Meta template (message first)",
+          "waTemplateHint": "WhatsApp only delivers an approved template to a guest who has not messaged you in the last 24 hours. Enter the template name from WhatsApp Manager to send it instead of text.",
+          "waTemplateName": "Template name",
+          "waTemplateLang": "Template language",
+          "waTemplateLangAuto": "guest’s language",
+          "waTemplateParams": "Template parameters — one line per parameter, in order",
+          "waTemplateParamsHint": "Each line is the value of the next template parameter. An empty token becomes “—”.",
+          "tokenGuestFirstName": "First name",
+          "tokenGuestEmail": "Guest email",
+          "tokenGuestPhone": "Guest phone",
+          "tokenNights": "Nights",
+          "tokenRoomNumber": "Room number",
+          "tokenBoard": "Board",
+          "tokenBookingCode": "Booking code",
+          "tokenCheckinTime": "Check-in time",
+          "tokenBalance": "Balance due",
+          "tokenDepositLeft": "Unpaid deposit",
+          "tokenDepositDue": "Deposit due date",
+          "tokenCurrency": "Currency",
+          "tokenPrecheckinLink": "Link: online check-in",
+          "tokenPayLink": "Link: payment",
+          "tokenGuestCareLink": "Link: room requests",
+          "tokenSurveyLink": "Link: guest survey",
+          "tokenPaymentAmount": "Payment amount",
+          "tokenScore": "Score (1–5)",
+          "tokenScoreStars": "Score as stars",
+          "tokenComment": "Guest comment"
         },
         "triggerGroups": {
           "contacts": "Contacts",
@@ -11552,7 +11586,15 @@
           "REVIEW_RATING_LOWERED": "Guest lowered the rating",
           "REVIEW_REPLIED": "Review replied",
           "REVIEW_TOPIC_SPIKE": "Repeating complaint",
-          "REVIEW_RATING_DROP": "Hotel average dropped"
+          "REVIEW_RATING_DROP": "Hotel average dropped",
+          "HOTEL_GUEST_BEFORE_ARRIVAL": "Guest: N days before arrival",
+          "HOTEL_GUEST_ARRIVAL_DAY": "Guest: arrival day",
+          "HOTEL_GUEST_IN_STAY": "Guest: day N of stay",
+          "HOTEL_GUEST_AFTER_DEPARTURE": "Guest: N days after departure",
+          "HOTEL_DEPOSIT_DUE": "Guest: deposit due in N days",
+          "HOTEL_PAYMENT_RECEIVED": "Online booking payment received",
+          "HOTEL_GUEST_FEEDBACK": "Guest answered the survey",
+          "HOTEL_GUEST_FEEDBACK_NEGATIVE": "Unhappy guest (score 3 or lower)"
         },
         "report": {
           "type": "Report type",
@@ -11937,6 +11979,42 @@
         },
         "success": {
           "saved": "Automation saved."
+        },
+        "journey": {
+          "section": "When to send",
+          "hint": {
+            "hotel_guest_before_arrival": "Pending or confirmed bookings arriving in the given number of days.",
+            "hotel_guest_arrival_day": "Bookings arriving today (not yet or already checked in). Add the condition “status = checked_in” to message only checked-in guests.",
+            "hotel_guest_in_stay": "Checked-in guests on the given day of stay (1 — the day after arrival), if they have not left yet.",
+            "hotel_guest_after_departure": "Checked-out guests the given number of days after departure (0 — on departure day).",
+            "hotel_deposit_due": "Bookings with an unpaid deposit due in the given number of days."
+          },
+          "days": {
+            "hotel_guest_before_arrival": "Days before arrival",
+            "hotel_guest_in_stay": "Day of stay",
+            "hotel_guest_after_departure": "Days after departure",
+            "hotel_deposit_due": "Days before due date"
+          },
+          "time": "Send time (hotel time)",
+          "timeHint": "Checked every 5 minutes. Each booking gets it once. Set the time no later than 23:30.",
+          "hotels": "Hotels",
+          "hotelsSome": "Only selected hotels: {{count}}",
+          "hotelsAll": "All hotels",
+          "previewTitle": "Check",
+          "saveFirst": "Save the automation to see who gets it today and to test it on a booking.",
+          "previewLine": "Today at {{time}}: {{today}} recipients. Sent so far: {{sent}}.",
+          "inactiveHint": "The automation is off — turn it on to send and test.",
+          "test": "Send now",
+          "testOk": "Sent — see the log",
+          "testFail": "Not sent",
+          "noneToday": "No matching bookings today.",
+          "chip": {
+            "hotel_guest_before_arrival": "{{count}} d before arrival · {{time}}",
+            "hotel_guest_arrival_day": "on arrival day · {{time}}",
+            "hotel_guest_in_stay": "day {{count}} of stay · {{time}}",
+            "hotel_guest_after_departure": "{{count}} d after departure · {{time}}",
+            "hotel_deposit_due": "{{count}} d before deposit due · {{time}}"
+          }
         }
       },
       "integrationsCatalog": {
@@ -12164,6 +12242,40 @@
           "send_notification": "Notification",
           "remove_tag": "Remove tag"
         }
+      },
+      "journeyPanel": {
+        "title": "Guest journey",
+        "subtitle": "Messages to guests before arrival, during the stay and after departure, deposit reminders, the survey and unhappy-guest alerts are all regular automations: text, channel, language, timing and the log are set up here.",
+        "days": "{{count}} d",
+        "presetsTitle": "Ready-made scenarios",
+        "add": "Add",
+        "added": "Added",
+        "addAll": "Add all",
+        "presetsHint": "Scenarios are added turned off: open, check the text and turn on.",
+        "installed": "Scenarios added: {{count}} — they are off, check the text and turn them on",
+        "nothingNew": "All scenarios are already added",
+        "scenariosTitle": "Scenarios and sends",
+        "noScenarios": "No guest automations yet — add ready-made scenarios above or create your own.",
+        "onEvent": "on event",
+        "off": "off",
+        "col": {
+          "name": "Scenario",
+          "when": "When",
+          "runs": "Runs",
+          "ok": "Successful",
+          "errors": "Errors",
+          "last": "Last"
+        },
+        "feedbackTitle": "Guest surveys",
+        "fb": {
+          "sent": "Sent",
+          "answered": "Answered",
+          "avg": "Average score",
+          "negative": "Unhappy",
+          "reviews": "Went to review"
+        },
+        "recentNegative": "Unhappy guests — open the booking:",
+        "noFeedback": "No surveys yet: put {{token}} in a scenario email and guests can rate their stay."
       }
     },
     "dashboard": {
@@ -23663,7 +23775,14 @@
         },
         "descPh": "What’s included, when, where",
         "extrasCatalogHint": "New services and prices — in “Cashier → Services”. Early check-in and late check-out use the percentages from the cashier settings.",
-        "drawerHint": "Online check-in: passports, arrival, upsells"
+        "drawerHint": "Online check-in: passports, arrival, upsells",
+        "autoNone": "Automatic link sending is not set up",
+        "autoNoneHint": "Send the link manually from the arrivals list or set up an automation.",
+        "autoOn": "On: {{count}} d before arrival at {{time}}",
+        "autoOff": "The automation exists but is off",
+        "autoOpen": "Open in automations",
+        "autoCreate": "Set up automatic sending",
+        "autoMovedHint": "Automatic link sending is now set up in Tools → Automations: email text in the guest’s languages, timing and the send log."
       },
       "revenue": {
         "kicker": "REVENUE · OCCUPANCY, PICKUP, PRICE",
@@ -30156,6 +30275,31 @@
         "HOTEL_PAY_EMAIL": "Enter your email — the receipt is sent there",
         "PAYMENT_NO_PROVIDER": "Online payment is unavailable right now — please contact the hotel"
       }
+    },
+    "hotelFeedback": {
+      "invalid": "Survey not found",
+      "invalidHint": "Check the link in the email.",
+      "stage": {
+        "in_stay": "How is your stay?",
+        "after_stay": "How was your stay?",
+        "other": "Your opinion"
+      },
+      "question": "{{name}}, how is everything?",
+      "sub": "One tap — rate from 1 to 5.",
+      "score": {
+        "1": "Very bad",
+        "2": "Bad",
+        "3": "Okay",
+        "4": "Good",
+        "5": "Excellent!"
+      },
+      "comment": "Anything to add? (optional)",
+      "commentBad": "What went wrong? We will try to fix it",
+      "send": "Send",
+      "thanks": "Thank you, {{name}}!",
+      "happyHint": "Glad you enjoyed it! Share your experience — it really helps the hotel:",
+      "sorryHint": "We are sorry not everything was right. The hotel has your answer and will contact you.",
+      "reviewOn": "Leave a review on {{platform}}"
     }
   },
   "lang": {

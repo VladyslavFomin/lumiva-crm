@@ -20,6 +20,8 @@ import {
 } from '../../api/automations';
 import { getActionLabel, getTriggerLabel } from './automationLabels';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+import { useTenantComponents } from '../../hooks/useTenantComponents';
+import { GuestJourneyPanel } from './GuestJourneyPanel';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
 const INK = '#222';
@@ -33,7 +35,7 @@ const BG_SOFT = '#f5f5f5';
 const FF_DISPLAY = 'inherit';
 const FF_MONO = 'inherit';
 
-type TabId = 'automations' | 'history' | 'usage';
+type TabId = 'automations' | 'history' | 'usage' | 'guests';
 
 function presetBounds(preset: NonNullable<RunAutomationNowBody['rangePreset']>) {
   const n = new Date();
@@ -77,6 +79,7 @@ export const AutomationsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [activeTab, setActiveTab] = useState<TabId>('automations');
+  const hotelsOn = useTenantComponents().isEnabled('hotels');
 
   const [executions, setExecutions] = useState<AutomationExecution[]>([]);
   const [execLoading, setExecLoading] = useState(false);
@@ -124,7 +127,7 @@ export const AutomationsPage: React.FC = () => {
       return;
     }
     const tab = searchParams.get('tab');
-    if (tab === 'history' || tab === 'usage') {
+    if (tab === 'history' || tab === 'usage' || tab === 'guests') {
       setActiveTab(tab);
     }
   }, [searchParams, navigate]);
@@ -351,6 +354,7 @@ export const AutomationsPage: React.FC = () => {
     automations: t('crm.automations.panel.tabs.automations'),
     history: t('crm.automations.panel.tabs.history'),
     usage: t('crm.automations.panel.tabs.usage'),
+    guests: t('crm.automations.panel.tabs.guests'),
   };
 
   const inputStyle: React.CSSProperties = {
@@ -519,8 +523,8 @@ export const AutomationsPage: React.FC = () => {
           <div style={{ padding: '0 20px', borderBottom: `1px solid ${LINE3}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: 0 }}>
-                {(['automations', 'history', 'usage'] as TabId[]).map((tab) => (
+              <div style={{ display: 'flex', gap: 0, overflowX: 'auto', maxWidth: '100%', scrollbarWidth: 'none' }}>
+                {(['automations', 'history', 'usage', ...(hotelsOn ? ['guests'] : [])] as TabId[]).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -538,6 +542,8 @@ export const AutomationsPage: React.FC = () => {
                       fontWeight: activeTab === tab ? 700 : 400,
                       cursor: 'pointer',
                       transition: 'color 0.15s',
+                      whiteSpace: 'nowrap',
+                      flex: 'none',
                     }}
                   >
                     {tabLabels[tab]}
@@ -896,6 +902,8 @@ export const AutomationsPage: React.FC = () => {
           )}
 
           {/* ── Usage tab ────────────────────────────────────────────────── */}
+          {activeTab === 'guests' && hotelsOn && <GuestJourneyPanel />}
+
           {activeTab === 'usage' && (
             <div style={{ padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>

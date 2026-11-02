@@ -860,12 +860,13 @@ export interface HotelUpsellRequest {
   status: 'requested' | 'approved' | 'declined'; note: string | null; decidedAt: string | null; createdAt: string; guestName: string; checkIn: string | null; checkOut: string | null; reservationStatus: string | null;
 }
 const PC = '/hotels/precheckin';
-export const fetchPrecheckins = (q: { hotelId: string; from?: string; to?: string }) => api.get<{ from: string; to: string; autoDays: number | null; upgrades: boolean; items: HotelPrecheckinRow[] }>(PC, { params: q });
+export interface HotelPrecheckinAuto { automationId: string; name: string; active: boolean; offsetDays: number; sendTime: string }
+export const fetchPrecheckins = (q: { hotelId: string; from?: string; to?: string }) => api.get<{ from: string; to: string; auto: HotelPrecheckinAuto | null; upgrades: boolean; items: HotelPrecheckinRow[] }>(PC, { params: q });
 export const fetchUpsellRequests = (q: { hotelId: string; status?: string }) => api.get<HotelUpsellRequest[]>(`${PC}/requests`, { params: q });
 export const decideUpsell = (id: string, approve: boolean, note?: string) => api.post<HotelUpsellRequest>(`${PC}/requests/${id}/${approve ? 'approve' : 'decline'}`, { note });
 export const precheckinLink = (reservationId: string) => api.post<{ token: string; url: string; status: HotelPrecheckinStatus; sentAt: string | null; completedAt: string | null }>(`${PC}/${reservationId}/link`, {});
 export const precheckinSend = (reservationId: string) => api.post<{ ok: boolean; sentTo: string }>(`${PC}/${reservationId}/send`, {});
-export const savePrecheckinSettings = (hotelId: string, dto: { precheckinAutoDays?: number | null; precheckinUpgrades?: boolean }) => api.patch<{ precheckinAutoDays: number | null; precheckinUpgrades: boolean }>(`${PC}/settings/${hotelId}`, dto);
+export const savePrecheckinSettings = (hotelId: string, dto: { precheckinUpgrades?: boolean }) => api.patch<{ precheckinUpgrades: boolean; auto: HotelPrecheckinAuto | null }>(`${PC}/settings/${hotelId}`, dto);
 
 /* ---------- групповые брони и rooming list ---------- */
 
@@ -2594,3 +2595,17 @@ export const fetchPaySuggest = (reservationId: string) => api.get<HotelPaySugges
 export const createPayRequest = (dto: { reservationId: string; amount: number; folio: HotelFolioKind; kind: 'deposit' | 'balance' | 'custom'; expiresInDays: number; sendEmail?: boolean; note?: string }) => api.post<HotelPayRequest & { sendError?: { code: string; message: string } | null }>(PR, dto);
 export const sendPayRequest = (id: string) => api.post<{ ok: boolean; sentTo: string }>(`${PR}/${id}/send`, {});
 export const cancelPayRequest = (id: string) => api.post<HotelPayRequest>(`${PR}/${id}/cancel`, {});
+
+// ─── путь гостя в «Автоматизациях»: готовые сценарии, прогноз, проверка на брони, отчёт, опрос ───
+export interface GuestJourneyPreview { today: number; sendTime: string; sent: number; sample: Array<{ id: string; guestName: string; checkIn: string; checkOut: string; hotel: string }> }
+export interface GuestJourneyReport {
+  days: number;
+  scenarios: Array<{ automationId: string; name: string; triggerEvent: string; isActive: boolean; presetKey: string | null; meta: { offsetDays: number; sendTime: string; hotelIds: string[] } | null; runs: number; success: number; errors: number; waiting: number; lastRunAt: string | null; lastError: string | null }>;
+  feedback: { sent: number; opened: number; answered: number; avg: number | null; negative: number; reviewClicks: number; byScore: number[]; recentNegative: Array<{ reservationId: string; guestName: string; score: number; comment: string | null; answeredAt: string; stage: string }> };
+}
+const GJ = '/hotels/guest-journey';
+export const fetchJourneyPresets = (lang: string) => api.get<Array<{ key: string; name: string; triggerEvent: string; meta: Record<string, unknown> }>>(`${GJ}/presets`, { params: { lang } });
+export const installJourneyPresets = (lang: string, keys?: string[]) => api.post<{ created: Array<{ id: string; name: string; key: string }>; total: number }>(`${GJ}/presets/install`, { lang, keys });
+export const fetchJourneyPreview = (automationId: string) => api.get<GuestJourneyPreview>(`${GJ}/preview/${automationId}`);
+export const testJourney = (automationId: string, reservationId: string) => api.post<{ executionId: string; status: string; error: string | null }>(`${GJ}/test`, { automationId, reservationId });
+export const fetchJourneyReport = (days: number) => api.get<GuestJourneyReport>(`${GJ}/report`, { params: { days } });

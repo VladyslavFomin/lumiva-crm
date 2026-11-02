@@ -1349,3 +1349,8 @@
 .px-scope .pl-st.s-pending{background:#eef0f6;color:#3b4766}
 .px-scope .pl-st.s-paid{background:#e6f4ec;color:#175c3d}
 .px-scope .pl-st.s-expired{background:var(--bg-muted);color:var(--fg-3)}
+
+/* онлайн-регистрация → автоотправка ссылки теперь автоматизация (.pc-auto): строка с её состоянием и кнопкой */
+.px-scope .pc-auto{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--line-2);border-radius:12px;background:var(--bg-muted)}
+.px-scope .pc-auto>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.px-scope .pc-auto b{font-size:13px;font-weight:600}

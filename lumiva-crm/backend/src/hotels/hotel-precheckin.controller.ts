@@ -43,7 +43,7 @@ export class HotelPrecheckinController {
 
   @Patch('settings/:hotelId')
   @RequirePermission('hotels_manage_reservations', 'write')
-  settings(@CurrentUser() user: CurrentUserPayload, @Param('hotelId', new ParseUUIDPipe()) hotelId: string, @Body() dto: { precheckinAutoDays?: number | null; precheckinUpgrades?: boolean }) {
+  settings(@CurrentUser() user: CurrentUserPayload, @Param('hotelId', new ParseUUIDPipe()) hotelId: string, @Body() dto: { precheckinUpgrades?: boolean }) {
     return this.pre.settings(user.tenantId, hotelId, dto || {});
   }
 

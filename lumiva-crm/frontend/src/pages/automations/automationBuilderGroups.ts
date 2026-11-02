@@ -110,6 +110,19 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
       ],
     },
     {
+      group: t('crm.automations.form.library.groups.hotelGuest'),
+      items: [
+        { id: 'hotel.guest_before_arrival', label: getTriggerLabel('hotel.guest_before_arrival', t), icon: 'calendar' },
+        { id: 'hotel.guest_arrival_day', label: getTriggerLabel('hotel.guest_arrival_day', t), icon: 'calendar' },
+        { id: 'hotel.guest_in_stay', label: getTriggerLabel('hotel.guest_in_stay', t), icon: 'calendar' },
+        { id: 'hotel.guest_after_departure', label: getTriggerLabel('hotel.guest_after_departure', t), icon: 'calendar' },
+        { id: 'hotel.deposit_due', label: getTriggerLabel('hotel.deposit_due', t), icon: 'sale' },
+        { id: 'hotel.payment_received', label: getTriggerLabel('hotel.payment_received', t), icon: 'sale' },
+        { id: 'hotel.guest_feedback', label: getTriggerLabel('hotel.guest_feedback', t), icon: 'user' },
+        { id: 'hotel.guest_feedback_negative', label: getTriggerLabel('hotel.guest_feedback_negative', t), icon: 'bell' },
+      ],
+    },
+    {
       group: t('crm.automations.form.library.groups.reviews'),
       items: [
         { id: 'review.created', label: getTriggerLabel('review.created', t), icon: 'bell' },

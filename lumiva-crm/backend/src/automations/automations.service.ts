@@ -369,12 +369,27 @@ export class AutomationsService {
     });
 
     for (const automationStub of automations) {
+      await this.runOneGuarded(automationStub.id, event, triggerData);
+    }
+  }
+
+  /**
+   * Запуск одной автоматизации (триггеры «по времени» для конкретной записи — путь гостя отеля): те же лимит,
+   * кулдаун и условия, что у обычного события. Возвращает выполнение или null, если не запускалась.
+   */
+  async triggerOne(automationId: string, event: TriggerEvent, triggerData: any): Promise<AutomationExecution | null> {
+    return this.runOneGuarded(automationId, event, triggerData);
+  }
+
+  private async runOneGuarded(automationId: string, event: TriggerEvent, triggerData: any): Promise<AutomationExecution | null> {
+    let out: AutomationExecution | null = null;
+    {
       // Лок сериализует, но исходный `automationStub` в этом массиве был прочитан ДО лока —
       // под локом перечитываем строку заново, иначе второй (ожидавший) вызов всё равно
       // проверял бы лимит/кулдаун по устаревшим счётчикам первого.
-      await this.runExclusive(automationStub.id, async () => {
-        const automation = await this.automationRepo.findOne({ where: { id: automationStub.id } });
-        if (!automation || !automation.isActive) return;
+      await this.runExclusive(automationId, async () => {
+        const automation = await this.automationRepo.findOne({ where: { id: automationId } });
+        if (!automation || !automation.isActive || automation.triggerEvent !== event) return;
 
         if (automation.maxExecutions && automation.executionCount >= automation.maxExecutions) {
           return; // Достигнут лимит
@@ -393,9 +408,10 @@ export class AutomationsService {
           if (!conditionsMet) return;
         }
 
-        await this.executeAutomation(automation, event, triggerData);
+        out = await this.executeAutomation(automation, event, triggerData);
       });
     }
+    return out;
   }
 
   /**
@@ -690,6 +706,8 @@ export class AutomationsService {
    * Получить значение поля из данных (поддержка вложенных полей через точку)
    */
   private getFieldValue(data: any, field: string): any {
+    // испорченное условие (старые записи [[]]) не должно ронять запуск
+    if (typeof field !== 'string' || !field) return null;
     const parts = field.split('.');
     let value = data;
     for (const part of parts) {
@@ -996,12 +1014,37 @@ export class AutomationsService {
   /**
    * Выполнить действие
    */
+  /** Вариант текста на языке получателя: только непустые поля варианта заменяют основные */
+  private withLangVariant(config: Record<string, any>, triggerData: any): Record<string, any> {
+    const variants = config?.langVariants;
+    const lang = String(triggerData?.recipient_lang || triggerData?.guest_lang || '').slice(0, 2).toLowerCase();
+    if (!variants || typeof variants !== 'object' || !lang || !variants[lang]) return config;
+    const v = variants[lang] as Record<string, unknown>;
+    const out: Record<string, any> = { ...config };
+    for (const [k, val] of Object.entries(v)) {
+      if (typeof val === 'string' ? val.trim() !== '' : Array.isArray(val) ? val.length > 0 : val !== undefined && val !== null) out[k] = val;
+    }
+    return out;
+  }
+
+  /** Почта клиента (тенанта) по умолчанию — письма гостям только с его ящика (TenantMailService), не с платформы */
+  private async sendViaTenantMailbox(tenantId: string, to: string[], subject: string, textBody?: string, htmlBody?: string) {
+    const { TenantMailService } = await import('../mail/tenant-mail.service.js');
+    const mail = this.moduleRef.get(TenantMailService, { strict: false });
+    const esc = (v: string) => v.replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] as string));
+    const html = htmlBody || (textBody ? `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.55;white-space:pre-wrap">${esc(textBody).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')}</div>` : '');
+    const r = await mail.sendOrThrow(tenantId, { to, subject, html, text: textBody });
+    return { emailSent: true, via: r.via, from: r.from, to };
+  }
+
   private async executeAction(
     action: { type: string; config: Record<string, any> },
     triggerData: any,
     tenantId: string,
   ): Promise<any> {
-    const { type, config } = action;
+    const { type } = action;
+    // тексты по языку получателя: config.langVariants[lang] поверх основного текста (язык — {{guest_lang}} / {{recipient_lang}})
+    const config = this.withLangVariant(action.config || {}, triggerData);
     const entityId = triggerData.entityId || triggerData.entity?.id || triggerData.contact?.id || triggerData.lead?.id || triggerData.sale?.id;
     const entityType = triggerData.entityType || triggerData.entity?.constructor?.name?.toLowerCase() || 
       (triggerData.contact ? 'contact' : null) ||
@@ -1376,6 +1419,27 @@ export class AutomationsService {
           throw new Error(
             'send_whatsapp: укажите номер to или поле phone у лида/контакта в триггере',
           );
+        }
+        // Шаблон Meta (утверждённый): им можно написать первым — вне 24-часового окна обычный текст WhatsApp не доставит
+        const templateName = String(config.templateName || '').trim();
+        if (templateName) {
+          const lang = String(config.templateLanguage || '').trim();
+          const autoLang = String(triggerData?.recipient_lang || triggerData?.guest_lang || 'en').slice(0, 2).toLowerCase();
+          const params = (Array.isArray(config.templateParams) ? config.templateParams : String(config.templateParams || '').split('\n'))
+            .map((x: unknown) => String(x ?? ''))
+            // пустые строки в конце списка — не параметры; пустой токен ({{room_number}} до заселения) Meta не примет — «—»
+            .filter((x: string, i: number, arr: string[]) => x.trim() !== '' || arr.slice(i + 1).some((y) => y.trim() !== ''))
+            .map((x: string) => this.interpolateString(x, triggerData).trim() || '—');
+          const waT = await this.integrationsService.sendWhatsappTemplateRaw(phoneNumberId, accessToken, toPhone, {
+            name: templateName,
+            language: !lang || lang === 'auto' ? autoLang : lang,
+            bodyParams: params,
+          });
+          await this.recordIntegrationResult(tenantId, entityType, entityId, {
+            title: `WhatsApp (шаблон ${templateName}) → ${toPhone}`,
+            content: params.join(' · ') + (waT?.messageId ? `\nID сообщения: ${waT.messageId}` : ''),
+          });
+          return { whatsappSent: true, whatsappTemplate: templateName, whatsappMessageId: waT?.messageId };
         }
         const message = this.interpolateString(
           String(text || 'Сообщение из Lumiva CRM'),
@@ -1937,7 +2001,8 @@ export class AutomationsService {
 
       case 'send_email': {
         const { accountId, to, subject, textBody, htmlBody, templateId } = config;
-        if (!accountId) {
+        // ящик не выбран — почта CRM по умолчанию (подключённый ящик клиента), шаблон тогда не поддерживается
+        if (!accountId && templateId) {
           throw new Error('Email accountId is required');
         }
 
@@ -1984,6 +2049,15 @@ export class AutomationsService {
         
         this.logger.debug(`Sending email to ${recipientEmail} (accountId=${accountId})`);
         
+        if (!accountId) {
+          return this.sendViaTenantMailbox(
+            tenantId,
+            recipientEmail,
+            this.interpolateString(String(subject || config.subject || 'Notification'), triggerData),
+            textBody ? this.interpolateString(textBody, triggerData) : undefined,
+            htmlBody ? this.interpolateString(htmlBody, triggerData) : undefined,
+          );
+        }
         // Если указан templateId, передаем его и данные для интерполяции
         // Иначе используем прямые значения subject/textBody/htmlBody
         return await this.emailService.sendEmail(tenantId, {

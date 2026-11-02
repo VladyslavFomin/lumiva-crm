@@ -8288,7 +8288,8 @@
           "automations": "Otomasyonlar",
           "history": "Çalıştırma geçmişi",
           "integrations": "Entegrasyonlar",
-          "usage": "Kullanım"
+          "usage": "Kullanım",
+          "guests": "Otel misafirleri"
         },
         "page": {
           "kicker": "Otomasyonlar · aktif: {{count}}",
@@ -8430,7 +8431,8 @@
             "products": "Ürünler",
             "aiOffice": "YZ departmanları",
             "helpdesk": "Destek",
-            "reviews": "Yorumlar"
+            "reviews": "Yorumlar",
+            "hotelGuest": "Misafir yolculuğu (oteller)"
           },
           "triggerDesc": {
             "scheduled": "CRON veya aralık",
@@ -8725,7 +8727,39 @@
           "tokenHoursWithoutReply": "Yanıtsız saat",
           "tokenOldRating": "Eski puan",
           "tokenNewRating": "Yeni puan",
-          "tokenReplyText": "Yanıt metni"
+          "tokenReplyText": "Yanıt metni",
+          "langMain": "Varsayılan",
+          "langMainHint": "Misafirin dili için ayrı metin yoksa varsayılan metin gönderilir.",
+          "langVariantHint": "{{lang}} dilindeki misafirler için metin (dil rezervasyon ülkesinden alınır). Boş alanlar varsayılan metinden gelir.",
+          "defaultMailbox": "CRM varsayılan e-postası",
+          "defaultMailboxHint": "E-posta, CRM e-postaları için seçilen kutudan gider (E-posta → ayarlar).",
+          "waTemplateSection": "Meta şablonu (ilk mesaj)",
+          "waTemplateHint": "Son 24 saatte size yazmamış misafire WhatsApp yalnızca onaylı şablon iletir. WhatsApp Manager’daki şablon adını girin — metin yerine o gider.",
+          "waTemplateName": "Şablon adı",
+          "waTemplateLang": "Şablon dili",
+          "waTemplateLangAuto": "misafirin dili",
+          "waTemplateParams": "Şablon parametreleri — sırayla her parametre için bir satır",
+          "waTemplateParamsHint": "Her satır sıradaki şablon parametresinin değeridir. Boş değişken “—” olur.",
+          "tokenGuestFirstName": "Ad (soyadısız)",
+          "tokenGuestEmail": "Misafir e-postası",
+          "tokenGuestPhone": "Misafir telefonu",
+          "tokenNights": "Gece",
+          "tokenRoomNumber": "Oda numarası",
+          "tokenBoard": "Pansiyon",
+          "tokenBookingCode": "Rezervasyon kodu",
+          "tokenCheckinTime": "Giriş saati",
+          "tokenBalance": "Kalan tutar",
+          "tokenDepositLeft": "Ödenmemiş ön ödeme",
+          "tokenDepositDue": "Ön ödeme son günü",
+          "tokenCurrency": "Para birimi",
+          "tokenPrecheckinLink": "Bağlantı: online check-in",
+          "tokenPayLink": "Bağlantı: ödeme",
+          "tokenGuestCareLink": "Bağlantı: oda talepleri",
+          "tokenSurveyLink": "Bağlantı: misafir anketi",
+          "tokenPaymentAmount": "Ödeme tutarı",
+          "tokenScore": "Puan (1–5)",
+          "tokenScoreStars": "Yıldızlı puan",
+          "tokenComment": "Misafir yorumu"
         },
         "triggerGroups": {
           "contacts": "Kişiler",
@@ -8797,7 +8831,15 @@
           "REVIEW_RATING_LOWERED": "Misafir puanı düşürdü",
           "REVIEW_REPLIED": "Yoruma yanıt verildi",
           "REVIEW_TOPIC_SPIKE": "Tekrarlayan şikâyet",
-          "REVIEW_RATING_DROP": "Otel ortalaması düştü"
+          "REVIEW_RATING_DROP": "Otel ortalaması düştü",
+          "HOTEL_GUEST_BEFORE_ARRIVAL": "Misafir: girişten N gün önce",
+          "HOTEL_GUEST_ARRIVAL_DAY": "Misafir: giriş günü",
+          "HOTEL_GUEST_IN_STAY": "Misafir: konaklamanın N. günü",
+          "HOTEL_GUEST_AFTER_DEPARTURE": "Misafir: çıkıştan N gün sonra",
+          "HOTEL_DEPOSIT_DUE": "Misafir: ön ödeme son günü N gün sonra",
+          "HOTEL_PAYMENT_RECEIVED": "Online rezervasyon ödemesi alındı",
+          "HOTEL_GUEST_FEEDBACK": "Misafir ankete yanıt verdi",
+          "HOTEL_GUEST_FEEDBACK_NEGATIVE": "Memnun olmayan misafir (puan 3 ve altı)"
         },
         "report": {
           "type": "Rapor türü",
@@ -9182,6 +9224,42 @@
           "hint": "Trigger: custom table record. Copies the row into the target main “Table” (board). Add a condition objectId = your data table.",
           "skipDup": "Skip if value already exists",
           "targetObjectId": "Target table UUID (board)"
+        },
+        "journey": {
+          "section": "Ne zaman gönderilsin",
+          "hint": {
+            "hotel_guest_before_arrival": "Girişi belirtilen gün sayısı sonra olan bekleyen veya onaylı rezervasyonlar.",
+            "hotel_guest_arrival_day": "Bugün girişi olan rezervasyonlar (henüz girmemiş ve girmiş). Yalnızca girişi yapılanlara yazmak için “status = checked_in” koşulunu ekleyin.",
+            "hotel_guest_in_stay": "Konaklamanın belirtilen günündeki misafirler (1 — girişin ertesi günü), henüz çıkmadılarsa.",
+            "hotel_guest_after_departure": "Çıkıştan belirtilen gün sayısı sonra çıkış yapmış misafirler (0 — çıkış günü).",
+            "hotel_deposit_due": "Ön ödemesi ödenmemiş ve son günü belirtilen gün sayısı sonra olan rezervasyonlar."
+          },
+          "days": {
+            "hotel_guest_before_arrival": "Girişten kaç gün önce",
+            "hotel_guest_in_stay": "Konaklama günü",
+            "hotel_guest_after_departure": "Çıkıştan kaç gün sonra",
+            "hotel_deposit_due": "Son günden kaç gün önce"
+          },
+          "time": "Gönderim saati (otel saati)",
+          "timeHint": "Her 5 dakikada kontrol edilir. Her rezervasyona bir kez. Saati 23:30’dan geç ayarlamayın.",
+          "hotels": "Oteller",
+          "hotelsSome": "Yalnızca seçili oteller: {{count}}",
+          "hotelsAll": "Tüm oteller",
+          "previewTitle": "Kontrol",
+          "saveFirst": "Bugün kime gideceğini görmek ve bir rezervasyonda denemek için otomasyonu kaydedin.",
+          "previewLine": "Bugün {{time}}: {{today}} alıcı. Şimdiye kadar gönderilen: {{sent}}.",
+          "inactiveHint": "Otomasyon kapalı — göndermek ve denemek için açın.",
+          "test": "Şimdi gönder",
+          "testOk": "Gönderildi — kayda bakın",
+          "testFail": "Gönderilmedi",
+          "noneToday": "Bugün uygun rezervasyon yok.",
+          "chip": {
+            "hotel_guest_before_arrival": "girişten {{count}} g önce · {{time}}",
+            "hotel_guest_arrival_day": "giriş günü · {{time}}",
+            "hotel_guest_in_stay": "konaklamanın {{count}}. günü · {{time}}",
+            "hotel_guest_after_departure": "çıkıştan {{count}} g sonra · {{time}}",
+            "hotel_deposit_due": "ön ödemeden {{count}} g önce · {{time}}"
+          }
         }
       },
       "integrationsCatalog": {
@@ -9409,6 +9487,40 @@
           "send_notification": "Notification",
           "remove_tag": "Remove tag"
         }
+      },
+      "journeyPanel": {
+        "title": "Misafir yolculuğu",
+        "subtitle": "Girişten önce, konaklama sırasında ve çıkıştan sonra misafirlere mesajlar, ön ödeme hatırlatmaları, anket ve memnuniyetsiz misafir uyarıları — hepsi normal otomasyonlardır: metin, kanal, dil, zamanlama ve kayıt burada ayarlanır.",
+        "days": "{{count}} gün",
+        "presetsTitle": "Hazır senaryolar",
+        "add": "Ekle",
+        "added": "Eklendi",
+        "addAll": "Tümünü ekle",
+        "presetsHint": "Senaryolar kapalı eklenir: açın, metni kontrol edin ve etkinleştirin.",
+        "installed": "Eklenen senaryo: {{count}} — kapalılar, metni kontrol edip açın",
+        "nothingNew": "Tüm senaryolar zaten eklendi",
+        "scenariosTitle": "Senaryolar ve gönderimler",
+        "noScenarios": "Henüz misafir otomasyonu yok — yukarıdan hazır senaryo ekleyin veya kendinizinkini oluşturun.",
+        "onEvent": "olayda",
+        "off": "kapalı",
+        "col": {
+          "name": "Senaryo",
+          "when": "Ne zaman",
+          "runs": "Çalışma",
+          "ok": "Başarılı",
+          "errors": "Hata",
+          "last": "Son"
+        },
+        "feedbackTitle": "Misafir anketleri",
+        "fb": {
+          "sent": "Gönderilen",
+          "answered": "Yanıtlayan",
+          "avg": "Ortalama puan",
+          "negative": "Memnun değil",
+          "reviews": "Yoruma geçen"
+        },
+        "recentNegative": "Memnun olmayan misafirler — rezervasyonu açın:",
+        "noFeedback": "Henüz anket yok: senaryo e-postasına {{token}} ekleyin, misafir konaklamasını puanlasın."
       }
     },
     "marketingBroadcasts": {
@@ -23635,7 +23747,14 @@
         },
         "descPh": "Neler dahil, ne zaman, nerede",
         "extrasCatalogHint": "Yeni hizmetler ve fiyatlar — “Kasa → Hizmetler”. Erken giriş ve geç çıkış kasa ayarlarındaki yüzdelere göre.",
-        "drawerHint": "Online check-in: pasaportlar, varış, ek satış"
+        "drawerHint": "Online check-in: pasaportlar, varış, ek satış",
+        "autoNone": "Bağlantının otomatik gönderimi ayarlanmadı",
+        "autoNoneHint": "Bağlantıyı girişler listesinden elle gönderin veya bir otomasyon kurun.",
+        "autoOn": "Açık: girişten {{count}} g önce {{time}}",
+        "autoOff": "Otomasyon var ama kapalı",
+        "autoOpen": "Otomasyonlarda aç",
+        "autoCreate": "Otomatik gönderimi kur",
+        "autoMovedHint": "Bağlantının otomatik gönderimi artık Araçlar → Otomasyonlar’da ayarlanır: misafir dillerinde e-posta metni, zamanlama ve gönderim kaydı."
       },
       "revenue": {
         "kicker": "REVENUE · DOLULUK, SATIŞ HIZI, FİYAT",
@@ -30128,6 +30247,31 @@
         "HOTEL_PAY_EMAIL": "E-postanızı girin — makbuz oraya gönderilir",
         "PAYMENT_NO_PROVIDER": "Online ödeme şu anda kullanılamıyor — lütfen otelle iletişime geçin"
       }
+    },
+    "hotelFeedback": {
+      "invalid": "Anket bulunamadı",
+      "invalidHint": "E-postadaki bağlantıyı kontrol edin.",
+      "stage": {
+        "in_stay": "Konaklamanız nasıl geçiyor?",
+        "after_stay": "Konaklamanız nasıl geçti?",
+        "other": "Görüşünüz"
+      },
+      "question": "{{name}}, her şey nasıl?",
+      "sub": "Tek dokunuş — 1’den 5’e puanlayın.",
+      "score": {
+        "1": "Çok kötü",
+        "2": "Kötü",
+        "3": "İdare eder",
+        "4": "İyi",
+        "5": "Mükemmel!"
+      },
+      "comment": "Eklemek istediğiniz bir şey var mı? (isteğe bağlı)",
+      "commentBad": "Ne ters gitti? Düzeltmeye çalışacağız",
+      "send": "Gönder",
+      "thanks": "Teşekkürler, {{name}}!",
+      "happyHint": "Beğenmenize sevindik! Deneyiminizi paylaşın — otele çok yardımcı olur:",
+      "sorryHint": "Her şeyin yolunda gitmediği için üzgünüz. Otel yanıtınızı aldı ve sizinle iletişime geçecek.",
+      "reviewOn": "{{platform}}’da yorum bırak"
     }
   },
   "lang": {

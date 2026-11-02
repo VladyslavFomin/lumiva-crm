@@ -32,7 +32,7 @@ export class HotelPaymentRequest {
   @Column({ type: 'timestamptz', nullable: true }) openedAt: Date | null;
   @Column({ type: 'timestamptz', nullable: true }) sentAt: Date | null;
   @Column({ type: 'varchar', length: 190, nullable: true }) sentTo: string | null;
-  @Column({ type: 'varchar', length: 12, default: 'staff' }) origin: 'staff' | 'website';
+  @Column({ type: 'varchar', length: 12, default: 'staff' }) origin: 'staff' | 'website' | 'automation';
   @Column({ type: 'uuid', nullable: true }) createdBy: string | null;
   @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
   @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;

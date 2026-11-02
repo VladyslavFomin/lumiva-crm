@@ -195,6 +195,7 @@ const HotelHousekeepingPage = lazy(() => import('../pages/hotels/housekeeping/Ho
 const HotelMyHousekeepingPage = lazy(() => import('../pages/hotels/housekeeping/HotelMyHousekeepingPage').then((m) => ({ default: m.HotelMyHousekeepingPage })));
 const HotelCashierPage = lazy(() => import('../pages/hotels/folio/HotelCashierPage').then((m) => ({ default: m.HotelCashierPage })));
 const HotelGuestCarePage = lazy(() => import('../pages/hotels/HotelGuestCarePage').then((m) => ({ default: m.HotelGuestCarePage })));
+const HotelFeedbackPublicPage = lazy(() => import('../pages/hotels/HotelFeedbackPublicPage').then((m) => ({ default: m.HotelFeedbackPublicPage })));
 const HotelPayPublicPage = lazy(() => import('../pages/hotels/HotelPayPublicPage').then((m) => ({ default: m.HotelPayPublicPage })));
 const PrecheckinPublicPage = lazy(() => import('../pages/hotels/PrecheckinPublicPage').then((m) => ({ default: m.PrecheckinPublicPage })));
 const GuestRequestPublicPage = lazy(() => import('../pages/hotels/GuestRequestPublicPage').then((m) => ({ default: m.GuestRequestPublicPage })));
@@ -513,6 +514,7 @@ export const AppRouter: React.FC = () => {
         <Route path="/g/:token" element={<GuestRequestPublicPage />} />
         <Route path="/c/:token" element={<PrecheckinPublicPage />} />
         <Route path="/hp/:token" element={<HotelPayPublicPage />} />
+        <Route path="/fb/:token" element={<HotelFeedbackPublicPage />} />
 
         <Route
           path="/bi"

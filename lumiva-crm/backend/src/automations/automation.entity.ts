@@ -85,6 +85,21 @@ export enum TriggerEvent {
   HOTEL_PRICE_CHANGED = 'hotel.price_changed',
   HOTEL_STOP_SALE_SET = 'hotel.stop_sale_set',
   HOTEL_LOW_AVAILABILITY = 'hotel.low_availability',
+  /**
+   * Путь гостя (по времени, проверяет HotelGuestJourneyService раз в 10 минут, по часам отеля). Настройка — в
+   * meta автоматизации: offsetDays (за/через сколько дней), sendTime ('HH:MM' по времени отеля), hotelIds (пусто — все).
+   * Каждой брони — один раз на автоматизацию. Данные события — плоские токены брони + ссылки ({{precheckin_link}}…).
+   */
+  HOTEL_GUEST_BEFORE_ARRIVAL = 'hotel.guest_before_arrival',
+  HOTEL_GUEST_ARRIVAL_DAY = 'hotel.guest_arrival_day',
+  HOTEL_GUEST_IN_STAY = 'hotel.guest_in_stay',
+  HOTEL_GUEST_AFTER_DEPARTURE = 'hotel.guest_after_departure',
+  HOTEL_DEPOSIT_DUE = 'hotel.deposit_due',
+  /** Онлайн-оплата брони получена (ссылка на оплату) */
+  HOTEL_PAYMENT_RECEIVED = 'hotel.payment_received',
+  /** Гость ответил на опрос ({{score}} 1–5, {{comment}}); negative — оценка 3 и ниже */
+  HOTEL_GUEST_FEEDBACK = 'hotel.guest_feedback',
+  HOTEL_GUEST_FEEDBACK_NEGATIVE = 'hotel.guest_feedback_negative',
 
   // Товары (Products)
   PRODUCT_PRICE_CHANGED = 'product.price_changed',

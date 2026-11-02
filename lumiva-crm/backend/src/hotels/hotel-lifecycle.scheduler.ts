@@ -2,10 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelNightAuditService } from './hotel-night-audit.service';
-import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelRevenueService } from './hotel-revenue.service';
 import { HotelEInvoiceService } from './hotel-einvoice.service';
 import { HotelPaymentLinksService } from './hotel-payment-links.service';
+import { HotelGuestJourneyService } from './hotel-guest-journey.service';
 
 /** Жизненный цикл броней отеля: автоснятие просроченных опционов (PMS-024). */
 @Injectable()
@@ -17,14 +17,31 @@ export class HotelLifecycleScheduler {
   constructor(
     private readonly reservations: HotelReservationsService,
     private readonly nightAudit: HotelNightAuditService,
-    private readonly precheckin: HotelPrecheckinService,
     private readonly revenue: HotelRevenueService,
     private readonly einvoice: HotelEInvoiceService,
     private readonly payLinks: HotelPaymentLinksService,
+    private readonly journey: HotelGuestJourneyService,
   ) {}
 
   private revenueBusy = false;
   private einvoiceBusy = false;
+
+  private journeyBusy = false;
+
+  /** Путь гостя: автоматизации «до заезда / день заезда / проживание / после выезда / срок предоплаты» — раз в 5 минут */
+  @Cron('*/5 * * * *')
+  async guestJourney() {
+    if (this.journeyBusy) return;
+    this.journeyBusy = true;
+    try {
+      const n = await this.journey.run();
+      if (n) this.log.log(`guest journey: ${n} sent`);
+    } catch (e) {
+      this.log.warn(`guest journey: ${(e as Error).message}`);
+    } finally {
+      this.journeyBusy = false;
+    }
+  }
 
   private payLinksBusy = false;
 
@@ -68,23 +85,6 @@ export class HotelLifecycleScheduler {
       this.log.warn(`revenue auto-apply: ${(e as Error).message}`);
     } finally {
       this.revenueBusy = false;
-    }
-  }
-
-  private precheckinBusy = false;
-
-  /** Онлайн-регистрация: письма гостям за N дней до заезда (раз в час, повторно не отправляет) */
-  @Cron('7 * * * *')
-  async precheckinAutoSend() {
-    if (this.precheckinBusy) return;
-    this.precheckinBusy = true;
-    try {
-      const n = await this.precheckin.autoSend();
-      if (n) this.log.log(`precheckin links sent: ${n}`);
-    } catch (e) {
-      this.log.warn(`precheckin auto-send: ${(e as Error).message}`);
-    } finally {
-      this.precheckinBusy = false;
     }
   }
 

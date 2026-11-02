@@ -116,6 +116,12 @@ import { HotelPaymentLinksService } from './hotel-payment-links.service';
 import { HotelPaymentLinksController, HotelPaymentLinksPublicController } from './hotel-payment-links.controller';
 import { Payment } from '../payments/payment.entity';
 import { PaymentsModule } from '../payments/payments.module';
+import { HotelGuestFeedback, HotelJourneySend } from './hotel-guest-journey.entities';
+import { HotelGuestJourneyService } from './hotel-guest-journey.service';
+import { HotelGuestJourneyController, HotelGuestFeedbackPublicController } from './hotel-guest-journey.controller';
+import { Automation } from '../automations/automation.entity';
+import { AutomationExecution } from '../automations/automation-execution.entity';
+import { HotelReviewSource } from '../hotel-reputation/reputation.entities';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelPrecheckinController, HotelPrecheckinPublicController } from './hotel-precheckin.controller';
 import { HotelChannelsService } from './hotel-channels.service';
@@ -147,6 +153,11 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
       HotelEInvoice,
       HotelPaymentRequest,
       Payment,
+      HotelJourneySend,
+      HotelGuestFeedback,
+      Automation,
+      AutomationExecution,
+      HotelReviewSource,
       HotelGuestRequest,
       Hotel,
       HotelRoomType,
@@ -212,6 +223,8 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelEInvoiceController,
     HotelPaymentLinksController,
     HotelPaymentLinksPublicController,
+    HotelGuestJourneyController,
+    HotelGuestFeedbackPublicController,
     HotelGuestCareController,
     HotelGuestCarePublicController,
     HotelHousekeepingController,
@@ -242,6 +255,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelPosService,
     HotelEInvoiceService,
     HotelPaymentLinksService,
+    HotelGuestJourneyService,
     HotelGuestCareService,
     HotelChannelsScheduler,
     HotelsService,

@@ -1570,6 +1570,15 @@ export class IntegrationsService {
     return this.whatsappCloud.sendTextMessage({ phoneNumberId, accessToken, to, body });
   }
 
+  async sendWhatsappTemplateRaw(
+    phoneNumberId: string,
+    accessToken: string,
+    to: string,
+    template: { name: string; language: string; bodyParams: string[] },
+  ): Promise<{ messageId?: string }> {
+    return this.whatsappCloud.sendTemplateMessage({ phoneNumberId, accessToken, to, ...template });
+  }
+
   async getGoogleCalendarCredentialsForConnection(
     tenantId: string,
     connectionId: string,

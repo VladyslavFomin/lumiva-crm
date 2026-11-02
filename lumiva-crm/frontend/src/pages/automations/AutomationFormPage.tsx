@@ -35,6 +35,7 @@ import { buildAutomationTriggerGroups, buildAutomationActionGroups } from './aut
 import { getActionLabel } from './automationLabels';
 import { getNotificationTokens } from './notificationTokens';
 import { VariablePicker } from './VariablePicker';
+import { GuestJourneyTriggerSettings, JOURNEY_TRIGGERS } from './GuestJourneyTriggerSettings';
 import { aiOfficeApi, type OfficeDepartment } from '../../api/aiOffice';
 import './automations-builder.css';
 
@@ -78,6 +79,11 @@ export const AutomationFormPage: React.FC = () => {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerTab, setPickerTab] = useState<'action' | 'trigger'>('action');
   const [cfgTab, setCfgTab] = useState<'params' | 'conditions' | 'timing' | 'logs'>('params');
+  const waParamsRef = useRef<HTMLTextAreaElement>(null);
+  const waTextRef = useRef<HTMLTextAreaElement>(null);
+  const smsTextRef = useRef<HTMLTextAreaElement>(null);
+  const [variantLang, setVariantLang] = useState<'main' | 'ru' | 'en' | 'tr'>('main');
+  useEffect(() => { setVariantLang('main'); }, [selectedStep]);
   // 'timing' only exists on the action panel — falling back to the trigger panel with it still
   // selected would render a blank tab body, so reset to 'params' when that happens.
   useEffect(() => {
@@ -623,7 +629,7 @@ export const AutomationFormPage: React.FC = () => {
       if (action.type === 'trigger_webhook' && !action.config.url)
         errors.push(`${label}: ${t('crm.automations.form.validation.webhookUrlMissing')}`);
       if (action.type === 'send_email') {
-        if (!action.config.accountId) errors.push(`${label}: ${t('crm.automations.form.validation.emailAccountMissing')}`);
+        if (!action.config.accountId && action.config.templateId) errors.push(`${label}: ${t('crm.automations.form.validation.emailAccountMissing')}`);
         if (!action.config.to && !action.config.templateId)
           warnings.push(`${label}: ${t('crm.automations.form.validation.emailRecipientOrTemplateWarning')}`);
       }
@@ -1042,6 +1048,27 @@ export const AutomationFormPage: React.FC = () => {
 
   const ua = (field: string, val: any) => updateAction(selIdx!, field, val);
   const notificationTokens = getNotificationTokens(formData.triggerEvent);
+  // текст на языке получателя: «Основной» — config[field], RU/EN/TR — config.langVariants[lang][field]
+  const fv = (field: string): string => (variantLang === 'main' ? selAction?.config[field] : selAction?.config.langVariants?.[variantLang]?.[field]) || '';
+  const setFv = (field: string, val: string) => {
+    if (variantLang === 'main') { ua(field, val); return; }
+    const lv = { ...(selAction?.config.langVariants || {}) };
+    lv[variantLang] = { ...(lv[variantLang] || {}), [field]: val };
+    ua('langVariants', lv);
+  };
+  const hasVariant = (l: 'ru' | 'en' | 'tr') => Object.values(selAction?.config.langVariants?.[l] || {}).some((v) => String(v || '').trim() !== '');
+  const langBar = (
+    <div className="cfg-field">
+      <div className="cfg-lang-tabs">
+        {(['main', 'ru', 'en', 'tr'] as const).map((l) => (
+          <button key={l} type="button" className={variantLang === l ? 'on' : ''} onClick={() => setVariantLang(l)}>
+            {l === 'main' ? t('crm.automations.form.builderUi.langMain') : l.toUpperCase()}{l !== 'main' && hasVariant(l) ? ' •' : ''}
+          </button>
+        ))}
+      </div>
+      <p className="cfg-field-help">{variantLang === 'main' ? t('crm.automations.form.builderUi.langMainHint') : t('crm.automations.form.builderUi.langVariantHint', { lang: variantLang.toUpperCase() })}</p>
+    </div>
+  );
 
   return (
     <MainLayout>
@@ -1191,6 +1218,9 @@ export const AutomationFormPage: React.FC = () => {
                       <span className="chip">{formData.triggerEvent}</span>
                       {formData.triggerEvent === 'scheduled' && (
                         <span className="chip">{scheduledCfg.scheduleFrequency || 'weekly'} · {scheduledCfg.scheduleTime || '09:00'}</span>
+                      )}
+                      {JOURNEY_TRIGGERS.includes(formData.triggerEvent) && (
+                        <span className="chip">{t(`crm.automations.form.journey.chip.${formData.triggerEvent.replace('.', '_')}`, { count: Number((formData.meta as any)?.offsetDays ?? 0), time: (formData.meta as any)?.sendTime || '10:00' })}</span>
                       )}
                     </div>
                   </div>
@@ -1369,6 +1399,16 @@ export const AutomationFormPage: React.FC = () => {
                     </>
                   )}
 
+                  {JOURNEY_TRIGGERS.includes(formData.triggerEvent) && (
+                    <GuestJourneyTriggerSettings
+                      automationId={id}
+                      triggerEvent={formData.triggerEvent}
+                      meta={formData.meta as Record<string, any> | undefined}
+                      isActive={formData.isActive !== false}
+                      onMeta={(patch) => handleChange('meta', { ...((formData.meta as Record<string, unknown>) || {}), ...patch })}
+                    />
+                  )}
+
                   {/* Automation meta */}
                   <div className="cfg-section-title">{t('crm.automations.form.builderUi.generalSection')}</div>
                   <div className="cfg-field">
@@ -1524,9 +1564,10 @@ export const AutomationFormPage: React.FC = () => {
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.account')}</label>
                         <select className="cfg-select" value={selAction.config.accountId || ''} onChange={e => ua('accountId', e.target.value)}>
-                          <option value="">{t('crm.automations.form.builderUi.pickEmailAccount')}</option>
+                          <option value="">{t('crm.automations.form.builderUi.defaultMailbox')}</option>
                           {emailAccounts.map(a => <option key={a.id} value={a.id}>{a.email}</option>)}
                         </select>
+                        {!selAction.config.accountId && <p className="cfg-field-help">{t('crm.automations.form.builderUi.defaultMailboxHint')}</p>}
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.to')}</label>
@@ -1543,15 +1584,16 @@ export const AutomationFormPage: React.FC = () => {
                           {emailTemplates.map(tpl => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
                         </select>
                       </div>
+                      {langBar}
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.subject')}</label>
-                        <input ref={emailSubjectInputRef} className="cfg-input" value={selAction.config.subject || ''} onChange={e => ua('subject', e.target.value)} placeholder={t('crm.automations.form.builderUi.subjectPlaceholder')} />
-                        <VariablePicker tokens={notificationTokens} inputRef={emailSubjectInputRef} value={selAction.config.subject || ''} onInsert={v => ua('subject', v)} />
+                        <input ref={emailSubjectInputRef} className="cfg-input" value={fv('subject')} onChange={e => setFv('subject', e.target.value)} placeholder={variantLang === 'main' ? t('crm.automations.form.builderUi.subjectPlaceholder') : selAction.config.subject || ''} />
+                        <VariablePicker tokens={notificationTokens} inputRef={emailSubjectInputRef} value={fv('subject')} onInsert={v => setFv('subject', v)} />
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.body')}</label>
-                        <textarea ref={emailBodyTextareaRef} className="cfg-input ta" value={selAction.config.textBody || ''} onChange={e => ua('textBody', e.target.value)} placeholder={t('crm.automations.form.builderUi.emailBodyPlaceholder')} />
-                        <VariablePicker tokens={notificationTokens} inputRef={emailBodyTextareaRef} value={selAction.config.textBody || ''} onInsert={v => ua('textBody', v)} />
+                        <textarea ref={emailBodyTextareaRef} className="cfg-input ta" value={fv('textBody')} onChange={e => setFv('textBody', e.target.value)} placeholder={variantLang === 'main' ? t('crm.automations.form.builderUi.emailBodyPlaceholder') : selAction.config.textBody || ''} />
+                        <VariablePicker tokens={notificationTokens} inputRef={emailBodyTextareaRef} value={fv('textBody')} onInsert={v => setFv('textBody', v)} />
                       </div>
                     </>
                   )}
@@ -1716,10 +1758,38 @@ export const AutomationFormPage: React.FC = () => {
                         <input className="cfg-input" value={selAction.config.to || ''} onChange={e => ua('to', e.target.value)} placeholder="{{lead.phone}}" />
                         <p className="cfg-field-help">{t('crm.automations.form.builderUi.phoneToAutoHint')}</p>
                       </div>
-                      <div className="cfg-field">
-                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
-                        <textarea className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.whatsappMessagePlaceholder')} />
+                      <div className="cfg-section-title">{t('crm.automations.form.builderUi.waTemplateSection')}</div>
+                      <p className="cfg-field-help">{t('crm.automations.form.builderUi.waTemplateHint')}</p>
+                      <div className="cfg-row">
+                        <div className="cfg-field">
+                          <label className="cfg-field-label">{t('crm.automations.form.builderUi.waTemplateName')}</label>
+                          <input className="cfg-input code" value={selAction.config.templateName || ''} onChange={e => ua('templateName', e.target.value.trim())} placeholder="arrival_welcome" />
+                        </div>
+                        <div className="cfg-field">
+                          <label className="cfg-field-label">{t('crm.automations.form.builderUi.waTemplateLang')}</label>
+                          <select className="cfg-select" value={selAction.config.templateLanguage || 'auto'} onChange={e => ua('templateLanguage', e.target.value)}>
+                            <option value="auto">{t('crm.automations.form.builderUi.waTemplateLangAuto')}</option>
+                            {['tr', 'en', 'ru', 'de'].map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
                       </div>
+                      {selAction.config.templateName ? (
+                        <div className="cfg-field">
+                          <label className="cfg-field-label">{t('crm.automations.form.builderUi.waTemplateParams')}</label>
+                          <textarea ref={waParamsRef} className="cfg-input ta" value={selAction.config.templateParams || ''} onChange={e => ua('templateParams', e.target.value)} placeholder={'{{guest_first_name}}\n{{check_in}}'} />
+                          <VariablePicker tokens={notificationTokens} inputRef={waParamsRef} value={selAction.config.templateParams || ''} onInsert={v => ua('templateParams', v)} />
+                          <p className="cfg-field-help">{t('crm.automations.form.builderUi.waTemplateParamsHint')}</p>
+                        </div>
+                      ) : (
+                        <>
+                          {langBar}
+                          <div className="cfg-field">
+                            <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
+                            <textarea ref={waTextRef} className="cfg-input ta" value={fv('text')} onChange={e => setFv('text', e.target.value)} placeholder={variantLang === 'main' ? t('crm.automations.form.builderUi.whatsappMessagePlaceholder') : selAction.config.text || ''} />
+                            <VariablePicker tokens={notificationTokens} inputRef={waTextRef} value={fv('text')} onInsert={v => setFv('text', v)} />
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
 
@@ -1732,9 +1802,11 @@ export const AutomationFormPage: React.FC = () => {
                         <input className="cfg-input" value={selAction.config.to || ''} onChange={e => ua('to', e.target.value)} placeholder="{{lead.phone}}" />
                         <p className="cfg-field-help">{t('crm.automations.form.builderUi.phoneToAutoHint')}</p>
                       </div>
+                      {langBar}
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
-                        <textarea className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.smsMessagePlaceholder')} />
+                        <textarea ref={smsTextRef} className="cfg-input ta" value={fv('text')} onChange={e => setFv('text', e.target.value)} placeholder={variantLang === 'main' ? t('crm.automations.form.builderUi.smsMessagePlaceholder') : selAction.config.text || ''} />
+                        <VariablePicker tokens={notificationTokens} inputRef={smsTextRef} value={fv('text')} onInsert={v => setFv('text', v)} />
                       </div>
                     </>
                   )}

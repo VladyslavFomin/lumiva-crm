@@ -86,7 +86,7 @@ export class HotelPaymentLinksService implements OnModuleInit {
     tenantId: string,
     dto: { reservationId: string; amount?: number | string; folio?: string; kind?: string; expiresInDays?: number | string; note?: string; sendEmail?: boolean },
     actor: string | null,
-    origin: 'staff' | 'website' = 'staff',
+    origin: 'staff' | 'website' | 'automation' = 'staff',
   ) {
     const r = await this.reservation(tenantId, dto?.reservationId);
     if (!OPEN.includes(r.status)) throw bad('HOTEL_PAY_CLOSED', 'Бронь отменена или закрыта — оплату не запросить');
@@ -247,6 +247,10 @@ export class HotelPaymentLinksService implements OnModuleInit {
       );
       const entry = [...(saved.payments || [])].reverse().find((x) => x.method === 'online');
       if (entry) await this.reqs.update({ id: q.id }, { reservationPaymentId: entry.id });
+      for (const fn of this.appliedHooks) {
+        // событие «оплата получена» для автоматизаций — ошибка там не откатывает зачисление
+        void fn(q.tenantId, q.reservationId, num(p.amount), p.currency, p.provider).catch((e) => this.log.warn(`applied hook ${q.id}: ${(e as Error).message}`));
+      }
       return true;
     } catch (e) {
       // деньги списаны, а в бронь не записали — откатываем статус, чтобы сверка повторила
@@ -277,6 +281,26 @@ export class HotelPaymentLinksService implements OnModuleInit {
     }
     await this.reqs.update({ status: 'pending', expiresAt: LessThan(new Date()) }, { status: 'expired' });
     return rows.length;
+  }
+
+  private readonly appliedHooks: Array<(tenantId: string, reservationId: string, amount: number, currency: string, provider: string) => Promise<void>> = [];
+
+  /** Оплата зачислена в бронь — подписка (путь гостя → событие hotel.payment_received для автоматизаций) */
+  onApplied(fn: (tenantId: string, reservationId: string, amount: number, currency: string, provider: string) => Promise<void>) {
+    this.appliedHooks.push(fn);
+  }
+
+  /**
+   * Ссылка на оплату для текста автоматизации ({{pay_link}}): действующий запрос той же брони переиспользуем,
+   * иначе — новый на неоплаченную предоплату или остаток. Нечего платить / нет платёжной системы — null.
+   */
+  async forAutomation(tenantId: string, reservationId: string, kind: 'deposit' | 'balance') {
+    const s = await this.suggest(tenantId, reservationId);
+    const amount = kind === 'deposit' && s.depositLeft > 0 ? s.depositLeft : s.balance.guest;
+    if (!s.provider || !s.currencySupported || !(amount > 0)) return null;
+    const existing = await this.reqs.findOne({ where: { tenantId, reservationId, status: 'pending', folio: 'guest' }, order: { createdAt: 'DESC' } });
+    if (existing && Math.abs(num(existing.amount) - amount) < 0.01) return this.view(existing);
+    return this.create(tenantId, { reservationId, kind: kind === 'deposit' && s.depositLeft > 0 ? 'deposit' : 'balance', amount, expiresInDays: 7 }, null, 'automation');
   }
 
   /** Для витрины: запрос оплаты брони с сайта (предоплата по тарифу или вся сумма) — повторно не плодим */

@@ -1,7 +1,7 @@
 import { BadRequestException, GoneException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { randomBytes, randomUUID } from 'crypto';
 import { Hotel } from './hotel.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
@@ -131,7 +131,7 @@ export class HotelPrecheckinService {
     ]);
     const filled = (r: HotelReservation) => (r.guests || []).filter((g) => g.fullName && (g.passportNumber || g.tcKimlikNo) && g.birthDate).length;
     return {
-      from, to, autoDays: hotel.precheckinAutoDays, upgrades: hotel.precheckinUpgrades,
+      from, to, auto: await this.autoScenario(tenantId, hotel.id), upgrades: hotel.precheckinUpgrades,
       items: rows.map((r) => {
         const p = pres.find((x) => x.reservationId === r.id);
         const rq = reqs.filter((x) => x.reservationId === r.id);
@@ -369,39 +369,24 @@ export class HotelPrecheckinService {
     return this.upsells.save(row);
   }
 
-  async settings(tenantId: string, hotelId: string, dto: { precheckinAutoDays?: number | null; precheckinUpgrades?: boolean }) {
-    const hotel = await this.hotels.findOne({ where: { id: hotelId, tenantId } });
-    if (!hotel) throw new NotFoundException('Отель не найден');
-    if (dto.precheckinAutoDays !== undefined) {
-      const d = dto.precheckinAutoDays === null || (dto.precheckinAutoDays as any) === '' ? null : Math.round(num(dto.precheckinAutoDays));
-      if (d !== null && (d < 1 || d > 30)) throw bad('HOTEL_PRECHECKIN_DAYS', 'Отправлять — за 1–30 дней до заезда');
-      hotel.precheckinAutoDays = d;
-    }
-    if (dto.precheckinUpgrades !== undefined) hotel.precheckinUpgrades = !!dto.precheckinUpgrades;
-    await this.hotels.save(hotel);
-    return { precheckinAutoDays: hotel.precheckinAutoDays, precheckinUpgrades: hotel.precheckinUpgrades };
+  /**
+   * Автоотправка ссылки теперь — автоматизация «путь гостя» (за N дней до заезда, в тексте {{precheckin_link}}),
+   * а не код: здесь только показываем, какая автоматизация это делает для отеля.
+   */
+  async autoScenario(tenantId: string, hotelId: string) {
+    const rows: Array<{ id: string; name: string; isActive: boolean; meta: any }> = await this.pre.manager.query(
+      `SELECT id, name, "isActive", meta FROM automations WHERE "tenantId" = $1 AND "triggerEvent" = 'hotel.guest_before_arrival' AND actions::text LIKE '%precheckin_link%' ORDER BY "isActive" DESC, "createdAt" ASC`,
+      [tenantId],
+    );
+    const fit = rows.find((a) => !Array.isArray(a.meta?.hotelIds) || !a.meta.hotelIds.length || a.meta.hotelIds.includes(hotelId));
+    return fit ? { automationId: fit.id, name: fit.name, active: fit.isActive, offsetDays: Number(fit.meta?.offsetDays ?? 3), sendTime: String(fit.meta?.sendTime || '10:00') } : null;
   }
 
-  /** Автоотправка: отели с «за N дней», брони с заездом через N дней по времени отеля, email есть, письмо ещё не уходило */
-  async autoSend(): Promise<number> {
-    const hotels = await this.hotels.find({ where: { precheckinAutoDays: Not(IsNull()) } });
-    let sent = 0;
-    for (const h of hotels) {
-      if (!h.precheckinAutoDays) continue;
-      const day = new Date(Date.parse(`${hotelToday(h)}T00:00:00Z`) + h.precheckinAutoDays * 86400000).toISOString().slice(0, 10);
-      const rows = await this.reservations.find({ where: { tenantId: h.tenantId, hotelId: h.id, checkIn: day, status: In(OPEN) as any, roomingPending: false } });
-      for (const r of rows) {
-        if (!r.guestEmail) continue;
-        const p = await this.pre.findOne({ where: { tenantId: h.tenantId, reservationId: r.id } });
-        if (p?.sentAt || p?.status === 'completed') continue;
-        try {
-          await this.send(h.tenantId, r.id);
-          sent++;
-        } catch (e) {
-          this.log.warn(`precheckin auto-send ${r.id}: ${(e as Error).message}`);
-        }
-      }
-    }
-    return sent;
+  async settings(tenantId: string, hotelId: string, dto: { precheckinUpgrades?: boolean }) {
+    const hotel = await this.hotels.findOne({ where: { id: hotelId, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    if (dto.precheckinUpgrades !== undefined) hotel.precheckinUpgrades = !!dto.precheckinUpgrades;
+    await this.hotels.save(hotel);
+    return { precheckinUpgrades: hotel.precheckinUpgrades, auto: await this.autoScenario(tenantId, hotelId) };
   }
 }
