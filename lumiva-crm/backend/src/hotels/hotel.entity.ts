@@ -61,6 +61,20 @@ export class Hotel {
   @Column({ type: 'boolean', default: true })
   precheckinUpgrades: boolean;
 
+  /** Рекомендации цены: применять сами раз в сутки, горизонт (дней вперёд), предел поправки ± % */
+  @Column({ type: 'boolean', default: false })
+  revenueAutoApply: boolean;
+
+  @Column({ type: 'smallint', default: 90 })
+  revenueHorizon: number;
+
+  @Column({ type: 'numeric', precision: 6, scale: 2, default: 30 })
+  revenueMaxPct: string;
+
+  /** Лимит начислений точек продаж на номер (долг по счёту гостя); null — без лимита */
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
+  posCreditLimit: string | null;
+
   /** Плановая выручка на сезон/период — используется в воронке выручки в аналитике. */
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
   seasonRevenueTarget: string;

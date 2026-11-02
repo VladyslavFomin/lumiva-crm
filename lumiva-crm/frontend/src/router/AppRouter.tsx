@@ -195,6 +195,8 @@ const HotelPartnersPage = lazy(() => import('../pages/hotels/partners/HotelPartn
 const HotelPartnerPage = lazy(() => import('../pages/hotels/partners/HotelPartnerPage').then((m) => ({ default: m.HotelPartnerPage })));
 const HotelContractPage = lazy(() => import('../pages/hotels/partners/HotelContractPage').then((m) => ({ default: m.HotelContractPage })));
 const HotelGuestRegisterPage = lazy(() => import('../pages/hotels/partners/HotelGuestRegisterPage').then((m) => ({ default: m.HotelGuestRegisterPage })));
+const HotelPosPage = lazy(() => import('../pages/hotels/pos/HotelPosPage').then((m) => ({ default: m.HotelPosPage })));
+const HotelRevenuePage = lazy(() => import('../pages/hotels/revenue/HotelRevenuePage').then((m) => ({ default: m.HotelRevenuePage })));
 const HotelPrecheckinPage = lazy(() => import('../pages/hotels/precheckin/HotelPrecheckinPage').then((m) => ({ default: m.HotelPrecheckinPage })));
 const HotelGroupsPage = lazy(() => import('../pages/hotels/groups/HotelGroupsPage').then((m) => ({ default: m.HotelGroupsPage })));
 const HotelGroupPage = lazy(() => import('../pages/hotels/groups/HotelGroupPage').then((m) => ({ default: m.HotelGroupPage })));
@@ -1367,6 +1369,8 @@ export const AppRouter: React.FC = () => {
         <Route path="/hotels/inventory" element={<ProtectedRoute><HotelInventoryPage /></ProtectedRoute>} />
         <Route path="/hotels/groups" element={<ProtectedRoute><HotelGroupsPage /></ProtectedRoute>} />
         <Route path="/hotels/precheckin" element={<ProtectedRoute><HotelPrecheckinPage /></ProtectedRoute>} />
+        <Route path="/hotels/revenue" element={<ProtectedRoute><HotelRevenuePage /></ProtectedRoute>} />
+        <Route path="/hotels/pos" element={<ProtectedRoute><HotelPosPage /></ProtectedRoute>} />
         <Route path="/hotels/groups/:id" element={<ProtectedRoute><HotelGroupPage /></ProtectedRoute>} />
         <Route path="/hotels/guests" element={<ProtectedRoute><HotelGuestsPage /></ProtectedRoute>} />
         <Route path="/hotels/guests/:id" element={<ProtectedRoute><HotelGuestProfilePage /></ProtectedRoute>} />

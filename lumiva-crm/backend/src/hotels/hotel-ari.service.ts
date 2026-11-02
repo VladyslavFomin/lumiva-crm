@@ -281,12 +281,12 @@ export class HotelAriService {
     const toRemove: HotelRoomDateOverride[] = [];
     for (const rt of ids) {
       for (const d of dates) {
-        const cur = byKey.get(`${rt}|${d}`) || this.overrides.create({ tenantId, roomTypeId: rt, date: d, price: null, blocked: false, discountPct: '0', minNights: 1, closedToArrival: false, closedToDeparture: false, maxNights: null });
+        const cur = byKey.get(`${rt}|${d}`) || this.overrides.create({ tenantId, roomTypeId: rt, date: d, price: null, blocked: false, discountPct: '0', minNights: 1, closedToArrival: false, closedToDeparture: false, maxNights: null, rmPct: '0' });
         Object.assign(cur, patch);
         if (cur.maxNights && cur.maxNights < (cur.minNights || 1)) {
           throw bad('HOTEL_ARI_VALUE', `Максимум ночей меньше минимума (${d})`);
         }
-        const empty = cur.price === null && !cur.blocked && !(Number(cur.discountPct) > 0) && (cur.minNights || 1) <= 1 && !cur.closedToArrival && !cur.closedToDeparture && !cur.maxNights;
+        const empty = cur.price === null && !cur.blocked && !(Number(cur.discountPct) > 0) && (cur.minNights || 1) <= 1 && !cur.closedToArrival && !cur.closedToDeparture && !cur.maxNights && !Number(cur.rmPct || 0);
         if (empty) {
           if (cur.id) toRemove.push(cur);
         } else toSave.push(cur);

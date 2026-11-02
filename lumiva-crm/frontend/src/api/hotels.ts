@@ -806,6 +806,47 @@ export const updateRatePlan = (id: string, dto: HotelRatePlanInput) => api.patch
 export const makeDefaultRatePlan = (id: string) => api.post<HotelRatePlan>(`/hotels/rate-plans/${id}/default`, {});
 export const deleteRatePlan = (id: string) => api.delete<{ ok: boolean }>(`/hotels/rate-plans/${id}`);
 
+/* ---------- точки продаж (ресторан, бар, SPA, мини-бар) ---------- */
+
+export type HotelPosKind = 'restaurant' | 'bar' | 'spa' | 'minibar' | 'shop' | 'other';
+export const HOTEL_POS_KINDS: HotelPosKind[] = ['restaurant', 'bar', 'spa', 'minibar', 'shop', 'other'];
+export interface HotelPosOutlet { id: string; hotelId: string; name: string; kind: HotelPosKind; active: boolean; sortOrder: number; items: HotelExtraService[] }
+export interface HotelPosGuest { reservationId: string; guestName: string; roomLabel: string | null; boardType: string | null; allInclusive: boolean; pax: number; checkOut: string; extrasOwed: number; creditLimit: number | null }
+export interface HotelPosLine { extraServiceId: string; name: string; quantity: number; unitPrice: number; amount: number; included: boolean }
+export interface HotelPosCheck { id: string; outletId: string; number: number; businessDate: string; reservationId: string | null; roomLabel: string | null; guestName: string | null; paymentMethod: string | null; lines: HotelPosLine[]; total: string; includedValue: string; status: 'posted' | 'voided'; note: string | null; voidReason: string | null; createdAt: string }
+export interface HotelPosReportRow { outletId: string; name: string; kind: HotelPosKind; checks: number; voided: number; room: number; cash: number; card: number; other: number; included: number; total: number }
+const POS = '/hotels/pos';
+export const fetchPosOutlets = (hotelId: string) => api.get<{ outlets: HotelPosOutlet[]; creditLimit: number | null; currency: string; businessDate: string }>(`${POS}/outlets`, { params: { hotelId } });
+export const createPosOutlet = (dto: { hotelId: string; name: string; kind: HotelPosKind }) => api.post<HotelPosOutlet>(`${POS}/outlets`, dto);
+export const updatePosOutlet = (id: string, dto: Partial<Pick<HotelPosOutlet, 'name' | 'kind' | 'active' | 'sortOrder'>>) => api.patch<HotelPosOutlet>(`${POS}/outlets/${id}`, dto);
+export const deletePosOutlet = (id: string) => api.delete<{ ok: boolean }>(`${POS}/outlets/${id}`);
+export const savePosSettings = (hotelId: string, creditLimit: number | null) => api.patch<{ creditLimit: number | null }>(`${POS}/settings/${hotelId}`, { creditLimit });
+export const fetchPosGuests = (hotelId: string, q: string) => api.get<HotelPosGuest[]>(`${POS}/in-house`, { params: { hotelId, q } });
+export const fetchPosChecks = (q: { hotelId: string; outletId?: string; date?: string }) => api.get<HotelPosCheck[]>(`${POS}/checks`, { params: q });
+export const createPosCheck = (dto: { outletId: string; lines: Array<{ extraServiceId: string; quantity: number }>; reservationId?: string | null; paymentMethod?: string | null; note?: string; overrideLimit?: boolean }) => api.post<HotelPosCheck>(`${POS}/checks`, dto);
+export const voidPosCheck = (id: string, reason: string) => api.post<HotelPosCheck>(`${POS}/checks/${id}/void`, { reason });
+export const fetchPosReport = (q: { hotelId: string; from: string; to: string }) => api.get<HotelPosReportRow[]>(`${POS}/report`, { params: q });
+
+/* ---------- рекомендации цены (revenue) ---------- */
+
+export interface HotelRevenueRow {
+  date: string; weekday: number; lead: number; roomTypeId: string; roomTypeName: string; capacity: number; sold: number; occupancy: number; pickup: number;
+  currentPct: number; currentByRule: boolean; recommendedPct: number | null; ruleId: string | null; ruleName: string | null; guard: 'budget' | 'max' | null;
+  manualPrice: boolean; basePrice: number; currentPrice: number; newPrice: number | null;
+}
+export interface HotelRevenueRule { id: string; hotelId: string; name: string; roomTypeIds: string[]; metric: 'occupancy' | 'pickup'; op: 'gte' | 'lte'; threshold: string; leadMin: number; leadMax: number | null; weekdays: number[]; adjustPct: string; active: boolean; sortOrder: number }
+export type HotelRevenueRuleInput = Partial<Omit<HotelRevenueRule, 'id' | 'hotelId'>> & { hotelId?: string };
+export interface HotelRevenueSettings { revenueAutoApply: boolean; revenueHorizon: number; revenueMaxPct: number }
+const RM = '/hotels/revenue';
+export const fetchRevenue = (hotelId: string, days?: number) => api.get<{ from: string; to: string; today: string; rows: HotelRevenueRow[]; rules: number; settings: HotelRevenueSettings }>(RM, { params: { hotelId, days } });
+export const fetchRevenueRules = (hotelId: string) => api.get<HotelRevenueRule[]>(`${RM}/rules`, { params: { hotelId } });
+export const createRevenueRule = (dto: HotelRevenueRuleInput) => api.post<HotelRevenueRule>(`${RM}/rules`, dto);
+export const updateRevenueRule = (id: string, dto: HotelRevenueRuleInput) => api.patch<HotelRevenueRule>(`${RM}/rules/${id}`, dto);
+export const deleteRevenueRule = (id: string) => api.delete<{ ok: boolean }>(`${RM}/rules/${id}`);
+export const applyRevenue = (hotelId: string, items: Array<{ roomTypeId: string; date: string; pct: number; ruleId?: string | null }>) => api.post<{ applied: number }>(`${RM}/apply`, { hotelId, items });
+export const revenueRange = (dto: { hotelId: string; roomTypeIds: string[]; from: string; to: string; pct: number }) => api.post<{ applied: number }>(`${RM}/range`, dto);
+export const saveRevenueSettings = (hotelId: string, dto: Partial<HotelRevenueSettings>) => api.patch<HotelRevenueSettings>(`${RM}/settings/${hotelId}`, dto);
+
 /* ---------- онлайн-регистрация и допродажи ---------- */
 
 export type HotelPrecheckinStatus = 'new' | 'sent' | 'opened' | 'completed';
@@ -2286,7 +2327,7 @@ export const setFolioRouting = (id: string, accommodationFolio: HotelFolioKind) 
 export const addFolioPayment = (id: string, dto: { date?: string; amount: string; method: string; note?: string; folio?: HotelFolioKind; refund?: boolean }) =>
   api.post<HotelReservation>(`/hotels/reservations/${id}/payments`, dto);
 
-export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number; sellOnline?: boolean; description?: string | null; priceMode?: 'per_stay' | 'per_night' | 'per_person' }
+export interface HotelExtraService { id: string; hotelId: string; name: string; category: string; price: string; active: boolean; sortOrder: number; sellOnline?: boolean; description?: string | null; priceMode?: 'per_stay' | 'per_night' | 'per_person'; outletId?: string | null; aiIncluded?: boolean }
 export interface HotelCashShift {
   id: string; hotelId: string; status: 'open' | 'closed'; openedBy: string | null; openedAt: string; openingCash: string;
   closedBy: string | null; closedAt: string | null; countedCash: string | null; expectedCash: string | null; difference: string | null; totals: Record<string, number> | null; note: string | null;
@@ -2341,7 +2382,7 @@ export const fetchPickup = (hotelId: string, horizon: number) => api.get<HotelPi
 /* ---------- единый расчёт цены ---------- */
 
 export type HotelRateSource = 'block' | 'contract' | 'calendar' | 'season' | 'market' | 'base' | 'channel';
-export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; pp?: number; childAmount?: number; boardAmount?: number; promoAmount?: number; promoPct?: number }
+export interface HotelNightlyRate { date: string; price: number; source: HotelRateSource; discountPct?: number; rmPct?: number; pp?: number; childAmount?: number; boardAmount?: number; promoAmount?: number; promoPct?: number }
 export interface HotelQuote {
   nights: HotelNightlyRate[];
   total: number;

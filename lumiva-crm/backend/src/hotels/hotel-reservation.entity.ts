@@ -61,6 +61,8 @@ export interface HotelNightlyRate {
   pp?: number;
   /** Доплата за детей по детской политике (уже в price) */
   childAmount?: number;
+  /** поправка revenue на дату, % (уже в price) */
+  rmPct?: number;
   /** скидка акций этой ночи (уже вычтена из price) и её % (бесплатная ночь — 100) */
   promoAmount?: number;
   promoPct?: number;

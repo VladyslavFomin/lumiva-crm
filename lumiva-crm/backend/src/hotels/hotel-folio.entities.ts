@@ -51,6 +51,9 @@ export class HotelExtraService {
   @Column({ type: 'boolean', default: false }) sellOnline: boolean;
   @Column({ type: 'text', nullable: true }) description: string | null;
   @Column({ type: 'varchar', length: 12, default: 'per_stay' }) priceMode: 'per_stay' | 'per_night' | 'per_person';
+  /** позиция точки продаж (ресторан, бар…) и входит ли во «всё включено» */
+  @Column({ type: 'uuid', nullable: true }) outletId: string | null;
+  @Column({ type: 'boolean', default: false }) aiIncluded: boolean;
   @Column({ type: 'integer', default: 0 }) sortOrder: number;
   @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
   @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;

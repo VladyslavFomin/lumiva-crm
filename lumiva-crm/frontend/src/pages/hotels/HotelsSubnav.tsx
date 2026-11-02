@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTenantComponents } from '../../hooks/useTenantComponents';
 
-type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'groups' | 'guests' | 'rack' | 'partners' | 'inventory' | 'guestRegister' | 'frontdesk' | 'housekeeping' | 'cashier' | 'nightAudit' | 'reports' | 'pricing' | 'calendar' | 'analytics' | 'reviews' | 'channels' | 'guestCare' | 'precheckin';
+type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'groups' | 'guests' | 'rack' | 'partners' | 'inventory' | 'guestRegister' | 'frontdesk' | 'housekeeping' | 'cashier' | 'nightAudit' | 'reports' | 'pricing' | 'calendar' | 'analytics' | 'reviews' | 'channels' | 'guestCare' | 'precheckin' | 'revenue' | 'pos';
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   overview: (
@@ -25,6 +25,16 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
   groups: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <rect x="3" y="4" width="8" height="7" rx="1.5" /><rect x="13" y="4" width="8" height="7" rx="1.5" /><rect x="3" y="13" width="8" height="7" rx="1.5" /><rect x="13" y="13" width="8" height="7" rx="1.5" />
+    </svg>
+  ),
+  pos: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M6 3h12v6H6z" /><path d="M4 9h16l-1 12H5z" /><path d="M9 14h6" />
+    </svg>
+  ),
+  revenue: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" />
     </svg>
   ),
   precheckin: (
@@ -134,10 +144,12 @@ export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
     { key: 'guestCare', label: t('crm.hotels.nav.guestCare'), path: '/hotels/guest-care', component: 'hotels_guest_care' },
     { key: 'precheckin', label: t('crm.hotels.nav.precheckin'), path: '/hotels/precheckin', component: 'hotels_precheckin' },
     { key: 'cashier', label: t('crm.hotels.nav.cashier'), path: '/hotels/cashier', component: 'hotels_cashier' },
+    { key: 'pos', label: t('crm.hotels.nav.pos'), path: '/hotels/pos', component: 'hotels_pos' },
     { key: 'nightAudit', label: t('crm.hotels.nav.nightAudit'), path: '/hotels/night-audit', component: 'hotels_cashier' },
     { key: 'guestRegister', label: t('crm.hotels.nav.guestRegister'), path: '/hotels/guest-register', component: 'hotels_guest_register' },
     { key: 'pricing', label: t('crm.hotels.nav.pricing'), path: '/hotels/pricing', component: 'hotels_pricing' },
     { key: 'calendar', label: t('crm.hotels.nav.calendar'), path: '/hotels/calendar', component: 'hotels_calendar' },
+    { key: 'revenue', label: t('crm.hotels.nav.revenue'), path: '/hotels/revenue', component: 'hotels_revenue' },
     { key: 'channels', label: t('crm.hotels.nav.channels'), path: '/hotels/channels', component: 'hotels_channels' },
     { key: 'reports', label: t('crm.hotels.nav.reports'), path: '/hotels/reports', component: 'hotels_analytics' },
     { key: 'analytics', label: t('crm.hotels.nav.analytics'), path: '/hotels/analytics', component: 'hotels_analytics' },

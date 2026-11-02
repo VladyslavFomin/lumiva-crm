@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelNightAuditService } from './hotel-night-audit.service';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
+import { HotelRevenueService } from './hotel-revenue.service';
 
 /** Жизненный цикл броней отеля: автоснятие просроченных опционов (PMS-024). */
 @Injectable()
@@ -15,7 +16,25 @@ export class HotelLifecycleScheduler {
     private readonly reservations: HotelReservationsService,
     private readonly nightAudit: HotelNightAuditService,
     private readonly precheckin: HotelPrecheckinService,
+    private readonly revenue: HotelRevenueService,
   ) {}
+
+  private revenueBusy = false;
+
+  /** Рекомендации цены: автоприменение раз в сутки (ночью по UTC, до утренних продаж в Турции) */
+  @Cron('20 1 * * *')
+  async revenueAutoApply() {
+    if (this.revenueBusy) return;
+    this.revenueBusy = true;
+    try {
+      const n = await this.revenue.autoApplyAll();
+      if (n) this.log.log(`revenue adjustments applied: ${n}`);
+    } catch (e) {
+      this.log.warn(`revenue auto-apply: ${(e as Error).message}`);
+    } finally {
+      this.revenueBusy = false;
+    }
+  }
 
   private precheckinBusy = false;
 

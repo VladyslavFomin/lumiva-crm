@@ -277,6 +277,7 @@ export class HotelRateEngineService {
       let price = 0;
       let source: HotelRateSource = 'base';
       let discountPct = 0;
+      let rmFactor = 1;
       const season = seasonPrice(d);
       if (season) seasonVals.push(season.price);
       if (blockRate > 0) {
@@ -296,13 +297,19 @@ export class HotelRateEngineService {
           const hit = order.find(([, v]) => v > 0);
           if (hit) [source, price] = hit;
           if (source === 'season' && season?.fallback) warn.group_fallback.push(d);
+          // поправка revenue на дату (рекомендация цены): ± % к цене по прайсу, PP — в той же пропорции
+          const rm = num(ov?.rmPct);
+          if (rm && price > 0) {
+            price = price * (1 + rm / 100);
+            rmFactor = 1 + rm / 100;
+          }
         }
         discountPct = num(ov?.discountPct);
         if (discountPct > 0 && price > 0) price = price * (1 - discountPct / 100);
       }
       if (!(price > 0)) warn.no_price.push(d);
       const coef = occ ? occupancyCoefficient(occ, periodOf(d)) : 0;
-      const ppNight = source === 'season' && season ? season.pp * (discountPct > 0 ? 1 - discountPct / 100 : 1) : coef > 0 ? price / coef : price;
+      const ppNight = source === 'season' && season ? season.pp * rmFactor * (discountPct > 0 ? 1 - discountPct / 100 : 1) : coef > 0 ? price / coef : price;
       // тариф: корректировка цены номера (PP — в той же пропорции) + питание за ночь
       let boardAmount = 0;
       let ppPlan = ppNight;
@@ -320,6 +327,7 @@ export class HotelRateEngineService {
         source,
         pp: round2(ppPlan),
         ...(discountPct > 0 ? { discountPct } : {}),
+        ...(rmFactor !== 1 ? { rmPct: round2((rmFactor - 1) * 100) } : {}),
         ...(childLines.length ? { childAmount: round2(childAmount) } : {}),
         ...(boardAmount ? { boardAmount: round2(boardAmount) } : {}),
       });

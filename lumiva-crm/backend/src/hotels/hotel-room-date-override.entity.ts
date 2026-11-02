@@ -51,6 +51,16 @@ export class HotelRoomDateOverride {
   @Column({ type: 'smallint', nullable: true })
   maxNights: number | null;
 
+  /** поправка revenue к цене по прайсу на эту дату, % (рекомендация цены / автоприменение); к ручной цене дня не применяется */
+  @Column({ type: 'numeric', precision: 6, scale: 2, default: 0 })
+  rmPct: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  rmRuleId: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  rmAppliedAt: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

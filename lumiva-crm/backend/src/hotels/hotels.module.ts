@@ -102,6 +102,12 @@ import { HotelGroup } from './hotel-group.entity';
 import { HotelGroupsService } from './hotel-groups.service';
 import { HotelGroupsController } from './hotel-groups.controller';
 import { HotelPrecheckin, HotelUpsellRequest } from './hotel-precheckin.entities';
+import { HotelRevenueRule } from './hotel-revenue-rule.entity';
+import { HotelRevenueService } from './hotel-revenue.service';
+import { HotelRevenueController } from './hotel-revenue.controller';
+import { HotelPosCheck, HotelPosOutlet } from './hotel-pos.entities';
+import { HotelPosService } from './hotel-pos.service';
+import { HotelPosController } from './hotel-pos.controller';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelPrecheckinController, HotelPrecheckinPublicController } from './hotel-precheckin.controller';
 import { HotelChannelsService } from './hotel-channels.service';
@@ -126,6 +132,9 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
       HotelGroup,
       HotelPrecheckin,
       HotelUpsellRequest,
+      HotelRevenueRule,
+      HotelPosOutlet,
+      HotelPosCheck,
       HotelGuestRequest,
       Hotel,
       HotelRoomType,
@@ -185,6 +194,8 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelGroupsController,
     HotelPrecheckinController,
     HotelPrecheckinPublicController,
+    HotelRevenueController,
+    HotelPosController,
     HotelGuestCareController,
     HotelGuestCarePublicController,
     HotelHousekeepingController,
@@ -211,6 +222,8 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelGuestProfilesService,
     HotelGroupsService,
     HotelPrecheckinService,
+    HotelRevenueService,
+    HotelPosService,
     HotelGuestCareService,
     HotelChannelsScheduler,
     HotelsService,

@@ -276,6 +276,14 @@ export class HotelFolioService {
     if (dto.sellOnline !== undefined) row.sellOnline = !!dto.sellOnline;
     if (dto.description !== undefined) row.description = String(dto.description || '').trim().slice(0, 1000) || null;
     if (dto.priceMode !== undefined) row.priceMode = dto.priceMode === 'per_night' || dto.priceMode === 'per_person' ? dto.priceMode : 'per_stay';
+    if (dto.outletId !== undefined) {
+      if (dto.outletId) {
+        const [o] = await this.extras.manager.query(`SELECT id FROM hotel_pos_outlets WHERE id = $1 AND "tenantId" = $2 AND "hotelId" = $3`, [dto.outletId, tenantId, row.hotelId]);
+        if (!o) throw bad('HOTEL_POS_OUTLET', 'Точка продаж не из этого отеля');
+      }
+      row.outletId = dto.outletId || null;
+    }
+    if (dto.aiIncluded !== undefined) row.aiIncluded = !!dto.aiIncluded;
     if (row.sellOnline && !(num(row.price) > 0)) throw bad('HOTEL_EXTRA_ONLINE_PRICE', 'Для продажи онлайн укажите цену услуги');
     return this.extras.save(row);
   }
