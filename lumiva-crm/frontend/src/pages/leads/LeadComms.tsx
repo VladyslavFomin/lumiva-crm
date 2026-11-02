@@ -41,17 +41,26 @@ import {
   type WhatsappContactWithPreview,
   type WhatsappMessage,
 } from '../../api/whatsapp-crm';
+import {
+  fetchInstagramContacts,
+  fetchInstagramMessages,
+  markInstagramContactRead,
+  sendInstagramMessage,
+  type InstagramContactWithPreview,
+  type InstagramMessage,
+} from '../../api/instagram-crm';
 import { postAiEmailReplySuggest } from '../../api/ai';
 import { isForbiddenError } from '../../api/client';
 import { MessengerAiPauseBar } from '../../components/ai/MessengerAiPauseBar';
 
-export type ChannelKey = 'whatsapp' | 'telegram' | 'email';
+export type ChannelKey = 'whatsapp' | 'telegram' | 'instagram' | 'email';
 type Filter = 'all' | ChannelKey;
-const CHANNELS: ChannelKey[] = ['whatsapp', 'telegram', 'email'];
+const CHANNELS: ChannelKey[] = ['whatsapp', 'telegram', 'instagram', 'email'];
 
 export const CH_ACCENT: Record<ChannelKey, string> = {
   whatsapp: '#1FA855',
   telegram: '#229ED9',
+  instagram: '#E1306C',
   email: '#5B6470',
 };
 
@@ -66,6 +75,13 @@ export const CH_ICON: Record<ChannelKey, React.ReactNode> = {
     <>
       <path d="M21 4L3 11l5.5 2.5L11 20l3-4.5" />
       <path d="M8.5 13.5L20 5" />
+    </>
+  ),
+  instagram: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M17 7h.01" />
     </>
   ),
   email: (
@@ -94,6 +110,7 @@ const IC = {
     </>
   ),
   play: <path d="M8 5v14l11-7z" />,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
   image: (
     <>
       <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -165,6 +182,11 @@ interface Item {
   fromName?: string | null;
   to?: string[];
   accountId?: string;
+  /** Instagram: комментарий под постом (ссылка на пост) / личный ответ на комментарий */
+  igComment?: { href: string | null };
+  igPrivate?: boolean;
+  /** text — ИИ-расшифровка голосового */
+  transcript?: boolean;
 }
 
 export interface CommsActivity {
@@ -176,6 +198,7 @@ export interface CommsActivity {
 export interface CommsContacts {
   whatsapp: string | null;
   telegram: string | null;
+  instagram?: string | null;
   email: string | null;
 }
 
@@ -271,6 +294,7 @@ function fromTelegram(m: TelegramMessage): Item {
       index: i,
     })),
     msgType: m.messageType,
+    transcript: (m.attachments || []).some((a) => a.transcript),
   };
 }
 
@@ -291,6 +315,26 @@ function fromWhatsapp(m: WhatsappMessage): Item {
       index: i,
     })),
     msgType: m.messageType,
+    transcript: (m.attachments || []).some((a) => a.transcript),
+  };
+}
+
+function fromInstagram(m: InstagramMessage): Item {
+  return {
+    key: `instagram:${m.id}`,
+    id: m.id,
+    ch: 'instagram',
+    dir: m.direction === 'incoming' ? 'in' : 'out',
+    date: m.date,
+    text: m.text || '',
+    src: 'manual',
+    unread: m.direction === 'incoming' && !m.isRead,
+    atts: (m.attachments || [])
+      .filter((a) => a.url)
+      .map((a, i) => ({ name: a.type, kind: attKind(a.type), index: i, url: a.url })),
+    msgType: m.kind,
+    igComment: m.kind === 'comment' ? { href: m.mediaPermalink } : undefined,
+    igPrivate: !!m.rawData?.privateReplyTo,
   };
 }
 
@@ -325,6 +369,7 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
   const [chErrors, setChErrors] = useState<Partial<Record<ChannelKey, string>>>({});
   const [tgContact, setTgContact] = useState<TelegramContactWithPreview | null>(null);
   const [waContact, setWaContact] = useState<WhatsappContactWithPreview | null>(null);
+  const [igContact, setIgContact] = useState<InstagramContactWithPreview | null>(null);
   /** Ручной ответ в мессенджере ставит ИИ-консультанта на паузу — перечитываем плашку сразу после отправки. */
   const [aiBump, setAiBump] = useState(0);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -372,7 +417,7 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
   const load = useCallback(
     async (silent: boolean) => {
       if (!silent) setSyncing(true);
-      const [em, tg, wa] = await Promise.allSettled([
+      const [em, tg, wa, ig] = await Promise.allSettled([
         fetchEmailMessages({ leadId, limit: 100 }),
         fetchTelegramContacts({ leadId }).then(async (cs) => {
           const c = cs[0] ?? null;
@@ -382,6 +427,11 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
         fetchWhatsappContacts({ leadId }).then(async (cs) => {
           const c = cs[0] ?? null;
           const msgs = c ? (await fetchWhatsappMessages({ contactId: c.id, limit: 100 })).items : [];
+          return { c, msgs };
+        }),
+        fetchInstagramContacts({ leadId }).then(async (cs) => {
+          const c = cs[0] ?? null;
+          const msgs = c ? await fetchInstagramMessages(c.id, 100) : [];
           return { c, msgs };
         }),
       ]);
@@ -407,6 +457,10 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
         setWaContact(wa.value.c);
         wa.value.msgs.forEach((m) => next.push(fromWhatsapp(m)));
       } else errs.whatsapp = friendly(wa.reason);
+      if (ig.status === 'fulfilled') {
+        setIgContact(ig.value.c);
+        ig.value.msgs.forEach((m) => next.push(fromInstagram(m)));
+      } else if (!isForbiddenError(ig.reason)) errs.instagram = friendly(ig.reason);
       next.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       const fresh = seenRef.current.size ? next.filter((x) => !seenRef.current.has(x.key) && x.dir === 'in') : [];
@@ -452,6 +506,7 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
   const available: Record<ChannelKey, boolean> = {
     whatsapp: !!waContact?.connectionId,
     telegram: !!tgContact,
+    instagram: !!igContact,
     email: !!leadEmailNorm && accounts.length > 0,
   };
   const handles: CommsContacts = {
@@ -461,13 +516,14 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
         ? `@${tgContact.telegramUsername}`
         : [tgContact.telegramFirstName, tgContact.telegramLastName].filter(Boolean).join(' ') || tgContact.telegramUserId
       : null,
+    instagram: igContact ? (igContact.username ? `@${igContact.username}` : igContact.name || 'Instagram') : null,
     email: leadEmailNorm ? leadEmail.trim() : null,
   };
 
   useEffect(() => {
     onContacts?.(handles);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handles.whatsapp, handles.telegram, handles.email]);
+  }, [handles.whatsapp, handles.telegram, handles.instagram, handles.email]);
 
   const lastIn = useMemo(() => [...items].reverse().find((x) => x.dir === 'in') || null, [items]);
   const last = items.length ? items[items.length - 1] : null;
@@ -490,7 +546,7 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
     const pref = lastIn && available[lastIn.ch] ? lastIn.ch : CHANNELS.find((k) => available[k]) || null;
     setCc(pref);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [available.whatsapp, available.telegram, available.email, lastIn?.key]);
+  }, [available.whatsapp, available.telegram, available.instagram, available.email, lastIn?.key]);
 
   useEffect(() => {
     if (flt !== 'all' && available[flt]) setCc(flt);
@@ -532,10 +588,11 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
       const jobs: Promise<unknown>[] = [];
       if (chs.has('telegram') && tgContact) jobs.push(markTelegramContactRead(tgContact.id));
       if (chs.has('whatsapp') && waContact) jobs.push(markWhatsappContactRead(waContact.id));
+      if (chs.has('instagram') && igContact) jobs.push(markInstagramContactRead(igContact.id));
       targets.filter((x) => x.ch === 'email').forEach((x) => jobs.push(patchEmailMessage(x.id, { isRead: true })));
       await Promise.allSettled(jobs);
     },
-    [items, tgContact, waContact],
+    [items, tgContact, waContact, igContact],
   );
 
   // дочитали до конца — через секунду помечаем прочитанными (и на сервере)
@@ -620,6 +677,9 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
           const m = await sendWhatsappMessage({ connectionId: waContact.connectionId, contactId: waContact.id, text: body });
           pushSent(fromWhatsapp(m));
         }
+      } else if (cc === 'instagram' && igContact) {
+        if (files.length) throw new Error(t('crm.leadCard.comms.igNoFiles'));
+        pushSent(fromInstagram(await sendInstagramMessage(igContact.id, body)));
       } else if (cc === 'email') {
         if (!accountId) throw new Error(t('crm.leadCard.comms.noMailbox'));
         const attachments = await Promise.all(
@@ -778,7 +838,26 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
             </div>
           )}
           {x.atts.length > 0 && <div className="atts">{x.atts.map((a) => renderAtt(x, a, dark))}</div>}
-          {(x.text || fallback) && <div className="tx">{x.text || fallback}</div>}
+          {(x.igComment || x.igPrivate) && (
+            <div className="src">
+              {x.igComment?.href ? (
+                <a href={x.igComment.href} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                  {t('crm.instagram.inbox.commentContext')}
+                </a>
+              ) : x.igComment ? (
+                t('crm.instagram.inbox.commentContext')
+              ) : (
+                t('crm.instagram.inbox.privateReplyContext')
+              )}
+            </div>
+          )}
+          {x.text && x.transcript && (
+            <div className="src">
+              <Ico d={IC.mic} size={11} />
+              {t('crm.leadCard.comms.transcript')}
+            </div>
+          )}
+          {(x.text || fallback) && <div className={cx('tx', x.transcript && 'tr')}>{x.text || fallback}</div>}
           <div className="meta">
             <span>{tm(x.date)}</span>
             {out && <Ico d={IC.check2} size={13} />}
@@ -836,10 +915,16 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
     if (flt === 'email') return leadEmailNorm ? t('crm.leadCard.comms.emptyEmail') : t('crm.leadCard.comms.noLeadEmail');
     if (flt === 'telegram' && !tgContact) return t('crm.leadCard.comms.noDialog.telegram');
     if (flt === 'whatsapp' && !waContact) return t('crm.leadCard.comms.noDialog.whatsapp');
+    if (flt === 'instagram' && !igContact) return t('crm.leadCard.comms.noDialog.instagram');
     return t('crm.leadCard.comms.emptyChannel');
   };
 
-  const inboxHref: Record<ChannelKey, string> = { whatsapp: '/whatsapp/inbox', telegram: '/telegram/inbox', email: '/email/inbox' };
+  const inboxHref: Record<ChannelKey, string> = {
+    whatsapp: '/whatsapp/inbox',
+    telegram: '/telegram/inbox',
+    instagram: '/instagram/inbox',
+    email: '/email/inbox',
+  };
 
   let prevCh: ChannelKey | null = null;
   let prevDay = '';
@@ -1038,7 +1123,7 @@ export const LeadComms = forwardRef<LeadCommsHandle, Props>(function LeadComms(
             className="ld-ib"
             title={t('crm.leadCard.comms.attach')}
             aria-label={t('crm.leadCard.comms.attach')}
-            disabled={!cc}
+            disabled={!cc || cc === 'instagram'}
             onClick={() => fileRef.current?.click()}
           >
             <Ico d={IC.clip} size={15} />

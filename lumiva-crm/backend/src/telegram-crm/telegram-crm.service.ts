@@ -185,6 +185,7 @@ function menuText(): string {
   );
 }
 
+import { transcribeInboundVoice, type VoiceTranscript } from '../ai/voice-transcription.util';
 @Injectable()
 export class TelegramCrmService {
   private readonly log = new Logger(TelegramCrmService.name);
@@ -397,7 +398,7 @@ export class TelegramCrmService {
         const fileId = (message.voice || message.audio)?.file_id;
         if (fileId) {
           await this.sendTyping(bot.botToken, chatId);
-          text = await this.transcribeVoice(bot.botToken, fileId).catch(() => '');
+          text = (await this.transcribeVoice(bot, fileId))?.text || '';
           if (text) {
             // Show the transcription as a quote
             await this.sendTgHtml(bot.botToken, chatId, `🎤 <i>${escHtml(text)}</i>`);
@@ -434,6 +435,16 @@ export class TelegramCrmService {
     }
     contact = await this.contactRepo.save(contact);
 
+    // Голосовое → текст до сохранения: инбокс, заметка лида, автоматизации и консультант видят его как текст
+    const voiceFileId = isVoice && !message.text ? (message.voice || message.audio)?.file_id : null;
+    if (voiceFileId) await this.sendTyping(bot.botToken, chatId);
+    const voice = voiceFileId ? await this.transcribeVoice(bot, voiceFileId) : null;
+    const attachments = this.extractAttachments(message);
+    if (voice && attachments?.length) {
+      const i = attachments.findIndex((a) => a.type === 'voice' || a.type === 'audio');
+      if (i >= 0) attachments[i] = { ...attachments[i], transcript: true, transcriptLang: voice.language };
+    }
+
     const telegramMessage = this.messageRepo.create({
       tenantId,
       contactId: contact.id,
@@ -441,9 +452,9 @@ export class TelegramCrmService {
       messageId: String(message.message_id),
       chatId,
       direction: 'incoming',
-      text: message.text || null,
+      text: message.text || voice?.text || null,
       messageType: this.getMessageType(message),
-      attachments: this.extractAttachments(message),
+      attachments,
       date: new Date(message.date * 1000),
       isRead: false,
       rawData: message,
@@ -452,7 +463,7 @@ export class TelegramCrmService {
 
     const capabilities = this.getCapabilities(bot);
     if (capabilities.leadCreation !== false) {
-      await this.syncInboundToLeadNote(tenantId, bot, contact, telegramUserId, message, telegramMessage.id);
+      await this.syncInboundToLeadNote(tenantId, bot, contact, telegramUserId, message, telegramMessage.id, voice?.text);
     }
 
     try {
@@ -464,17 +475,8 @@ export class TelegramCrmService {
     } catch { /* non-critical */ }
 
     // AI/flow response for external users
-    let text = message.text || '';
-    if (isVoice) {
-      const fileId = (message.voice || message.audio)?.file_id;
-      if (fileId) {
-        await this.sendTyping(bot.botToken, chatId);
-        text = await this.transcribeVoice(bot.botToken, fileId).catch(() => '');
-        if (text) {
-          await this.sendTgHtml(bot.botToken, chatId, `🎤 <i>${escHtml(text)}</i>`);
-        }
-      }
-    }
+    const text = message.text || voice?.text || '';
+    if (voice) await this.sendTgHtml(bot.botToken, chatId, `🎤 <i>${escHtml(voice.text)}</i>`);
     if (text) {
       await this.routeExternalMessage(bot, contact, chatId, text);
     }
@@ -485,24 +487,18 @@ export class TelegramCrmService {
 
   // ── Voice transcription ──────────────────────────────────────────────────
 
-  private async transcribeVoice(botToken: string, fileId: string): Promise<string> {
-    // Step 1: get file path from Telegram
-    const fileRes = await axios.get(
-      `https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`,
-    );
-    const filePath: string = fileRes.data?.result?.file_path;
-    if (!filePath) throw new Error('No file path from Telegram');
-
-    // Step 2: download the file
-    const fileRes2 = await axios.get(
-      `https://api.telegram.org/file/bot${botToken}/${filePath}`,
-      { responseType: 'arraybuffer' },
-    );
-    const buffer = Buffer.from(fileRes2.data);
-    const filename = filePath.split('/').pop() || 'voice.ogg';
-
-    // Step 3: transcribe with Whisper
-    return this.oai().transcribeAudio(buffer, filename);
+  /** Скачать голосовое у Telegram и распознать (автоязык, BYOK, квота). null — не вышло. */
+  private async transcribeVoice(bot: TelegramBot, fileId: string): Promise<VoiceTranscript | null> {
+    try {
+      const fileRes = await axios.get(`https://api.telegram.org/bot${bot.botToken}/getFile?file_id=${fileId}`);
+      const filePath: string = fileRes.data?.result?.file_path;
+      if (!filePath) throw new Error('No file path from Telegram');
+      const fileRes2 = await axios.get(`https://api.telegram.org/file/bot${bot.botToken}/${filePath}`, { responseType: 'arraybuffer' });
+      return await transcribeInboundVoice(this.moduleRef, bot.tenantId, Buffer.from(fileRes2.data), filePath.split('/').pop() || 'voice.ogg');
+    } catch (e) {
+      this.log.warn(`Telegram voice download failed (bot ${bot.id}): ${(e as Error).message}`);
+      return null;
+    }
   }
 
   // ── Staff AI conversation ────────────────────────────────────────────────
@@ -1209,7 +1205,7 @@ export class TelegramCrmService {
     return 'text';
   }
 
-  private extractAttachments(message: any): any[] | null {
+  private extractAttachments(message: any): Array<Record<string, any>> | null {
     const out: any[] = [];
     if (message.photo?.length) {
       const p = message.photo[message.photo.length - 1];
@@ -1217,6 +1213,7 @@ export class TelegramCrmService {
     }
     if (message.document) out.push({ type: 'document', fileId: message.document.file_id, fileUniqueId: message.document.file_unique_id, fileName: message.document.file_name, fileSize: message.document.file_size });
     if (message.voice) out.push({ type: 'voice', fileId: message.voice.file_id, fileUniqueId: message.voice.file_unique_id, fileSize: message.voice.file_size });
+    if (message.audio) out.push({ type: 'audio', fileId: message.audio.file_id, fileUniqueId: message.audio.file_unique_id, fileName: message.audio.file_name, fileSize: message.audio.file_size });
     if (message.video) out.push({ type: 'video', fileId: message.video.file_id, fileUniqueId: message.video.file_unique_id, fileSize: message.video.file_size });
     return out.length ? out : null;
   }
@@ -1250,9 +1247,10 @@ export class TelegramCrmService {
     return `Telegram ${telegramUserId}`;
   }
 
-  private formatInboundBody(message: any): string {
+  private formatInboundBody(message: any, transcript?: string | null): string {
     const type = this.getMessageType(message);
     if (type === 'text' && message.text) return String(message.text).trim() || '(пустое тело)';
+    if (transcript) return `🎤 ${transcript}`;
     return `[${type}]`;
   }
 
@@ -1263,6 +1261,7 @@ export class TelegramCrmService {
     telegramUserId: string,
     message: any,
     telegramMessageRowId: string,
+    transcript?: string | null,
   ): Promise<void> {
     try {
       let lead: Lead | null = null;
@@ -1298,7 +1297,7 @@ export class TelegramCrmService {
         un ? `Telegram: ${un}` : null,
         `User ID: ${telegramUserId}`,
         '',
-        this.formatInboundBody(message),
+        this.formatInboundBody(message, transcript),
       ].filter((x) => x != null).join('\n');
       await this.notesService.create(tenantId, {
         entityType: EntityType.LEAD,

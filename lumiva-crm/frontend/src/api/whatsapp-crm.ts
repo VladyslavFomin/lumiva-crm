@@ -12,7 +12,9 @@ export interface WhatsappContact {
   id: string;
   tenantId: string;
   connectionId: string | null;
-  waPhoneDigits: string;
+  waPhoneDigits: string | null;
+  waUserId?: string | null;
+  meta?: { username?: string } | null;
   waProfileName: string | null;
   contactId: string | null;
   companyId: string | null;
@@ -31,7 +33,7 @@ export interface WhatsappMessage {
   direction: 'incoming' | 'outgoing';
   text: string | null;
   messageType: string | null;
-  attachments?: Array<{ type: string; id?: string; mimeType?: string; caption?: string; fileName?: string; fileSize?: number }> | null;
+  attachments?: Array<{ type: string; id?: string; mimeType?: string; caption?: string; fileName?: string; fileSize?: number; transcript?: boolean; transcriptLang?: string | null }> | null;
   /** source: 'ai' — ответ ИИ-консультанта или ИИ-сотрудника */
   rawData?: { source?: string } | null;
   date: string;
@@ -49,6 +51,10 @@ export interface WhatsappContactWithPreview extends WhatsappContact {
   crmCompany?: { id: string; name: string | null } | null;
   messageCount?: number;
   firstMessageAt?: string | null;
+  /** Окно 24 ч Meta: waiting — ждёт ответа, answered — ответили, archived — окно закрыто */
+  chatState?: 'waiting' | 'answered' | 'archived';
+  lastIncomingAt?: string | null;
+  windowOpenUntil?: string | null;
 }
 
 export async function fetchWhatsappConnections(): Promise<WhatsappConnection[]> {

@@ -1,7 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v21.0';
+// v25: отправка по BSUID (поле `recipient`) — для клиентов, скрывших номер за username
+const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v25.0';
+
+/** Ошибка Graph API с кодом Meta: по нему отличаем «токен недействителен» от «закрыто окно 24 ч». */
+export class WhatsappApiError extends Error {
+  constructor(
+    message: string,
+    readonly httpStatus: number,
+    readonly code: number | null,
+  ) {
+    super(message);
+  }
+
+  /** Токен отозван / истёк / нет прав на номер — подключение сломано, а не конкретное сообщение */
+  get authFailed(): boolean {
+    return this.httpStatus === 401 || this.code === 190 || this.code === 10 || this.code === 200;
+  }
+
+  /** Клиент не писал больше 24 ч — свободный текст запрещён, нужен шаблон */
+  get outsideWindow(): boolean {
+    return this.code === 131047;
+  }
+}
+
+function apiError(status: number, data: any, prefix = 'WhatsApp API'): WhatsappApiError {
+  const e = data?.error || {};
+  const msg = e.error_user_msg || e.message || (typeof data === 'string' ? data : JSON.stringify(data || {})).slice(0, 400);
+  return new WhatsappApiError(`${prefix} ${status}: ${msg}`, status, typeof e.code === 'number' ? e.code : null);
+}
 
 /**
  * WhatsApp Cloud API — текстовое сообщение
@@ -14,6 +42,14 @@ export class WhatsappCloudService {
     return digits;
   }
 
+  /** Адресат для /messages: BSUID ("TR.123…") уходит в `recipient`, номер — в `to` цифрами. */
+  private addressee(to: string): { to: string } | { recipient: string } | null {
+    const raw = String(to || '').trim();
+    if (/^[A-Z]{2}\./.test(raw)) return { recipient: raw };
+    const digits = this.normalizeE164(raw);
+    return digits ? { to: digits } : null;
+  }
+
   async sendTextMessage(params: {
     phoneNumberId: string;
     accessToken: string;
@@ -21,8 +57,8 @@ export class WhatsappCloudService {
     body: string;
   }): Promise<{ messageId?: string }> {
     const { phoneNumberId, accessToken, to, body } = params;
-    const toDigits = this.normalizeE164(to);
-    if (!toDigits) {
+    const addressee = this.addressee(to);
+    if (!addressee) {
       throw new Error('WhatsApp: укажите номер получателя (to) в формате E.164 без + или с +');
     }
     if (!phoneNumberId?.trim()) {
@@ -38,7 +74,7 @@ export class WhatsappCloudService {
       url,
       {
         messaging_product: 'whatsapp',
-        to: toDigits,
+        ...addressee,
         type: 'text',
         text: { body: body.slice(0, 4096) },
       },
@@ -54,8 +90,7 @@ export class WhatsappCloudService {
 
     const data = res.data as { error?: { message?: string }; messages?: { id?: string }[] };
     if (res.status < 200 || res.status >= 300 || data?.error) {
-      const msg = data?.error?.message || JSON.stringify(data).slice(0, 500);
-      throw new Error(`WhatsApp API ${res.status}: ${msg}`);
+      throw apiError(res.status, data);
     }
 
     const messageId = data?.messages?.[0]?.id;
@@ -123,7 +158,7 @@ export class WhatsappCloudService {
     });
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok || !data?.id) {
-      throw new Error(`WhatsApp media upload ${res.status}: ${JSON.stringify(data).slice(0, 400)}`);
+      throw apiError(res.status, data, 'WhatsApp media upload');
     }
     return String(data.id);
   }
@@ -143,11 +178,11 @@ export class WhatsappCloudService {
     if (params.kind === 'document' && params.fileName) media.filename = params.fileName;
     const res = await axios.post(
       `https://graph.facebook.com/${GRAPH_VERSION}/${params.phoneNumberId.trim()}/messages`,
-      { messaging_product: 'whatsapp', recipient_type: 'individual', to: params.to, type: params.kind, [params.kind]: media },
+      { messaging_product: 'whatsapp', recipient_type: 'individual', ...(this.addressee(params.to) ?? { to: params.to }), type: params.kind, [params.kind]: media },
       { headers: { Authorization: `Bearer ${params.accessToken.trim()}` }, timeout: 30000, validateStatus: () => true },
     );
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`WhatsApp API ${res.status}: ${JSON.stringify(res.data || {}).slice(0, 400)}`);
+      throw apiError(res.status, res.data);
     }
     return { messageId: res.data?.messages?.[0]?.id };
   }

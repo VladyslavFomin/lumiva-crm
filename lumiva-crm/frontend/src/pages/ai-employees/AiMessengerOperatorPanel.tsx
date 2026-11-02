@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AiBookingPanel, AiBookingTrace } from './AiBookingPanel';
+import { AiOfficeLinkPanel, AiOfficeTrace } from './AiOfficeLinkPanel';
 import { Link } from 'react-router-dom';
 import {
   fetchMessengerOperatorConfig,
@@ -159,6 +160,7 @@ export function AiMessengerOperatorPanel({
                         <div className="bubble">{ans.reply || '—'}</div>
                         {ans.handoff ? <div className="handoff">{k('wouldHandoff', { reason: ans.handoffReason || '' })}</div> : null}
                         <AiBookingTrace trace={ans.bookingTrace} />
+                        <AiOfficeTrace brainFiles={ans.brainFiles} mediaTrace={ans.mediaTrace} />
                       </div>
                     ) : null}
                   </div>
@@ -190,6 +192,7 @@ export function AiMessengerOperatorPanel({
         </div>
       </div>
       <AiBookingPanel agentId={agentId} />
+      <AiOfficeLinkPanel agentId={agentId} />
     </div>
   );
 }

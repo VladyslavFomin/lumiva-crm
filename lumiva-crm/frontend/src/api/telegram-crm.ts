@@ -152,7 +152,7 @@ export interface TelegramMessage {
   direction: 'incoming' | 'outgoing';
   text: string | null;
   messageType: string | null;
-  attachments?: Array<{ type: string; fileId?: string; fileName?: string; fileSize?: number }> | null;
+  attachments?: Array<{ type: string; fileId?: string; fileName?: string; fileSize?: number; transcript?: boolean; transcriptLang?: string | null }> | null;
   date: string;
   isRead: boolean;
   meta?: {

@@ -19,7 +19,7 @@ export class AiUsageLog {
   userId: string | null;
 
   @Column({ type: 'varchar', length: 32 })
-  kind: 'chat' | 'image' | 'embedding';
+  kind: 'chat' | 'image' | 'embedding' | 'audio';
 
   @Column({ type: 'varchar', length: 128, nullable: true })
   model: string | null;

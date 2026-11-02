@@ -410,6 +410,13 @@
     __ready: true,
     open: open,
     close: close,
+    /** Открыть чат с готовым текстом (клиент сам нажимает «Отправить»). */
+    compose: function (text) {
+      open();
+      inp.value = String(text || '').slice(0, MAX_LEN);
+      autosize();
+      try { inp.focus({ preventScroll: true }); } catch (e) {}
+    },
     setBottom: function (px) { wrap.style.setProperty('--b', (Number(px) || 20) + 'px'); },
     hide: function () { host.style.display = 'none'; },
     show: function () { host.style.display = ''; }

@@ -89,8 +89,13 @@ export const setChatSessionAiPaused = (sessionId: string, paused: boolean) =>
 export type MessengerAiChannel = 'whatsapp' | 'telegram';
 export interface MessengerAiPause {
   handles: boolean;
+  agentId?: string | null;
   agentName: string | null;
   pausedUntil: string | null;
+  /** none — консультант мессенджеров не нанят; off — канал выключен; draft — пишет черновики; auto — отвечает сам */
+  mode?: 'none' | 'off' | 'draft' | 'auto';
+  /** Связь с ИИ-офисом: читает «Мозг» отделов / отправляет материалы из «Медиа» */
+  office?: { brain: boolean; media: boolean };
 }
 export const fetchMessengerAiPause = (channel: MessengerAiChannel, contactId: string) =>
   api.get<MessengerAiPause>(`/messenger-ai/${channel}/${encodeURIComponent(contactId)}`);

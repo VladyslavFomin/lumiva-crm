@@ -69,6 +69,9 @@ export class TelegramMessage {
     fileName?: string;
     fileSize?: number;
     url?: string; // URL для скачивания
+    /** голосовое распознано: message.text — его расшифровка */
+    transcript?: boolean;
+    transcriptLang?: string | null;
   }> | null;
 
   // ==== СВЯЗЬ С КОНТАКТАМИ/КОМПАНИЯМИ ====

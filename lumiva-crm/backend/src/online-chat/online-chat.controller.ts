@@ -90,6 +90,28 @@ export class OnlineChatController {
     return this.chatAi.updateBookingSettings(user.tenantId, id, body || {});
   }
 
+  /* ======= Связь консультанта с ИИ-офисом: «Мозг» отделов и «Медиа» ======= */
+
+  // GET /v1/ai-agents/:id/office-link — настройки + отделы офиса + дерево медиатеки
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('ai_employees')
+  @Get('ai-agents/:id/office-link')
+  async getOfficeLink(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.chatAi.getOfficeLink(user.tenantId, id);
+  }
+
+  // PATCH /v1/ai-agents/:id/office-link { brain?: { departmentIds?, includeShared? }, media?: { enabled?, folderIds? } }
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('ai_employees')
+  @Patch('ai-agents/:id/office-link')
+  async setOfficeLink(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.chatAi.updateOfficeLink(user.tenantId, id, body || {});
+  }
+
   /* ======= Консультант мессенджеров в диалоге: пауза после ручного ответа и «Вернуть ИИ» ======= */
 
   // GET /v1/messenger-ai/whatsapp/:contactId

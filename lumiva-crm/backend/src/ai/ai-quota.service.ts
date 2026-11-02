@@ -80,7 +80,7 @@ export class AiQuotaService {
     costCents: number,
     meta: {
       userId?: string;
-      kind: 'chat' | 'image' | 'embedding';
+      kind: 'chat' | 'image' | 'embedding' | 'audio';
       model?: string | null;
       promptTokens?: number;
       completionTokens?: number;

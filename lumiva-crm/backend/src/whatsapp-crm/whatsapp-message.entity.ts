@@ -65,6 +65,9 @@ export class WhatsappMessage {
     caption?: string;
     fileName?: string;
     fileSize?: number;
+    /** голосовое распознано: message.text — его расшифровка */
+    transcript?: boolean;
+    transcriptLang?: string | null;
   }> | null;
 
   // ==== СВЯЗЬ С КОНТАКТАМИ/КОМПАНИЯМИ ====

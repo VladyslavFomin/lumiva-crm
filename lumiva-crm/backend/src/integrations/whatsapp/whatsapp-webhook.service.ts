@@ -95,6 +95,11 @@ export class WhatsappWebhookService {
     const secret = String(row.cfg.appSecret || '').trim();
     if (!secret) {
       this.log.warn(`WhatsApp webhook ${connectionId}: rejected — no App Secret in connection settings`);
+      await this.whatsappCrmService.markConnectionHealth(
+        connectionId,
+        false,
+        'Входящие сообщения отклоняются: в подключении не указан App Secret приложения Meta (нужен для проверки подписи).',
+      );
       return false;
     }
     if (!rawBody?.length || !header?.startsWith('sha256=')) return false;
@@ -150,9 +155,18 @@ export class WhatsappWebhookService {
         );
         for (const msg of messages) {
           if (!msg || typeof msg !== 'object') continue;
-          const from = String((msg as any).from || '').trim();
-          const digits = this.normalizeDigits(from);
-          if (!digits) continue;
+          // Отправитель: номер (msg.from / contacts[].wa_id) есть не всегда — пользователь с username в
+          // WhatsApp его скрывает; BSUID (from_user_id / contacts[].user_id) Meta присылает всегда.
+          const contacts = Array.isArray((value as any).contacts) ? (value as any).contacts : [];
+          const digits = this.normalizeDigits(String((msg as any).from || contacts[0]?.wa_id || '').trim());
+          const userId = String((msg as any).from_user_id || contacts[0]?.user_id || '').trim();
+          if (!digits && !userId) {
+            this.log.warn(
+              `WhatsApp webhook ${connectionId}: message without sender skipped; ` +
+                `msg keys [${Object.keys(msg).join(',')}], contact keys [${Object.keys(contacts[0] || {}).join(',')}]`,
+            );
+            continue;
+          }
           const type = String((msg as any).type || 'text');
           let textBody: string | null = null;
           if (type === 'text' && (msg as any).text && typeof (msg as any).text === 'object') {
@@ -169,9 +183,12 @@ export class WhatsappWebhookService {
           const timestampRaw = (msg as any).timestamp;
           const timestamp = timestampRaw != null ? parseInt(String(timestampRaw), 10) : null;
 
+          void this.whatsappCrmService.markConnectionHealth(connectionId, true);
           await this.whatsappCrmService.recordInboundMessage(tenantId, connectionId, {
             waMessageId: String((msg as any).id ?? ''),
             fromDigits: digits,
+            fromUserId: userId || null,
+            username: contacts[0]?.profile?.username ? String(contacts[0].profile.username) : null,
             profileName: waName || null,
             type,
             text: textBody,

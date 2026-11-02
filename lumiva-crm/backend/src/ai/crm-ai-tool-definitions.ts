@@ -1739,7 +1739,7 @@ export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
           ppPerNight: { type: 'number' },
           grossPerNight: { type: 'number' },
           discountPct: { type: 'number' },
-          status: { type: 'string', enum: ['confirmed', 'pending', 'checked_in', 'checked_out', 'cancelled'] },
+          status: { type: 'string', enum: ['confirmed', 'pending', 'checked_in', 'checked_out', 'cancelled', 'no_show'] },
           paidStatus: { type: 'string', enum: ['full', 'partial', 'none', 'refunded'] },
         },
         required: ['userConfirmedReservationChange', 'reservationId'],

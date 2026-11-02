@@ -35,14 +35,17 @@ const toMsg = (m: WhatsappMessage): ChatMsg => ({
     fileSize: a.fileSize,
     index,
   })),
+  transcript: (m.attachments || []).some((a) => a.transcript),
 });
 
 const toContact = (c: WhatsappContactWithPreview): ChatContact => {
   const phone = c.waPhoneDigits ? `+${c.waPhoneDigits}` : '';
+  // Клиент с username в WhatsApp скрывает номер — тогда показываем ник
+  const nick = c.meta?.username ? `@${c.meta.username}` : '';
   return {
     id: c.id,
-    name: c.waProfileName || phone || 'WhatsApp',
-    handle: phone,
+    name: c.waProfileName || phone || nick || 'WhatsApp',
+    handle: phone || nick,
     channelId: phone,
     senderId: c.connectionId,
     unread: c.unreadCount,
@@ -52,6 +55,8 @@ const toContact = (c: WhatsappContactWithPreview): ChatContact => {
     crmCompany: c.crmCompany ?? null,
     messageCount: c.messageCount ?? 0,
     firstMessageAt: c.firstMessageAt ?? null,
+    chatState: c.chatState,
+    windowOpenUntil: c.windowOpenUntil ?? null,
   };
 };
 
@@ -71,6 +76,7 @@ const WhatsappInboxPage: React.FC = () => {
         sendWhatsappFile({ connectionId: senderId, contactId: contact.id, file, caption: caption || undefined }),
       attachmentUrl: (messageId, index) => fetchWhatsappAttachmentUrl(messageId, index),
       createLead: (contactId) => createLeadFromWhatsappContact(contactId),
+      window24h: true,
     }),
     [],
   );

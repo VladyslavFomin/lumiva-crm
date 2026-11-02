@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import './chat-inbox.css';
 import { MessengerAiPauseBar } from '../../components/ai/MessengerAiPauseBar';
+import { MessengerAiCard } from '../../components/ai/MessengerAiCard';
 
 /**
  * Диалоги WhatsApp / Telegram — порт Claude Design (whatsapp-inbox.html / telegram-inbox.html,
@@ -21,6 +22,10 @@ export type ChatMsg = {
   date: string;
   source: 'manual' | 'ai' | 'flow';
   attachments: Array<{ kind: ChatAttachmentKind; fileName?: string; fileSize?: number; index: number }>;
+  /** text — ИИ-расшифровка голосового, а не напечатанный клиентом текст */
+  transcript?: boolean;
+  /** Подпись над текстом, напр. «Комментарий к посту» со ссылкой на пост (Instagram) */
+  context?: { label: string; href?: string | null };
 };
 
 export type ChatContact = {
@@ -36,27 +41,34 @@ export type ChatContact = {
   crmCompany: { id: string; name: string | null } | null;
   messageCount: number;
   firstMessageAt: string | null;
+  /** Только у каналов с окном 24 ч (WhatsApp): waiting — ждёт ответа, answered — ответили, archived — окно закрыто */
+  chatState?: 'waiting' | 'answered' | 'archived';
+  windowOpenUntil?: string | null;
 };
 
 export type ChatSender = { id: string; name: string; handle: string };
 
 export type ChatChannelAdapter = {
-  key: 'whatsapp' | 'telegram';
+  key: 'whatsapp' | 'telegram' | 'instagram';
   accent: string;
   loadSenders: () => Promise<ChatSender[]>;
   loadContacts: (search: string) => Promise<ChatContact[]>;
   loadMessages: (contactId: string) => Promise<ChatMsg[]>;
   markRead: (contactId: string) => Promise<unknown>;
   sendText: (contact: ChatContact, senderId: string, text: string) => Promise<unknown>;
-  sendFile: (contact: ChatContact, senderId: string, file: File, caption: string) => Promise<unknown>;
+  /** Нет у канала — кнопка вложения скрыта (Instagram: только текст) */
+  sendFile?: (contact: ChatContact, senderId: string, file: File, caption: string) => Promise<unknown>;
   attachmentUrl: (messageId: string, index: number) => Promise<string>;
   createLead: (contactId: string) => Promise<{ leadId: string }>;
   settingsHref: string;
+  /** Окно 24 ч (WhatsApp Cloud API): писать можно только 24 ч после сообщения клиента → вкладки «Активные» / «Архив». */
+  window24h?: boolean;
 };
 
-const CHANNELS: Array<{ key: 'telegram' | 'whatsapp'; href: string; accent: string; name: string }> = [
+const CHANNELS: Array<{ key: 'telegram' | 'whatsapp' | 'instagram'; href: string; accent: string; name: string }> = [
   { key: 'telegram', href: '/telegram/inbox', accent: '#229ED9', name: 'Telegram' },
   { key: 'whatsapp', href: '/whatsapp/inbox', accent: '#1FA855', name: 'WhatsApp' },
+  { key: 'instagram', href: '/instagram/inbox', accent: '#E1306C', name: 'Instagram' },
 ];
 
 const FILE_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'];
@@ -75,6 +87,7 @@ const XI: Record<string, React.ReactNode> = {
   file: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></>,
   img: <><rect x="3" y="4" width="18" height="16" rx="1.5" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></>,
   play: <path d="M8 5v14l11-7z" />,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
   ai: <path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z" />,
   bot: <><rect x="5" y="8" width="14" height="11" rx="2" /><path d="M12 4v4M9 13h.01M15 13h.01" /></>,
   lead: <><path d="M3 12c0-5 4-9 9-9s9 4 9 9-4 9-9 9" /><path d="M3 12l4-4M3 12l4 4" /></>,
@@ -109,7 +122,7 @@ const fmtSize = (b?: number) => (!b ? '' : b < 1024 * 1024 ? `${Math.max(1, Math
 export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
   const { t, i18n } = useTranslation();
   const k = (key: string, opts?: Record<string, unknown>) => t(`crm.chatInbox.${key}`, opts);
-  const channelName = adapter.key === 'telegram' ? 'Telegram' : 'WhatsApp';
+  const channelName = adapter.key === 'telegram' ? 'Telegram' : adapter.key === 'instagram' ? 'Instagram' : 'WhatsApp';
   const locale = i18n.language || 'ru';
 
   const [contacts, setContacts] = useState<ChatContact[]>([]);
@@ -122,6 +135,7 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [q, setQ] = useState('');
   const [flt, setFlt] = useState<'all' | 'unread' | 'nolead'>('all');
+  const [tab, setTab] = useState<'active' | 'archive'>('active');
   const [sender, setSender] = useState('all');
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -195,10 +209,6 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
   }, [loadContacts, loadMsgs]);
 
   useEffect(() => {
-    if (!sel && contacts.length && window.innerWidth > 760) setSel(contacts[0].id);
-  }, [contacts, sel]);
-
-  useEffect(() => {
     if (!sel) return;
     setMsgs([]);
     setErr('');
@@ -266,21 +276,45 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
 
   // ─── производные ───
   const unreadTotal = contacts.reduce((a, c) => a + c.unread, 0);
+  const archived = (c: ChatContact) => !!adapter.window24h && c.chatState === 'archived';
+  const inTab = useMemo(
+    () => (adapter.window24h ? contacts.filter((c) => (tab === 'archive') === (c.chatState === 'archived')) : contacts),
+    [contacts, tab, adapter.window24h],
+  );
+  const tabCounts = { active: contacts.filter((c) => !archived(c)).length, archive: contacts.filter(archived).length };
   const counts = {
-    all: contacts.length,
-    unread: contacts.filter((c) => c.unread).length,
-    nolead: contacts.filter((c) => !c.lead).length,
+    all: inTab.length,
+    unread: inTab.filter((c) => c.unread).length,
+    nolead: inTab.filter((c) => !c.lead).length,
   };
   const shown = useMemo(
     () =>
-      contacts.filter((c) => {
+      inTab.filter((c) => {
         if (flt === 'unread' && !c.unread) return false;
         if (flt === 'nolead' && c.lead) return false;
         if (sender !== 'all' && c.senderId !== sender) return false;
         return true;
       }),
-    [contacts, flt, sender],
+    [inTab, flt, sender],
   );
+  /** «ждёт 3 ч», «окно ещё 18 ч» — короткая длительность для строки списка. */
+  const span = (ms: number) => {
+    const m = Math.max(1, Math.round(ms / 60_000));
+    if (m < 60) return k('dur.min', { count: m });
+    const h = Math.round(m / 60);
+    return h < 48 ? k('dur.h', { count: h }) : k('dur.d', { count: Math.round(h / 24) });
+  };
+  const stateNote = (c: ChatContact) => {
+    if (!adapter.window24h || !c.chatState) return null;
+    if (c.chatState === 'waiting' && c.lastMessage) return { cls: 'wait', text: k('window.waiting', { time: span(Date.now() - new Date(c.lastMessage.date).getTime()) }) };
+    if (c.chatState === 'answered' && c.windowOpenUntil) return { cls: 'open', text: k('window.left', { time: span(new Date(c.windowOpenUntil).getTime() - Date.now()) }) };
+    if (c.chatState === 'archived') return { cls: 'closed', text: k('window.closed') };
+    return null;
+  };
+  useEffect(() => {
+    if (!sel && shown.length && window.innerWidth > 760) setSel(shown[0].id);
+  }, [shown, sel]);
+
   const senderOf = (c: ChatContact | null) => (c && senders.find((s) => s.id === c.senderId)) || senders[0] || null;
   const snd = senderOf(cur);
 
@@ -318,7 +352,7 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
   };
 
   const pickFile = (f: File | null | undefined) => {
-    if (!f) return;
+    if (!f || !adapter.sendFile) return;
     const ext = (f.name.split('.').pop() || '').toLowerCase();
     if (!FILE_EXT.includes(ext)) return setErr(k('errors.fileType'));
     if (f.size > FILE_MAX) return setErr(k('errors.fileSize'));
@@ -332,7 +366,7 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
     setSending(true);
     setErr('');
     try {
-      if (file) await adapter.sendFile(cur, snd.id, file, body);
+      if (file && adapter.sendFile) await adapter.sendFile(cur, snd.id, file, body);
       else await adapter.sendText(cur, snd.id, body);
       setAiBump((n) => n + 1);
       setText('');
@@ -430,9 +464,26 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
               {m.source === 'ai' ? k('aiReply') : k('botReply')}
             </div>
           )}
+          {m.context && (
+            <div className="src">
+              {m.context.href ? (
+                <a href={m.context.href} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                  {m.context.label}
+                </a>
+              ) : (
+                m.context.label
+              )}
+            </div>
+          )}
           {m.attachments.map((a) => renderAttachment(m, a))}
           {!m.attachments.length && m.type !== 'text' && !m.text && <div className="tx">[{typeLabel(m)}]</div>}
-          {m.text && <div className="tx">{m.text}</div>}
+          {m.text && m.transcript && (
+            <div className="src">
+              <Ic d={XI.mic} size={11} />
+              {k('transcript')}
+            </div>
+          )}
+          {m.text && <div className={cx('tx', m.transcript && 'tr')}>{m.text}</div>}
           <div className="meta">
             {timeOf(m.date)}
             {out && <Ic d={XI.check2} size={13} />}
@@ -474,6 +525,27 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
                 <Ic d={XI.search} size={14} />
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={k(`searchPlaceholder.${adapter.key}`)} />
               </label>
+              {adapter.window24h && (
+                <div className="ix-tabs" role="tablist">
+                  {(['active', 'archive'] as const).map((tb) => (
+                    <button
+                      key={tb}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === tb}
+                      className={cx(tab === tb && 'on')}
+                      onClick={() => {
+                        setTab(tb);
+                        setSel(null);
+                      }}
+                      title={k(`tabs.${tb}Hint`)}
+                    >
+                      {k(`tabs.${tb}`)}
+                      <span>{tabCounts[tb]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="ix-flt">
                 {(['all', 'unread', 'nolead'] as const).map((f) => (
                   <button key={f} type="button" className={cx(flt === f && 'on')} onClick={() => setFlt(f)}>
@@ -494,9 +566,21 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
             <div className="ix-rows">
               {loadingList && <div className="ix-empty-s">{k('loading')}</div>}
               {!loadingList && !contacts.length && <div className="ix-empty-s">{k(`emptyList.${adapter.key}`)}</div>}
-              {!loadingList && !!contacts.length && !shown.length && <div className="ix-empty-s">{k('emptyFilter')}</div>}
-              {shown.map((c) => (
-                <button key={c.id} type="button" className={cx('ix-row', c.id === sel && 'sel', c.unread > 0 && 'un')} onClick={() => open(c.id)}>
+              {!loadingList && !!contacts.length && !shown.length && (
+                <div className="ix-empty-s">{adapter.window24h && !inTab.length ? k(`emptyTab.${tab}`) : k('emptyFilter')}</div>
+              )}
+              {shown.map((c, i) => {
+                const note = stateNote(c);
+                const section = adapter.window24h && tab === 'active' && c.chatState && c.chatState !== shown[i - 1]?.chatState ? c.chatState : null;
+                return (
+                <React.Fragment key={c.id}>
+                {section && (
+                  <div className={cx('ix-sec', section)}>
+                    {k(`section.${section}`)}
+                    <span>{shown.filter((x) => x.chatState === section).length}</span>
+                  </div>
+                )}
+                <button type="button" className={cx('ix-row', c.id === sel && 'sel', c.unread > 0 && 'un', archived(c) && 'arch')} onClick={() => open(c.id)}>
                   <Ava n={c.name} size={38} />
                   <div className="mid">
                     <div className="l1">
@@ -513,10 +597,13 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
                       ) : (
                         <span className="lt none">{k('noLead')}</span>
                       )}
+                      {note && <span className={cx('ix-win', note.cls)}>{note.text}</span>}
                     </div>
                   </div>
                 </button>
-              ))}
+                </React.Fragment>
+                );
+              })}
             </div>
           </aside>
 
@@ -524,7 +611,7 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
           <section
             className="ix-thread"
             onDragOver={(e) => {
-              if (!cur) return;
+              if (!cur || !adapter.sendFile || archived(cur)) return;
               e.preventDefault();
               setDragOver(true);
             }}
@@ -581,8 +668,16 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
                   {!loadingMsgs && !msgs.length && <div className="ix-empty">{k('noMessages')}</div>}
                   {bubbles}
                 </div>
+                {archived(cur) ? (
+                  <div className="ix-comp">
+                    <div className="ix-closed" role="status">
+                      <b>{k('window.closedTitle')}</b>
+                      <span>{k('window.closedText')}</span>
+                    </div>
+                  </div>
+                ) : (
                 <div className="ix-comp">
-                  <MessengerAiPauseBar channel={adapter.key} contactId={cur.id} bump={aiBump} />
+                  {adapter.key !== 'instagram' && <MessengerAiPauseBar channel={adapter.key} contactId={cur.id} bump={aiBump} />}
                   {file && (
                     <div className="ix-file">
                       <div className="ic"><Ic d={/\.(jpe?g|png)$/i.test(file.name) ? XI.img : XI.file} size={15} /></div>
@@ -604,9 +699,11 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
                         e.target.value = '';
                       }}
                     />
-                    <button type="button" className="ix-ib" title={k('attach')} onClick={() => fileRef.current?.click()} disabled={sending}>
-                      <Ic d={XI.clip} size={16} />
-                    </button>
+                    {adapter.sendFile && (
+                      <button type="button" className="ix-ib" title={k('attach')} onClick={() => fileRef.current?.click()} disabled={sending}>
+                        <Ic d={XI.clip} size={16} />
+                      </button>
+                    )}
                     <textarea
                       ref={taRef}
                       rows={1}
@@ -622,9 +719,14 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
                   {err && <div className="err">{err}</div>}
                   <div className="hint">
                     <span>{snd ? <>{k('sendingFrom')} <b>{snd.name}</b>{snd.handle ? ` · ${snd.handle}` : ''}</> : k(`noSender.${adapter.key}`)}</span>
-                    <span className="kb">{k('keyboardHint')}</span>
+                    <span className="kb">
+                      {adapter.window24h && cur.chatState !== 'archived' && cur.windowOpenUntil
+                        ? k('window.composer', { time: span(new Date(cur.windowOpenUntil).getTime() - Date.now()) })
+                        : k('keyboardHint')}
+                    </span>
                   </div>
                 </div>
+                )}
               </>
             )}
           </section>
@@ -637,6 +739,7 @@ export function ChatInbox({ adapter }: { adapter: ChatChannelAdapter }) {
                 <div className="nm">{cur.name}</div>
                 <div className="hd">{cur.handle}</div>
               </div>
+              {adapter.key !== 'instagram' && <MessengerAiCard channel={adapter.key} contactId={cur.id} bump={aiBump} />}
               <div className="ix-blk">
                 <div className="kick">{k('lead')}</div>
                 {cur.lead ? (

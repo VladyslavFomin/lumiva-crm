@@ -6,7 +6,7 @@ import { Repository } from 'typeorm';
 import { WhatsappContact } from './whatsapp-contact.entity';
 import { WhatsappMessage } from './whatsapp-message.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
-import { WhatsappCloudService } from '../integrations/whatsapp/whatsapp-cloud.service';
+import { WhatsappApiError, WhatsappCloudService } from '../integrations/whatsapp/whatsapp-cloud.service';
 import { Lead } from '../leads/lead.entity';
 import { LeadsService } from '../leads/leads.service';
 import { NotesService } from '../notes/notes.service';
@@ -15,10 +15,15 @@ import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
 import { normalizeChatFile, type ChatUpload } from '../common/chat-file.util';
 import { enrichChatContacts } from '../common/chat-contact-enrich.util';
+import { transcribeInboundVoice } from '../ai/voice-transcription.util';
 
 export interface InboundWhatsappMessage {
   waMessageId: string;
   fromDigits: string;
+  /** BSUID (from_user_id) — приходит всегда, в отличие от номера */
+  fromUserId?: string | null;
+  /** Ник WhatsApp (profile.username) — только если пользователь включил username */
+  username?: string | null;
   profileName?: string | null;
   type: string;
   text?: string | null;
@@ -26,6 +31,9 @@ export interface InboundWhatsappMessage {
   timestamp?: number | null;
   raw: any;
 }
+
+/** Окно обслуживания Meta: свободный текст клиенту — только 24 ч после его последнего сообщения. */
+export const WA_WINDOW_MS = 24 * 3_600_000;
 
 @Injectable()
 export class WhatsappCrmService {
@@ -78,28 +86,41 @@ export class WhatsappCrmService {
     }
 
     const digits = this.normalizeDigits(msg.fromDigits);
+    const userId = (msg.fromUserId || '').trim() || null;
+    // Номер есть не всегда (username в WhatsApp скрывает его), BSUID — всегда: ищем по любому из них
+    const findContact = () => this.contactRepo.findOne({
+      where: [
+        ...(digits ? [{ tenantId, waPhoneDigits: digits }] : []),
+        ...(userId ? [{ tenantId, waUserId: userId }] : []),
+      ],
+    });
 
-    let contact = await this.contactRepo.findOne({ where: { tenantId, waPhoneDigits: digits } });
+    let contact = await findContact();
     if (!contact) {
       contact = this.contactRepo.create({
         tenantId,
         connectionId,
-        waPhoneDigits: digits,
+        waPhoneDigits: digits || null,
+        waUserId: userId,
         waProfileName: msg.profileName || null,
         status: 'active',
+        meta: msg.username ? { username: msg.username } : null,
       });
     } else {
       contact.connectionId = connectionId;
       if (msg.profileName) contact.waProfileName = msg.profileName;
+      if (digits && !contact.waPhoneDigits) contact.waPhoneDigits = digits;
+      if (userId && !contact.waUserId) contact.waUserId = userId;
+      if (msg.username) contact.meta = { ...(contact.meta || {}), username: msg.username };
     }
     try {
       contact = await this.contactRepo.save(contact);
     } catch (error) {
       // Гонка двух почти одновременных вебхуков от одного номера — обе ветки прошли
-      // find-then-create до того, как первая успела сохраниться. UQ_whatsapp_contacts_tenant_phone
-      // (см. migrations/20260902120000) ловит это на уровне БД вместо тихого дубля контакта.
+      // find-then-create до того, как первая успела сохраниться. UQ_whatsapp_contacts_tenant_phone/_userid
+      // (см. migrations/20260902120000, 20261022120000) ловят это на уровне БД вместо тихого дубля контакта.
       if ((error as { code?: string }).code === '23505') {
-        const existing = await this.contactRepo.findOne({ where: { tenantId, waPhoneDigits: digits } });
+        const existing = await findContact();
         if (!existing) throw error;
         contact = existing;
       } else {
@@ -112,11 +133,11 @@ export class WhatsappCrmService {
     if (!lead) lead = await this.findLeadByPhoneDigits(tenantId, digits);
     if (!lead) {
       lead = await this.leadsService.createForTenant(tenantId, {
-        name: msg.profileName || `WhatsApp +${digits}`,
-        phone: `+${digits}`,
+        name: msg.profileName || (digits ? `WhatsApp +${digits}` : 'WhatsApp'),
+        ...(digits ? { phone: `+${digits}` } : {}),
         source: 'whatsapp',
         status: 'new',
-        meta: { whatsappPhoneDigits: digits, whatsappConnectionId: connectionId },
+        meta: { whatsappPhoneDigits: digits || null, whatsappUserId: userId, whatsappUsername: msg.username || null, whatsappConnectionId: connectionId },
       });
     }
     if (contact.leadId !== lead.id) {
@@ -161,14 +182,24 @@ export class WhatsappCrmService {
       throw error;
     }
 
+    // Голосовое → текст до заметки/автоматизаций/консультанта: дальше по цепочке все видят его как
+    // обычный текст. Вебхук уже ответил Meta (fire-and-forget), так что ожидание никого не держит.
+    let transcript: string | null = null;
+    if (msg.type === 'audio' && inboundMedia?.id && !message.text) {
+      transcript = await this.transcribeVoiceMessage(tenantId, message);
+    }
+
     const lines = [
       'Входящее сообщение WhatsApp',
       msg.displayPhone ? `Линия: ${msg.displayPhone}` : null,
       msg.profileName ? `Имя в WhatsApp: ${msg.profileName}` : null,
+      msg.username ? `Ник в WhatsApp: @${msg.username}` : null,
       '',
       msg.type === 'text'
         ? (msg.text || '(пустое тело)')
-        : `[${inboundMedia?.fileName || msg.type}]${inboundMedia?.caption ? ` ${inboundMedia.caption}` : ''}`,
+        : transcript
+          ? `🎤 ${transcript}`
+          : `[${inboundMedia?.fileName || msg.type}]${inboundMedia?.caption ? ` ${inboundMedia.caption}` : ''}`,
     ].filter((x) => x != null).join('\n');
 
     await this.notesService.create(tenantId, {
@@ -247,16 +278,42 @@ export class WhatsappCrmService {
       .getRawMany<{ contactId: string; count: string }>();
     const unreadByContact = new Map(unreadRows.map((r) => [r.contactId, parseInt(r.count, 10)]));
 
+    const incomingRows = await this.messageRepo.createQueryBuilder('m')
+      .select('m.contactId', 'contactId')
+      .addSelect('MAX(m.date)', 'at')
+      .where('m.tenantId = :tenantId', { tenantId })
+      .andWhere('m.contactId IN (:...contactIds)', { contactIds })
+      .andWhere('m.direction = :dir', { dir: 'incoming' })
+      .groupBy('m.contactId')
+      .getRawMany<{ contactId: string; at: Date }>();
+    const incomingByContact = new Map(incomingRows.map((r) => [r.contactId, new Date(r.at)]));
+
+    // Окно 24 ч (Meta): свободный текст можно слать, пока с последнего входящего не прошло 24 ч.
+    // waiting — последним писал клиент, answered — ответили, archived — окно закрыто (написать нельзя).
+    const now = Date.now();
+    const STATE_ORDER = { waiting: 0, answered: 1, archived: 2 } as const;
     const rows = contacts
-      .map((c) => ({
-        ...c,
-        lastMessage: lastByContact.get(c.id) ?? null,
-        unreadCount: unreadByContact.get(c.id) ?? 0,
-      }))
+      .map((c) => {
+        const lastMessage = lastByContact.get(c.id) ?? null;
+        const lastIncomingAt = incomingByContact.get(c.id) ?? null;
+        const windowOpenUntil = lastIncomingAt ? new Date(lastIncomingAt.getTime() + WA_WINDOW_MS) : null;
+        const chatState: keyof typeof STATE_ORDER = !windowOpenUntil || windowOpenUntil.getTime() <= now
+          ? 'archived'
+          : lastMessage?.direction === 'incoming' ? 'waiting' : 'answered';
+        return {
+          ...c,
+          lastMessage,
+          unreadCount: unreadByContact.get(c.id) ?? 0,
+          lastIncomingAt,
+          windowOpenUntil,
+          chatState,
+        };
+      })
       .sort((a, b) => {
-        const ad = a.lastMessage ? new Date(a.lastMessage.date).getTime() : new Date(a.createdAt).getTime();
-        const bd = b.lastMessage ? new Date(b.lastMessage.date).getTime() : new Date(b.createdAt).getTime();
-        return bd - ad;
+        if (a.chatState !== b.chatState) return STATE_ORDER[a.chatState] - STATE_ORDER[b.chatState];
+        const at = (x: typeof a) => (x.lastMessage ? new Date(x.lastMessage.date).getTime() : new Date(x.createdAt).getTime());
+        // ждут ответа: дольше всех ждущий — первым (новые внизу); остальные — свежие сверху
+        return a.chatState === 'waiting' ? at(a) - at(b) : at(b) - at(a);
       });
     return enrichChatContacts(this.contactRepo.manager, tenantId, rows, 'whatsapp_messages');
   }
@@ -319,6 +376,57 @@ export class WhatsappCrmService {
     return { phoneNumberId, accessToken };
   }
 
+  /**
+   * Состояние подключения для «Интеграций» (баннер, бейдж, уведомление владельцу): у WhatsApp нет
+   * синхронизации по расписанию, поэтому «работает» = последняя отправка/входящее прошли успешно.
+   */
+  async markConnectionHealth(connectionId: string, ok: boolean, error?: string): Promise<void> {
+    const qb = this.connectionRepo.createQueryBuilder().update(IntegrationConnection).where('id = :id', { id: connectionId });
+    if (ok) {
+      // пишем только при смене статуса — не на каждое сообщение
+      await qb
+        .set({ lastSyncStatus: 'ok', lastError: null, lastSyncAt: new Date() })
+        .andWhere(`("lastSyncStatus" <> 'ok' OR "lastError" IS NOT NULL OR "lastSyncAt" IS NULL OR "lastSyncAt" < now() - interval '1 hour')`)
+        .execute()
+        .catch(() => undefined);
+    } else {
+      await qb.set({ lastSyncStatus: 'error', lastError: (error || '').slice(0, 1000), lastSyncAt: new Date() }).execute().catch(() => undefined);
+    }
+  }
+
+  /** Кому слать: номер, а если клиент скрыл его за username — BSUID (Cloud API поле `recipient`). */
+  private recipientOf(contact: WhatsappContact): string {
+    const to = contact.waPhoneDigits || contact.waUserId;
+    if (!to) throw new BadRequestException('WhatsApp: у контакта нет ни номера, ни идентификатора WhatsApp');
+    return to;
+  }
+
+  /** Окно 24 ч закрыто — Meta отклонит свободный текст и файлы; говорим это сразу, не дёргая API. */
+  private async assertWindowOpen(tenantId: string, contactId: string): Promise<void> {
+    const last = await this.messageRepo.findOne({
+      where: { tenantId, contactId, direction: 'incoming' },
+      order: { date: 'DESC' },
+      select: ['id', 'date'],
+    });
+    if (!last || Date.now() - new Date(last.date).getTime() >= WA_WINDOW_MS) {
+      throw new BadRequestException('WhatsApp: клиент не писал больше 24 часов — свободный текст Meta не пропустит. Диалог в архиве: он вернётся, когда клиент напишет снова.');
+    }
+  }
+
+  /** Ошибка Meta → понятное сообщение; сломанный токен помечает подключение. */
+  private async sendFailed(connectionId: string, e: unknown): Promise<never> {
+    if (e instanceof WhatsappApiError) {
+      if (e.authFailed) {
+        await this.markConnectionHealth(connectionId, false, `Отправка не удалась — токен недействителен или нет прав на номер: ${e.message}`);
+        throw new BadRequestException('WhatsApp: токен подключения недействителен — обновите его в «Интеграциях».');
+      }
+      if (e.outsideWindow) {
+        throw new BadRequestException('WhatsApp: клиент не писал больше 24 часов — свободный текст Meta не пропустит, нужен одобренный шаблон сообщения.');
+      }
+    }
+    throw new BadRequestException((e as Error).message);
+  }
+
   async sendMessage(
     tenantId: string,
     connectionId: string,
@@ -328,11 +436,18 @@ export class WhatsappCrmService {
   ): Promise<WhatsappMessage> {
     const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
     if (!contact) throw new NotFoundException('WhatsApp contact not found');
+    await this.assertWindowOpen(tenantId, contactId);
     const { phoneNumberId, accessToken } = await this.getCredentials(tenantId, connectionId);
 
-    const { messageId } = await this.whatsappCloud.sendTextMessage({
-      phoneNumberId, accessToken, to: contact.waPhoneDigits, body: text,
-    });
+    let messageId: string | undefined;
+    try {
+      ({ messageId } = await this.whatsappCloud.sendTextMessage({
+        phoneNumberId, accessToken, to: this.recipientOf(contact), body: text,
+      }));
+    } catch (e) {
+      return this.sendFailed(connectionId, e);
+    }
+    void this.markConnectionHealth(connectionId, true);
 
     if (contact.connectionId !== connectionId) {
       contact.connectionId = connectionId;
@@ -368,6 +483,7 @@ export class WhatsappCrmService {
     const file = normalizeChatFile(upload);
     const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
     if (!contact) throw new NotFoundException('WhatsApp contact not found');
+    await this.assertWindowOpen(tenantId, contactId);
     const { phoneNumberId, accessToken } = await this.getCredentials(tenantId, connectionId);
     // Картинки у WhatsApp — до 5 МБ; крупнее отправляем документом, чтобы не получить отказ Meta
     const kind = file.kind === 'image' && file.size <= 5 * 1024 * 1024 ? 'image' : 'document';
@@ -377,11 +493,12 @@ export class WhatsappCrmService {
     try {
       mediaId = await this.whatsappCloud.uploadMedia({ phoneNumberId, accessToken, buffer: file.buffer, mime: file.mime, fileName: file.fileName });
       ({ messageId } = await this.whatsappCloud.sendMediaMessage({
-        phoneNumberId, accessToken, to: contact.waPhoneDigits, kind, mediaId, fileName: file.fileName, caption: text || undefined,
+        phoneNumberId, accessToken, to: this.recipientOf(contact), kind, mediaId, fileName: file.fileName, caption: text || undefined,
       }));
     } catch (e) {
-      throw new BadRequestException((e as Error).message);
+      return this.sendFailed(connectionId, e);
     }
+    void this.markConnectionHealth(connectionId, true);
     if (contact.connectionId !== connectionId) {
       contact.connectionId = connectionId;
       await this.contactRepo.save(contact);
@@ -422,18 +539,36 @@ export class WhatsappCrmService {
     }
   }
 
+  /** Расшифровка голосового: текст пишется в message.text (его читают консультант, ИИ-сотрудники,
+   * поиск), а пометка transcript во вложении говорит интерфейсу показать его как расшифровку. */
+  private async transcribeVoiceMessage(tenantId: string, message: WhatsappMessage): Promise<string | null> {
+    try {
+      const { buffer, contentType } = await this.fetchAttachmentFile(tenantId, message.id, 0);
+      const ext = /ogg|opus/.test(contentType) ? 'ogg' : /mpeg|mp3/.test(contentType) ? 'mp3' : /mp4|m4a|aac/.test(contentType) ? 'm4a' : 'ogg';
+      const res = await transcribeInboundVoice(this.moduleRef, tenantId, buffer, `voice.${ext}`);
+      if (!res) return null;
+      message.text = res.text;
+      message.attachments = (message.attachments || []).map((a, i) => (i === 0 ? { ...a, transcript: true, transcriptLang: res.language } : a));
+      await this.messageRepo.save(message);
+      return res.text;
+    } catch (e) {
+      this.log.warn(`WhatsApp voice ${message.id} transcription skipped: ${(e as Error).message}`);
+      return null;
+    }
+  }
+
   /** «Создать лид» из диалога: новый лид с источником whatsapp, диалог и его сообщения привязываются к нему. */
   async createLeadForContact(tenantId: string, contactId: string): Promise<{ leadId: string }> {
     const contact = await this.contactRepo.findOne({ where: { id: contactId, tenantId } });
     if (!contact) throw new NotFoundException('Contact not found');
     if (contact.leadId) return { leadId: contact.leadId };
-    const phone = `+${contact.waPhoneDigits}`;
+    const phone = contact.waPhoneDigits ? `+${contact.waPhoneDigits}` : null;
     const lead = await this.leadsService.createForTenant(tenantId, {
-      name: contact.waProfileName || `WhatsApp +${contact.waPhoneDigits}`,
+      name: contact.waProfileName || (phone ? `WhatsApp ${phone}` : 'WhatsApp'),
       ...(phone ? { phone } : {}),
       source: 'whatsapp',
       status: 'new',
-      meta: { whatsappPhoneDigits: contact.waPhoneDigits, whatsappConnectionId: contact.connectionId || null },
+      meta: { whatsappPhoneDigits: contact.waPhoneDigits, whatsappUserId: contact.waUserId, whatsappConnectionId: contact.connectionId || null },
     } as any);
     contact.leadId = lead.id;
     await this.contactRepo.save(contact);

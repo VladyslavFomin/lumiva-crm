@@ -465,6 +465,67 @@ export class AiBrainService {
       .map((t) => ({ fileId: t.fileId, fileName: byId.get(t.fileId)!.name, folder: byId.get(t.fileId)!.departmentId, text: t.text, score: Math.round(t.s * 1000) / 1000 }));
   }
 
+  /**
+   * Поиск для ответа клиенту (консультант WhatsApp/Telegram/сайта): файлы выбранных отделов
+   * (их папки и файлы, открытые им по scope) и, если includeShared, общие файлы офиса (scope 'all').
+   * Заметки, которые писали сами агенты (source 'agent'), не берём — это внутренняя кухня, не ответы клиенту.
+   */
+  async searchForClient(
+    tenantId: string,
+    departmentIds: string[],
+    query: string,
+    opts: { includeShared: boolean; k?: number },
+  ): Promise<BrainHit[]> {
+    const q = query.replace(/\s+/g, ' ').trim().slice(0, 2000);
+    if (!q || (!departmentIds.length && !opts.includeShared)) return [];
+    const k = opts.k ?? 6;
+    const scopeSql = `f.source <> 'agent' AND (f.department_id::text = ANY($2::text[]) OR f.scope && $2::text[]${opts.includeShared ? ` OR f.scope @> ARRAY['all']::text[]` : ''})`;
+    const scores = new Map<string, { fileId: string; text: string; s: number }>();
+
+    const fts: Array<{ id: string; file_id: string; text: string; rank: number }> = await this.chunks.query(
+      `SELECT c.id, c.file_id, c.text, ts_rank(c.tsv, websearch_to_tsquery('simple', $3)) AS rank
+         FROM ai_brain_chunks c JOIN ai_brain_files f ON f.id = c.file_id
+        WHERE c.tenant_id = $1 AND ${scopeSql} AND f.index_status = 'ready'
+          AND c.tsv @@ websearch_to_tsquery('simple', $3)
+        ORDER BY rank DESC LIMIT 30`,
+      [tenantId, departmentIds, q.split(' ').slice(0, 30).join(' OR ')],
+    );
+    const max = Math.max(0.0001, ...fts.map((r) => Number(r.rank)));
+    for (const r of fts) scores.set(r.id, { fileId: r.file_id, text: r.text, s: 0.45 * (Number(r.rank) / max) });
+
+    let qv: number[] | null = null;
+    try {
+      const r = await this.openai.embed([q], EMBED_DIMS);
+      qv = r.vectors[0] ?? null;
+      await this.quota.chargeCents(tenantId, r.costCents, { kind: 'embedding', model: 'text-embedding-3-small', promptTokens: r.tokens, completionTokens: 0, sessionId: null }).catch(() => undefined);
+    } catch {
+      qv = null;
+    }
+    if (qv) {
+      const rows: Array<{ id: string; file_id: string; text: string; embedding: number[] }> = await this.chunks.query(
+        `SELECT c.id, c.file_id, c.text, c.embedding
+           FROM ai_brain_chunks c JOIN ai_brain_files f ON f.id = c.file_id
+          WHERE c.tenant_id = $1 AND ${scopeSql} AND f.index_status = 'ready' AND c.embedding IS NOT NULL
+          ORDER BY f.updated_at DESC LIMIT ${VECTOR_SCAN_LIMIT}`,
+        [tenantId, departmentIds],
+      );
+      for (const r of rows) {
+        const sim = this.cosine(qv, r.embedding);
+        if (sim < 0.25) continue;
+        const prev = scores.get(r.id);
+        scores.set(r.id, { fileId: r.file_id, text: r.text, s: (prev?.s ?? 0) + 0.55 * sim });
+      }
+    }
+
+    const top = [...scores.values()].sort((a, b) => b.s - a.s).slice(0, k);
+    if (!top.length) return [];
+    const files = await this.files.find({ where: { tenantId, id: In([...new Set(top.map((t) => t.fileId))]) }, select: ['id', 'name', 'departmentId'] });
+    const byId = new Map(files.map((f) => [f.id, f]));
+    return top
+      .filter((t) => byId.has(t.fileId))
+      .map((t) => ({ fileId: t.fileId, fileName: byId.get(t.fileId)!.name, folder: byId.get(t.fileId)!.departmentId, text: t.text, score: Math.round(t.s * 1000) / 1000 }));
+  }
+
   /** Отметить, что агент прочитал файлы (колонка «Последнее чтение»). */
   async markRead(tenantId: string, fileIds: string[], agentId: string | null) {
     if (!fileIds.length) return;

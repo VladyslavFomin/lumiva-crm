@@ -1118,7 +1118,6 @@ const DASHBOARD_EXTRA_WIDGET_IDS = [
   'projects-analytics', 'leads-analytics', 'sales-analytics',
   'products-analytics', 'bookings-analytics', 'hotels-analytics',
 ] as const;
-const DASHBOARD_DEFAULT_HIDDEN_EXTRAS = ['funnel_today', 'lead_sources_week', 'recent_deals', 'birthdays'];
 const DASHBOARD_PRESET_SOURCES = ['leads', 'projects', 'sales', 'workspace'] as const;
 const DASHBOARD_PRESET_SLUGS = [
   'metric-total', 'metric-amount', 'metric-owners', 'metric-won',
@@ -1144,6 +1143,10 @@ type DashboardLayoutJson = {
   heights: Record<string, number>;
   presetInstances: Record<string, any>;
   titleOverrides: Record<string, string>;
+  /** Раскладка уже под главную v3 (стандартные блоки, которые заменила новая главная, скрыты один раз). */
+  homeV3?: boolean;
+  /** Выбор цифр главной v3 — ИИ его не трогает, только переносит. */
+  home?: unknown;
 };
 
 @Injectable()
@@ -2050,15 +2053,16 @@ export class AiToolsService {
         // ---- Отзывы отелей (Отели → Отзывы) ----
         case 'crm_reviews_overview': {
           const g = await gate('hotels'); if (g) return g;
-          return JSON.stringify(await this.toolReviewsOverview(ctx.tenantId, args));
+          return JSON.stringify(await this.toolReviewsOverview(ctx, args));
         }
         case 'crm_reviews_list': {
           const g = await gate('hotels'); if (g) return g;
-          return JSON.stringify(await this.toolReviewsList(ctx.tenantId, args));
+          return JSON.stringify(await this.toolReviewsList(ctx, args));
         }
         case 'crm_reviews_get': {
           const g = await gate('hotels'); if (g) return g;
-          const { reviews } = await this.reputationServices();
+          const { reviews, access } = await this.reputationServices();
+          await access.assertReview(this.reviewsActor(ctx), String(args.reviewId || ''));
           const c: any = await reviews.card(ctx.tenantId, String(args.reviewId || ''));
           return JSON.stringify({
             id: c.id, hotel: c.hotel?.name, platform: c.platform, rating10: c.rating10, ratingRaw: c.ratingRaw, ratingScale: c.ratingScale,
@@ -2072,6 +2076,7 @@ export class AiToolsService {
           // черновик готовит только ИИ-менеджер отзывов (журнал сотрудника, пометка в карточке); без него — нельзя
           const { ReputationAgentService } = await import('../hotel-reputation/reputation-agent.service.js');
           const agentSvc = this.moduleRef.get(ReputationAgentService, { strict: false });
+          await (await this.reputationServices()).access.assertReview(this.reviewsActor(ctx), String(args.reviewId || ''));
           const d = await agentSvc.draftReview(ctx.tenantId, String(args.reviewId || ''), args.tone ? String(args.tone) : undefined, 'chat');
           return JSON.stringify({ ok: true, draft: d.aiDraft, preparedBy: d.agentName, note: 'Черновик сохранён в карточке отзыва. Отправляет ответ человек: /hotels/reviews?review=' + String(args.reviewId || '') });
         }
@@ -4132,11 +4137,13 @@ export class AiToolsService {
   private dashboardDefaultLayout(): DashboardLayoutJson {
     return {
       order: [...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS],
-      hidden: [...DASHBOARD_EXTRA_WIDGET_IDS, ...DASHBOARD_DEFAULT_HIDDEN_EXTRAS],
+      // главная v3: KPI, ленту, таймлайн и т.п. рисует сама страница — стандартные блоки по умолчанию скрыты
+      hidden: [...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS],
       sizes: {},
       heights: {},
       presetInstances: {},
       titleOverrides: {},
+      homeV3: true,
     };
   }
 
@@ -4157,8 +4164,13 @@ export class AiToolsService {
     const user = await this.usersRepo.findOne({ where: { id: userId, tenantId } });
     if (!user) return { ok: false, error: 'user_not_found' };
     const prefs = (user.preferences || {}) as Record<string, any>;
-    const current: DashboardLayoutJson =
+    let current: DashboardLayoutJson =
       (prefs.dashboardLayout as DashboardLayoutJson | undefined) || this.dashboardDefaultLayout();
+    // Та же разовая миграция на главную v3, что во фронте (normalizeDashboardLayoutState): иначе
+    // добавленный сюда стандартный блок фронт скрыл бы при первом чтении раскладки без флага.
+    if (!current.homeV3) {
+      current = { ...current, hidden: [...new Set([...(current.hidden || []), ...DASHBOARD_CORE_WIDGET_IDS])], homeV3: true };
+    }
 
     // Резолвим один widget-спек в { orderId, presetEntry? } или ошибку с понятной причиной для модели.
     const resolveWidget = (
@@ -4279,6 +4291,8 @@ export class AiToolsService {
         heights: {},
         presetInstances: newPresetInstances,
         titleOverrides: newTitleOverrides,
+        home: current.home,
+        homeV3: true,
       };
     } else {
       const order = [...current.order];
@@ -7127,14 +7141,21 @@ ${JSON.stringify(snapshot).slice(0, 24000)}`,
   // ───────────── Отзывы отелей (hotel-reputation) для чата ─────────────
 
   private async reputationServices() {
-    const [{ ReputationAnalyticsService }, { ReputationReviewsService }] = await Promise.all([
+    const [{ ReputationAnalyticsService }, { ReputationReviewsService }, { ReputationAccessService }] = await Promise.all([
       import('../hotel-reputation/reputation-analytics.service.js'),
       import('../hotel-reputation/reputation-reviews.service.js'),
+      import('../hotel-reputation/reputation-access.service.js'),
     ]);
     return {
       analytics: this.moduleRef.get(ReputationAnalyticsService, { strict: false }),
       reviews: this.moduleRef.get(ReputationReviewsService, { strict: false }),
+      access: this.moduleRef.get(ReputationAccessService, { strict: false }),
     };
+  }
+
+  /** Тот, кто спрашивает в чате: сотрудник с доступом только к своим отелям видит в ответах только их. */
+  private reviewsActor(ctx: ToolCtx) {
+    return { tenantId: ctx.tenantId, userId: ctx.userId, role: ctx.userRole || '' };
   }
 
   /** Название/id отеля и бренда → id (поиск без учёта регистра по части названия). */
@@ -7158,13 +7179,17 @@ ${JSON.stringify(snapshot).slice(0, 24000)}`,
     return { hotelId, brandId };
   }
 
-  private async toolReviewsOverview(tenantId: string, args: Record<string, any>) {
+  private async toolReviewsOverview(ctx: ToolCtx, args: Record<string, any>) {
+    const tenantId = ctx.tenantId;
     const sc: any = await this.resolveReviewScope(tenantId, args);
     if (sc.error) return { ok: false, error: sc.error };
     const days = Math.min(730, Math.max(1, Number(args.days) || 30));
     const from = args.from ? String(args.from) : new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
-    const { analytics } = await this.reputationServices();
-    const d: any = await analytics.dashboard(tenantId, { hotelId: sc.hotelId, brandId: sc.brandId, platform: args.platform || undefined, from, to: args.to || undefined });
+    const { analytics, access } = await this.reputationServices();
+    const d: any = await analytics.dashboard(
+      tenantId,
+      await access.restrict(this.reviewsActor(ctx), { hotelId: sc.hotelId, brandId: sc.brandId, platform: args.platform || undefined, from, to: args.to || undefined }),
+    );
     return {
       ok: true,
       period: d.period,
@@ -7178,17 +7203,19 @@ ${JSON.stringify(snapshot).slice(0, 24000)}`,
     };
   }
 
-  private async toolReviewsList(tenantId: string, args: Record<string, any>) {
+  private async toolReviewsList(ctx: ToolCtx, args: Record<string, any>) {
+    const tenantId = ctx.tenantId;
     const sc: any = await this.resolveReviewScope(tenantId, args);
     if (sc.error) return { ok: false, error: sc.error };
-    const { reviews } = await this.reputationServices();
+    const { reviews, access } = await this.reputationServices();
+    const actor = this.reviewsActor(ctx);
     const days = Number(args.days) || 0;
-    const feed: any = await reviews.feed(tenantId, {
+    const feed: any = await reviews.feed(tenantId, await access.restrict(actor, {
       hotelId: sc.hotelId, brandId: sc.brandId, platform: args.platform || undefined, reply: args.reply || undefined, sentiment: args.sentiment || undefined,
       ratingMax: args.ratingMax != null ? String(args.ratingMax) : undefined, ratingMin: args.ratingMin != null ? String(args.ratingMin) : undefined,
       topic: args.topic || undefined, from: days ? new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10) : undefined,
       limit: String(Math.min(20, Math.max(1, Number(args.limit) || 10))),
-    });
+    }), await access.allowed(actor));
     return {
       ok: true,
       total: feed.total,

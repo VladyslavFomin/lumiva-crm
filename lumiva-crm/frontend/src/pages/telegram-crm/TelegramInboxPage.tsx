@@ -37,6 +37,7 @@ const toMsg = (m: TelegramMessage): ChatMsg => {
       fileSize: a.fileSize,
       index,
     })),
+    transcript: (m.attachments || []).some((a) => a.transcript),
   };
 };
 

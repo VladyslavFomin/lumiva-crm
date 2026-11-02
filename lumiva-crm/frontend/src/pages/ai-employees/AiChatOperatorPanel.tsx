@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AiBookingPanel, AiBookingTrace } from './AiBookingPanel';
+import { AiOfficeLinkPanel, AiOfficeTrace } from './AiOfficeLinkPanel';
 import { Link } from 'react-router-dom';
 import {
   fetchChatOperatorConfig,
@@ -173,11 +174,13 @@ export function AiChatOperatorPanel({
                 <div className="bubble">{answer.reply || '—'}</div>
                 {answer.handoff ? <div className="handoff">{k('wouldHandoff', { reason: answer.handoffReason || '' })}</div> : null}
                 <AiBookingTrace trace={answer.bookingTrace} />
+                <AiOfficeTrace brainFiles={answer.brainFiles} mediaTrace={answer.mediaTrace} />
               </div>
             ) : null}
           </div>
         </div>
         <AiBookingPanel agentId={agentId} />
+      <AiOfficeLinkPanel agentId={agentId} />
       </div>
     </div>
   );

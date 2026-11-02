@@ -14,6 +14,7 @@ import { RbacModule } from '../rbac/rbac.module';
 import { AiAgent } from '../ai-employees/ai-agent.entity';
 import { AiEmployeesModule } from '../ai-employees/ai-employees.module';
 import { OnlineChatAiService } from './online-chat-ai.service';
+import { ConsultantOfficeService } from './consultant-office.service';
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { OnlineChatAiService } from './online-chat-ai.service';
     OnlineChatController,       // внутренний (CRM)
     PublicOnlineChatController, // публичный /v1/public/online-chat/...
   ],
-  providers: [OnlineChatService, OnlineChatAiService],
+  providers: [OnlineChatService, OnlineChatAiService, ConsultantOfficeService],
   exports: [OnlineChatService],
 })
 export class OnlineChatModule {}

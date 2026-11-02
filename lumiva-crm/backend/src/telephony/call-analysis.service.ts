@@ -11,6 +11,7 @@ import { Lead } from '../leads/lead.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { resolveTenantAiOverrideFromRepo, TenantAiOverride } from '../ai/tenant-ai-override.util';
 import { getUploadsRoot } from '../common/uploads-root.util';
+import { WHISPER_LANG } from '../ai/voice-transcription.util';
 
 type AiOpenAiService = import('../ai/ai-openai.service').AiOpenAiService;
 type LeadActivityService = import('../leads/lead-activity.service').LeadActivityService;
@@ -18,12 +19,6 @@ type LeadActivityService = import('../leads/lead-activity.service').LeadActivity
 const SENTIMENTS = new Set(['positive', 'neutral', 'negative']);
 const TOPICS = new Set(['pricing', 'scheduling', 'service_quality', 'technical_issue', 'wait_time', 'other']);
 const INTENTS = new Set(['hot', 'warm', 'cold']);
-
-/** Whisper verbose_json отдаёт язык полным английским названием. */
-const WHISPER_LANG: Record<string, string> = {
-  russian: 'ru', english: 'en', turkish: 'tr', ukrainian: 'uk', german: 'de', french: 'fr',
-  spanish: 'es', italian: 'it', arabic: 'ar', kazakh: 'kk', polish: 'pl', dutch: 'nl',
-};
 
 const OUT_LANG: Record<string, string> = { ru: 'русском', en: 'английском (English)', tr: 'турецком (Türkçe)' };
 

@@ -35,8 +35,11 @@ export class WhatsappContact {
   connectionId: string | null;
 
   // ==== WHATSAPP ДАННЫЕ ====
-  @Column({ type: 'varchar', length: 32 })
-  waPhoneDigits: string; // Номер без "+", как приходит в webhook.from
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  waPhoneDigits: string | null; // Номер без "+", как приходит в webhook.from; null — пользователь скрыл номер (username)
+
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  waUserId: string | null; // Business-scoped user id (BSUID, "TR.123…") — есть всегда, номер — не всегда
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   waProfileName: string | null; // profile.name из WhatsApp

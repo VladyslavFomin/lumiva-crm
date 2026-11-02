@@ -17,7 +17,7 @@ export async function enrichChatContacts<T extends { id: string; leadId: string 
   manager: EntityManager,
   tenantId: string,
   contacts: T[],
-  messageTable: 'whatsapp_messages' | 'telegram_messages',
+  messageTable: 'whatsapp_messages' | 'telegram_messages' | 'instagram_messages',
 ): Promise<Array<T & ChatContactCrmInfo>> {
   if (!contacts.length) return [];
   const uniq = (xs: Array<string | null>) => [...new Set(xs.filter((x): x is string => !!x))];

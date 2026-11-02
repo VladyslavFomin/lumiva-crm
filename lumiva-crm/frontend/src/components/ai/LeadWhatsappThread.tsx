@@ -63,7 +63,7 @@ export function LeadWhatsappThread({ leadId, isNew, locale }: { leadId: string; 
     }
   };
 
-  const contactName = contact && (contact.waProfileName || `+${contact.waPhoneDigits}`);
+  const contactName = contact && (contact.waProfileName || (contact.waPhoneDigits ? `+${contact.waPhoneDigits}` : 'WhatsApp'));
 
   return (
     <CollapsibleCard

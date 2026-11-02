@@ -670,6 +670,9 @@ export interface ConsultantTestReply {
   handoff: boolean;
   handoffReason: string | null;
   bookingTrace?: string[];
+  /** Связь с ИИ-офисом: какие документы «Мозга» прочитаны, шаги в медиатеке, файлы, которые ушли бы вложением */
+  brainFiles?: string[];
+  mediaTrace?: string[];
 }
 export interface ChatOperatorConfig {
   brief: string;
@@ -718,3 +721,26 @@ export interface AiBookingSettings {
 export const fetchAiBookingSettings = (id: string) => api.get<AiBookingSettings>(`/ai-agents/${encodeURIComponent(id)}/booking`);
 export const updateAiBookingSettings = (id: string, patch: Partial<AiBookingConfig>) =>
   api.patch<AiBookingSettings>(`/ai-agents/${encodeURIComponent(id)}/booking`, patch);
+
+// ───────── Консультант ↔ ИИ-офис: «Мозг» выбранных отделов и папки «Медиа» ─────────
+export interface ConsultantOfficeConfig {
+  brain: { departmentIds: string[]; includeShared: boolean };
+  media: { enabled: boolean; folderIds: string[]; hotelIds: string[]; collectionIds: string[] };
+}
+export interface ConsultantOfficeSettings {
+  config: ConsultantOfficeConfig;
+  status: {
+    officeAvailable: boolean;
+    mediaAvailable: boolean;
+    departments: Array<{ id: string; name: string; color: string; files: number }>;
+    sharedFiles: number;
+    media: {
+      hotels: Array<{ id: string; name: string }>;
+      collections: Array<{ id: string; name: string }>;
+      folders: Array<{ id: string; name: string; parentId: string | null; hotelId: string | null; collectionId: string | null; files: number }>;
+    } | null;
+  };
+}
+export const fetchConsultantOffice = (id: string) => api.get<ConsultantOfficeSettings>(`/ai-agents/${encodeURIComponent(id)}/office-link`);
+export const updateConsultantOffice = (id: string, patch: Partial<ConsultantOfficeConfig>) =>
+  api.patch<ConsultantOfficeSettings>(`/ai-agents/${encodeURIComponent(id)}/office-link`, patch);

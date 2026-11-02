@@ -16,15 +16,15 @@
   --line-3: #f0f0f0;
   --bg-muted: #fafafa;
   --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --ff-h: 'Barlow Condensed', 'Inter Tight', sans-serif;
-  --ff-t: 'Barlow', 'Inter', sans-serif;
+  --ff-h: var(--ff-heading);
+  --ff-t: var(--ff-text);
   font-family: var(--ff-t);
   font-size: 14px;
   color: var(--fg-1);
   display: flex;
   flex-direction: column;
 }
-.ix h1 { font-family: var(--ff-h); font-weight: 600; font-size: 34px; line-height: 1; margin: 8px 0 0; color: var(--ink); }
+.ix h1 { font-family: var(--ff-h); font-weight: 600; font-size:34px; line-height: 1; margin: 8px 0 0; color: var(--ink); }
 .ix .kick { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--fg-3); display: flex; align-items: center; gap: 7px; }
 .ix a { color: var(--ink); text-decoration: none; }
 .ix a:hover { color: var(--fg-2); }
@@ -118,6 +118,7 @@
 .ix-msg.out.auto .b { background: #fff; color: var(--fg-1); border: 1px dashed color-mix(in oklch, var(--ch) 55%, var(--line-2)); }
 .ix-msg .src { display: flex; align-items: center; gap: 5px; font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ch); margin-bottom: 4px; }
 .ix-msg .tx { white-space: pre-wrap; word-break: break-word; }
+.ix-msg .tx.tr { font-style: italic; }
 .ix-msg .meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-family: var(--ff-mono); font-size: 9.5px; margin-top: 3px; opacity: .55; }
 .ix-msg.out:not(.auto) .meta { opacity: .7; }
 
@@ -170,3 +171,22 @@
 
 .ix-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .8); display: flex; align-items: center; justify-content: center; cursor: zoom-out; padding: 24px; }
 .ix-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+
+/* Окно 24 ч (WhatsApp): вкладки «Активные / Архив», секции «Ждут ответа / Отвечено», срок окна в строке */
+.ix-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-2); border-radius: 9px; padding: 3px; gap: 2px; background: #fff; }
+.ix-tabs button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12.5px; font-weight: 500; color: var(--fg-2); cursor: pointer; transition: background .12s, color .12s; }
+.ix-tabs button:hover { color: var(--ink); }
+.ix-tabs button.on { background: var(--bg-muted); color: var(--ink); }
+.ix-tabs button span { font-family: var(--ff-mono); font-size: 10px; color: var(--fg-3); }
+.ix-tabs button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.ix-sec { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: #fafafb; border-bottom: 1px solid var(--line-3); font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-3); }
+.ix-sec::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-4); }
+.ix-sec.waiting::before { background: #d9822b; }
+.ix-sec.answered::before { background: var(--ch); }
+.ix-sec span { margin-left: auto; }
+.ix-row .l3 { gap: 6px; align-items: center; }
+.ix-win { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: .03em; white-space: nowrap; color: var(--fg-3); flex-shrink: 0; }
+.ix-win.wait { color: #a35a12; }
+.ix-row.arch .nm, .ix-row.arch .pv { color: var(--fg-3); }
+.ix-closed { display: flex; flex-direction: column; gap: 3px; border: 1px dashed var(--line-2); border-radius: 12px; padding: 12px 14px; font-size: 12.5px; color: var(--fg-2); background: #fafafb; }
+.ix-closed b { font-weight: 600; color: var(--ink); }
