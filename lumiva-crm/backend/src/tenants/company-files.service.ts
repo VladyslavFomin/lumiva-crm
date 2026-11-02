@@ -71,11 +71,12 @@ export type CompanyFileSource =
   | 'esign'
   | 'hotels'
   | 'products'
+  | 'media'
   | 'user_avatar';
 
 /** Файлы модулей: видны и считаются в объёме, но удаляются только в своём модуле —
  * иначе товар/отель/подписанный документ останется со ссылкой на пустоту. */
-type ModuleFileSource = 'esign' | 'hotels' | 'products' | 'user_avatar';
+type ModuleFileSource = 'esign' | 'hotels' | 'products' | 'media' | 'user_avatar';
 
 export interface AggregatedCompanyFile {
   id: string;
@@ -417,6 +418,7 @@ export class CompanyFilesService {
       ['esign', 'esign'],
       ['hotels', 'hotels'],
       ['products', 'products'],
+      ['media', 'media'],
       ['users', 'user_avatar'],
     ];
     const found: Array<{ rel: string; name: string; size: number; mtime: Date; source: ModuleFileSource }> = [];
@@ -471,8 +473,26 @@ export class CompanyFilesService {
       : [];
     const emailById = new Map(users.map((u) => [u.id, u.email]));
 
+    // медиатека: `media/<tenantId>/<fileId>.<ext>` (+ `.thumb.jpg`, `.tmp/` недогруженные)
+    const mediaIds = found
+      .filter((f) => f.source === 'media')
+      .map((f) => /^([0-9a-f-]{36})\./i.exec(f.name)?.[1])
+      .filter((id): id is string => Boolean(id));
+    const mediaRows: Array<{ id: string; name: string }> = mediaIds.length
+      ? await this.esignDocRepo.query(`SELECT id, name FROM media_files WHERE "tenantId" = $1 AND id = ANY($2::uuid[])`, [
+          tenantId,
+          [...new Set(mediaIds)],
+        ])
+      : [];
+    const mediaName = new Map(mediaRows.map((r) => [r.id, r.name]));
+
     for (const f of found) {
       let originalName = f.name;
+      if (f.source === 'media') {
+        const m = /^([0-9a-f-]{36})(\.thumb)?\./i.exec(f.name);
+        const n = m ? mediaName.get(m[1]) : undefined;
+        if (n) originalName = m![2] ? `${n} (preview).jpg` : n;
+      }
       let uploadedByEmail: string | null = null;
       if (f.source === 'esign') {
         const m = /^([0-9a-f-]{36})-(draft|signed)\.pdf$/i.exec(f.name);

@@ -9,6 +9,7 @@ export type CompanyFileSource =
   | 'workspace'
   | 'tenant_disk'
   | 'esign'
+  | 'media'
   | 'hotels'
   | 'products'
   | 'user_avatar';
