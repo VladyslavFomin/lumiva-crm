@@ -103,9 +103,12 @@ export const AuraViewPage: React.FC = () => {
               onPeriod={setPeriod}
               breakdown={app.config.breakdown}
               custom={app.config.custom || []}
+              layout={app.config.layout || {}}
+              freeOrder={!!app.config.freeOrder}
               style={app.config.style || null}
               filters={filters}
               onFilter={(k, v) => setFilters((f) => ({ ...f, [k]: v || undefined }))}
+              links
             />
           )}
         </>
@@ -133,9 +136,9 @@ export const AuraAppPage: React.FC = () => {
   const draftRes = useAuraPreview(useDraft ? { widgets: draft.widgets, period: period || draft.period, breakdown: draft.breakdown, goals: draft.goals, custom: draft.custom || [] } : null, filters, 300);
   const res = useDraft ? draftRes : appRes;
   const spec = useDraft
-    ? { title: autoTitle(draft, t), sources: draft.sources, widgets: draft.widgets, theme: draft.theme, density: draft.density, breakdown: draft.breakdown, custom: draft.custom || [], style: draft.style || null }
+    ? { title: autoTitle(draft, t), sources: draft.sources, widgets: draft.widgets, theme: draft.theme, density: draft.density, breakdown: draft.breakdown, custom: draft.custom || [], style: draft.style || null, layout: draft.layout || {}, freeOrder: !!draft.freeOrder }
     : app
-      ? { title: app.name, sources: app.config.sources, widgets: app.config.widgets, theme: app.theme, density: app.density, breakdown: app.config.breakdown, custom: app.config.custom || [], style: app.config.style || null }
+      ? { title: app.name, sources: app.config.sources, widgets: app.config.widgets, theme: app.theme, density: app.density, breakdown: app.config.breakdown, custom: app.config.custom || [], style: app.config.style || null, layout: app.config.layout || {}, freeOrder: !!app.config.freeOrder }
       : null;
   const back = () => nav(useDraft ? (draft.appId ? `/aura/build/${draft.appId}` : '/aura/build') : app?.kiosk ? '/aura/apps' : `/aura/view/${id}`);
   return (
@@ -320,6 +323,8 @@ export const PublicAuraPage: React.FC = () => {
         }}
         breakdown={a.config.breakdown}
         custom={a.config.custom || []}
+        layout={a.config.layout || {}}
+        freeOrder={!!a.config.freeOrder}
         style={a.config.style || null}
         filters={filters}
         onFilter={(k, v) => {

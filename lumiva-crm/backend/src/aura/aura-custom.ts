@@ -203,6 +203,20 @@ export const AURA_DATASETS: AuraDatasetDef[] = [
 
 export const AURA_DATASET_BY_KEY = new Map(AURA_DATASETS.map((d) => [d.key, d]));
 
+/** Компонент тарифа (pl1) для набора данных; таблицы рабочей области — custom_objects. */
+export const AURA_DATASET_COMPONENT: Record<string, string> = {
+  leads: 'leads',
+  sales: 'sales',
+  calls: 'phone_system',
+  bookings: 'bookings',
+  hotel_bookings: 'hotels',
+  products: 'products',
+  contacts: 'contacts',
+  companies: 'companies',
+  ads: 'marketing',
+};
+export const datasetComponent = (d: string) => (isTableDataset(d) ? 'custom_objects' : AURA_DATASET_COMPONENT[d] || null);
+
 export type AuraCustomViz = 'kpi' | 'line' | 'bar' | 'donut' | 'table';
 export type AuraCustomFilter = { field: string; op: 'eq' | 'neq' | 'in' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'empty' | 'notempty'; value?: string | number | Array<string | number> };
 export type AuraCustomWidget = {
@@ -225,6 +239,8 @@ const AGG = ['count', 'sum', 'avg', 'min', 'max'];
 const OPS = ['eq', 'neq', 'in', 'contains', 'gt', 'gte', 'lt', 'lte', 'empty', 'notempty'];
 
 export const isCustomKey = (k: string) => /^c_[a-z0-9]{4,12}$/.test(k);
+/** Оформление без данных: заметка (n_…) и заголовок раздела (s_…). Текст живёт в layout[key].text. */
+export const isDecoKey = (k: string) => /^[ns]_[a-z0-9]{4,12}$/.test(k);
 export const isTableDataset = (d: string) => /^table:[0-9a-f-]{36}$/i.test(d);
 
 /** Структурная проверка (поля таблиц рабочей области проверяются при расчёте — их список динамический). */
@@ -272,7 +288,7 @@ export function sanitizeCustom(raw: unknown): AuraCustomWidget | null {
 
 export type AuraStyle = { bg?: string; surface?: string; ink?: string; accent?: string; accent2?: string; radius?: number; font?: string };
 export const AURA_FONTS = ['inter', 'geist', 'dm', 'bricolage', 'barlow', 'mono', 'serif'];
-const COLOR_RE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]{3,20})$/i;
+export const COLOR_RE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]{3,20})$/i;
 
 export function sanitizeStyle(raw: unknown): AuraStyle | null {
   const r = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null;

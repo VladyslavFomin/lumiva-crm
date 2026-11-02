@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { auraApi, type AuraApp, type AuraCustomWidget, type AuraData, type AuraPeriod } from '../../api/aura';
 import { useAlertModal } from '../../contexts/AlertModalContext';
-import { AU_SOURCES, AU_TEMPLATES, AU_TEMPLATE_WIDGETS, AU_TPL_CATS, auDetectSources, draftFromTemplate, AU_EMPTY, type AuTemplate } from './auraModel';
+import { AU_FEATURED, AU_SOURCES, AU_TEMPLATES, AU_TEMPLATE_WIDGETS, AU_TPL_CATS, auDetectSources, draftFromTemplate, AU_EMPTY, type AuTemplate } from './auraModel';
 import { AU_I, AuIc, AuraShell, auraInvalidate, setAuraDraft, useAgo, useAuraPreview, useReveal } from './auraShared';
 import { AuraDash, AuScaled, AuThumb } from './AuraDash';
+import { lockedFor, openUnlock, UnlockButton, useAuraAccess } from './AuraUnlock';
 
 /* ---------- данные для миниатюр ---------- */
 
@@ -65,7 +66,7 @@ export function AuAppGrid({ apps, onChanged }: { apps: AuraApp[]; onChanged: () 
       {apps.map((a) => (
         <div key={a.id} className="au-card au-rv">
           <button type="button" className="au-card-thumb" onClick={() => nav(a.kiosk ? `/aura/app/${a.id}` : `/aura/view/${a.id}`)}>
-            <AuThumb title={a.name} sources={a.config.sources} widgets={a.config.widgets} theme={a.theme} density={a.density} data={dataOf(a.config.period)} period={a.config.period} breakdown={a.config.breakdown} custom={a.config.custom || []} style={a.config.style || null} />
+            <AuThumb title={a.name} sources={a.config.sources} widgets={a.config.widgets} theme={a.theme} density={a.density} data={dataOf(a.config.period)} period={a.config.period} breakdown={a.config.breakdown} custom={a.config.custom || []} style={a.config.style || null} layout={a.config.layout || {}} freeOrder={!!a.config.freeOrder} />
           </button>
           <div className="au-card-b">
             <div>
@@ -122,6 +123,7 @@ function useTemplateStart() {
 
 export function AuTplGrid({ list, data }: { list: AuTemplate[]; data: AuraData | null }) {
   const { t } = useTranslation();
+  const acc = useAuraAccess();
   const [open, setOpen] = useState<AuTemplate | null>(null);
   const start = useTemplateStart();
   useEffect(() => {
@@ -133,27 +135,39 @@ export function AuTplGrid({ list, data }: { list: AuTemplate[]; data: AuraData |
   return (
     <>
       <div className="au-cards">
-        {list.map((tp) => (
-          <div key={tp.id} className="au-card au-rv">
-            <button type="button" className="au-card-thumb" onClick={() => setOpen(tp)}>
+        {list.map((tp) => {
+          const locked = lockedFor(acc, tp.sources);
+          return (
+          <div key={tp.id} className={'au-card au-rv' + (locked.length ? ' au-card-locked' : '')}>
+            <button type="button" className="au-card-thumb" onClick={() => (locked.length ? openUnlock(locked) : setOpen(tp))}>
               <AuThumb title={t(`crm.aura.tpl.${tp.id}.name`)} sources={tp.sources} widgets={tp.widgets} theme={tp.theme} density={tp.density || 'normal'} data={data} period="30d" breakdown={tp.breakdown} />
+              {locked.length > 0 && (
+                <span className="au-lock-over">
+                  <UnlockButton components={locked} />
+                  <em>{t('crm.aura.unlock.needs', { list: locked.map((c) => t(`crm.aura.comp.${c}`)).join(', ') })}</em>
+                </span>
+              )}
             </button>
             <div className="au-card-b">
               <div>
-                <div className="au-card-t">{t(`crm.aura.tpl.${tp.id}.name`)}</div>
+                <div className="au-card-t">
+                  {t(`crm.aura.tpl.${tp.id}.name`)}
+                  {tp.isNew && <span className="au-new">{t('crm.aura.tpl.new')}</span>}
+                </div>
                 <div className="au-card-m">{t(`crm.aura.tpl.${tp.id}.desc`)}</div>
               </div>
             </div>
             <div className="au-card-tags">
               <span className="tag">{t(`crm.aura.theme.${tp.theme}.name`)}</span>
               {tp.sources.map((s) => (
-                <span key={s} className="tag">
+                <span key={s} className={'tag' + (acc.lockedSources.has(s) ? ' au-tag-locked' : '')}>
                   {t(`crm.aura.src.${s}.name`)}
                 </span>
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       {open && (
         <div className="au-modal-bg lv-backdrop" onClick={() => setOpen(null)}>
@@ -247,13 +261,15 @@ function Rotator({ words }: { words: string[] }) {
 function Showcase({ data }: { data: AuraData | null }) {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const list = AU_TEMPLATES;
+  const acc = useAuraAccess();
+  // в витрине — только шаблоны, доступные клиенту целиком
+  const list = AU_FEATURED.filter((tp) => !lockedFor(acc, tp.sources).length);
   const [c, setC] = useState(0);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [pause, setPause] = useState(false);
   useEffect(() => {
     if (pause) return;
-    const id = window.setInterval(() => setC((x) => (x + 1) % list.length), 3800);
+    const id = window.setInterval(() => setC((x) => (x + 1) % Math.max(1, list.length)), 3800);
     return () => window.clearInterval(id);
   }, [pause, list.length]);
   const move = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -261,6 +277,7 @@ function Showcase({ data }: { data: AuraData | null }) {
     setTilt({ x: ((e.clientY - r.top) / r.height - 0.5) * -6, y: ((e.clientX - r.left) / r.width - 0.5) * 8 });
   };
   const n = list.length;
+  if (!n) return null;
   return (
     <div className="ah-show" onMouseMove={move} onMouseEnter={() => setPause(true)} onMouseLeave={() => { setTilt({ x: 0, y: 0 }); setPause(false); }}>
       <div className="ah-show-stage" style={{ ['--rx' as string]: `${12 + tilt.x}deg`, ['--ry' as string]: `${tilt.y}deg` } as React.CSSProperties}>
@@ -279,7 +296,8 @@ function Showcase({ data }: { data: AuraData | null }) {
               onKeyDown={(e) => e.key === 'Enter' && (p === 0 ? nav('/aura/templates') : setC(i))}
             >
               <div className="ah-shot-in">
-                <AuThumb title={t(`crm.aura.tpl.${tp.id}.name`)} sources={tp.sources} widgets={tp.widgets} theme={tp.theme} density={tp.density || 'normal'} data={data} period="30d" breakdown={tp.breakdown} />
+                {/* рисуем только центральную и соседние карточки: остальные невидимы, а каждая миниатюра — полноценный дашборд */}
+                {Math.abs(p) <= 1 && <AuThumb title={t(`crm.aura.tpl.${tp.id}.name`)} sources={tp.sources} widgets={tp.widgets} theme={tp.theme} density={tp.density || 'normal'} data={data} period="30d" breakdown={tp.breakdown} />}
               </div>
               <div className="ah-shot-cap">
                 <b>{t(`crm.aura.tpl.${tp.id}.name`)}</b>
@@ -332,6 +350,7 @@ export const AuraHomePage: React.FC = () => {
   const detected = p ? auDetectSources(p) : [];
   const tplData = useTemplateData();
   const { apps, reload } = useApps();
+  const acc = useAuraAccess();
   const rv = useReveal();
   const start = (text?: string) => {
     const v = (text ?? p).trim();
@@ -424,7 +443,7 @@ export const AuraHomePage: React.FC = () => {
               <AuIc d={AU_I.send} size={13} />
             </Link>
           </div>
-          <AuTplGrid list={AU_TEMPLATES.slice(0, 3)} data={tplData} />
+          <AuTplGrid list={[...AU_FEATURED].sort((a, b) => lockedFor(acc, a.sources).length - lockedFor(acc, b.sources).length).slice(0, 6)} data={tplData} />
         </section>
       </div>
     </AuraShell>
@@ -450,6 +469,7 @@ export const AuraTemplatesPage: React.FC = () => {
           {AU_TPL_CATS.map((c) => (
             <button type="button" key={c} className={c === cat ? 'on' : ''} onClick={() => setCat(c)}>
               {t(`crm.aura.tplCat.${c}`)}
+              <span className="au-chip-n">{c === 'all' ? AU_TEMPLATES.length : AU_TEMPLATES.filter((x) => x.cat === c).length}</span>
             </button>
           ))}
         </div>

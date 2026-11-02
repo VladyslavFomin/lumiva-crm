@@ -50,7 +50,7 @@ export async function listWorkspaceTables(ctx: Pick<CustomCalcCtx, 'db' | 'tenan
   return visible.map((o) => ({ id: o.id, name: o.name, fields: fields.filter((f) => f.objectId === o.id).map((f) => ({ key: f.key, label: f.label, type: f.type })) }));
 }
 
-const tableKind = (type: string): AuraFieldKind => (/number|currency|money|percent|rating|int|decimal/.test(type) ? 'number' : /bool|check/.test(type) ? 'bool' : 'enum');
+export const tableKind = (type: string): AuraFieldKind => (/number|currency|money|percent|rating|int|decimal/.test(type) ? 'number' : /bool|check/.test(type) ? 'bool' : 'enum');
 
 async function loadRows(ctx: CustomCalcCtx, c: AuraCustomWidget): Promise<{ rows: Row[]; fields: Map<string, FieldInfo>; noPeriod: boolean } | { error: 'denied' | 'failed' }> {
   const from = new Date(ctx.period.prevStart);
@@ -214,7 +214,7 @@ export async function computeCustom(ctx: CustomCalcCtx, c: AuraCustomWidget): Pr
       cols: [
         { key: 'group', kind: 'text' },
         { key: 'count', kind: 'int' },
-        { key: 'value', kind: isMoney ? 'money' : 'int' },
+        { key: 'value', kind: isMoney ? 'money' : c.measure.agg === 'avg' ? 'num' : 'int' },
       ],
       rows: items.slice(0, limit).map((x) => ({ group: x.name, count: groups.get(x.name)!.length, value: x.value })),
     };

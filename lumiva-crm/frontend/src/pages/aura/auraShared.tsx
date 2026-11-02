@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
-import { auraApi, AURA_MENU_CHANGED_EVENT, type AuraCustomWidget, type AuraData, type AuraFilters, type AuraPeriod } from '../../api/aura';
+import { AuraUnlockHost } from './AuraUnlock';
+import { auraApi, AURA_MENU_CHANGED_EVENT, type AuraBlockLayout, type AuraCustomWidget, type AuraData, type AuraFilters, type AuraPeriod } from '../../api/aura';
 import { AU_EMPTY, type AuDraft } from './auraModel';
 import './aura.css';
 
 /* Шрифты тем дашборда — неблокирующей ссылкой (не @import в CSS: тот задерживает показ ленивой страницы). */
 const AURA_FONTS =
-  'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap';
+  'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Manrope:wght@400;500;600;700&family=Sora:wght@400;500;600&family=Outfit:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap';
 if (typeof document !== 'undefined' && !document.querySelector('link[data-aura-fonts]')) {
   const l = document.createElement('link');
   l.rel = 'stylesheet';
@@ -46,6 +47,20 @@ export const AU_I = {
     </>
   ),
   check: <path d="M5 12l5 5 9-10" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-4.5-4.5" />
+    </>
+  ),
+  blocks: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <path d="M16.5 13.5v6M13.5 16.5h6" />
+    </>
+  ),
   back: <path d="M15 6l-6 6 6 6" />,
   aura: (
     <>
@@ -193,14 +208,17 @@ export function useAuraFetch(key: string | null, fetcher: () => Promise<AuraData
 }
 
 export function useAuraPreview(
-  input: { widgets: string[]; period: AuraPeriod; breakdown?: string[]; goals?: { team_goal?: number | null }; custom?: AuraCustomWidget[] } | null,
+  input: { widgets: string[]; period: AuraPeriod; breakdown?: string[]; goals?: { team_goal?: number | null }; custom?: AuraCustomWidget[]; layout?: Record<string, AuraBlockLayout> } | null,
   filters?: AuraFilters,
   refreshSec?: number,
 ) {
-  const key = input && input.widgets.length ? `p:${JSON.stringify([input.widgets.slice().sort(), input.period, input.breakdown || [], input.goals?.team_goal || null, filters || {}, input.custom || []])}` : null;
+  // в расчёт уходят только свои периоды блоков — цвет/ширина/название данные не меняют
+  const periods: Record<string, AuraBlockLayout> = {};
+  for (const [k, b] of Object.entries(input?.layout || {})) if (b.period) periods[k] = { period: b.period };
+  const key = input && input.widgets.length ? `p:${JSON.stringify([input.widgets.slice().sort(), input.period, input.breakdown || [], input.goals?.team_goal || null, filters || {}, input.custom || [], periods])}` : null;
   return useAuraFetch(
     key,
-    () => auraApi.previewData({ widgets: input!.widgets, period: input!.period, breakdown: (input!.breakdown || []) as any, goals: input!.goals, custom: input!.custom || [] }, input!.period, filters),
+    () => auraApi.previewData({ widgets: input!.widgets, period: input!.period, breakdown: (input!.breakdown || []) as any, goals: input!.goals, custom: input!.custom || [], layout: periods }, input!.period, filters),
     refreshSec,
   );
 }
@@ -221,7 +239,10 @@ export function auraInvalidate() {
 export function AuraShell({ children, route, flush }: { children: React.ReactNode; route: string; flush?: boolean }) {
   return (
     <MainLayout fullBleed>
-      <div className={'aura au-content au-r-' + route + (flush ? ' au-flush' : '')}>{children}</div>
+      <div className={'aura au-content au-r-' + route + (flush ? ' au-flush' : '')}>
+        {children}
+        <AuraUnlockHost />
+      </div>
     </MainLayout>
   );
 }

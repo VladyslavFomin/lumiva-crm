@@ -23,14 +23,17 @@ import { RbacService } from '../rbac/rbac.service';
 import { DataVisibilityService } from '../data-visibility/data-visibility.service';
 import {
   AURA_SOURCES,
+  AURA_SOURCE_COMPONENT,
   AURA_SOURCE_PERMISSION,
   AURA_WIDGET_BY_KEY,
   type AuraFilterKey,
   type AuraPeriod,
   type AuraSourceKey,
 } from './aura-catalog';
-import { isCustomKey, type AuraCustomWidget } from './aura-custom';
-import { computeCustom, listWorkspaceTables } from './aura-custom-data';
+import { datasetComponent, isCustomKey, isDecoKey, type AuraCustomWidget } from './aura-custom';
+import { COMPONENT_KEYS, isComponentAllowedByPlan } from '../tenants/plan-entitlements';
+import { computeCustom, listWorkspaceTables, tableKind } from './aura-custom-data';
+import { AURA_DATASETS } from './aura-custom';
 
 /* ───────────────────────── типы ответа ───────────────────────── */
 
@@ -41,15 +44,49 @@ export type AuraWidgetData =
   | { type: 'line'; format: AuraFormat; current: number[]; previous: number[]; total: number; prevTotal: number }
   | { type: 'donut'; format: AuraFormat; items: Array<{ key?: string; name: string; value: number }> }
   | { type: 'funnel'; steps: Array<{ key: string; value: number }> }
-  | { type: 'table'; cols: Array<{ key: string; kind: 'text' | 'person' | 'chip' | 'money' | 'int' | 'pct' | 'days' }>; rows: Array<Record<string, string | number | null>> }
+  | { type: 'table'; cols: Array<{ key: string; kind: 'text' | 'person' | 'chip' | 'money' | 'int' | 'num' | 'pct' | 'days' }>; rows: Array<Record<string, string | number | null>> }
   | { type: 'bar'; format: AuraFormat; unit?: 'pcs'; people?: boolean; items: Array<{ name: string; value: number }> }
   | { type: 'col'; labels: number[]; data: number[] }
   | { type: 'col2'; format: AuraFormat; labels: string[]; a: number[]; b: number[] }
   | { type: 'heat'; hours: number[]; values: number[][] }
   | { type: 'list'; items: Array<{ kind: string; n?: number; pct?: number; name?: string }> }
-  | { type: 'goal'; target: number | null; done: number; pct: number | null; daysLeft: number };
+  | { type: 'goal'; target: number | null; done: number; pct: number | null; daysLeft: number }
+  | { type: 'hero'; name: string | null; items: Array<{ key: string; value: number | null; format: AuraFormat }> }
+  | { type: 'check'; items: Array<{ key: string; done: boolean }> }
+  | { type: 'gauge'; value: number | null; rows: Array<{ key: string; value: number; tone: AuraTone }> }
+  | { type: 'segbar'; format: AuraFormat; items: Array<{ key: string; value: number; tone?: AuraTone }> }
+  | {
+      type: 'forecast';
+      format: AuraFormat;
+      done: number;
+      projected: number;
+      prev: number;
+      prevSameDay: number;
+      target: number | null;
+      day: number;
+      days: number;
+      /** Накопительно по дням: текущий месяц (до сегодня) и прошлый (весь). */
+      series: number[];
+      prevSeries: number[];
+    }
+  | { type: 'stream'; items: AuraStreamItem[] }
+  | { type: 'status'; items: Array<{ key: AuraSourceKey; last: string | null; n24: number }> }
+  | { type: 'multi'; format: AuraFormat; series: Array<{ key: string; data: number[] }> }
+  | { type: 'split'; format: AuraFormat; a: { key: string; value: number }; b: { key: string; value: number } }
+  | { type: 'cal'; format: AuraFormat; start: string; values: number[] };
 
-export type AuraWidgetResult = AuraWidgetData | { error: 'denied' | 'amounts_hidden' | 'failed' };
+export type AuraTone = 'good' | 'warn' | 'bad' | 'neutral';
+export type AuraStreamItem = {
+  kind: 'lead' | 'sale' | 'booking' | 'call';
+  at: string;
+  title: string | null;
+  sub: string | null;
+  value: number | null;
+  format: AuraFormat | null;
+  status: string;
+};
+
+export type AuraWidgetResult = AuraWidgetData | { error: 'denied' | 'amounts_hidden' | 'failed' | 'locked' };
 
 export type AuraDataResponse = {
   period: { key: AuraPeriod; from: string; to: string; granularity: 'hour' | 'day' | 'week' | 'month'; labels: string[] };
@@ -58,6 +95,8 @@ export type AuraDataResponse = {
   own: boolean;
   widgets: Record<string, AuraWidgetResult>;
   filterOptions: Partial<Record<AuraFilterKey, Array<{ id: string; name: string }>>>;
+  /** Блоки со своим периодом: ось и подписи их графиков. */
+  blockPeriods?: Record<string, { key: AuraPeriod; granularity: 'hour' | 'day' | 'week' | 'month'; labels: string[] }>;
 };
 
 export type AuraFilters = Partial<Record<AuraFilterKey, string>>;
@@ -78,6 +117,10 @@ export type AuraScope = {
   maskNames: boolean;
   /** Права на модули вне разделов Aura (для виджетов ИИ): contacts, companies, custom_objects. */
   extra: Set<string>;
+  /** Компоненты тарифа, выключенные у клиента в pl1 (их блоки не считаются и не показываются). */
+  lockedComponents: Set<string>;
+  /** Разделы Aura, закрытые выключенным компонентом. */
+  lockedSources: Set<AuraSourceKey>;
 };
 
 export type AuraViewerInput = { userId: string; role: string; email?: string | null; staffUserId?: string | null };
@@ -262,6 +305,33 @@ export class AuraDataService {
     return listWorkspaceTables(this.customCtx(scope, null, (a) => Number(a) || 0));
   }
 
+  /** Наборы данных для ручного конструктора показателей — только те, к которым у зрителя есть доступ. */
+  async datasetsFor(scope: AuraScope) {
+    const can = new Set<string>([...scope.can, ...scope.extra]);
+    const builtin = AURA_DATASETS.filter((d) => can.has(d.source) && !scope.lockedComponents.has(datasetComponent(d.key) || '')).map((d) => ({
+      key: d.key,
+      source: d.source,
+      noPeriod: !!d.noPeriod,
+      fields: d.fields.map((f) => ({ key: f.key, kind: f.kind, values: f.values || null })),
+    }));
+    const tables = (await this.workspaceTables(scope).catch(() => [])).map((t) => ({
+      key: `table:${t.id}`,
+      name: t.name,
+      fields: t.fields.map((f) => ({ key: f.key, label: f.label, kind: tableKind(f.type), date: /date|time/i.test(f.type) })),
+    }));
+    // закрытые модулем наборы — отдельно, чтобы конструктор показал «Разблокировать», а не прятал молча
+    const locked = AURA_DATASETS.filter((d) => scope.lockedComponents.has(datasetComponent(d.key) || '')).map((d) => d.key);
+    return { builtin, tables: scope.lockedComponents.has('custom_objects') ? [] : tables, locked };
+  }
+
+  /** Что закрыто тарифом/pl1 — для каталога блоков, шаблонов и конструктора. */
+  access(scope: AuraScope) {
+    return {
+      lockedSources: [...scope.lockedSources],
+      lockedComponents: [...scope.lockedComponents].filter((k) => ['leads', 'sales', 'phone_system', 'bookings', 'products', 'marketing', 'hotels', 'contacts', 'companies', 'custom_objects'].includes(k)),
+    };
+  }
+
   /* ---------- права зрителя ---------- */
 
   async buildScope(tenantId: string, viewer: AuraViewerInput): Promise<AuraScope> {
@@ -308,21 +378,77 @@ export class AuraDataService {
         if (await this.rbac.canUserAccess(tenantId, role, staff?.id ?? null, k)) extra.add(k);
       }),
     );
-    return { tenantId, role, staff, can, leadFilter, ownOnly, maskAmounts, maskNames, extra };
+    const lockedComponents = await this.lockedComponents(tenantId);
+    const lockedSources = new Set<AuraSourceKey>(AURA_SOURCES.filter((s) => lockedComponents.has(AURA_SOURCE_COMPONENT[s])));
+    for (const s of lockedSources) can.delete(s);
+    for (const k of [...extra]) if (lockedComponents.has(k)) extra.delete(k);
+    return { tenantId, role, staff, can, leadFilter, ownOnly, maskAmounts, maskNames, extra, lockedComponents, lockedSources };
+  }
+
+  /** Как /tenants/components: явный переключатель из pl1, иначе — что разрешает тариф. */
+  async lockedComponents(tenantId: string): Promise<Set<string>> {
+    const t = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'plan', 'enabledComponents'] as any });
+    const out = new Set<string>();
+    if (!t) return out;
+    const en = (t.enabledComponents || {}) as Record<string, boolean>;
+    for (const k of COMPONENT_KEYS) {
+      const on = typeof en[k] === 'boolean' ? en[k] : isComponentAllowedByPlan(k, t.plan);
+      if (!on) out.add(k);
+    }
+    return out;
   }
 
   /* ---------- расчёт ---------- */
 
   async compute(
     scope: AuraScope,
-    input: { widgets: string[]; period: AuraPeriod; filters?: AuraFilters; breakdown?: AuraFilterKey[]; goals?: { team_goal?: number | null }; tz?: string; custom?: AuraCustomWidget[] },
+    input: {
+      widgets: string[];
+      period: AuraPeriod;
+      filters?: AuraFilters;
+      breakdown?: AuraFilterKey[];
+      goals?: { team_goal?: number | null };
+      tz?: string;
+      custom?: AuraCustomWidget[];
+      /** Свой период отдельных блоков (layout[key].period). */
+      periods?: Partial<Record<string, AuraPeriod>>;
+      /** Валюта отчёта вместо основной валюты компании (главная: переключатель валюты). */
+      currency?: string;
+    },
+  ): Promise<AuraDataResponse> {
+    const own = input.periods || {};
+    const widgetsAll = [...new Set(input.widgets)].filter((k) => !isDecoKey(k));
+    const main = widgetsAll.filter((k) => !own[k] || own[k] === input.period);
+    const res = await this.computeOne(scope, { ...input, widgets: main });
+    // блоки со своим периодом считаем отдельным проходом на каждый период
+    const groups = new Map<AuraPeriod, string[]>();
+    for (const k of widgetsAll) {
+      const p = own[k];
+      if (p && p !== input.period) groups.set(p, [...(groups.get(p) || []), k]);
+    }
+    if (groups.size) {
+      res.blockPeriods = {};
+      for (const [p, keys] of groups) {
+        const part = await this.computeOne(scope, { ...input, widgets: keys, period: p, breakdown: [] });
+        Object.assign(res.widgets, part.widgets);
+        for (const k of keys) res.blockPeriods[k] = { key: p, granularity: part.period.granularity, labels: part.period.labels };
+      }
+    }
+    return res;
+  }
+
+  private async computeOne(
+    scope: AuraScope,
+    input: { widgets: string[]; period: AuraPeriod; filters?: AuraFilters; breakdown?: AuraFilterKey[]; goals?: { team_goal?: number | null }; tz?: string; custom?: AuraCustomWidget[]; currency?: string },
   ): Promise<AuraDataResponse> {
     const tenantId = scope.tenantId;
     const tz = this.safeTz(input.tz);
     const P = buildPeriod(input.period, tz);
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId }, select: ['id', 'primaryCurrency'] });
-    const currency = (tenant?.primaryCurrency || 'EUR').toUpperCase();
     const rates = await this.currencyRates.getRates().catch(() => ({}) as Record<string, number>);
+    // своя валюта — только если на неё есть курс (EUR — база курсов), иначе суммы молча остались бы как есть
+    const wanted = (input.currency || '').toUpperCase();
+    const currency = /^[A-Z]{3}$/.test(wanted) && (wanted === 'EUR' || rates[wanted]) ? wanted : (tenant?.primaryCurrency || 'EUR').toUpperCase();
     const conv = (amount: unknown, from?: string | null) =>
       this.currencyRates.convertWithRates(Number(amount) || 0, (from || currency).toUpperCase(), currency, rates);
     const filters = input.filters || {};
@@ -334,6 +460,11 @@ export class AuraDataService {
     for (const key of [...new Set(input.widgets)]) {
       if (isCustomKey(key)) {
         const c = customById.get(key);
+        const comp = c ? datasetComponent(c.dataset) : null;
+        if (comp && scope.lockedComponents.has(comp)) {
+          widgets[key] = { error: 'locked' };
+          continue;
+        }
         try {
           widgets[key] = c && cctx ? await computeCustom(cctx, c) : { error: 'failed' };
         } catch (e) {
@@ -344,6 +475,10 @@ export class AuraDataService {
       }
       const def = AURA_WIDGET_BY_KEY.get(key);
       if (!def) continue;
+      if ((def.source !== 'extra' && scope.lockedSources.has(def.source)) || def.needs.some((s) => scope.lockedSources.has(s))) {
+        widgets[key] = { error: 'locked' };
+        continue;
+      }
       if (def.needs.some((s) => !scope.can.has(s))) {
         widgets[key] = { error: 'denied' };
         continue;
@@ -500,6 +635,97 @@ export class AuraDataService {
   loadStaff(tenantId: string) {
     return this.staffRepo.find({ where: { tenantId } });
   }
+
+  loadOpenLeads(tenantId: string) {
+    return this.leadRepo
+      .createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere(`l.status IN ('new','in_progress','waiting')`)
+      .getMany();
+  }
+
+  /** Дата первой продажи каждого клиента (contactId или имя гостя) — для «новые vs повторные». */
+  async loadFirstSales(tenantId: string): Promise<Map<string, number>> {
+    const rows = (await this.saleRepo
+      .createQueryBuilder('s')
+      .select('s.contactId', 'contactId')
+      .addSelect('LOWER(TRIM(s.guestName))', 'guest')
+      .addSelect('MIN(COALESCE(s.saleDate, s.createdAt))', 'first')
+      .where('s.tenantId = :tenantId', { tenantId })
+      .andWhere(`s.status IN ('confirmed','new')`)
+      .groupBy('s.contactId')
+      .addGroupBy('LOWER(TRIM(s.guestName))')
+      .getRawMany()) as Array<{ contactId: string | null; guest: string | null; first: Date | string }>;
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      const key = r.contactId ? `c:${r.contactId}` : r.guest ? `g:${r.guest}` : null;
+      if (!key) continue;
+      const t = new Date(r.first).getTime();
+      if (!m.has(key) || t < m.get(key)!) m.set(key, t);
+    }
+    return m;
+  }
+
+  /** Что уже настроено в CRM — для чек-листа «С чего начать». */
+  async setupState(tenantId: string) {
+    const one = (repo: Repository<any>, extra?: (qb: any) => any) => {
+      let qb = repo.createQueryBuilder('x').select('x.id').where('x.tenantId = :tenantId', { tenantId });
+      if (extra) qb = extra(qb);
+      return qb
+        .limit(1)
+        .getRawOne()
+        .then((r: unknown) => !!r)
+        .catch(() => false);
+    };
+    const [lead, sale, call, booking, product, ads, staff, apps] = await Promise.all([
+      one(this.leadRepo),
+      one(this.saleRepo),
+      one(this.callRepo),
+      one(this.reservationRepo),
+      one(this.productRepo),
+      this.trafficRepo
+        .createQueryBuilder('t')
+        .select('1')
+        .where('t.tenantId = :tenantId', { tenantId })
+        .andWhere(SPEND_SQL)
+        .limit(1)
+        .getRawOne()
+        .then((r) => !!r)
+        .catch(() => false),
+      this.staffRepo.count({ where: { tenantId } }).catch(() => 0),
+      this.db
+        .query(`SELECT COUNT(*)::int AS n FROM "aura_apps" WHERE "tenant_id" = $1`, [tenantId])
+        .then((r: Array<{ n: number }>) => Number(r?.[0]?.n) || 0)
+        .catch(() => 0),
+    ]);
+    return { lead, sale, call, booking, product, ads, team: staff > 1, aura: apps > 0 };
+  }
+
+  /** Когда раздел последний раз получал данные + сколько за сутки. */
+  async lastActivity(tenantId: string, source: AuraSourceKey): Promise<{ last: string | null; n24: number }> {
+    const q: Partial<Record<AuraSourceKey, [string, string, string]>> = {
+      leads: ['leads', '"createdAt"', ''],
+      deals: ['sales', 'COALESCE("saleDate","createdAt")', ''],
+      team: ['sales', 'COALESCE("saleDate","createdAt")', ''],
+      calls: ['calls', 'COALESCE("startedAt","createdAt")', ''],
+      booking: ['reservations', '"createdAt"', ''],
+      stock: ['product_stock_movements', '"createdAt"', ''],
+      marketing: ['marketing_traffic', '"date"::timestamptz', ''],
+    };
+    const def = q[source];
+    if (!def) return { last: null, n24: 0 };
+    const [table, col] = def;
+    try {
+      const r = await this.db.query(
+        `SELECT MAX(${col}) AS last, COUNT(*) FILTER (WHERE ${col} >= now() - interval '24 hours')::int AS n24 FROM "${table}" WHERE "tenantId" = $1`,
+        [tenantId],
+      );
+      const last = r?.[0]?.last ? new Date(r[0].last).toISOString() : null;
+      return { last, n24: Number(r?.[0]?.n24) || 0 };
+    } catch {
+      return { last: null, n24: 0 };
+    }
+  }
 }
 
 /* ───────────────────────── контекст одного расчёта ───────────────────────── */
@@ -513,6 +739,8 @@ type SaleRow = {
   managerName: string | null;
   own: boolean;
   source: string | null;
+  /** Ключ клиента для «новые vs повторные»: c:<contactId> или g:<имя гостя>. */
+  client: string | null;
 };
 
 class Ctx {
@@ -582,8 +810,12 @@ class Ctx {
 
   /** Лиды за окно расчёта: без корзины, с правами доступа к лидам и фильтрами шапки. */
   private leads() {
-    return this.once('leads', async () => {
-      let rows = excludeTrashedLeads(await this.svc.loadLeads(this.tenantId, this.loadFrom));
+    return this.leadsSince(this.loadFrom);
+  }
+
+  private leadsSince(from: number) {
+    return this.once(`leads:${from}`, async () => {
+      let rows = excludeTrashedLeads(await this.svc.loadLeads(this.tenantId, from));
       if (this.scope.leadFilter) rows = rows.filter(this.scope.leadFilter);
       const f = this.filters;
       if (f.manager) rows = rows.filter((l) => l.assignedUserId === f.manager || (l.assignedUserIds || []).includes(f.manager!));
@@ -593,8 +825,12 @@ class Ctx {
   }
 
   private sales() {
-    return this.once('sales', async (): Promise<SaleRow[]> => {
-      const raw = await this.svc.loadSales(this.tenantId, this.loadFrom);
+    return this.salesSince(this.loadFrom);
+  }
+
+  private salesSince(from: number) {
+    return this.once(`sales:${from}`, async (): Promise<SaleRow[]> => {
+      const raw = await this.svc.loadSales(this.tenantId, from);
       const leadIds = [...new Set(raw.map((s) => s.leadId).filter(Boolean) as string[])];
       const contactIds = [...new Set(raw.map((s) => s.contactId).filter(Boolean) as string[])];
       const [leads, contacts, staff] = await Promise.all([
@@ -622,6 +858,7 @@ class Ctx {
           managerName,
           own,
           source: lead?.source || null,
+          client: s.contactId ? `c:${s.contactId}` : s.guestName?.trim() ? `g:${s.guestName.trim().toLowerCase()}` : null,
         };
       });
       const f = this.filters;
@@ -638,8 +875,8 @@ class Ctx {
   }
 
   /** Продажи, учитываемые в деньгах: подтверждённые/новые; при скрытых суммах — только свои. */
-  private async revenueSales() {
-    const rows = await this.sales();
+  private async revenueSales(from = this.loadFrom) {
+    const rows = await this.salesSince(from);
     return rows.filter((r) => REVENUE_STATUSES.has(r.status) && (!this.scope.maskAmounts || r.own));
   }
 
@@ -649,7 +886,15 @@ class Ctx {
       const me = this.scope.staff?.id;
       if (this.scope.ownOnly) rows = rows.filter((c) => !!me && c.staffUserId === me);
       if (this.filters.manager) rows = rows.filter((c) => c.staffUserId === this.filters.manager);
-      return rows.map((c) => ({ t: (c.startedAt || c.createdAt).getTime(), status: c.status, direction: c.direction }));
+      return rows.map((c) => ({
+        t: (c.startedAt || c.createdAt).getTime(),
+        status: c.status,
+        direction: c.direction,
+        duration: c.durationSeconds ?? null,
+        number: (c.direction === 'inbound' ? c.fromNumber : c.toNumber) || null,
+        leadId: c.linkedLeadId || null,
+        own: !!me && c.staffUserId === me,
+      }));
     });
   }
 
@@ -688,10 +933,12 @@ class Ctx {
   private income() {
     return this.once('income', async () => {
       const from = this.finFrom();
+      // выключенные в pl1 модули в доходы не попадают
+      const L = this.scope.lockedComponents;
       const [sales, res, hotels] = await Promise.all([
         this.svc.loadSales(this.tenantId, from),
-        this.svc.loadReservations(this.tenantId, from),
-        this.svc.loadHotelRevenue(this.tenantId, from),
+        L.has('bookings') ? Promise.resolve([] as Reservation[]) : this.svc.loadReservations(this.tenantId, from),
+        L.has('hotels') ? Promise.resolve([] as Array<{ t: number; amount: number; currency: string }>) : this.svc.loadHotelRevenue(this.tenantId, from),
       ]);
       const out: Array<{ t: number; amount: number; kind: 'sales' | 'bookings' | 'hotels' }> = [];
       for (const s of sales) {
@@ -768,7 +1015,8 @@ class Ctx {
           return { type: 'kpi', value: round(sum(cur)), format: 'money', delta, good: goodOf(delta, 'up'), spark: this.series(rows, (r) => r.t, (r) => r.amount) };
         }
         const avg = (a: SaleRow[]) => (a.length ? sum(a) / a.length : 0);
-        const delta = pctDelta(avg(cur), avg(prev));
+        // без продаж в одном из периодов среднего чека нет — и сравнивать нечего
+        const delta = cur.length && prev.length ? pctDelta(avg(cur), avg(prev)) : null;
         return { type: 'kpi', value: cur.length ? round(avg(cur)) : null, format: 'money', delta, good: goodOf(delta, 'up'), spark: null };
       }
       case 'deals_conv': {
@@ -1061,7 +1309,477 @@ class Ctx {
       case 'alerts':
         return this.alerts(teamGoal);
     }
+    return this.widgetV2(key, teamGoal);
+  }
+
+  /* ---------- виджеты «стеклянных» шаблонов (2026-10-17) ---------- */
+
+  /** Линия «текущий vs прошлый период» по любому списку событий. */
+  private lineOf<T>(items: T[], time: (x: T) => number, val: (x: T) => number = () => 1, format: AuraFormat = 'int'): AuraWidgetData {
+    const sum = (r: (t: number) => boolean) => round(items.filter((x) => r(time(x))).reduce((a, x) => a + val(x), 0), 2);
+    return {
+      type: 'line',
+      format,
+      current: this.series(items, time, val),
+      previous: this.series(items, time, val, true),
+      total: sum(this.inCur),
+      prevTotal: sum(this.inPrev),
+    };
+  }
+
+  /** Границы месяца в локальном времени зрителя. */
+  private month() {
+    const now = Date.now();
+    const local = new Date(now + this.P.off);
+    const y = local.getUTCFullYear();
+    const m = local.getUTCMonth();
+    const start = Date.UTC(y, m, 1) - this.P.off;
+    const end = Date.UTC(y, m + 1, 1) - this.P.off;
+    const prevStart = Date.UTC(y, m - 1, 1) - this.P.off;
+    const frac = Math.min(1, Math.max(0, (now - start) / (end - start)));
+    const prevSame = prevStart + frac * (start - prevStart);
+    return { now, start, end, prevStart, prevSame, frac, day: local.getUTCDate(), days: Math.round((end - start) / DAY) };
+  }
+
+  /** Прогноз на конец месяца по текущему темпу. */
+  private forecastOf(items: Array<{ t: number; amount: number }>, target: number | null): AuraWidgetData {
+    const M = this.month();
+    const sum = (a: number, b: number) => round(items.filter((x) => x.t >= a && x.t < b).reduce((s, x) => s + x.amount, 0));
+    const done = sum(M.start, M.now + 1);
+    // в первые часы месяца темп не показателен — прогноз = факт
+    const projected = M.frac > 0.03 ? round(done / M.frac) : done;
+    const cumulative = (start: number, days: number, upTo: number) => {
+      const out: number[] = [];
+      let acc = 0;
+      for (let d = 0; d < days; d++) {
+        const a = start + d * DAY;
+        if (a > upTo) break;
+        acc += items.filter((x) => x.t >= a && x.t < Math.min(a + DAY, upTo + 1)).reduce((s, x) => s + x.amount, 0);
+        out.push(round(acc));
+      }
+      return out;
+    };
+    const prevDays = Math.round((M.start - M.prevStart) / DAY);
+    return {
+      type: 'forecast',
+      format: 'money',
+      done,
+      projected,
+      prev: sum(M.prevStart, M.start),
+      prevSameDay: sum(M.prevStart, M.prevSame),
+      target,
+      day: M.day,
+      days: M.days,
+      series: cumulative(M.start, M.days, M.now),
+      prevSeries: cumulative(M.prevStart, prevDays, M.start - 1),
+    };
+  }
+
+  /** Неделя календаря начинается с понедельника; год — 53 недели, иначе 20. */
+  private calStart() {
+    const weeks = this.P.key === 'year' ? 53 : 20;
+    const local = new Date(Date.now() + this.P.off);
+    const todayLocal = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+    const dow = (local.getUTCDay() + 6) % 7;
+    const startLocal = todayLocal - (dow + (weeks - 1) * 7) * DAY;
+    return { startLocal, start: startLocal - this.P.off, days: Math.round((todayLocal - startLocal) / DAY) + 1 };
+  }
+
+  private calOf<T>(items: T[], time: (x: T) => number, val: (x: T) => number, format: AuraFormat): AuraWidgetData {
+    const C = this.calStart();
+    const values = new Array(C.days).fill(0);
+    for (const it of items) {
+      const i = Math.floor((time(it) - C.start) / DAY);
+      if (i >= 0 && i < C.days) values[i] += val(it);
+    }
+    return { type: 'cal', format, start: new Date(C.startLocal).toISOString().slice(0, 10), values: values.map((v) => round(v, 2)) };
+  }
+
+  private maskName(name: string | null, own: boolean) {
+    return this.scope.maskNames && !own ? '•••' : name;
+  }
+
+  private static phoneTail(n: string | null) {
+    if (!n) return null;
+    const d = n.replace(/[^\d+]/g, '');
+    return d.length > 4 ? `•••${d.slice(-4)}` : d;
+  }
+
+  private async leadStream(limit: number): Promise<AuraStreamItem[]> {
+    const leads = await this.leads();
+    const me = this.scope.staff?.id;
+    return [...leads]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((l) => ({
+        kind: 'lead' as const,
+        at: l.createdAt.toISOString(),
+        title: this.maskName(l.name || l.email || l.phone || null, !!me && l.assignedUserId === me),
+        sub: l.source || 'unknown',
+        value: null,
+        format: null,
+        status: l.status,
+      }));
+  }
+
+  private async saleStream(limit: number): Promise<AuraStreamItem[]> {
+    const rows = await this.sales();
+    return [...rows]
+      .filter((r) => r.t <= Date.now())
+      .sort((a, b) => b.t - a.t)
+      .slice(0, limit)
+      .map((r) => ({
+        kind: 'sale' as const,
+        at: new Date(r.t).toISOString(),
+        title: this.maskName(r.name, r.own),
+        sub: r.managerName,
+        value: this.scope.maskAmounts && !r.own ? null : round(r.amount),
+        format: 'money' as const,
+        status: r.status,
+      }));
+  }
+
+  private async callStream(limit: number): Promise<AuraStreamItem[]> {
+    const calls = await this.calls();
+    const top = [...calls].sort((a, b) => b.t - a.t).slice(0, limit);
+    const leads = await this.svc.loadLeadsByIds(this.tenantId, [...new Set(top.map((c) => c.leadId).filter(Boolean) as string[])]);
+    const leadName = new Map(leads.map((l) => [l.id, l.name]));
+    return top.map((c) => ({
+      kind: 'call' as const,
+      at: new Date(c.t).toISOString(),
+      title: this.maskName((c.leadId && leadName.get(c.leadId)) || Ctx.phoneTail(c.number), c.own),
+      sub: c.direction,
+      value: c.duration,
+      format: null,
+      status: c.direction === 'inbound' && MISSED_CALL_STATUSES.has(c.status) ? 'missed' : c.status,
+    }));
+  }
+
+  private async bookingStream(limit: number, upcoming: boolean): Promise<AuraStreamItem[]> {
+    const [res, locs] = await Promise.all([this.reservations(), this.svc.loadLocations(this.tenantId)]);
+    const loc = new Map(locs.map((l) => [l.id, l.name]));
+    const me = this.scope.staff?.id;
+    const now = Date.now();
+    const list = upcoming
+      ? res.filter((r) => r.startAt.getTime() >= now && !BOOKING_CANCELLED.has(r.status) && r.status !== 'draft').sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
+      : [...res].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return list.slice(0, limit).map((r) => ({
+      kind: 'booking' as const,
+      at: (upcoming ? r.startAt : r.createdAt).toISOString(),
+      title: this.maskName(r.customerName || null, !!me && (r.staffUserId === me || r.assignedUserId === me)),
+      sub: loc.get(r.locationId) || null,
+      value: r.participants > 1 ? r.participants : null,
+      format: null,
+      status: r.status,
+    }));
+  }
+
+  private stockState() {
+    return this.once('stockState', async () => {
+      const products = await this.products();
+      // «на исходе» — порог товара или запас меньше чем на 14 дней (как в stock_low, но без лимита 6 строк)
+      const moves = await this.movements();
+      const since = Date.now() - 30 * DAY;
+      const sold = new Map<string, number>();
+      for (const mv of moves) {
+        if (mv.createdAt.getTime() < since || mv.quantityDelta >= 0) continue;
+        if (!(mv.type === 'sale' || mv.type === 'out' || mv.source === 'sale')) continue;
+        sold.set(mv.productId, (sold.get(mv.productId) || 0) - mv.quantityDelta);
+      }
+      let ok = 0;
+      let lowN = 0;
+      let out = 0;
+      for (const p of products) {
+        const qty = Number(p.quantity) || 0;
+        const perDay = (sold.get(p.id) || 0) / 30;
+        const left = perDay > 0 ? Math.floor(qty / perDay) : null;
+        if (qty <= 0) out++;
+        else if ((p.lowStockThreshold != null && qty <= p.lowStockThreshold) || (left != null && left <= 14)) {
+          lowN++;
+        } else ok++;
+      }
+      return { ok, low: lowN, out, products };
+    });
+  }
+
+  private async widgetV2(key: string, teamGoal: number | null): Promise<AuraWidgetResult> {
+    const moneyBlocked = () => this.scope.maskAmounts;
+    switch (key) {
+      /* ---- лиды ---- */
+      case 'leads_cal': {
+        const C = this.calStart();
+        const leads = await this.leadsSince(Math.min(C.start, this.loadFrom));
+        return this.calOf(leads, (l) => l.createdAt.getTime(), () => 1, 'int');
+      }
+      case 'leads_status': {
+        const leads = (await this.leads()).filter((l) => this.inCur(l.createdAt.getTime()));
+        const keys = ['new', 'in_progress', 'waiting', 'won', 'lost'];
+        return { type: 'segbar', format: 'int', items: keys.map((k) => ({ key: k, value: leads.filter((l) => l.status === k).length })) };
+      }
+      case 'leads_gauge': {
+        const leads = (await this.leads()).filter((l) => this.inCur(l.createdAt.getTime()));
+        const won = leads.filter((l) => l.status === 'won').length;
+        const lost = leads.filter((l) => l.status === 'lost').length;
+        return {
+          type: 'gauge',
+          value: leads.length ? round((won / leads.length) * 100, 1) : null,
+          rows: [
+            { key: 'won', value: won, tone: 'good' },
+            { key: 'in_work', value: leads.length - won - lost, tone: 'neutral' },
+            { key: 'lost', value: lost, tone: 'bad' },
+          ],
+        };
+      }
+      case 'leads_stream':
+        return { type: 'stream', items: await this.leadStream(7) };
+
+      /* ---- продажи ---- */
+      case 'deals_forecast': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        const M = this.month();
+        const rows = await this.revenueSales(Math.min(this.loadFrom, M.prevStart));
+        return this.forecastOf(rows.map((r) => ({ t: r.t, amount: r.amount })), teamGoal);
+      }
+      case 'deals_split': {
+        const [rows, first] = await Promise.all([this.revenueSales(), this.svc.loadFirstSales(this.tenantId)]);
+        let a = 0;
+        let b = 0;
+        for (const r of rows.filter((x) => this.inCur(x.t))) {
+          const f = r.client ? first.get(r.client) : undefined;
+          // первая продажа клиента (или без клиента) — «новый»
+          if (f != null && r.t > f + 60_000) b += r.amount;
+          else a += r.amount;
+        }
+        return { type: 'split', format: 'money', a: { key: 'new_clients', value: round(a) }, b: { key: 'repeat_clients', value: round(b) } };
+      }
+      case 'deals_cal': {
+        const C = this.calStart();
+        const rows = await this.revenueSales(Math.min(C.start, this.loadFrom));
+        return this.calOf(rows, (r) => r.t, (r) => r.amount, 'money');
+      }
+      case 'deals_stream':
+        return { type: 'stream', items: await this.saleStream(7) };
+
+      /* ---- команда ---- */
+      case 'team_load': {
+        let open = excludeTrashedLeads(await this.svc.loadOpenLeads(this.tenantId));
+        if (this.scope.leadFilter) open = open.filter(this.scope.leadFilter);
+        if (this.filters.channel) open = open.filter((l) => (l.source || 'unknown') === this.filters.channel);
+        const staff = new Map((await this.staffAll()).map((x) => [x.id, x.fullName || x.email]));
+        const m = new Map<string, number>();
+        for (const l of open) {
+          const name = (l.assignedUserId && staff.get(l.assignedUserId)) || '—';
+          m.set(name, (m.get(name) || 0) + 1);
+        }
+        const items = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }));
+        return { type: 'bar', format: 'int', people: true, items };
+      }
+
+      /* ---- звонки ---- */
+      case 'calls_line': {
+        const calls = await this.calls();
+        return this.lineOf(calls, (c) => c.t);
+      }
+      case 'calls_split': {
+        const calls = (await this.calls()).filter((c) => this.inCur(c.t));
+        return {
+          type: 'split',
+          format: 'int',
+          a: { key: 'inbound', value: calls.filter((c) => c.direction === 'inbound').length },
+          b: { key: 'outbound', value: calls.filter((c) => c.direction !== 'inbound').length },
+        };
+      }
+      case 'calls_gauge': {
+        // только входящие: доля исходящих — в calls_split, иначе проценты строк не сходятся с центром
+        const inbound = (await this.calls()).filter((c) => this.inCur(c.t) && c.direction === 'inbound');
+        const missed = inbound.filter((c) => MISSED_CALL_STATUSES.has(c.status)).length;
+        return {
+          type: 'gauge',
+          value: inbound.length ? round(((inbound.length - missed) / inbound.length) * 100, 1) : null,
+          rows: [
+            { key: 'answered', value: inbound.length - missed, tone: 'good' },
+            { key: 'missed', value: missed, tone: 'bad' },
+          ],
+        };
+      }
+      case 'calls_stream':
+        return { type: 'stream', items: await this.callStream(7) };
+
+      /* ---- брони ---- */
+      case 'book_line': {
+        const res = await this.reservations();
+        return this.lineOf(res, (r) => r.createdAt.getTime());
+      }
+      case 'book_gauge': {
+        const res = (await this.reservations()).filter((r) => this.inCur(r.startAt.getTime()) && r.startAt.getTime() <= Date.now() && r.status !== 'draft');
+        const done = res.filter((r) => r.status === 'completed' || r.status === 'checked_in' || r.status === 'in_progress').length;
+        const ns = res.filter((r) => r.status === 'no_show').length;
+        const cancelled = res.filter((r) => BOOKING_CANCELLED.has(r.status)).length;
+        const base = done + ns + cancelled;
+        return {
+          type: 'gauge',
+          value: base ? round((done / base) * 100, 1) : null,
+          rows: [
+            { key: 'visited', value: done, tone: 'good' },
+            { key: 'no_show', value: ns, tone: 'bad' },
+            { key: 'cancelled', value: cancelled, tone: 'warn' },
+          ],
+        };
+      }
+      case 'book_status': {
+        const res = (await this.reservations()).filter((r) => this.inCur(r.startAt.getTime()) && r.status !== 'draft');
+        const group = (st: string) =>
+          st === 'pending' ? 'pending' : st === 'completed' ? 'completed' : st === 'no_show' ? 'no_show' : BOOKING_CANCELLED.has(st) ? 'cancelled' : 'confirmed';
+        const keys = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled'];
+        return { type: 'segbar', format: 'int', items: keys.map((k) => ({ key: k, value: res.filter((r) => group(r.status) === k).length })) };
+      }
+      case 'book_upcoming':
+        return { type: 'stream', items: await this.bookingStream(7, true) };
+
+      /* ---- склад ---- */
+      case 'stock_value': {
+        const products = await this.products();
+        const value = products.reduce((s, p) => s + Math.max(0, Number(p.quantity) || 0) * this.conv(p.price, p.currency), 0);
+        return { type: 'kpi', value: round(value), format: 'money', delta: null, good: null, spark: null };
+      }
+      case 'stock_health': {
+        const st = await this.stockState();
+        return {
+          type: 'segbar',
+          format: 'int',
+          items: [
+            { key: 'ok', value: st.ok, tone: 'good' },
+            { key: 'low', value: st.low, tone: 'warn' },
+            { key: 'out', value: st.out, tone: 'bad' },
+          ],
+        };
+      }
+      case 'stock_gauge': {
+        const st = await this.stockState();
+        const n = st.ok + st.low + st.out;
+        return {
+          type: 'gauge',
+          value: n ? round((st.ok / n) * 100, 1) : null,
+          rows: [
+            { key: 'ok', value: st.ok, tone: 'good' },
+            { key: 'low', value: st.low, tone: 'warn' },
+            { key: 'out', value: st.out, tone: 'bad' },
+          ],
+        };
+      }
+
+      /* ---- финансы ---- */
+      case 'fin_income': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        const inc = await this.income();
+        const sum = (r: (t: number) => boolean) => inc.filter((x) => r(x.t)).reduce((s, x) => s + x.amount, 0);
+        const delta = pctDelta(sum(this.inCur), sum(this.inPrev));
+        return { type: 'kpi', value: round(sum(this.inCur)), format: 'money', delta, good: goodOf(delta, 'up'), spark: this.series(inc, (x) => x.t, (x) => x.amount) };
+      }
+      case 'fin_margin': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        const [inc, sp] = await Promise.all([this.income(), this.spend()]);
+        const margin = (r: (t: number) => boolean) => {
+          const i = inc.filter((x) => r(x.t)).reduce((s, x) => s + x.amount, 0);
+          if (!i) return null;
+          return ((i - sp.filter((x) => r(x.t)).reduce((s, x) => s + x.amount, 0)) / i) * 100;
+        };
+        const cur = margin(this.inCur);
+        const prev = margin(this.inPrev);
+        const delta: AuraDelta = cur != null && prev != null && !this.hourly ? { kind: 'pp', value: round(cur - prev, 1) } : null;
+        return { type: 'kpi', value: cur != null ? round(cur, 1) : null, format: 'pct', delta, good: goodOf(delta, 'up'), spark: null };
+      }
+      case 'fin_line': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        const inc = await this.income();
+        return this.lineOf(inc, (x) => x.t, (x) => x.amount, 'money');
+      }
+      case 'fin_forecast': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        return this.forecastOf(await this.income(), null);
+      }
+
+      /* ---- маркетинг ---- */
+      case 'mk_line': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        const sp = await this.spend();
+        return this.lineOf(sp, (x) => x.t, (x) => x.amount, 'money');
+      }
+      case 'mk_mix': {
+        if (moneyBlocked()) return { error: 'amounts_hidden' };
+        const sp = (await this.spend()).filter((x) => this.inCur(x.t));
+        const m = new Map<string, number>();
+        for (const x of sp) m.set(x.channel, (m.get(x.channel) || 0) + x.amount);
+        const items = [...m.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, value]) => ({ key: name, name, value: round(value) }));
+        return { type: 'donut', format: 'money', items };
+      }
+
+      /* ---- общие ---- */
+      case 'hero':
+        return this.hero();
+      case 'setup': {
+        const st = await this.svc.setupState(this.tenantId);
+        const can = this.scope.can;
+        const items: Array<{ key: string; done: boolean }> = [];
+        if (can.has('leads')) items.push({ key: 'lead', done: st.lead });
+        items.push({ key: 'team', done: st.team });
+        if (can.has('deals')) items.push({ key: 'sale', done: st.sale });
+        if (can.has('calls')) items.push({ key: 'calls', done: st.call });
+        if (can.has('marketing')) items.push({ key: 'ads', done: st.ads });
+        if (can.has('stock')) items.push({ key: 'products', done: st.product });
+        if (can.has('booking')) items.push({ key: 'booking', done: st.booking });
+        items.push({ key: 'aura', done: st.aura });
+        return { type: 'check', items };
+      }
+      case 'stream': {
+        const can = this.scope.can;
+        const parts = await Promise.all([
+          can.has('leads') ? this.leadStream(8) : [],
+          can.has('deals') ? this.saleStream(8) : [],
+          can.has('booking') ? this.bookingStream(8, false) : [],
+          can.has('calls') ? this.callStream(8) : [],
+        ]);
+        const items = parts
+          .flat()
+          .filter((x) => new Date(x.at).getTime() <= Date.now() + 60_000)
+          .sort((a, b) => b.at.localeCompare(a.at))
+          .slice(0, 8);
+        return { type: 'stream', items };
+      }
+      case 'pulse': {
+        const keys = (['leads', 'deals', 'calls', 'booking', 'stock', 'marketing'] as AuraSourceKey[]).filter((k) => this.scope.can.has(k));
+        const items = await Promise.all(keys.map(async (k) => ({ key: k, ...(await this.svc.lastActivity(this.tenantId, k)) })));
+        return { type: 'status', items };
+      }
+      case 'activity': {
+        const can = this.scope.can;
+        const series: Array<{ key: string; data: number[] }> = [];
+        if (can.has('leads')) series.push({ key: 'leads', data: this.series(await this.leads(), (l) => l.createdAt.getTime()) });
+        if (can.has('deals')) series.push({ key: 'sales', data: this.series(await this.sales(), (r) => r.t) });
+        if (can.has('booking')) series.push({ key: 'bookings', data: this.series(await this.reservations(), (r) => r.createdAt.getTime()) });
+        if (can.has('calls')) series.push({ key: 'calls', data: this.series(await this.calls(), (c) => c.t) });
+        return { type: 'multi', format: 'int', series };
+      }
+    }
     return { error: 'failed' };
+  }
+
+  /** Приветствие: цифры за сегодня по доступным разделам. */
+  private async hero(): Promise<AuraWidgetResult> {
+    const local = new Date(Date.now() + this.P.off);
+    const midnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - this.P.off;
+    const today = (t: number) => t >= midnight && t <= Date.now();
+    const can = this.scope.can;
+    const items: Array<{ key: string; value: number | null; format: AuraFormat }> = [];
+    if (can.has('leads')) items.push({ key: 'leads', value: (await this.leads()).filter((l) => today(l.createdAt.getTime())).length, format: 'int' });
+    if (can.has('deals')) {
+      const rev = (await this.revenueSales()).filter((r) => today(r.t));
+      items.push({ key: 'revenue', value: round(rev.reduce((s, r) => s + r.amount, 0)), format: 'money' });
+    }
+    if (can.has('booking')) items.push({ key: 'bookings', value: (await this.reservations()).filter((r) => today(r.startAt.getTime()) && !BOOKING_CANCELLED.has(r.status)).length, format: 'int' });
+    if (can.has('calls')) items.push({ key: 'calls', value: (await this.calls()).filter((c) => today(c.t)).length, format: 'int' });
+    const full = this.scope.staff?.fullName?.trim() || '';
+    return { type: 'hero', name: full ? full.split(/\s+/)[0] : null, items: items.slice(0, 4) };
   }
 
   /** «Требует внимания» — только по разделам, к которым у зрителя есть доступ. */
@@ -1077,7 +1795,7 @@ class Ctx {
     }
     if (can.has('stock')) {
       const low = await this.widget('stock_low', null);
-      if ('rows' in low && low.rows.length) {
+      if ('type' in low && low.type === 'table' && low.rows.length) {
         const first = low.rows[0];
         items.push({ kind: 'low_stock', n: low.rows.length, name: String(first.product || ''), ...(first.left != null ? { pct: Number(first.left) } : {}) });
       }

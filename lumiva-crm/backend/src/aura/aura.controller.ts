@@ -6,6 +6,7 @@ import { RequirePermission } from '../rbac/require-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { AuraService, type AuraAppInput } from './aura.service';
+import { AURA_THEMES } from './aura-catalog';
 import { AuraAiService } from './aura-ai.service';
 import { sanitizeAuraConfig } from './aura-catalog';
 
@@ -64,6 +65,18 @@ export class AuraController {
     return this.aura.appData(user, id, q || {});
   }
 
+  /** Какие разделы закрыты компонентами тарифа (pl1). */
+  @Get('access')
+  access(@CurrentUser() user: CurrentUserPayload) {
+    return this.aura.access(user);
+  }
+
+  /** Наборы данных и поля для конструктора «Свой показатель». */
+  @Get('datasets')
+  datasets(@CurrentUser() user: CurrentUserPayload) {
+    return this.aura.datasets(user);
+  }
+
   /** Данные черновика / превью шаблонов (конфиг в теле). */
   @Post('data')
   @Throttle({ long: { limit: 120, ttl: 60000 } })
@@ -87,8 +100,10 @@ export class AuraController {
 
   @Post('ai/brief')
   @Throttle({ long: { limit: 20, ttl: 60000 } })
-  brief(@CurrentUser() user: CurrentUserPayload, @Body() body: { prompt?: string; lang?: string }) {
-    return this.ai.brief(user.tenantId, AuraService.userIdOf(user), String(body?.prompt || ''), body?.lang, AuraController.viewer(user));
+  async brief(@CurrentUser() user: CurrentUserPayload, @Body() body: { prompt?: string; lang?: string }) {
+    const res = await this.ai.brief(user.tenantId, AuraService.userIdOf(user), String(body?.prompt || ''), body?.lang, AuraController.viewer(user));
+    const { cfg } = await this.aura.dropLocked(user, { ...res, widgets: res.widgets as string[] });
+    return { ...res, ...cfg };
   }
 
   @Post('ai/answer')
@@ -99,17 +114,31 @@ export class AuraController {
 
   @Post('ai/edit')
   @Throttle({ long: { limit: 30, ttl: 60000 } })
-  edit(
+  async edit(
     @CurrentUser() user: CurrentUserPayload,
     @Body() body: { config?: unknown; theme?: string; density?: string; title?: string; message?: string; lang?: string },
   ) {
     const state = {
       config: sanitizeAuraConfig(body?.config),
-      theme: (['lumiva', 'bento', 'graphite', 'swiss', 'industry'].includes(String(body?.theme)) ? body!.theme : 'lumiva') as any,
+      theme: ((AURA_THEMES as string[]).includes(String(body?.theme)) ? body!.theme : 'lumiva') as any,
       density: (['normal', 'compact', 'large'].includes(String(body?.density)) ? body!.density : 'normal') as any,
       title: String(body?.title || '').slice(0, 160),
     };
-    return this.ai.edit(user.tenantId, AuraService.userIdOf(user), state, String(body?.message || ''), body?.lang, AuraController.viewer(user));
+    const res = await this.ai.edit(user.tenantId, AuraService.userIdOf(user), state, String(body?.message || ''), body?.lang, AuraController.viewer(user));
+    // блоки выключенных в pl1 модулей ИИ добавить не может; то, что уже было в приложении, не трогаем
+    const { cfg, dropped } = await this.aura.dropLocked(user, res.config, state.config.widgets);
+    if (!dropped.length) return res;
+    return {
+      ...res,
+      config: { ...cfg, layout: res.config.layout },
+      applied: res.applied.filter((o) => {
+        const w = (o as { widget?: unknown }).widget;
+        const id = typeof w === 'string' ? w : w && typeof w === 'object' ? (w as { id?: string }).id : null;
+        return !(id && dropped.includes(id));
+      }),
+      fresh: res.fresh && dropped.includes(res.fresh) ? null : res.fresh,
+      locked: dropped,
+    };
   }
 
   private static viewer(user: CurrentUserPayload) {

@@ -4,7 +4,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { auraApi, auraShareUrl, type AuraAccess, type AuraApp, type AuraEditOp, type AuraFilters, type AuraPeriod } from '../../api/aura';
 import { useAlertModal } from '../../contexts/AlertModalContext';
-import { AU_REFRESH, AU_THEMES, AU_WIDGET, auPack, draftConfig, type AuDraft } from './auraModel';
+import { AU_REFRESH, AU_THEMES, AU_WIDGET, auNewDecoKey, auPack, draftConfig, type AuDraft } from './auraModel';
+import { useAuraAccess } from './AuraUnlock';
+import { auraSuggestions, readyMessage, type AuSuggestion } from './auraSuggest';
+import { AuraBlockPanel } from './AuraBlockPanel';
+import type { AuraBlockLayout, AuraCustomWidget, AuraSourceKey } from '../../api/aura';
 import { AU_I, AuIc, AuraShell, auraInvalidate, useAuraDraft, useAuraPreview, useFitHeight } from './auraShared';
 import { AuraDash, AuScaled, type AuEditHooks } from './AuraDash';
 import { autoTitle } from './AuraWizard';
@@ -37,6 +41,8 @@ export function draftFromApp(a: AuraApp): AuDraft {
     tpl: null,
     custom: a.config.custom || [],
     style: a.config.style || null,
+    layout: a.config.layout || {},
+    freeOrder: !!a.config.freeOrder,
   };
 }
 
@@ -115,7 +121,9 @@ export const AuraBuildPage: React.FC = () => {
   const [viewPeriod, setViewPeriod] = useState<AuraPeriod>(d.period);
   useEffect(() => setViewPeriod(d.period), [d.period]);
   const [filters, setFilters] = useState<AuraFilters>({});
-  const preview = useAuraPreview(loadingApp ? null : { widgets: d.widgets, period: viewPeriod, breakdown: d.breakdown, goals: d.goals, custom: d.custom || [] }, filters);
+  // порядок блоков данным не важен — сортируем, чтобы перетаскивание не перезапрашивало расчёт
+  const dataWidgets = useMemo(() => [...d.widgets].sort(), [d.widgets]);
+  const preview = useAuraPreview(loadingApp ? null : { widgets: dataWidgets, period: viewPeriod, breakdown: d.breakdown, goals: d.goals, custom: d.custom || [] }, filters);
 
   const steps = useMemo(
     () => [
@@ -138,13 +146,13 @@ export const AuraBuildPage: React.FC = () => {
   const [msgs, setMsgs] = useState<Msg[]>(() =>
     d.gen
       ? [{ r: 'user', t: d.prompt || (d.tpl ? t('crm.aura.build.fromTemplate', { name: title }) : title) }, { r: 'gen' }]
-      : [{ r: 'ai', t: t('crm.aura.build.opened') }],
+      : [{ r: 'ai', t: t('crm.aura.build.opened'), chips: true }],
   );
   useEffect(() => {
     if (!d.gen) return;
     if (genDone) {
       setDraft((p) => ({ ...p, gen: false }));
-      setMsgs((m) => [...m, { r: 'ai', t: t('crm.aura.build.ready', { title, count: d.widgets.length }), chips: true }]);
+      setMsgs((m) => [...m, { r: 'ai', t: readyMessage(d, preview.data, title, t), chips: true }]);
       return;
     }
     // шаг «Считаю показатели» не завершается, пока данные реально не пришли
@@ -190,6 +198,8 @@ export const AuraBuildPage: React.FC = () => {
         goals: res.config.goals || {},
         custom: res.config.custom || [],
         style: res.config.style || null,
+        layout: res.config.layout || {},
+        freeOrder: !!res.config.freeOrder,
         theme: res.theme,
         density: res.density,
         title: res.title || p.title,
@@ -200,7 +210,8 @@ export const AuraBuildPage: React.FC = () => {
       const reply = res.ai
         ? done || t('crm.aura.build.notUnderstood')
         : `${done ? done + '\n\n' : ''}${t(`crm.aura.aiErr.${res.aiError || 'unavailable'}`)} ${done ? '' : t('crm.aura.build.fallbackHelp')}`.trim();
-      setMsgs((m) => [...m, { r: 'ai', t: reply }]);
+      // подсказки — всегда под последним ответом и по актуальному состоянию
+      setMsgs((m) => [...m.map((x) => ({ ...x, chips: false })), { r: 'ai', t: reply, chips: true }]);
     } catch (e) {
       setMsgs((m) => [...m, { r: 'ai', t: t('crm.aura.build.editFailed', { error: (e as Error).message }) }]);
     } finally {
@@ -219,25 +230,98 @@ export const AuraBuildPage: React.FC = () => {
     if (!(n > 0)) return;
     setDraft((p) => ({ ...p, goals: { ...p.goals, team_goal: n }, widgets: p.widgets.includes('team_goal') ? p.widgets : [...p.widgets, 'team_goal'] }));
   };
+  const [panel, setPanel] = useState<{ mode: 'block' | 'add' | 'custom'; key: string | null } | null>(null);
+  const access = useAuraAccess();
+  const addDeco = (kind: 'note' | 'section') => {
+    const key = auNewDecoKey(kind);
+    setDraft((p) => {
+      // заголовок раздела имеет смысл только в ручном порядке — фиксируем то, что клиент видит
+      const vis = auPack(p.widgets, p.custom || [], p.layout || {}, !!p.freeOrder).map((x) => x.key);
+      return { ...p, widgets: [...vis, key], freeOrder: true };
+    });
+    setFresh(key);
+    setPanel({ mode: 'block', key });
+  };
+  const saveCustom = (c: AuraCustomWidget) => {
+    setDraft((p) => {
+      const exists = (p.custom || []).some((x) => x.id === c.id);
+      return {
+        ...p,
+        custom: exists ? (p.custom || []).map((x) => (x.id === c.id ? c : x)) : [...(p.custom || []), c],
+        widgets: p.widgets.includes(c.id) ? p.widgets : [...p.widgets, c.id],
+      };
+    });
+    setFresh(c.id);
+    setPanel({ mode: 'block', key: c.id });
+  };
+  const setLayout = (key: string, patch: Partial<AuraBlockLayout> | null) =>
+    setDraft((p) => {
+      const cur = { ...(p.layout || {}) };
+      const next: AuraBlockLayout = patch ? { ...(cur[key] || {}), ...patch } : {};
+      (Object.keys(next) as Array<keyof AuraBlockLayout>).forEach((k) => next[k] === undefined && delete next[k]);
+      if (!next.color) delete next.fill;
+      if (Object.keys(next).length) cur[key] = next;
+      else delete cur[key];
+      return { ...p, layout: cur };
+    });
+  const withSource = (p: AuDraft, key: string): AuraSourceKey[] => {
+    const src = AU_WIDGET.get(key)?.source;
+    return src && src !== 'extra' && src !== 'custom' && src !== 'deco' && !p.sources.includes(src) ? [...p.sources, src] : p.sources;
+  };
+  const replaceBlock = (key: string, next: string) => {
+    setDraft((p) => {
+      const lay = { ...(p.layout || {}) };
+      // цвет и ширина переезжают на новый показатель, своё название — нет (оно про старый)
+      if (lay[key]) {
+        const { title: _t, ...rest } = lay[key];
+        void _t;
+        if (Object.keys(rest).length) lay[next] = rest;
+        delete lay[key];
+      }
+      return { ...p, widgets: p.widgets.map((k) => (k === key ? next : k)), layout: lay, sources: withSource(p, next) };
+    });
+    setFresh(next);
+    setPanel({ mode: 'block', key: next });
+  };
+  const addBlock = (key: string) => {
+    setDraft((p) => (p.widgets.includes(key) ? p : { ...p, widgets: [...p.widgets, key], sources: withSource(p, key) }));
+    setFresh(key);
+    setPanel({ mode: 'block', key });
+  };
   const edit: AuEditHooks = {
+    onReorder: (keys) => setDraft((p) => ({ ...p, widgets: keys, freeOrder: true })),
+    onOpen: (key) => setPanel({ mode: 'block', key }),
+    onAdd: () => setPanel({ mode: 'add', key: null }),
+    selected: panel?.mode === 'block' ? panel.key : null,
     onMove: (key, dir) =>
       setDraft((p) => {
-        // двигаем среди виджетов того же «ряда» (KPI — среди KPI, остальные — среди остальных)
-        const isKpi = AU_WIDGET.get(key)?.type === 'kpi';
-        const same = p.widgets.filter((k) => (AU_WIDGET.get(k)?.type === 'kpi') === isKpi);
-        const i = same.indexOf(key);
+        // двигаем по тому порядку, который клиент видит, — и дальше раскладка идёт ровно в нём
+        const w = auPack(p.widgets, p.custom || [], p.layout || {}, !!p.freeOrder).map((x) => x.key);
+        const i = w.indexOf(key);
         const j = i + dir;
-        if (j < 0 || j >= same.length) return p;
-        const swap = same[j];
-        const w = [...p.widgets];
-        const a = w.indexOf(key);
-        const b = w.indexOf(swap);
-        [w[a], w[b]] = [w[b], w[a]];
+        if (i < 0 || j < 0 || j >= w.length) return p;
+        [w[i], w[j]] = [w[j], w[i]];
         setFresh(key);
-        return { ...p, widgets: w };
+        return { ...p, widgets: w, freeOrder: true };
       }),
-    onRemove: (key) => setDraft((p) => (p.widgets.length > 1 ? { ...p, widgets: p.widgets.filter((k) => k !== key) } : p)),
+    onRemove: (key) => {
+      // свой показатель удаляем и из списка custom — иначе сервер вернул бы его в конец раскладки
+      setDraft((p) => (p.widgets.length > 1 ? { ...p, widgets: p.widgets.filter((k) => k !== key), custom: (p.custom || []).filter((c) => c.id !== key) } : p));
+      setPanel((x) => (x?.key === key ? null : x));
+    },
     onSetGoal: () => void setGoal(),
+  };
+
+  const suggestions = genDone ? auraSuggestions(d, preview.data, t, access) : [];
+  const lastChips = msgs.map((m) => !!m.chips).lastIndexOf(true);
+  const applySuggestion = (sg: AuSuggestion) => {
+    if (sg.action === 'goal') {
+      void setGoal();
+      return;
+    }
+    if (!sg.apply) return;
+    setDraft((p) => sg.apply!(p));
+    setMsgs((m) => [...m.map((x) => ({ ...x, chips: false })), { r: 'user', t: sg.label }, { r: 'ai', t: sg.done, chips: true }]);
   };
 
   const devW = DEVICES.find((x) => x[0] === dev)![1];
@@ -283,11 +367,11 @@ export const AuraBuildPage: React.FC = () => {
               ) : (
                 <div key={i} className={'au-msg ' + m.r}>
                   {m.t}
-                  {m.chips && (
+                  {m.chips && i === lastChips && suggestions.length > 0 && (
                     <div className="au-msg-chips">
-                      {(t('crm.aura.build.chips', { returnObjects: true }) as string[]).map((c) => (
-                        <button type="button" key={c} onClick={() => void send(c)}>
-                          {c}
+                      {suggestions.map((sg) => (
+                        <button type="button" key={sg.id} onClick={() => applySuggestion(sg)}>
+                          {sg.label}
                         </button>
                       ))}
                     </div>
@@ -347,6 +431,12 @@ export const AuraBuildPage: React.FC = () => {
                 </option>
               ))}
             </select>
+            {tab === 'preview' && genDone && (
+              <button type="button" className={'btn btn-sm' + (panel?.mode === 'add' ? ' btn-primary' : '')} onClick={() => setPanel(panel?.mode === 'add' ? null : { mode: 'add', key: null })}>
+                <AuIc d={AU_I.blocks} size={14} />
+                {t('crm.aura.block.addShort')}
+              </button>
+            )}
             <div style={{ flex: 1 }} />
             <button type="button" className={'app-topbar-btn' + (wide ? ' on' : '')} title={wide ? t('crm.aura.build.showMenu') : t('crm.aura.build.hideMenu')} onClick={() => setWide(!wide)}>
               <AuIc d={wide ? AU_I.panel : AU_I.full} size={15} />
@@ -366,10 +456,10 @@ export const AuraBuildPage: React.FC = () => {
               </button>
             )}
           </div>
-          <div className={'au-stage au-dev-' + dev}>
+          <div className={'au-stage au-dev-' + dev + (panel && tab === 'preview' ? ' au-stage-panel' : '')}>
             {tab === 'preview' ? (
               <div className="au-frame" style={{ maxWidth: dev === 'phone' ? 390 : dev === 'tablet' ? 834 : 'none' }}>
-                <AuScaled width={devW}>
+                <AuScaled width={devW} fill={dev === 'desktop'}>
                   <AuraDash
                     title={title}
                     sources={d.sources}
@@ -387,6 +477,8 @@ export const AuraBuildPage: React.FC = () => {
                     freshKey={fresh}
                     custom={d.custom || []}
                     style={d.style || null}
+                    layout={d.layout || {}}
+                    freeOrder={!!d.freeOrder}
                     edit={genDone ? edit : undefined}
                   />
                 </AuScaled>
@@ -395,6 +487,29 @@ export const AuraBuildPage: React.FC = () => {
               <DataTab d={d} data={preview.data} />
             )}
           </div>
+          {tab === 'preview' && genDone && !panel && <div className="au-btip">{t('crm.aura.block.tip')}</div>}
+          {panel && tab === 'preview' && (
+            <AuraBlockPanel
+              mode={panel.mode}
+              blockKey={panel.key}
+              widgets={d.widgets}
+              sources={d.sources}
+              layout={d.layout || {}}
+              custom={d.custom || []}
+              res={panel.key ? preview.data?.widgets[panel.key] : undefined}
+              access={access}
+              dashPeriod={d.period}
+              onAddDeco={addDeco}
+              onCustom={() => setPanel({ mode: 'custom', key: null })}
+              onSaveCustom={saveCustom}
+              onClose={() => setPanel(null)}
+              onLayout={setLayout}
+              onReplace={replaceBlock}
+              onAdd={addBlock}
+              onRemove={(k) => edit.onRemove(k)}
+              onMove={(k, dir) => edit.onMove(k, dir)}
+            />
+          )}
         </div>
         {pub && (
           <PublishModal

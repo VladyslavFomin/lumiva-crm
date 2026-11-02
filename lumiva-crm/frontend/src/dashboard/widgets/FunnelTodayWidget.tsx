@@ -53,7 +53,7 @@ export const FunnelTodayWidget: React.FC = () => {
         return (
           <div key={row.status} className="flex items-center gap-2">
             <div className="w-[120px] shrink-0 text-[11.5px] text-[#222] truncate font-medium">
-              {row.status}
+              {t(`crm.home.feedStatus.any.${row.status}`, { defaultValue: row.status })}
             </div>
             <div className="flex-1 h-[7px] bg-neutral-100 rounded-full overflow-hidden">
               <div

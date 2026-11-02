@@ -44,5 +44,6 @@ import { AuraAiService } from './aura-ai.service';
   ],
   controllers: [AuraController, AuraPublicController],
   providers: [AuraService, AuraDataService, AuraAiService],
+  exports: [AuraDataService],
 })
 export class AuraModule {}

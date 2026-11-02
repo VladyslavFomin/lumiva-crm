@@ -5,7 +5,7 @@ import { API_BASE, api } from './client';
 export type AuraSourceKey = 'leads' | 'deals' | 'team' | 'calls' | 'booking' | 'stock' | 'finance' | 'marketing';
 export type AuraPeriod = 'today' | '7d' | '30d' | 'quarter' | 'year';
 export type AuraFilterKey = 'manager' | 'channel' | 'branch' | 'product';
-export type AuraTheme = 'lumiva' | 'bento' | 'graphite' | 'swiss' | 'industry';
+export type AuraTheme = 'lumiva' | 'bento' | 'graphite' | 'swiss' | 'industry' | 'aurora' | 'obsidian' | 'mist' | 'ember' | 'nebula' | 'frost';
 export type AuraDensity = 'normal' | 'compact' | 'large';
 export type AuraViewer = 'me' | 'leaders' | 'team' | 'tv';
 export type AuraAccess = 'private' | 'department' | 'company';
@@ -23,6 +23,20 @@ export type AuraCustomWidget = {
   lowerIsBetter?: boolean;
   dateField?: string | null;
 };
+/** Настройки блока из редактора: ширина (из 12 колонок), цвет акцента, заливка, своё название. */
+export type AuraBlockLayout = {
+  span?: number;
+  color?: string;
+  fill?: 'tint' | 'solid';
+  title?: string;
+  period?: AuraPeriod;
+  viz?: string;
+  target?: number;
+  limit?: number;
+  sort?: 'desc' | 'asc';
+  prev?: boolean;
+  text?: string;
+};
 export type AuraStyle = { bg?: string; surface?: string; ink?: string; accent?: string; accent2?: string; radius?: number; font?: string };
 export type AuraAiError = 'provider_quota' | 'tenant_quota' | 'unavailable' | null;
 
@@ -36,6 +50,8 @@ export type AuraConfig = {
   viewer?: AuraViewer | null;
   custom?: AuraCustomWidget[];
   style?: AuraStyle | null;
+  layout?: Record<string, AuraBlockLayout>;
+  freeOrder?: boolean;
 };
 
 export type AuraFormat = 'int' | 'money' | 'pct' | 'num';
@@ -45,14 +61,34 @@ export type AuraWidgetData =
   | { type: 'line'; format: AuraFormat; current: number[]; previous: number[]; total: number; prevTotal: number }
   | { type: 'donut'; format: AuraFormat; items: Array<{ key?: string; name: string; value: number }> }
   | { type: 'funnel'; steps: Array<{ key: string; value: number }> }
-  | { type: 'table'; cols: Array<{ key: string; kind: 'text' | 'person' | 'chip' | 'money' | 'int' | 'pct' | 'days' }>; rows: Array<Record<string, string | number | null>> }
+  | { type: 'table'; cols: Array<{ key: string; kind: 'text' | 'person' | 'chip' | 'money' | 'int' | 'num' | 'pct' | 'days' }>; rows: Array<Record<string, string | number | null>> }
   | { type: 'bar'; format: AuraFormat; unit?: 'pcs'; people?: boolean; items: Array<{ name: string; value: number }> }
   | { type: 'col'; labels: number[]; data: number[] }
   | { type: 'col2'; format: AuraFormat; labels: string[]; a: number[]; b: number[] }
   | { type: 'heat'; hours: number[]; values: number[][] }
   | { type: 'list'; items: Array<{ kind: string; n?: number; pct?: number; name?: string }> }
-  | { type: 'goal'; target: number | null; done: number; pct: number | null; daysLeft: number };
-export type AuraWidgetResult = AuraWidgetData | { error: 'denied' | 'amounts_hidden' | 'failed' };
+  | { type: 'goal'; target: number | null; done: number; pct: number | null; daysLeft: number }
+  | { type: 'hero'; name: string | null; items: Array<{ key: string; value: number | null; format: AuraFormat }> }
+  | { type: 'check'; items: Array<{ key: string; done: boolean }> }
+  | { type: 'gauge'; value: number | null; rows: Array<{ key: string; value: number; tone: AuraTone }> }
+  | { type: 'segbar'; format: AuraFormat; items: Array<{ key: string; value: number; tone?: AuraTone }> }
+  | { type: 'forecast'; format: AuraFormat; done: number; projected: number; prev: number; prevSameDay: number; target: number | null; day: number; days: number; series?: number[]; prevSeries?: number[] }
+  | { type: 'stream'; items: AuraStreamItem[] }
+  | { type: 'status'; items: Array<{ key: AuraSourceKey; last: string | null; n24: number }> }
+  | { type: 'multi'; format: AuraFormat; series: Array<{ key: string; data: number[] }> }
+  | { type: 'split'; format: AuraFormat; a: { key: string; value: number }; b: { key: string; value: number } }
+  | { type: 'cal'; format: AuraFormat; start: string; values: number[] };
+export type AuraTone = 'good' | 'warn' | 'bad' | 'neutral';
+export type AuraStreamItem = {
+  kind: 'lead' | 'sale' | 'booking' | 'call';
+  at: string;
+  title: string | null;
+  sub: string | null;
+  value: number | null;
+  format: AuraFormat | null;
+  status: string;
+};
+export type AuraWidgetResult = AuraWidgetData | { error: 'denied' | 'amounts_hidden' | 'failed' | 'locked' };
 
 export type AuraData = {
   period: { key: AuraPeriod; from: string; to: string; granularity: 'hour' | 'day' | 'week' | 'month'; labels: string[] };
@@ -61,6 +97,15 @@ export type AuraData = {
   own: boolean;
   widgets: Record<string, AuraWidgetResult>;
   filterOptions: Partial<Record<AuraFilterKey, Array<{ id: string; name: string }>>>;
+  blockPeriods?: Record<string, { key: AuraPeriod; granularity: 'hour' | 'day' | 'week' | 'month'; labels: string[] }>;
+};
+
+export type AuraFieldKind = 'text' | 'enum' | 'number' | 'money' | 'person' | 'bool';
+export type AuraDatasets = {
+  builtin: Array<{ key: string; source: string; noPeriod: boolean; fields: Array<{ key: string; kind: AuraFieldKind; values: string[] | null }> }>;
+  tables: Array<{ key: string; name: string; fields: Array<{ key: string; label: string; kind: AuraFieldKind; date: boolean }> }>;
+  /** Наборы, закрытые выключенным в pl1 компонентом. */
+  locked: string[];
 };
 
 export type AuraShare = { enabled: boolean; hasPassword: boolean; expiresAt: string | null; shareKey: string };
@@ -112,6 +157,8 @@ export const auraApi = {
     }),
   previewData: (config: Partial<AuraConfig>, period?: AuraPeriod, filters?: AuraFilters) =>
     api.post<AuraData>('/aura/data', { config, period, filters, tz: tz() }),
+  datasets: () => api.get<AuraDatasets>('/aura/datasets'),
+  access: () => api.get<{ lockedSources: AuraSourceKey[]; lockedComponents: string[] }>('/aura/access'),
   getShare: (id: string) => api.get<AuraShare>(`/aura/apps/${id}/share`),
   saveShare: (id: string, body: { enabled?: boolean; password?: string | null; expiresAt?: string | null; regenerate?: boolean }) =>
     api.put<AuraShare>(`/aura/apps/${id}/share`, body),

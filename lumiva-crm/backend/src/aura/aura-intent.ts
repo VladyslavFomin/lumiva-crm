@@ -1,4 +1,5 @@
 import {
+  AURA_THEMES,
   AURA_WIDGET_BY_KEY,
   auraDefaultWidgets,
   sanitizeAuraConfig,
@@ -9,7 +10,7 @@ import {
   type AuraSourceKey,
   type AuraTheme,
 } from './aura-catalog';
-import { isCustomKey, sanitizeCustom, sanitizeStyle, type AuraStyle } from './aura-custom';
+import { isCustomKey, isDecoKey, sanitizeCustom, sanitizeStyle, type AuraStyle } from './aura-custom';
 
 /** Разбор без ИИ: по ключевым словам ru/en/tr. Используется, когда ИИ недоступен (нет квоты/ключа)
  * или ответ модели не разобрался. */
@@ -154,7 +155,13 @@ export function fallbackEditOps(text: string, state: AuraEditState): AuraEditOp[
   const ops: AuraEditOp[] = [];
   const styleOps = fallbackStyleOps(t);
   if (styleOps.length) return styleOps;
-  if (/тёмн|темн|ночн|графит|dark|night|graphite|koyu|karanlık/.test(t)) ops.push({ op: 'theme', value: 'graphite' });
+  if (/жидк.*стекл|стекл|glass|cam\b|aurora|аврор/.test(t)) ops.push({ op: 'theme', value: /тёмн|темн|dark|koyu/.test(t) ? 'obsidian' : 'aurora' });
+  else if (/обсидиан|obsidian|крипт|crypto|kripto/.test(t)) ops.push({ op: 'theme', value: 'obsidian' });
+  else if (/оранжев.*тем|ember|логист|logistic|lojistik/.test(t)) ops.push({ op: 'theme', value: 'ember' });
+  else if (/туманност|nebula|жёлт.*тёмн|желт.*темн/.test(t)) ops.push({ op: 'theme', value: 'nebula' });
+  else if (/туман|шалфей|mist|sage|sis\b/.test(t)) ops.push({ op: 'theme', value: 'mist' });
+  else if (/иней|frost|ios|айос|apple/.test(t)) ops.push({ op: 'theme', value: 'frost' });
+  else if (/тёмн|темн|ночн|графит|dark|night|graphite|koyu|karanlık/.test(t)) ops.push({ op: 'theme', value: 'graphite' });
   else if (/чертёж|чертеж|blueprint|industr|teknik/.test(t)) ops.push({ op: 'theme', value: 'industry' });
   else if (/бенто|цветн|плитк|ярк|bento|colorful|renkli/.test(t)) ops.push({ op: 'theme', value: 'bento' });
   else if (/контраст|швейцар|swiss|contrast|kontrast/.test(t)) ops.push({ op: 'theme', value: 'swiss' });
@@ -205,7 +212,7 @@ export function applyEditOps(state: AuraEditState, ops: AuraEditOp[]) {
   let fresh: string | null = null;
   for (const o of ops) {
     if (!o || typeof o !== 'object') continue;
-    if ((o.op === 'add' || o.op === 'remove' || o.op === 'move') && !AURA_WIDGET_BY_KEY.has(String(o.widget)) && !(o.op !== 'add' && isCustomKey(String(o.widget)) && (cfg.custom || []).some((c) => c.id === o.widget))) continue;
+    if ((o.op === 'add' || o.op === 'remove' || o.op === 'move') && !AURA_WIDGET_BY_KEY.has(String(o.widget)) && !(o.op !== 'add' && ((isCustomKey(String(o.widget)) && (cfg.custom || []).some((c) => c.id === o.widget)) || (isDecoKey(String(o.widget)) && cfg.widgets.includes(String(o.widget)))))) continue;
     if (o.op === 'add') {
       if (cfg.widgets.includes(o.widget)) continue;
       cfg.widgets.push(o.widget);
@@ -237,7 +244,7 @@ export function applyEditOps(state: AuraEditState, ops: AuraEditOp[]) {
       cfg.widgets.splice(Math.max(0, Math.min(cfg.widgets.length, Math.round(Number(o.index) || 0))), 0, o.widget);
       fresh = o.widget;
     } else if (o.op === 'theme') {
-      if (!['lumiva', 'bento', 'graphite', 'swiss', 'industry'].includes(o.value)) continue;
+      if (!(AURA_THEMES as string[]).includes(o.value)) continue;
       theme = o.value;
     } else if (o.op === 'density') {
       if (!['normal', 'compact', 'large'].includes(o.value)) continue;

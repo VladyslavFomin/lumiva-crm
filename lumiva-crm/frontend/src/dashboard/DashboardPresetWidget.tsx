@@ -24,7 +24,8 @@ import { loadAnalyticsItemsForSource } from './analyticsPresetData';
 import { loadWorkspaceAnalyticsItems } from './workspaceAnalyticsItems';
 import { loadClientAccountAnalyticsItems } from './clientAccountAnalyticsItems';
 
-const CHART_COLORS = ['#38bdf8', '#e11d48', '#f97316', '#22c55e', '#2563eb', '#6366f1'];
+// монохром главной v3 (Claude Design home-aura-v3) — блоки не выбиваются из стиля страницы
+const CHART_COLORS = ['#1d1d1d', '#8c8c8c', '#c9c9c9', '#4a4a4a', '#e3e3e3', '#6f6f6f'];
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';

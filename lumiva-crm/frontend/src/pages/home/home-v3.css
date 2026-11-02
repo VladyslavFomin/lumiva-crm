@@ -1,0 +1,358 @@
+/* ============================================
+   ГЛАВНАЯ v3 — порт Claude Design home-aura-v3.html (проект 3affa7c1-b28d-4e49-b8bb-c7af7123c758):
+   aura2-home.css + aura3-home.css (монохром + стекло). Всё под .a3-shell, классы a2-/a3- как в макете.
+   ИИ-поиск, логотипы интеграций и плитки «Отели» из макета не перенесены.
+   ============================================ */
+
+.a3-shell {
+  --ink: #1d1d1d;
+  --fg-2: #555;
+  --fg-3: #858585;
+  --fg-4: #adadad;
+  --glass: rgba(255, 255, 255, .62);
+  --gl-b: rgba(255, 255, 255, .85);
+  --r: 32px;
+  --a2s: 1;
+  --ff-display: var(--ff-heading);
+  --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 56px);
+  background: linear-gradient(170deg, #f4f4f4 0%, #eeeeee 55%, #f2f2f2 100%);
+  color: var(--ink);
+}
+
+@keyframes a2up { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
+@keyframes a2pop { 0% { opacity: 0; transform: translateY(-10px) scale(.97) } 100% { opacity: 1; transform: none } }
+@keyframes a2rot { to { transform: rotate(360deg) } }
+@keyframes a2blink { 50% { opacity: .25 } }
+@keyframes a2d1 { to { transform: translate(140px, 120px) scale(1.15) } }
+@keyframes a2d2 { to { transform: translate(-160px, -90px) scale(.9) } }
+@keyframes a3fade { from { opacity: 0 } }
+@keyframes a3reveal { from { transform: scaleX(0) } }
+@keyframes a3dash { to { stroke-dashoffset: -20 } }
+@keyframes a3grow { from { transform: scaleY(0) } }
+@keyframes a3pulse { 0% { transform: scale(.8); opacity: .9 } 100% { transform: scale(1.6); opacity: 0 } }
+
+/* фон: два мягких пятна (без will-change — см. iOS GPU memory) */
+.a3-shell .a2-aura { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden }
+.a3-shell .a2-aura i { position: absolute; border-radius: 50%; filter: blur(110px); opacity: .55 }
+.a3-shell .a2-aura .b1 { width: 520px; height: 520px; background: #e0e0e0; left: -6%; top: -10%; animation: a2d1 calc(26s * var(--a2s)) ease-in-out infinite alternate }
+.a3-shell .a2-aura .b2 { width: 460px; height: 460px; background: #fff; right: 18%; top: 30%; animation: a2d2 calc(32s * var(--a2s)) ease-in-out infinite alternate }
+
+.a3-shell .a2-page { padding: 26px 36px 64px; display: flex; flex-direction: column; gap: 30px; width: 100% }
+.a3-shell .a2-page * { min-width: 0 }
+.a3-shell .a2-page button:not(.a3-blocks *) { font: inherit; cursor: pointer }
+.a3-shell .a2-page a { color: inherit; text-decoration: none }
+.a3-shell h1, .a3-shell h2, .a3-shell h3 { font-family: var(--ff-display); margin: 0 }
+
+/* ── верхняя панель ── */
+.a3-shell .a2-top { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; animation: a2up .6s both }
+.a3-shell .a2-pill { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px; background: var(--glass); border: 1px solid var(--gl-b); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 13.5px; font-weight: 500; color: var(--ink); transition: background .2s, transform .15s; white-space: nowrap; flex-shrink: 0 }
+.a3-shell .a2-pill:hover { background: #fff }
+.a3-shell .a2-pill:active { transform: scale(.97) }
+.a3-shell .a2-pill.dark { background: var(--ink); color: #fff; border-color: var(--ink) }
+.a3-shell .a2-pill.dark:hover { background: #000 }
+.a3-shell .a2-pill .pl { font-size: 18px; line-height: 1; margin-top: -2px }
+.a3-shell .a2-pill.sm { height: 36px; padding: 0 14px; font-size: 12.5px }
+.a3-shell .a3-cur { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 0 8px 0 16px }
+.a3-shell .a3-cur span { font-size: 12.5px; color: var(--fg-3); font-weight: 400 }
+.a3-shell .a3-cur select { appearance: none; -webkit-appearance: none; border: 0; outline: 0; background: rgba(0, 0, 0, .06); border-radius: 999px; height: 30px; padding: 0 26px 0 12px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%231d1d1d' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center }
+
+/* ── заголовок ── */
+.a3-shell .a2-title { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; animation: a2up .6s .05s both }
+.a3-shell .a2-title h1 { font-size: clamp(32px, 3.6vw, 52px); font-weight: 600; letter-spacing: -.035em; line-height: 1.02 }
+.a3-shell .a2-title h1 span { color: var(--fg-3); font-weight: 500 }
+.a3-shell .a3-upd { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-3); margin-bottom: 10px }
+.a3-shell .a3-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #2fb36f; position: relative; flex-shrink: 0 }
+.a3-shell .a3-live-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid #2fb36f; animation: a3pulse calc(2.4s * var(--a2s)) ease-out infinite }
+.a3-shell .a3-warn { margin-top: 8px; font-size: 12px; color: #a86a00 }
+.a3-shell .a2-online { display: flex; align-items: center; gap: 16px; font-size: 19px; font-weight: 500; color: var(--ink) }
+.a3-shell .a2-online em { font-style: normal; color: var(--fg-4) }
+.a3-shell .a2-online .avs { display: flex; padding-left: 12px }
+.a3-shell .a2-ava { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 600; flex-shrink: 0; position: relative; overflow: visible; background-size: cover; background-position: center }
+.a3-shell .a2-ava.big { width: 48px; height: 48px; font-size: 13px; margin-left: -12px; box-shadow: 0 0 0 3px #f1f1f1; transition: transform .3s }
+.a3-shell .a2-ava.big:hover { transform: translateY(-4px); z-index: 2 }
+.a3-shell .a2-ava.big::after { content: ''; position: absolute; right: 0; bottom: 1px; width: 11px; height: 11px; border-radius: 50%; background: #2fb36f; border: 2px solid #f1f1f1 }
+.a3-shell .a2-ava .new { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; white-space: nowrap }
+
+/* ── KPI ── */
+.a3-shell .a3-kpis { display: flex; flex-direction: column; gap: 10px; animation: a2up .6s .08s both }
+.a3-shell .a3-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px }
+.a3-shell .a3-kpi { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 36%; min-height: 150px; border-radius: 26px; background: rgba(255, 255, 255, .7); border: 1px solid var(--gl-b); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); overflow: hidden; animation: a2up .6s both; transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s }
+.a3-shell .a3-kpi:hover { transform: translateY(-3px); box-shadow: 0 22px 40px -26px rgba(30, 30, 30, .4) }
+.a3-shell .a3-kpi .l { padding: 24px 0 22px 26px; display: flex; flex-direction: column; container-type: inline-size }
+.a3-shell .a3-kpi .n { font-size: 14px; color: var(--fg-2) }
+.a3-shell .a3-kpi .v { font-family: var(--ff-display); font-size: clamp(24px, 20cqi, 38px); font-weight: 600; letter-spacing:0; line-height: 1.1; margin-top: 6px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.a3-shell .a3-kpi .v small { font-size: 16px; font-weight: 500; color: var(--fg-3); margin-left: 3px; letter-spacing: -.01em }
+.a3-shell .a3-kpi .d { margin-top: auto; padding-top: 10px; font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px }
+.a3-shell .a3-kpi .d b { font-weight: 600; color: var(--ink) }
+.a3-shell .a3-kpi .d b.dn { color: #b4303f }
+.a3-shell .a3-kpi .r { position: relative; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .035); border-left: 1px solid rgba(255, 255, 255, .7) }
+.a3-shell .a3-kpi .x { position: absolute; top: 8px; right: 8px }
+.a3-shell .a3-kpi.dk { background: var(--ink); border-color: var(--ink) }
+.a3-shell .a3-kpi.dk .n, .a3-shell .a3-kpi.dk .d { color: rgba(255, 255, 255, .6) }
+.a3-shell .a3-kpi.dk .d b { color: #fff }
+.a3-shell .a3-kpi.dk .d b.dn { color: #f5b8bc }
+.a3-shell .a3-kpi.dk .v { color: #fff }
+.a3-shell .a3-kpi.dk .v small { color: rgba(255, 255, 255, .55) }
+.a3-shell .a3-kpi.dk .r { background: rgba(255, 255, 255, .06); border-left-color: rgba(255, 255, 255, .08) }
+.a3-shell .a3-kpi.dk .a3-art.sq, .a3-shell .a3-kpi.dk .a3-art.doc { background: #2a2a2a; color: #fff; box-shadow: 6px 6px 0 -1px rgba(255, 255, 255, .08) }
+.a3-shell .a3-kpi.dk .a3-art.doc i { background: rgba(255, 255, 255, .25) }
+.a3-shell .a3-kpi.dk .a3-art .bars i { background: #fff }
+.a3-shell .a3-kpi.dk .a3-art.fold i { background: rgba(255, 255, 255, .25) }
+.a3-shell .a3-kpi.dk .a3-art.fold b { background: #2a2a2a }
+.a3-shell .a3-kpi.skel .v { width: 60%; height: 34px; border-radius: 10px; background: rgba(0, 0, 0, .06) }
+.a3-shell .a3-art { transition: transform .5s cubic-bezier(.3, 1.5, .5, 1) }
+.a3-shell .a3-kpi:hover .a3-art { transform: translateY(-4px) rotate(-4deg) }
+.a3-shell .a3-art.sq { width: 62px; height: 62px; border-radius: 16px; background: #fff; box-shadow: 0 8px 20px -10px rgba(0, 0, 0, .3); display: flex; align-items: center; justify-content: center; color: #1a1a1a }
+.a3-shell .a3-art.round { border-radius: 50% }
+.a3-shell .a3-art.doc { width: 60px; height: 72px; border-radius: 10px; background: #fff; box-shadow: 6px 6px 0 -1px rgba(255, 255, 255, .55), 0 8px 20px -10px rgba(0, 0, 0, .3); padding: 12px 10px; display: flex; flex-direction: column; gap: 6px }
+.a3-shell .a3-art.doc i { height: 2px; background: rgba(0, 0, 0, .18); border-radius: 2px }
+.a3-shell .a3-art.doc i:first-child { width: 40%; background: rgba(0, 0, 0, .5); margin-bottom: 6px }
+.a3-shell .a3-art.fold, .a3-shell .a3-fico { position: relative; width: 74px; height: 54px }
+.a3-shell .a3-art.fold i, .a3-shell .a3-fico i { position: absolute; left: 0; top: 0; width: 30px; height: 12px; border-radius: 6px 6px 0 0; background: rgba(255, 255, 255, .75) }
+.a3-shell .a3-art.fold b, .a3-shell .a3-fico b { position: absolute; left: 0; right: 0; top: 8px; bottom: 0; border-radius: 10px; background: #fff; box-shadow: 0 8px 20px -10px rgba(0, 0, 0, .3) }
+.a3-shell .a3-art.fold b::after, .a3-shell .a3-fico b::after { content: ''; position: absolute; right: 10px; bottom: 9px; width: 14px; height: 2px; border-radius: 2px; background: rgba(0, 0, 0, .3) }
+.a3-shell .a3-art .bars { display: flex; align-items: flex-end; gap: 4px; height: 28px }
+.a3-shell .a3-art .bars i { width: 7px; border-radius: 2px; background: #1a1a1a }
+.a3-shell .a3-art .bars i:nth-child(1) { height: 40% }
+.a3-shell .a3-art .bars i:nth-child(2) { height: 70% }
+.a3-shell .a3-art .bars i:nth-child(3) { height: 100% }
+.a3-shell .a3-kpi-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap }
+.a3-shell .a3-kpi-bar .gl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+
+/* ── сегменты / чипы / пикеры ── */
+.a3-shell .a3-seg { display: flex; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, .05); max-width: 100%; overflow-x: auto; scrollbar-width: none }
+.a3-shell .a3-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: none; font-size: 13px; color: var(--fg-3); transition: background .2s, color .2s; white-space: nowrap; flex-shrink: 0 }
+.a3-shell .a3-seg button.on { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 2px 6px -2px rgba(0, 0, 0, .15) }
+.a3-shell .a2-note { font-size: 12.5px; color: var(--fg-3) }
+.a3-shell .a2-note button { border: 0; background: none; padding: 0; color: var(--ink); text-decoration: underline }
+.a3-shell .a2-pick { background: rgba(255, 255, 255, .7); border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 12px; animation: a2pop .3s both }
+.a3-shell .a2-cats { display: flex; gap: 6px; flex-wrap: wrap }
+.a3-shell .a2-cats button { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(0, 0, 0, .08); background: #fff; font-size: 13px; color: var(--fg-2) }
+.a3-shell .a2-cats button.on { background: var(--ink); color: #fff; border-color: var(--ink) }
+.a3-shell .a2-pick-l { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px }
+.a3-shell .a2-pick-l button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid transparent; background: rgba(255, 255, 255, .7); font-size: 13.5px; color: var(--ink); text-align: left }
+.a3-shell .a2-pick-l button:hover { background: #fff }
+.a3-shell .a2-pick-l button i { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--fg-4); flex-shrink: 0; position: relative }
+.a3-shell .a2-pick-l button.on { background: #fff; border-color: var(--ink) }
+.a3-shell .a2-pick-l button.on i { background: var(--ink); border-color: var(--ink) }
+.a3-shell .a2-pick-l button.on i::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) }
+.a3-shell .a2-pick-l em { margin-left: auto; font-style: normal; font-family: var(--ff-mono); font-size: 10px; color: var(--fg-4); text-transform: uppercase }
+.a3-shell .a3-ppick { grid-column: 1/-1; display: flex; flex-direction: column; gap: 10px; margin: 22px 0 0 32px; padding: 16px; border-radius: 20px; background: rgba(0, 0, 0, .04); animation: a2pop .3s both }
+.a3-shell .a3-ppick.in { margin: -6px 0 20px }
+.a3-shell .a3-chips { display: flex; flex-wrap: wrap; gap: 6px }
+.a3-shell .a3-chips button { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(0, 0, 0, .08); background: #fff; font-size: 13px; color: var(--fg-2); display: flex; align-items: center; gap: 8px; transition: background .2s, color .2s }
+.a3-shell .a3-chips button:hover { color: var(--ink); border-color: rgba(0, 0, 0, .25) }
+.a3-shell .a3-chips button.on { background: var(--ink); border-color: var(--ink); color: #fff }
+.a3-shell .a3-chips em { font-style: normal; font-size: 10.5px; opacity: .55 }
+.a3-shell .a3-goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px }
+.a3-shell .a3-goals label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-3) }
+.a3-shell .a3-goals input { height: 36px; border-radius: 12px; border: 1px solid rgba(0, 0, 0, .1); background: #fff; padding: 0 12px; font: inherit; font-size: 13.5px; color: var(--ink); outline: 0 }
+.a3-shell .a3-goals input:focus { border-color: var(--ink) }
+
+/* ── сетка + панели ── */
+.a3-shell .a2-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); gap: 28px; align-items: start }
+.a3-shell .a2-col { display: flex; flex-direction: column; gap: 28px }
+.a3-shell .a2-panel { background: rgba(255, 255, 255, .66); border: 1px solid var(--gl-b); border-radius: var(--r); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); padding: 30px; box-shadow: 0 30px 60px -48px rgba(0, 0, 0, .3); animation: a2up .7s .1s both }
+.a3-shell .a2-col .a2-panel:nth-child(2) { animation-delay: .18s }
+.a3-shell .a2-col .a2-panel:nth-child(3) { animation-delay: .26s }
+.a3-shell .a2-ph { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap }
+.a3-shell .a2-ph h3 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px }
+.a3-shell .a2-ph h3 .n { color: var(--fg-4); font-weight: 500 }
+.a3-shell .a2-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.a3-shell .a2-rb { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .07); background: rgba(255, 255, 255, .75); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .2s, transform .2s, color .2s }
+.a3-shell .a2-rb:hover { background: #fff; transform: scale(1.06) }
+.a3-shell .a2-rb.dark { background: var(--ink); color: #fff; border-color: var(--ink) }
+.a3-shell .a2-rb.sm { width: 36px; height: 36px; font-size: 18px; line-height: 1 }
+.a3-shell .a2-rb .rot { display: flex; animation: a2rot .7s cubic-bezier(.4, 0, .2, 1) }
+.a3-shell .a3-empty { padding: 26px 18px; border-radius: 20px; background: rgba(0, 0, 0, .035); text-align: center; font-size: 13px; color: var(--fg-3); line-height: 1.5 }
+.a3-shell .a3-empty a { color: var(--ink); text-decoration: underline }
+
+/* ── профиль ── */
+.a3-shell .a2-profile { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: auto auto; gap: 0 36px; padding: 0 32px 30px 0; overflow: hidden }
+.a3-shell .a2-photo { grid-row: 1; align-self: stretch; min-height: 210px; position: relative; margin-top: 18px; border-radius: 0 26px 26px 0; overflow: hidden; background: linear-gradient(160deg, #e6e6e6, #d4d4d4) }
+.a3-shell .a2-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover }
+.a3-shell .a2-photo .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ff-display); font-size: 64px; font-weight: 600; letter-spacing:0; color: rgba(0, 0, 0, .25) }
+.a3-shell .a2-photo::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 40%; background: linear-gradient(transparent, rgba(255, 255, 255, .55)); pointer-events: none }
+.a3-shell .a2-pinfo { padding-top: 34px; display: flex; flex-direction: column; gap: 26px }
+.a3-shell .a2-ptop { display: flex; justify-content: space-between; gap: 12px }
+.a3-shell .a2-ptop h2 { font-size: 26px; font-weight: 600; letter-spacing: -.02em }
+.a3-shell .a2-role { font-size: 15px; color: var(--fg-3); margin-top: 4px }
+.a3-shell .a2-role b { color: var(--ink); font-weight: 500; margin-right: 6px }
+.a3-shell .a2-btns { display: flex; gap: 8px }
+.a3-shell .a2-contacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; font-size: 14.5px; color: var(--ink) }
+.a3-shell .a2-contacts > * { display: flex; align-items: center; gap: 10px; white-space: nowrap; overflow: hidden }
+.a3-shell .a2-contacts svg { color: var(--fg-4); flex-shrink: 0 }
+.a3-shell .a2-contacts .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.a3-shell .a2-contacts .mu { color: var(--fg-4) }
+.a3-shell .a2-stats { grid-column: 1/-1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding: 26px 0 0 32px; border-top: 1px solid rgba(0, 0, 0, .05); margin-top: 26px }
+.a3-shell .a2-stat .l { font-size: 14px; color: var(--fg-3) }
+.a3-shell .a2-stat .v { font-family: var(--ff-display); font-size: 30px; font-weight: 600; letter-spacing:0; margin: 6px 0 14px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.a3-shell .a2-stat .bar { height: 5px; border-radius: 5px; background: rgba(0, 0, 0, .05); overflow: hidden }
+.a3-shell .a2-stat .bar div { height: 100%; border-radius: 5px; transition: width 1.4s cubic-bezier(.2, .8, .2, 1) }
+.a3-shell .a2-stat .bar.g0 div { background: var(--ink) }
+.a3-shell .a2-stat .bar.g1 div { background: #6f6f6f }
+.a3-shell .a2-stat .bar.g2 div { background: #b3b3b3 }
+.a3-shell .a2-stat .gl { font-size: 11.5px; color: var(--fg-4); margin-top: 8px }
+.a3-shell .a2-stat .gl button { border: 0; background: none; padding: 0; color: var(--fg-3); text-decoration: underline; font-size: 11.5px }
+
+/* ── «Динамика» ── */
+.a3-shell .a3-legend { display: flex; gap: 18px; font-size: 12.5px; color: var(--fg-2); margin: -6px 0 14px; flex-wrap: wrap }
+.a3-shell .a3-legend span { display: flex; align-items: center; gap: 7px }
+.a3-shell .a3-legend i { width: 22px; height: 0; border-top: 2px solid var(--ink) }
+.a3-shell .a3-legend i.p { border-top: 2px dashed #a0a0a0 }
+.a3-shell .a3-legend .u { margin-left: auto; color: var(--fg-4) }
+.a3-shell .a3-plot { display: grid; grid-template-columns: 52px minmax(0, 1fr); height: 220px; align-items: start }
+.a3-shell .a3-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 11.5px; color: var(--fg-4); transform: translateY(-7px); height: 234px; font-variant-numeric: tabular-nums }
+.a3-shell .a3-svgw { position: relative; height: 220px }
+.a3-shell .a3-svgw svg { display: block; width: 100%; height: 220px; overflow: visible }
+.a3-shell .a3-svgw .gl { stroke: rgba(0, 0, 0, .06); stroke-width: 1; vector-effect: non-scaling-stroke }
+.a3-shell .a3-svgw .ar { animation: a3fade 1s .4s both }
+.a3-shell .a3-svgw .lf { fill: none; stroke: var(--ink); stroke-width: 2.2; vector-effect: non-scaling-stroke }
+.a3-shell .a3-svgw .rv { transform-box: fill-box; transform-origin: left center; animation: a3reveal 1.4s cubic-bezier(.4, 0, .2, 1) both }
+.a3-shell .a3-svgw .lp { fill: none; stroke: #a0a0a0; stroke-width: 2; stroke-dasharray: 5 5; vector-effect: non-scaling-stroke; animation: a3dash calc(1.2s * var(--a2s)) linear infinite }
+.a3-shell .a3-svgw .hl { stroke: rgba(0, 0, 0, .15); stroke-width: 1; vector-effect: non-scaling-stroke }
+.a3-shell .a3-hit { position: absolute; top: 0; bottom: 0; transform: translateX(-50%); cursor: crosshair }
+.a3-shell .a3-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #fff; border: 2.5px solid var(--ink); pointer-events: none }
+.a3-shell .a3-tip { position: absolute; z-index: 3; transform: translate(-50%, calc(-100% - 14px)); background: var(--ink); color: #fff; border-radius: 14px; padding: 9px 12px; display: flex; flex-direction: column; gap: 1px; font-size: 12px; pointer-events: none; white-space: nowrap; animation: a2pop .2s both }
+.a3-shell .a3-tip b { font-weight: 600; margin-bottom: 2px }
+.a3-shell .a3-tip span { color: rgba(255, 255, 255, .7) }
+.a3-shell .a3-tip em { font-style: normal; font-weight: 600; margin-top: 3px }
+.a3-shell .a3-tip .up { color: #fff }
+.a3-shell .a3-tip .dn { color: #bdbdbd }
+.a3-shell .a3-x { display: flex; justify-content: space-between; padding: 10px 0 0 52px; font-size: 12px; color: var(--fg-4) }
+.a3-shell .a3-sum { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(0, 0, 0, .05); font-size: 12.5px; color: var(--fg-3) }
+.a3-shell .a3-sum b { display: block; font-family: var(--ff-display); font-size: 20px; font-weight: 600; letter-spacing:0; color: var(--ink); margin-top: 2px; font-variant-numeric: tabular-nums }
+
+/* ── таймлайн + заметки ── */
+.a3-shell .a3-two { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 28px; align-items: stretch }
+.a3-shell .a3-tabs { display: inline-flex; padding: 5px; border-radius: 18px; background: rgba(0, 0, 0, .05); margin-bottom: 18px; max-width: 100%; overflow-x: auto }
+.a3-shell .a3-tabs button { flex-shrink: 0; height: 38px; padding: 0 16px; border: 0; border-radius: 14px; background: none; font-size: 13.5px; color: var(--fg-3); display: flex; align-items: center; gap: 7px; white-space: nowrap }
+.a3-shell .a3-tabs button em { font-style: normal; font-size: 11px; color: var(--fg-4); background: rgba(0, 0, 0, .06); border-radius: 999px; padding: 1px 7px }
+.a3-shell .a3-tabs button.on { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 2px 8px -3px rgba(0, 0, 0, .15) }
+.a3-shell .a3-tl-list { position: relative; display: flex; flex-direction: column; gap: 14px; padding-left: 30px }
+.a3-shell .a3-tl-list::before { content: ''; position: absolute; left: 9px; top: 20px; bottom: 20px; width: 2px; background: var(--ink); border-radius: 2px; animation: a3grow .8s cubic-bezier(.4, 0, .2, 1) both; transform-origin: top }
+.a3-shell .a3-tli { position: relative; animation: a2up .5s both }
+.a3-shell .a3-tli .mk { position: absolute; left: -30px; top: 50%; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%; background: #fff; border: 2.5px solid var(--ink) }
+.a3-shell .a3-tli.first .mk { background: var(--ink) }
+.a3-shell .a3-tli.first .mk::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 1.5px solid var(--ink); animation: a3pulse calc(2.4s * var(--a2s)) ease-out infinite }
+.a3-shell .a3-tli.od .mk { border-color: #b4303f }
+.a3-shell .a3-tlc { display: grid; grid-template-columns: minmax(100px, .9fr) minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 18px 20px; border-radius: 20px; background: rgba(255, 255, 255, .82); transition: transform .3s }
+.a3-shell .a3-tlc:hover { transform: translateX(4px) }
+.a3-shell .a3-tlc .dt b { display: block; font-family: var(--ff-display); font-size: 20px; font-weight: 600; letter-spacing:0; color: var(--ink); white-space: nowrap }
+.a3-shell .a3-tlc .dt span { font-size: 11.5px; color: var(--fg-4); white-space: nowrap }
+.a3-shell .a3-tlc .dt span.od { color: #b4303f }
+.a3-shell .a3-tlc .f { display: flex; flex-direction: column; gap: 2px; padding-left: 14px; border-left: 1px solid rgba(0, 0, 0, .06) }
+.a3-shell .a3-tlc .f span { font-size: 11px; color: var(--fg-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.a3-shell .a3-tlc .f b { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.a3-shell .a3-tlc .f.sm b { font-size: 13px; font-weight: 500 }
+.a3-shell .a3-tl-more { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 9px 16px; border: 0; border-radius: 999px; background: rgba(0, 0, 0, .05); font-size: 13px; font-weight: 500; color: var(--ink); cursor: pointer; transition: background .2s, transform .16s }
+.a3-shell .a3-tl-more:hover { background: rgba(0, 0, 0, .08) }
+.a3-shell .a3-tl-more:active { transform: scale(.97) }
+.a3-shell .a3-tl-more span { display: inline-flex; transition: transform .25s cubic-bezier(.4, 0, .2, 1) }
+.a3-shell .a3-tl-more span.up { transform: rotate(180deg) }
+.a3-shell .a3-notes { display: flex; flex-direction: column }
+.a3-shell .a3-lnk { font-size: 13px; font-weight: 500; color: var(--ink) !important }
+.a3-shell .a3-pad { position: relative; border-radius: 20px; background: rgba(0, 0, 0, .04); padding: 14px 16px 58px; flex: 1; min-height: 200px; display: flex }
+.a3-shell .a3-pad textarea { width: 100%; flex: 1; border: 0; outline: 0; background: none; resize: none; font: inherit; font-size: 13.5px; line-height: 1.75; color: var(--ink) }
+.a3-shell .a3-save { position: absolute; right: 12px; bottom: 12px; height: 36px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 500; transition: background .2s, transform .15s }
+.a3-shell .a3-save:active { transform: scale(.97) }
+.a3-shell .a3-save:disabled { opacity: .45; cursor: default }
+.a3-shell .a3-save.ok { background: #4a4a4a }
+.a3-shell .a3-last { padding: 14px 4px 0; font-size: 12px; color: var(--fg-4) }
+
+/* ── медиа-папки ── */
+.a3-shell .a3-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px }
+.a3-shell .a3-fold { border-radius: 24px; background: rgba(255, 255, 255, .82); padding: 22px; display: flex; flex-direction: column; animation: a2up .6s both; transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s }
+.a3-shell .a3-fold:hover { transform: translateY(-4px); box-shadow: 0 22px 40px -26px rgba(30, 30, 30, .4) }
+.a3-shell .a3-fold .hd { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px }
+.a3-shell .a3-fico { transition: transform .45s cubic-bezier(.3, 1.5, .5, 1) }
+.a3-shell .a3-fico i { background: #e4e4e4 }
+.a3-shell .a3-fico b { background: #eeeeee; box-shadow: none }
+.a3-shell .a3-fold:hover .a3-fico { transform: rotate(-5deg) translateY(-3px) }
+.a3-shell .a3-fold .cnt { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12px; color: var(--fg-4); white-space: nowrap }
+.a3-shell .a3-fold .cnt b { font-size: 13px; color: var(--ink); font-weight: 600 }
+.a3-shell .a3-fold .n { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.a3-shell .a3-fold .d { font-size: 13px; color: var(--fg-3); margin-top: 4px; line-height: 1.45; flex: 1 }
+.a3-shell .a3-fold .ac { display: flex; gap: 8px; margin-top: 22px }
+.a3-shell .a3-share { flex: 1; min-width: 0; height: 40px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; font-weight: 500; white-space: nowrap; padding: 0 14px; transition: background .2s, transform .15s }
+.a3-shell .a3-share:hover { background: #000 }
+.a3-shell .a3-share:active { transform: scale(.98) }
+.a3-shell .a3-share span { overflow: hidden; text-overflow: ellipsis }
+
+/* ── живая лента ── */
+.a3-shell .a2-feed { position: sticky; top: 22px; max-height: calc(100vh - 44px); display: flex; flex-direction: column; padding: 28px 18px 10px 26px }
+.a3-shell .a2-live { display: inline-flex; align-items: center; gap: 5px; font-family: var(--ff-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: #1f8a5e; font-weight: 500 }
+.a3-shell .a2-live i { width: 7px; height: 7px; border-radius: 50%; background: #2fb36f; animation: a2blink 1.4s infinite }
+.a3-shell .a2-fl { overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 6px 14px 0; margin-right: -6px; scrollbar-width: thin }
+.a3-shell .a2-fi { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; animation: a2up .5s both }
+.a3-shell .a2-fi.fresh { animation: a2pop .6s cubic-bezier(.2, .8, .2, 1) both }
+.a3-shell .a2-fi.fresh .a2-fc { box-shadow: 0 0 0 1.5px var(--ink) }
+.a3-shell .a2-fi .when { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 4px; font-size: 11.5px; color: var(--fg-3); text-align: center }
+.a3-shell .a2-fi .when b { color: var(--ink); font-weight: 500 }
+.a3-shell .a2-fi .ic { width: 42px; height: 42px; border-radius: 50%; background: rgba(0, 0, 0, .06); display: flex; align-items: center; justify-content: center; color: var(--ink); margin-bottom: 4px }
+.a3-shell .a2-fc { background: rgba(255, 255, 255, .82); border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 14px; transition: box-shadow .6s, transform .3s; color: inherit }
+.a3-shell .a2-fc:hover { transform: translateX(-3px) }
+.a3-shell .a2-fc .hd { display: flex; align-items: center; gap: 10px }
+.a3-shell .a2-fc .hd .t { flex: 1; min-width: 0 }
+.a3-shell .a2-fc .n { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.a3-shell .a2-fc .s { font-size: 12.5px; color: var(--fg-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
+.a3-shell .a2-fc .row { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.a3-shell .a2-fc .chips { display: flex; gap: 6px; overflow: hidden }
+.a3-shell .a2-chip { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(0, 0, 0, .08); background: #fff; font-size: 12px; color: var(--ink); white-space: nowrap }
+.a3-shell .a2-chip.st { background: rgba(0, 0, 0, .06); border-color: transparent }
+.a3-shell .a2-fc .val { font-family: var(--ff-display); font-weight: 600; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums }
+
+/* ── «Мои блоки»: блоки со страниц аналитики/рабочих областей в стекле v3 ── */
+.a3-shell .a3-blocks-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px }
+.a3-shell .a3-blocks-h h3 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px }
+.a3-shell .a3-blocks-h h3 .n { color: var(--fg-4); font-weight: 500 }
+.a3-shell .a3-blocks-h .hint { font-size: 12.5px; color: var(--fg-3) }
+.a3-shell .a3-blocks .dh-card > div { border-radius: 26px !important; border: 1px solid var(--gl-b) !important; background: rgba(255, 255, 255, .7) !important; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 30px 60px -48px rgba(0, 0, 0, .3); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s }
+.a3-shell .a3-blocks .dh-card:not(.dh-edit):hover > div { transform: translateY(-2px); box-shadow: 0 22px 40px -26px rgba(30, 30, 30, .35) }
+.a3-shell .a3-blocks .dh-card > div > div { border-radius: 26px !important }
+.a3-shell .a3-blocks .dh-card > div > div > .pointer-events-none { display: none }
+.a3-shell .a3-blocks .dh-card > div > div > .relative { padding: 22px 24px !important }
+.a3-shell .a3-blocks .dh-card h2 { font-family: var(--ff-display) !important; font-size: 18px !important; font-weight: 600 !important; letter-spacing:0 !important; color: var(--ink) !important }
+.a3-shell .a3-blocks .dh-card.dh-edit > div { border-style: dashed !important; border-color: rgba(0, 0, 0, .18) !important }
+/* внутренние «карточки» встроенных блоков аналитики — без своих белых коробок и рамок, на стекле */
+.a3-shell .a3-blocks .dh-card .bg-white { background-color: rgba(255, 255, 255, .72) !important }
+.a3-shell .a3-blocks .dh-card .border-neutral-200,
+.a3-shell .a3-blocks .dh-card .border-neutral-100 { border-color: rgba(0, 0, 0, .06) !important }
+.a3-shell .a3-blocks .dh-card .rounded-xl,
+.a3-shell .a3-blocks .dh-card .rounded-2xl,
+.a3-shell .a3-blocks .dh-card .rounded-lg { border-radius: 16px }
+.a3-shell .a3-blocks .dh-card .bg-neutral-50\/90,
+.a3-shell .a3-blocks .dh-card .bg-neutral-100\/70 { background-color: rgba(255, 255, 255, .6) !important }
+.a3-shell .a3-blocks .dh-card table th { color: var(--fg-4) }
+.a3-shell .a3-blocks .dh-card [class*="text-[2rem]"] { font-size: 34px !important; letter-spacing: -.04em }
+.a3-shell .a3-blocks .dh-card .shadow-sm,
+.a3-shell .a3-blocks .dh-card [class*="shadow-[0_1px"] { box-shadow: none !important }
+
+@media (max-width: 1480px) { .a3-shell .a3-two { grid-template-columns: 1fr } }
+@media (max-width: 1280px) {
+  .a3-shell .a2-grid { grid-template-columns: minmax(0, 1fr) }
+  .a3-shell .a2-feed { position: static; max-height: 640px }
+}
+@media (max-width: 760px) {
+  .a3-shell .a2-page { padding: 18px 14px 40px; gap: 22px }
+  .a3-shell .a2-aura { display: none }
+  .a3-shell .a2-panel { padding: 20px; border-radius: 26px }
+  .a3-shell .a2-top { justify-content: flex-start }
+  .a3-shell .a2-online { font-size: 15px }
+  .a3-shell .a3-kpi { min-height: 128px }
+  .a3-shell .a2-profile { grid-template-columns: 1fr; padding: 0 20px 20px }
+  .a3-shell .a2-photo { min-height: 160px; margin: 0 -20px; border-radius: 0 }
+  .a3-shell .a2-stats { padding-left: 0; grid-template-columns: 1fr; gap: 18px }
+  .a3-shell .a2-contacts { grid-template-columns: 1fr }
+  .a3-shell .a3-ppick { margin-left: 0 }
+  .a3-shell .a3-tlc { grid-template-columns: 1fr 1fr }
+  .a3-shell .a3-tlc .f { border: 0; padding: 0 }
+  .a3-shell .a3-legend .u { margin-left: 0 }
+  .a3-shell .a3-plot { grid-template-columns: 40px minmax(0, 1fr) }
+  .a3-shell .a3-x { padding-left: 40px }
+  .a3-shell .a2-fi { grid-template-columns: 48px minmax(0, 1fr) }
+}
+@media (prefers-reduced-motion: reduce) { .a3-shell * { animation: none !important; transition: none !important } }

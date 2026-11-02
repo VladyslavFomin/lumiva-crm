@@ -1,4 +1,5 @@
 import { pushDashboardServerLayout } from '../api/dashboard';
+import type { HomePrefs } from '../pages/home/homeCatalog';
 import {
   defaultHeightForPreset,
   getPresetDefinition,
@@ -117,18 +118,19 @@ export interface DashboardLayoutState {
   presetInstances: Record<string, DashboardPresetInstance>;
   /** Пользовательские названия блоков на главной (id виджета или pid_*) */
   titleOverrides: Record<string, string>;
+  /** Выбор цифр главной v3 (KPI, профиль, «Динамика», цели, период). */
+  home?: HomePrefs;
+  /** Раскладка уже переведена на главную v3 — стандартные блоки, которые она заменила, скрыты один раз. */
+  homeV3?: boolean;
 }
 
 function defaultLayout(): DashboardLayoutState {
   return {
     order: [...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS],
-    hidden: new Set<string>([
-      ...DASHBOARD_EXTRA_WIDGET_IDS,
-      'funnel_today',
-      'lead_sources_week',
-      'recent_deals',
-      'birthdays',
-    ]),
+    // Главная v3 сама рисует KPI, ленту, таймлайн и т.п. — стандартные блоки по умолчанию скрыты,
+    // в «Моих блоках» только то, что пользователь добавил сам (в т.ч. со страниц аналитики).
+    hidden: new Set<string>([...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS]),
+    homeV3: true,
     sizes: {
       kpi: 'lg',
       'profile-completion': 'md',
@@ -255,6 +257,8 @@ export function serializeLayout(state: DashboardLayoutState) {
     heights: state.heights,
     presetInstances: state.presetInstances,
     titleOverrides: state.titleOverrides,
+    home: state.home,
+    homeV3: state.homeV3,
   };
 }
 
@@ -269,6 +273,8 @@ export function normalizeDashboardLayoutState(parsed: {
   heights?: Record<string, number>;
   presetInstances?: Record<string, DashboardPresetInstance>;
   titleOverrides?: Record<string, string>;
+  home?: HomePrefs;
+  homeV3?: boolean;
 } | null | undefined): DashboardLayoutState | null {
   if (!parsed) return null;
   const base = defaultLayout();
@@ -278,14 +284,20 @@ export function normalizeDashboardLayoutState(parsed: {
   const mergedOrder = [...new Set([...order, ...base.order])].filter((id) =>
     isValidOrderId(id, presetInstances),
   );
+  const hidden = new Set(parsed.hidden || []);
+  // Переход на главную v3: её KPI/лента/таймлайн/профиль заменили стандартные блоки — один раз
+  // скрываем их, чтобы не дублировались. Блоки со страниц аналитики (pid_*, extra) остаются.
+  if (!parsed.homeV3) for (const id of DASHBOARD_CORE_WIDGET_IDS) hidden.add(id);
   return {
     order: mergedOrder,
-    hidden: new Set(parsed.hidden || []),
+    hidden,
     sizes: { ...base.sizes, ...(parsed.sizes || {}) },
     spans: { ...(parsed.spans || {}) },
     heights: { ...(parsed.heights || {}) },
     presetInstances,
     titleOverrides: { ...(parsed.titleOverrides || {}) },
+    home: parsed.home && typeof parsed.home === 'object' ? parsed.home : undefined,
+    homeV3: true,
   };
 }
 

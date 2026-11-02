@@ -201,7 +201,7 @@ ${CATALOG_TEXT}
 Current state: ${JSON.stringify({ widgets: state.config.widgets, custom: (state.config.custom || []).map((c) => ({ id: c.id, title: c.title, viz: c.viz, dataset: c.dataset })), style: state.config.style || null, period: state.config.period, breakdown: state.config.breakdown, goal: state.config.goals?.team_goal ?? null, theme: state.theme, density: state.density, title: state.title })}
 Allowed operations:
 {"op":"add","widget":KEY} {"op":"remove","widget":KEY} {"op":"move","widget":KEY,"index":N}
-{"op":"theme","value":"lumiva|bento|graphite|swiss|industry"} (graphite = dark, for TV; bento = colorful tiles; swiss = contrast blue; industry = blueprint)
+{"op":"theme","value":"lumiva|bento|graphite|swiss|industry|aurora|obsidian|mist|ember|nebula|frost"} (graphite = dark, for TV; bento = colorful tiles; swiss = contrast blue; industry = blueprint; aurora = light liquid glass with warm glow; obsidian = dark glass, mint accent; mist = soft sage glass; ember = clean white with orange accent; nebula = dark glass, yellow accent; frost = iOS-style light glass)
 {"op":"density","value":"normal|compact|large"} {"op":"period","value":"${AURA_PERIODS.join('|')}"}
 {"op":"title","value":TEXT} {"op":"breakdown_add|breakdown_remove","value":"${AURA_FILTERS.join('|')}"} {"op":"goal","value":NUMBER (monthly revenue goal in main currency)}
 To change a custom widget: remove it by id and add a new one.

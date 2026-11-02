@@ -23,12 +23,14 @@ import {
   AURA_PERIODS,
   AURA_REFRESH_SEC,
   AURA_THEMES,
+  AURA_WIDGET_BY_KEY,
   sanitizeAuraConfig,
   type AuraConfig,
   type AuraFilterKey,
   type AuraPeriod,
 } from './aura-catalog';
 import { AuraDataService, type AuraFilters, type AuraViewerInput } from './aura-data.service';
+import { datasetComponent } from './aura-custom';
 
 export type AuraAccess = 'private' | 'department' | 'company';
 const ACCESS: AuraAccess[] = ['private', 'department', 'company'];
@@ -296,6 +298,40 @@ export class AuraService implements OnModuleInit {
     return { period, filters, tz: typeof q.tz === 'string' ? q.tz.slice(0, 64) : undefined };
   }
 
+  async access(user: CurrentUserPayload) {
+    const scope = await this.data.buildScope(user.tenantId, this.viewerInput(user));
+    return this.data.access(scope);
+  }
+
+  /** Убирает из ответа ИИ блоки разделов, выключенных в pl1 (добавить их нельзя). */
+  async dropLocked<T extends { widgets: string[]; sources: string[]; custom?: Array<{ id: string; dataset: string }> }>(user: CurrentUserPayload, cfg: T, keep: string[] = []): Promise<{ cfg: T; dropped: string[] }> {
+    const acc = await this.access(user);
+    const ls = new Set<string>(acc.lockedSources);
+    const lc = new Set<string>(acc.lockedComponents);
+    const dropped: string[] = [];
+    const widgets = cfg.widgets.filter((k) => {
+      if (keep.includes(k)) return true;
+      const def = AURA_WIDGET_BY_KEY.get(k);
+      const c = (cfg.custom || []).find((x) => x.id === k);
+      const locked = def ? (def.source !== 'extra' && ls.has(def.source)) || def.needs.some((s) => ls.has(s)) : c ? lc.has(datasetComponent(c.dataset) || '') : false;
+      if (locked) dropped.push(k);
+      return !locked;
+    });
+    return { cfg: { ...cfg, widgets, sources: cfg.sources.filter((s) => !ls.has(s)), custom: (cfg.custom || []).filter((c) => widgets.includes(c.id)) }, dropped };
+  }
+
+  async datasets(user: CurrentUserPayload) {
+    const scope = await this.data.buildScope(user.tenantId, this.viewerInput(user));
+    return this.data.datasetsFor(scope);
+  }
+
+  /** Свои периоды блоков из настроек раскладки. */
+  static periodsOf(cfg: AuraConfig): Partial<Record<string, AuraPeriod>> {
+    const out: Partial<Record<string, AuraPeriod>> = {};
+    for (const [k, b] of Object.entries(cfg.layout || {})) if (b.period) out[k] = b.period;
+    return out;
+  }
+
   /** Превью черновика (ещё не сохранённое приложение) — с правами текущего пользователя. */
   async previewData(user: CurrentUserPayload, body: { config?: unknown; widgets?: string[]; period?: string; filters?: unknown; tz?: string }) {
     const cfg = sanitizeAuraConfig(body.config ?? { widgets: body.widgets });
@@ -308,7 +344,7 @@ export class AuraService implements OnModuleInit {
       breakdown: cfg.breakdown,
       goals: cfg.goals,
       tz: q.tz,
-      custom: cfg.custom,
+      custom: cfg.custom, periods: AuraService.periodsOf(cfg),
     });
   }
 
@@ -317,7 +353,7 @@ export class AuraService implements OnModuleInit {
     const cfg = sanitizeAuraConfig(row.config);
     const q = AuraService.parseQuery(query);
     const scope = await this.data.buildScope(user.tenantId, this.viewerInput(user));
-    return this.data.compute(scope, { widgets: cfg.widgets, period: q.period || cfg.period, filters: q.filters, breakdown: cfg.breakdown, goals: cfg.goals, tz: q.tz, custom: cfg.custom });
+    return this.data.compute(scope, { widgets: cfg.widgets, period: q.period || cfg.period, filters: q.filters, breakdown: cfg.breakdown, goals: cfg.goals, tz: q.tz, custom: cfg.custom, periods: AuraService.periodsOf(cfg) });
   }
 
   /* ---------- публичная ссылка ---------- */
@@ -428,7 +464,10 @@ export class AuraService implements OnModuleInit {
     const cfg = sanitizeAuraConfig(row.config);
     const q = AuraService.parseQuery(query);
     const scope = await this.data.buildScope(row.tenant_id, { userId: users[0].id, role: users[0].role, email: users[0].email });
-    const data = await this.data.compute(scope, { widgets: cfg.widgets, period: q.period || cfg.period, filters: q.filters, breakdown: cfg.breakdown, goals: cfg.goals, tz: q.tz, custom: cfg.custom });
+    const data = await this.data.compute(scope, { widgets: cfg.widgets, period: q.period || cfg.period, filters: q.filters, breakdown: cfg.breakdown, goals: cfg.goals, tz: q.tz, custom: cfg.custom, periods: AuraService.periodsOf(cfg) });
+    // публичный экран не обращается по имени к тому, кто включил ссылку
+    const hero = data.widgets.hero;
+    if (hero && 'type' in hero && hero.type === 'hero') hero.name = null;
     return {
       app: { name: row.name, theme: row.theme, density: row.density, refreshSec: row.refresh_sec, config: { ...cfg, prompt: '' }, companyName: tenant.name },
       data,

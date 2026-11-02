@@ -3,16 +3,25 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { auraApi, type AuraSourceKey } from '../../api/aura';
-import { AU_DENSITIES, AU_FILTERS, AU_PERIODS, AU_SOURCES, AU_THEMES, AU_VIEWERS, AU_WIDGET, auDefaultWidgets, auWidgetOptions, type AuDraft } from './auraModel';
+import { AU_DENSITIES, AU_FILTERS, AU_PERIODS, AU_SOURCES, AU_THEMES, AU_VIEWERS, AU_WIDGET, AU_WIDGET_NEEDS, auDefaultWidgets, auWidgetOptions, type AuDraft } from './auraModel';
 import { AU_I, AuIc, AuraShell, useAuraDraft, useAuraPreview, useFitHeight } from './auraShared';
 import { AuThumb } from './AuraDash';
+import { useAuraAccess } from './AuraUnlock';
 
 type Q = { id: 'sources' | 'widgets' | 'period' | 'breakdown' | 'viewer'; multi: boolean; opts: Array<{ v: string; l: string; sub?: string }> };
 
-function questions(d: AuDraft, t: TFunction): Q[] {
+function questions(d: AuDraft, t: TFunction, locked: Set<AuraSourceKey>): Q[] {
+  // разделы модулей, выключенных в pl1, в мастере не предлагаются
+  const open = AU_SOURCES.filter((s) => !locked.has(s));
   return [
-    { id: 'sources', multi: true, opts: AU_SOURCES.map((s) => ({ v: s, l: t(`crm.aura.src.${s}.name`), sub: t(`crm.aura.src.${s}.desc`) })) },
-    { id: 'widgets', multi: true, opts: auWidgetOptions(d.sources).map((k) => ({ v: k, l: t(`crm.aura.w.${k}`) })) },
+    { id: 'sources', multi: true, opts: open.map((s) => ({ v: s, l: t(`crm.aura.src.${s}.name`), sub: t(`crm.aura.src.${s}.desc`) })) },
+    {
+      id: 'widgets',
+      multi: true,
+      opts: auWidgetOptions(d.sources.filter((s) => !locked.has(s)))
+        .filter((k) => !(AU_WIDGET_NEEDS[k] || []).some((s) => locked.has(s)))
+        .map((k) => ({ v: k, l: t(`crm.aura.w.${k}`) })),
+    },
     { id: 'period', multi: false, opts: AU_PERIODS.map((p) => ({ v: p, l: t(`crm.aura.period.${p}`) })) },
     { id: 'breakdown', multi: true, opts: AU_FILTERS.map((f) => ({ v: f, l: t(`crm.aura.filter.by.${f}`) })) },
     { id: 'viewer', multi: false, opts: AU_VIEWERS.map((v) => ({ v, l: t(`crm.aura.viewer.${v}`) })) },
@@ -46,7 +55,8 @@ export const AuraBriefPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const nav = useNavigate();
   const [d, setDraft] = useAuraDraft();
-  const qs = questions(d, t);
+  const acc = useAuraAccess();
+  const qs = questions(d, t, acc.lockedSources);
   const step = d.step || 0;
   const done = step >= qs.length;
   const q = qs[Math.min(step, qs.length - 1)];

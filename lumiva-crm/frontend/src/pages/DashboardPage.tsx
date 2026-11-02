@@ -8,10 +8,12 @@ import { getStoredUser } from '../auth/session';
 
 import { fetchLeads, isLeadOmittedFromAnalytics, type Lead } from '../api/leads';
 import { fetchProject, fetchProjects } from '../api/projects';
-import { loadDashboardFx } from '../dashboard/dashboardFx';
+import { loadDashboardFx, resetDashboardFxCache } from '../dashboard/dashboardFx';
 import { resolvePublicAssetUrl } from '../api/client';
 import { fetchSalesStats } from '../api/sales';
 import {
+  fetchDashboardOverview,
+  type DashOverview,
   fetchDashboardHome,
   fetchDashboardServerLayout,
   pushDashboardServerLayout,
@@ -52,6 +54,7 @@ import { DashboardProfileCompletion } from '../dashboard/DashboardProfileComplet
 import { DashboardLearnInspire } from '../dashboard/DashboardLearnInspire';
 import { DashboardQuickActions } from '../dashboard/DashboardQuickActions';
 import { DashboardLayoutTemplateModal } from '../dashboard/DashboardLayoutTemplateModal';
+import { applyDashboardLayoutTemplate, tidyDashboardBlocks } from '../dashboard/dashboardLayoutTemplates';
 import {
   flattenLeadMeetingsFromLeads,
   type LeadMeetingCalendarEvent } from '../dashboard/flattenLeadMeetings';
@@ -65,6 +68,35 @@ import { HotelsAnalyticsWidget } from '../dashboard/widgets/HotelsAnalyticsWidge
 import { HotelsReviewsWidget } from '../dashboard/widgets/HotelsReviewsWidget';
 import { usePermission } from '../hooks/usePermission';
 import type { PermissionKey } from '../api/rbac';
+import {
+  MARKETING_ALLOWED_CURRENCIES,
+  loadMarketingDisplayCurrency,
+  normalizeMarketingDisplayCurrency,
+  saveMarketingDisplayCurrency,
+} from './marketing/marketingDisplayCurrencyStorage';
+import { HomeChart, HomeFeed, HomeFolders, HomeKpis, HomeNotes, HomeProfile, HomeTimeline, HomeTitle } from './home/HomeV3';
+import {
+  HOME_DEFAULT_KPIS,
+  HOME_DEFAULT_SERIES,
+  HOME_DEFAULT_STATS,
+  HOME_MAX_KPIS,
+  HOME_MAX_SERIES,
+  HOME_MAX_STATS,
+  pickDefaults,
+  type HomePeriod,
+  type HomePrefs,
+} from './home/homeCatalog';
+
+/** Валюта главной: выбранная «Валюта отчёта» (общая с аналитикой), а пока её не выбирали — '' =
+ * основная валюта компании (решает бэкенд). */
+function initialHomeCurrency(): string {
+  try {
+    if (localStorage.getItem('lumiva_crm_marketing_display_currency_v1') == null) return '';
+  } catch {
+    return '';
+  }
+  return normalizeMarketingDisplayCurrency(loadMarketingDisplayCurrency().displayCurrency);
+}
 
 /**
  * Which staff permission a dashboard block's DATA belongs to — same idea as MainLayout's
@@ -554,260 +586,6 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
 }
 
 /* ─────────────────────────────────────────────
- *  QUICK ACCESS CARDS (Recently visited)
- * ─────────────────────────────────────────── */
-const QUICK_ACCESS = [
-  { id: 'projects' as const, labelKey: 'projectsTable' as const, href: '/projects/list', preview: 'table' as const },
-  { id: 'leads' as const, labelKey: 'leadsFunnel' as const, href: '/leads', preview: 'kanban' as const },
-  { id: 'analytics' as const, labelKey: 'leadsAnalytics' as const, href: '/leads/analytics', preview: 'chart' as const },
-  { id: 'calendar' as const, labelKey: 'meetingsTasks' as const, href: '/calendar', preview: 'cal' as const },
-];
-
-const PrevTable = () => (
-  <div className="flex flex-col gap-[3px] p-2 h-full">
-    <div className="h-[5px] w-[60%] rounded-sm bg-[#222] mb-1" />
-    {[0, 1, 2, 3, 4, 5].map((i) => (
-      <div key={i} className="h-[7px] rounded-sm bg-neutral-100 relative overflow-hidden">
-        <span className="absolute top-0 h-full rounded-sm" style={{ left: '4%', width: '18%', background: '#1769d1', opacity: 0.5 }} />
-        <span className="absolute top-0 h-full rounded-sm" style={{ left: '26%', width: '14%', background: '#1f8a5e', opacity: 0.5 }} />
-        <span className="absolute top-0 h-full rounded-sm" style={{ left: '44%', width: '22%', background: '#cc2f47', opacity: 0.45 }} />
-      </div>
-    ))}
-  </div>
-);
-
-const PrevKanban = () => (
-  <div className="grid grid-cols-3 gap-1 p-2 h-full">
-    {[0, 1, 2].map((i) => (
-      <div key={i} className="bg-neutral-100 rounded p-1 flex flex-col gap-1">
-        {Array.from({ length: i === 1 ? 4 : 3 }).map((_, j) => (
-          <div key={j} className="h-[6px] bg-[#222] rounded-sm" style={{ opacity: 0.85 - j * 0.15 }} />
-        ))}
-      </div>
-    ))}
-  </div>
-);
-
-const PrevChart = () => (
-  <div className="p-2 h-full">
-    <svg viewBox="0 0 200 80" preserveAspectRatio="none" className="w-full h-full">
-      <path d="M0,60 L25,55 L50,42 L75,48 L100,30 L125,35 L150,18 L175,25 L200,12" fill="none" stroke="#222" strokeWidth="1.6" />
-      <path d="M0,60 L25,55 L50,42 L75,48 L100,30 L125,35 L150,18 L175,25 L200,12 L200,80 L0,80 Z" fill="#222" opacity="0.06" />
-      {[20, 45, 70].map((y) => <line key={y} x1="0" y1={y} x2="200" y2={y} stroke="#e7e7e7" strokeWidth="0.5" strokeDasharray="2 3" />)}
-    </svg>
-  </div>
-);
-
-const PrevCal = () => (
-  <div className="p-2 h-full grid" style={{ gridTemplateColumns: 'repeat(7,1fr)', gridTemplateRows: 'repeat(4,1fr)', gap: 2 }}>
-    {Array.from({ length: 28 }).map((_, i) => (
-      <div key={i} className="rounded-sm" style={{ background: [3, 9, 15, 21].includes(i) ? '#222' : '#e7e7e7', opacity: [3, 9, 15, 21].includes(i) ? 0.85 : 0.5 }} />
-    ))}
-  </div>
-);
-
-const STARRED_KEY = 'lumiva_dash_starred';
-function loadStarred(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(STARRED_KEY) || '[]')); } catch { return new Set(); }
-}
-function saveStarred(s: Set<string>) {
-  try { localStorage.setItem(STARRED_KEY, JSON.stringify([...s])); } catch { /* ignore */ }
-}
-
-const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number]; t: TranslateFn }> = ({ item, t }) => {
-  const [starred, setStarred] = React.useState(() => loadStarred().has(item.id));
-  const toggleStar = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    setStarred((prev) => {
-      const next = !prev;
-      const s = loadStarred();
-      if (next) s.add(item.id); else s.delete(item.id);
-      saveStarred(s);
-      return next;
-    });
-  };
-  return (
-    <Link
-      to={item.href}
-      className="group relative block rounded-xl border border-neutral-200 bg-white p-3.5 transition-all duration-150 hover:border-[#222] hover:-translate-y-px"
-    >
-      <div className="relative h-[72px] rounded-md bg-neutral-50 border border-neutral-100 overflow-hidden mb-3">
-        {item.preview === 'table' && <PrevTable />}
-        {item.preview === 'kanban' && <PrevKanban />}
-        {item.preview === 'chart' && <PrevChart />}
-        {item.preview === 'cal' && <PrevCal />}
-        <button
-          type="button"
-          onClick={toggleStar}
-          className={`absolute top-1.5 right-1.5 w-[18px] h-[18px] flex items-center justify-center rounded cursor-pointer transition-colors bg-white/60 backdrop-blur-sm ${starred ? 'text-amber-500' : 'text-neutral-400 opacity-0 group-hover:opacity-100'}`}
-          title={t('crm.dashboard.quickAccess.starTitle')}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill={starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
-          </svg>
-        </button>
-      </div>
-      <div className="font-mono text-[9px] text-neutral-400 uppercase tracking-[0.1em] mb-0.5">
-        {t(`crm.dashboard.quickAccess.kinds.${item.id}`)}
-      </div>
-      <div className="text-[12px] font-semibold text-[#222] leading-snug">
-        {t(`crm.dashboard.quickAccess.labels.${item.labelKey}`)}
-      </div>
-    </Link>
-  );
-};
-
-const QuickAccessSection: React.FC<{ t: TranslateFn }> = ({ t }) => {
-  const canProjects = usePermission('projects');
-  const canLeads = usePermission('leads');
-  const items = QUICK_ACCESS.filter((item) => {
-    if (item.id === 'projects') return canProjects;
-    if (item.id === 'leads' || item.id === 'analytics') return canLeads;
-    return true;
-  });
-  if (!items.length) return null;
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-          </svg>
-          <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.quickAccess.sectionTitle')}</span>
-          <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{items.length}</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {items.map((item) => (
-          <QuickAccessCard key={item.id} item={item} t={t} />
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/* ─────────────────────────────────────────────
- *  KPI STRIP
- * ─────────────────────────────────────────── */
-const MiniSparkline: React.FC<{ data: number[]; up?: boolean }> = ({ data, up = true }) => {
-  const w = 80; const h = 28;
-  const max = Math.max(...data); const min = Math.min(...data);
-  const range = max - min || 1;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
-  const color = up ? '#222222' : '#cc2f47';
-  return (
-    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="mt-3">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <polygon points={`0,${h} ${pts} ${w},${h}`} fill={color} opacity="0.08" />
-    </svg>
-  );
-};
-
-const KpiStrip: React.FC<{
-  data: DashboardData;
-  locale: string;
-  onRemove: () => void;
-  t: TranslateFn;
-}> = ({ data, locale, onRemove, t }) => {
-  const { summary, projectsSummary, tasksSummary, leadsTimeline } = data;
-  const sparkLeads = leadsTimeline.slice(-9).map((d) => d.value);
-  const sparkRevenue = [60, 72, 68, 80, 78, 88, 85, 92, 100].map((v) => Math.round(v * (summary.revenueEUR / 100 || 1)));
-  const sparkConv = [18, 20, 19, 22, 21, 23, 22, 24, summary.conversion];
-  const sparkTasks = [tasksSummary?.total || 0, tasksSummary?.total || 0].concat(Array(7).fill(tasksSummary?.today || 0));
-
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" />
-          </svg>
-          <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.kpi.sectionTitle')}</span>
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="text-[11px] text-neutral-400 hover:text-[#222] transition-colors px-1.5 py-0.5 rounded hover:bg-neutral-100"
-          title={t('crm.dashboard.widgets.hide')}
-        >
-          ✕
-        </button>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
-        <KpiCell
-          label={t('crm.dashboard.kpi.todayLeads')}
-          value={summary?.todayLeads ?? 0}
-          delta={null}
-          sparkData={sparkLeads}
-          up
-          locale={locale}
-        />
-        <KpiCell
-          label={t('crm.dashboard.kpi.totalLeads')}
-          value={summary?.totalLeads ?? 0}
-          delta={null}
-          sparkData={sparkRevenue}
-          up
-          locale={locale}
-        />
-        <KpiCell
-          label={t('crm.dashboard.kpi.conversion')}
-          value={summary?.conversion ?? 0}
-          suffix="%"
-          delta={null}
-          sparkData={sparkConv}
-          up
-          locale={locale}
-        />
-        <KpiCell
-          label={t('crm.dashboard.kpi.tasksTotal')}
-          value={tasksSummary?.total ?? 0}
-          sub={
-            tasksSummary
-              ? t('crm.dashboard.kpi.tasksSubtitle', {
-                  overdue: tasksSummary.overdue,
-                  today: tasksSummary.today })
-              : undefined
-          }
-          delta={null}
-          sparkData={sparkTasks}
-          up={false}
-          locale={locale}
-          last
-        />
-      </div>
-    </div>
-  );
-};
-
-const KpiCell: React.FC<{
-  label: string;
-  value: number;
-  suffix?: string;
-  sub?: string;
-  delta: string | null;
-  sparkData: number[];
-  up: boolean;
-  locale: string;
-  last?: boolean;
-}> = ({ label, value, suffix, sub, delta, sparkData, up, locale, last }) => (
-  <div className={`px-5 py-4 relative cursor-pointer hover:bg-neutral-50/80 transition-colors ${!last ? 'border-r border-neutral-200' : ''}`}>
-    <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 font-medium">{label}</div>
-    <div className="mt-3 text-[1.85rem] sm:text-[2.1rem] font-semibold text-[#222] leading-none tracking-[-0.04em] flex items-baseline gap-1">
-      {value.toLocaleString(locale)}
-      {suffix && <span className="text-[14px] text-neutral-400 font-medium">{suffix}</span>}
-    </div>
-    {delta && (
-      <div className={`font-mono text-[10.5px] mt-2 ${up ? 'text-emerald-600' : 'text-rose-500'}`}>{delta}</div>
-    )}
-    {sub && !delta && (
-      <div className="font-mono text-[10px] text-neutral-500 mt-1.5">{sub}</div>
-    )}
-    {sparkData.length > 1 && <MiniSparkline data={sparkData} up={up} />}
-  </div>
-);
-
-/* ─────────────────────────────────────────────
  *  MAIN PAGE
  * ─────────────────────────────────────────── */
 export const DashboardPage: React.FC = () => {
@@ -819,19 +597,8 @@ export const DashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const user = getStoredUser();
 
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    loadDashboardData(t, locale)
-      .then((res) => { if (!alive) return; setData(res); setError(null); })
-      .catch((err) => { if (!alive) return; console.error(err); setError(err.message || t('crm.dashboard.errors.loadFailed')); })
-      .finally(() => { if (!alive) return; setLoading(false); });
-    return () => { alive = false; };
-  }, [t, locale]);
-
   const summary = data?.summary;
   const projectsSummary = data?.projectsSummary;
-  const tasksSummary = data?.tasksSummary;
 
   const [layout, setLayout] = useState<DashboardLayoutState>(() => loadDashboardLayout());
 
@@ -929,7 +696,6 @@ export const DashboardPage: React.FC = () => {
     visibleIds.filter((id) => id !== KPI_STRIP_ID),
     [visibleIds],
   );
-  const kpiVisible = visibleIds.includes(KPI_STRIP_ID);
 
   const gridRef = useRef<HTMLElement | null>(null);
   const { beginDrag, beginResize, dragId, previewOrder, liveStore } = useBlockGridInteractions({
@@ -952,6 +718,82 @@ export const DashboardPage: React.FC = () => {
   });
   const renderedGridIds = previewOrder ?? mainGridIds;
 
+  // Старый загрузчик (все лиды/проекты/задачи) нужен только стандартным блокам и пресетам в «Моих
+  // блоках» — у новой главной свой лёгкий запрос /dashboard/overview.
+  const needLegacy = mainGridIds.length > 0;
+  const [fxTick, setFxTick] = useState(0);
+  useEffect(() => {
+    if (!needLegacy) { setLoading(false); return; }
+    let alive = true;
+    setLoading(true);
+    loadDashboardData(t, locale)
+      .then((res) => { if (!alive) return; setData(res); setError(null); })
+      .catch((err) => { if (!alive) return; console.error(err); setError(err.message || t('crm.dashboard.errors.loadFailed')); })
+      .finally(() => { if (!alive) return; setLoading(false); });
+    return () => { alive = false; };
+  }, [t, locale, needLegacy, fxTick]);
+
+  /* ── главная v3: цифры, лента, таймлайн ── */
+  const home: HomePrefs = layout.home || {};
+  const setHome = (patch: Partial<HomePrefs>) =>
+    persistLayout((prev) => ({ ...prev, home: { ...(prev.home || {}), ...patch } }));
+  const [overview, setOverview] = useState<DashOverview | null>(null);
+  const [ovLoading, setOvLoading] = useState(true);
+  const [ovTick, setOvTick] = useState(0);
+  const [currency, setCurrency] = useState<string>(() => initialHomeCurrency());
+  const available = useMemo(() => new Set(overview?.available || []), [overview?.available]);
+  const period: HomePeriod = home.period || '30d';
+  // До первого ответа неизвестно, что доступно, — просим выбранное (или весь список предпочтений),
+  // показываем только доступное.
+  const reqKpis = home.kpis?.length ? home.kpis : HOME_DEFAULT_KPIS;
+  const reqStats = home.stats?.length ? home.stats : HOME_DEFAULT_STATS;
+  const reqSeries = home.series?.length ? home.series : HOME_DEFAULT_SERIES;
+  const shownKeys = (req: string[], prefs: string[] | undefined, def: number, max: number) => {
+    if (!overview) return req.slice(0, prefs?.length ? max : def);
+    return prefs?.length ? prefs.filter((k) => available.has(k)).slice(0, max) : pickDefaults(req, available, def);
+  };
+  const kpiKeys = shownKeys(reqKpis, home.kpis, 4, HOME_MAX_KPIS);
+  const statKeys = shownKeys(reqStats, home.stats, HOME_MAX_STATS, HOME_MAX_STATS);
+  const seriesKeys = shownKeys(reqSeries, home.series, HOME_MAX_SERIES, HOME_MAX_SERIES);
+  const reqSig = [reqKpis.join(','), reqStats.join(','), reqSeries.join(','), period, currency].join('|');
+  useEffect(() => {
+    let alive = true;
+    setOvLoading(true);
+    fetchDashboardOverview({
+      kpis: reqKpis,
+      stats: reqStats,
+      series: reqSeries,
+      period,
+      currency: currency || undefined,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
+      .then((res) => { if (alive) setOverview(res); })
+      .catch((err) => { if (alive) console.warn('dashboard overview', err); })
+      .finally(() => { if (alive) setOvLoading(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reqSig, ovTick]);
+  // живая лента и цифры — раз в минуту, пока вкладка на экране
+  useEffect(() => {
+    const id = window.setInterval(() => { if (document.visibilityState === 'visible') setOvTick((n) => n + 1); }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const changeCurrency = (next: string) => {
+    setCurrency(next);
+    const prefs = loadMarketingDisplayCurrency();
+    // та же «Валюта отчёта», что на страницах аналитики, — блоки из аналитики пересчитаются тоже
+    saveMarketingDisplayCurrency({ ...prefs, currencyMode: 'converted', displayCurrency: next, rates: {} });
+    resetDashboardFxCache();
+    setFxTick((n) => n + 1);
+  };
+  const currencyOptions = useMemo(() => {
+    const prefs = loadMarketingDisplayCurrency();
+    const set = new Set<string>(prefs.availableDisplayCurrencies?.length ? prefs.availableDisplayCurrencies : MARKETING_ALLOWED_CURRENCIES);
+    if (overview?.currency) set.add(overview.currency);
+    if (currency) set.add(currency);
+    return [...set].sort();
+  }, [overview?.currency, currency]);
+
   const availableToAdd = useMemo(() => {
     return ALL_DASHBOARD_WIDGET_IDS.filter((id) => {
       if (!layout.hidden.has(id)) return false;
@@ -967,11 +809,11 @@ export const DashboardPage: React.FC = () => {
 
   // Auto-hide the onboarding block once all steps are complete
   useEffect(() => {
-    if (data?.profileCompletion.percent === 100 && !layout.hidden.has('profile-completion')) {
+    if (data?.profileCompletion?.percent === 100 && !layout.hidden.has('profile-completion')) {
       hideWidget('profile-completion');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.profileCompletion.percent]);
+  }, [data?.profileCompletion?.percent]);
 
   const doResetLayout = () => {
     const next = resetDashboardLayout();
@@ -1384,132 +1226,106 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const getGreeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return t('crm.dashboard.greeting.morning');
-    if (h < 18) return t('crm.dashboard.greeting.afternoon');
-    return t('crm.dashboard.greeting.evening');
-  };
+  const displayName = overview?.me.name || user?.name?.trim() || user?.email || t('crm.dashboard.fallbacks.user');
 
   return (
-    <MainLayout>
-      <div className="px-scope relative isolate overflow-visible pb-2 md:pb-4">
-
-          {/* ── HERO ── */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-100 pb-5 mb-6 flex-wrap">
-            <div>
-              <div  className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-1">
-                {new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
-              </div>
-              <h1  className="text-[26px] md:text-[30px] font-semibold text-[#222] tracking-tight leading-tight">
-                <span className="text-neutral-400 font-medium">{getGreeting()}, </span>
-                {user?.name?.trim() || user?.email || t('crm.dashboard.fallbacks.user')}
-              </h1>
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10.5px] uppercase tracking-[0.1em] text-neutral-500">
-                {[
-                  tasksSummary && tasksSummary.today > 0
-                    ? { key: 'tasksToday', node: t('crm.dashboard.hero.stats.tasksToday', { count: tasksSummary.today }), tone: 'text-neutral-600' }
-                    : null,
-                  tasksSummary && tasksSummary.overdue > 0
-                    ? { key: 'overdue', node: t('crm.dashboard.hero.stats.overdue', { count: tasksSummary.overdue }), tone: 'text-rose-600' }
-                    : null,
-                  summary && summary.todayLeads > 0
-                    ? { key: 'newLeads', node: t('crm.dashboard.hero.stats.newLeads', { count: summary.todayLeads }), tone: 'text-neutral-600' }
-                    : null,
-                  summary && summary.revenueEUR > 0
-                    ? { key: 'revenue', node: t('crm.dashboard.hero.stats.revenue', { amount: `${summary.revenueEUR.toLocaleString(locale)} ${data.currency}` }), tone: 'text-neutral-600' }
-                    : null,
-                ]
-                  .filter((x): x is { key: string; node: string; tone: string } => x !== null)
-                  .map((item, i, arr) => (
-                    <React.Fragment key={item.key}>
-                      <span className={item.tone}>{item.node}</span>
-                      {i < arr.length - 1 && <span className="text-neutral-300">·</span>}
-                    </React.Fragment>
-                  ))}
-              </div>
-              {data?.fxMissing?.length ? (
-                <div className="mt-1.5 text-[11px] text-amber-600">
-                  {t('crm.dashboard.fxMissing', { currencies: data.fxMissing.join(', ') })}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPresetsModalOpen(true)}
-                className="dh-btn"
-              >
-                + {t('crm.dashboard.widgets.addBlock')}
-              </button>
-            </div>
+    <MainLayout fullBleed>
+      <div className="a3-shell px-scope">
+        <div className="a2-aura" aria-hidden="true"><i className="b1" /><i className="b2" /></div>
+        <div className="a2-page">
+          <div className="a2-top">
+            <label className="a2-pill a3-cur">
+              <span>{t('crm.home.currency')}</span>
+              <select value={currency || overview?.currency || ''} onChange={(e) => changeCurrency(e.target.value)} aria-label={t('crm.home.currency')}>
+                {!currency && !overview && <option value="">…</option>}
+                {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <button type="button" className="a2-pill" onClick={() => setLayoutTemplateModalOpen(true)}>
+              {t('crm.dashboard.sidebar.personalizeBtn')}
+            </button>
+            <button type="button" className="a2-pill dark" onClick={() => setPresetsModalOpen(true)}>
+              <span className="pl">+</span>{t('crm.dashboard.widgets.addBlock')}
+            </button>
           </div>
 
-          {/* ── QUICK ACCESS ── */}
-          <QuickAccessSection t={t} />
+          <HomeTitle data={overview} name={displayName} locale={locale} />
+          {data?.fxMissing?.length ? (
+            <div className="a3-warn">{t('crm.dashboard.fxMissing', { currencies: data.fxMissing.join(', ') })}</div>
+          ) : null}
 
-          {/* ── KPI STRIP ── */}
-          {kpiVisible && data && (
-            <KpiStrip
-              data={data}
-              locale={locale}
-              t={t}
-              onRemove={() => hideWidget('kpi')}
-            />
-          )}
+          <HomeKpis
+            data={overview}
+            keys={kpiKeys}
+            available={available}
+            period={period}
+            onPeriod={(p) => setHome({ period: p })}
+            onChange={(k) => setHome({ kpis: k })}
+            onReset={() => setHome({ kpis: undefined })}
+            locale={locale}
+            loading={ovLoading}
+          />
 
-          {/* ── BLOCK GRID ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
-                <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
-              </svg>
-              <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.sections.myBlocks')}</span>
-              <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{mainGridIds.length}</span>
+          <div className="a2-grid">
+            <div className="a2-col">
+              <HomeProfile
+                data={overview}
+                keys={statKeys}
+                goals={home.goals || {}}
+                available={available}
+                onChange={(k) => setHome({ stats: k })}
+                onGoals={(g) => setHome({ goals: g })}
+                locale={locale}
+              />
+              <HomeChart
+                data={overview}
+                keys={seriesKeys}
+                available={available}
+                onChange={(k) => setHome({ series: k })}
+                months={home.months || 6}
+                onMonths={(m) => setHome({ months: m })}
+                locale={locale}
+              />
+              <div className="a3-two">
+                <HomeTimeline data={overview} locale={locale} />
+                <HomeNotes data={overview} locale={locale} />
+              </div>
+              <HomeFolders data={overview} />
+            </div>
+            <HomeFeed data={overview} locale={locale} onRefresh={() => setOvTick((n) => n + 1)} refreshing={ovTick} />
+          </div>
+
+          {/* ── МОИ БЛОКИ: со страниц аналитики, рабочих областей и «Добавить блок» ── */}
+          <div className="a3-blocks">
+            <div className="a3-blocks-h">
+              <h3>{t('crm.dashboard.sections.myBlocks')} <span className="n">({mainGridIds.length})</span></h3>
+              <span className="hint">{t('crm.home.blocksHint')}</span>
             </div>
 
-            {/* ── toolbar: edit-mode toggle, hint, add block, templates, reset ── */}
-            <div className="dh-toolbar">
-              <button
-                type="button"
-                onClick={() => setEditMode((v) => !v)}
-                className={`dh-btn${editMode ? ' on' : ''}`}
-              >
-                {editMode ? t('crm.dashboard.widgets.done') : t('crm.dashboard.widgets.customize')}
-              </button>
-              <span className="dh-hint">
-                {editMode
-                  ? t('crm.dashboard.widgets.toolbarHintEdit')
-                  : t('crm.dashboard.widgets.toolbarHintView', { count: mainGridIds.length })}
-              </span>
-              <div className="dh-toolbar-sp" />
-              <button
-                type="button"
-                onClick={() => setPresetsModalOpen(true)}
-                className="dh-btn ghost"
-              >
-                + {t('crm.dashboard.widgets.addBlock')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayoutTemplateModalOpen(true)}
-                className="dh-btn ghost"
-              >
-                {t('crm.dashboard.sidebar.personalizeBtn')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setResetConfirmOpen(true)}
-                className="dh-btn ghost"
-              >
-                {t('crm.dashboard.widgets.reset.button')}
-              </button>
-            </div>
+            {mainGridIds.length > 0 && (
+              <div className="a3-kpi-bar" style={{ marginBottom: 16 }}>
+                <span className="a2-note">
+                  {editMode ? t('crm.dashboard.widgets.toolbarHintEdit') : t('crm.dashboard.widgets.toolbarHintView', { count: mainGridIds.length })}
+                </span>
+                <div className="a2-tools">
+                  {mainGridIds.length > 1 && (
+                    <button type="button" className="a2-pill sm" onClick={() => persistLayout((prev) => tidyDashboardBlocks(prev, mainGridIds))}>
+                      {t('crm.home.tidyBlocks')}
+                    </button>
+                  )}
+                  <button type="button" className="a2-pill sm" onClick={() => setResetConfirmOpen(true)}>
+                    {t('crm.dashboard.widgets.reset.button')}
+                  </button>
+                  <button type="button" className={`a2-pill sm${editMode ? ' dark' : ''}`} onClick={() => setEditMode((v) => !v)}>
+                    {editMode ? t('crm.dashboard.widgets.done') : t('crm.dashboard.widgets.customize')}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <section
               ref={gridRef}
-              className={`lv-stagger grid grid-cols-12 gap-4 md:gap-5 items-start rounded-xl${editMode ? ' bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]' : ''}`}
+              className={`lv-stagger grid grid-cols-12 gap-5 md:gap-6 items-start rounded-xl${editMode ? ' bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]' : ''}`}
             >
               {renderedGridIds.map((id) => {
                     const size = layout.sizes[id] || 'md';
@@ -1553,16 +1369,15 @@ export const DashboardPage: React.FC = () => {
 
                   {/* Empty add slot */}
                   {mainGridIds.length === 0 && (
-                    <div
-                      className="col-span-12 border border-dashed border-neutral-300 rounded-xl p-10 text-center text-neutral-500 text-[12px] cursor-pointer transition-colors hover:border-[#222] hover:text-[#222]"
+                    <button
+                      type="button"
+                      className="col-span-12 rounded-[26px] border-[1.5px] border-dashed border-black/15 p-10 text-center text-[13px] text-[#858585] transition-colors hover:border-[#1d1d1d] hover:text-[#1d1d1d]"
                       onClick={() => setPresetsModalOpen(true)}
                     >
-                      <div className="w-8 h-8 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 5v14M5 12h14" /></svg>
-                      </div>
+                      <span className="block text-[22px] leading-none mb-2">+</span>
                       {t('crm.dashboard.widgets.addBlock')}
-                      <div className="text-[11px] text-neutral-400 mt-1">{t('crm.dashboard.widgets.addBlockHint')}</div>
-                    </div>
+                      <span className="block text-[12px] text-[#adadad] mt-1">{t('crm.home.blocksEmpty')}</span>
+                    </button>
                   )}
                 </section>
               </div>
@@ -1618,9 +1433,11 @@ export const DashboardPage: React.FC = () => {
           {layoutTemplateModalOpen && (
             <DashboardLayoutTemplateModal
               onClose={() => setLayoutTemplateModalOpen(false)}
-              getLayout={() => layout}
-              onApplied={(next) => {
-                setLayout(next);
+              allowed={widgetAllowed}
+              widgetTitle={widgetTitle}
+              onPick={(id) => {
+                persistLayout((prev) => applyDashboardLayoutTemplate(id, prev, { allowed: widgetAllowed, available }));
+                setLayoutTemplateModalOpen(false);
                 setToast(t('crm.dashboard.layoutTemplate.applied'));
                 window.setTimeout(() => setToast(null), 2800);
               }}
@@ -1708,6 +1525,7 @@ export const DashboardPage: React.FC = () => {
             document.body,
           )}
 
+        </div>
       </div>
 
       {toast && (
