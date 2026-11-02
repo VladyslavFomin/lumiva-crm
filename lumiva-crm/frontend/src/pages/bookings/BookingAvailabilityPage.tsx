@@ -29,6 +29,8 @@ import {
   type BookingWeeklyHours,
   type StaffGridRow,
 } from '../../api/bookings';
+import { useBookingBusinessType } from './useBookingVertical';
+import { bookingNavLabel } from './bookingNav';
 import './bookings-design.css';
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -716,6 +718,7 @@ const SlotInspectorModal: React.FC<{ open: boolean; staffList: BookingStaffProfi
 
 export const BookingAvailabilityPage: React.FC = () => {
   const { t } = useTranslation();
+  const businessType = useBookingBusinessType();
   const { showAlert } = useAlertModal();
   const [project, setProject] = useState<BookingProject | null>(null);
   const [locations, setLocations] = useState<BookingLocation[]>([]);
@@ -774,7 +777,7 @@ export const BookingAvailabilityPage: React.FC = () => {
         <div className="bk-hero">
           <div>
             <div className="kicker"><span className="dot" />{t('crm.bookings.availability.kicker')}</div>
-            <h1>{t('crm.bookings.availability.title')}</h1>
+            <h1>{bookingNavLabel(t, businessType, 'availability')}</h1>
             <p className="sub">
               {t('crm.bookings.availability.subtitleBase')}
               {project ? t('crm.bookings.availability.subtitleProjectSuffix', { name: project.name }) : ''}.

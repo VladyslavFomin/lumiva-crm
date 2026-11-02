@@ -29,6 +29,10 @@ export class BookingWaitlistEntry {
   @Column({ type: 'uuid', nullable: true })
   serviceId: string | null;
 
+  /** Очередь на конкретное групповое занятие (фитнес) — при освобождении места клиент записывается автоматически. */
+  @Column({ type: 'uuid', nullable: true })
+  classSessionId: string | null;
+
   @Column({ type: 'uuid', nullable: true })
   preferredStaffUserId: string | null;
 

@@ -47,7 +47,8 @@ const Heatmap: React.FC<{ points: HeatmapPoint[] }> = ({ points }) => {
   const valueAt = (dow: number, hour: number) => points.find((p) => p.dow === dow && p.hour === hour)?.count || 0;
   const shade = (v: number) => `hsl(0 0% ${96 - Math.min(1, v / max) * 68}%)`;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+    <div style={{ overflowX: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 440 }}>
       <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${hours.length},1fr)`, gap: 4 }}>
         <span />
         {hours.map((h) => <span key={h} style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--fg-3)', textAlign: 'center' }}>{h}:00</span>)}
@@ -61,6 +62,7 @@ const Heatmap: React.FC<{ points: HeatmapPoint[] }> = ({ points }) => {
           })}
         </div>
       ))}
+    </div>
     </div>
   );
 };

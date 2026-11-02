@@ -12,6 +12,7 @@ import { BookingService } from './booking-service.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { BookingsProjectsService } from './bookings-projects.service';
 import { ReservationActivity } from './reservation-activity.entity';
+import { BookingClassSession } from './booking-class-session.entity';
 import { hmToMinutes, safeTimeZone, zonedParts, zonedToUtc } from './booking-time.util';
 
 export interface ConflictCheckInput {
@@ -21,6 +22,10 @@ export interface ConflictCheckInput {
   startAt: Date;
   endAt: Date;
   excludeReservationId?: string;
+  /** Сколько единиц ресурса нужно (аренда пула: «3 велосипеда»). По умолчанию 1. */
+  units?: number;
+  /** При изменении самого занятия — не считать конфликтом пересечение с ним же. */
+  excludeClassSessionId?: string;
   /** Пояс проекта — если не передан, берём из проекта тенанта. */
   timezone?: string;
 }
@@ -45,6 +50,8 @@ export class BookingsAvailabilityService {
     private readonly servicesRepo: Repository<BookingService>,
     @InjectRepository(ReservationActivity)
     private readonly activityRepo: Repository<ReservationActivity>,
+    @InjectRepository(BookingClassSession)
+    private readonly classSessionsRepo: Repository<BookingClassSession>,
     private readonly projects: BookingsProjectsService,
   ) {}
 
@@ -80,13 +87,49 @@ export class BookingsAvailabilityService {
       }
     }
 
+    // Групповые занятия (фитнес): тренер ведёт занятие / зал занят занятием — личную бронь
+    // поверх не ставим. Записи участников на занятие сами не несут staff/resource, поэтому
+    // без этой проверки тренер «свободен» в разгар собственного класса.
+    const sessionQb = this.classSessionsRepo
+      .createQueryBuilder('s')
+      .where('s.tenantId = :tenantId AND s.status = :st', { tenantId, st: 'scheduled' })
+      .andWhere('s.startAt < :endAt AND s.endAt > :startAt', { startAt, endAt });
+    if (input.excludeClassSessionId) sessionQb.andWhere('s.id != :exs', { exs: input.excludeClassSessionId });
+    if (staffUserId && (await sessionQb.clone().andWhere('s.staffUserId = :sid', { sid: staffUserId }).getExists())) {
+      return { ok: false, reason: 'Сотрудник ведёт групповое занятие в это время' };
+    }
+    if (resourceId && (await sessionQb.clone().andWhere('s.resourceId = :rid', { rid: resourceId }).getExists())) {
+      return { ok: false, reason: 'Зал занят групповым занятием в это время' };
+    }
+
     if (resourceId) {
-      const resourceConflict = await qb
-        .clone()
-        .andWhere('r.resourceId = :resourceId', { resourceId })
-        .getOne();
-      if (resourceConflict) {
-        return { ok: false, reason: 'Ресурс уже занят в это время' };
+      // Пул ресурсов (quantity > 1 — «12 реформеров», «8 велосипедов»): занятость считаем
+      // суммой единиц пересекающихся броней, а не «есть хоть одна бронь». Раньше quantity
+      // хранилось, но игнорировалось — пул из 12 единиц блокировался первой же бронью.
+      const resource = await this.resourcesRepo.findOne({ where: { id: resourceId, tenantId }, select: ['id', 'quantity'] });
+      const quantity = Math.max(1, resource?.quantity || 1);
+      const units = Math.max(1, input.units || 1);
+      if (units > quantity) {
+        return { ok: false, reason: `Запрошено ${units} ед., всего в наличии ${quantity}` };
+      }
+      if (quantity === 1) {
+        const resourceConflict = await qb
+          .clone()
+          .andWhere('r.resourceId = :resourceId', { resourceId })
+          .getOne();
+        if (resourceConflict) {
+          return { ok: false, reason: 'Ресурс уже занят в это время' };
+        }
+      } else {
+        const row = await qb
+          .clone()
+          .select('COALESCE(SUM(r.units), 0)', 'used')
+          .andWhere('r.resourceId = :resourceId', { resourceId })
+          .getRawOne<{ used: string }>();
+        const used = Number(row?.used || 0);
+        if (used + units > quantity) {
+          return { ok: false, reason: `Свободно ${Math.max(0, quantity - used)} из ${quantity} ед. на это время` };
+        }
       }
     }
 

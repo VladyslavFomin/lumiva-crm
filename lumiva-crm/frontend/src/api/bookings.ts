@@ -21,6 +21,7 @@ export interface BookingProject {
   rescheduleDeadlineHours: number;
   overbookingAllowed: boolean;
   notificationChannels: Record<string, { crm: boolean; email: boolean; telegram: boolean }>;
+  verticalSettings?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }
@@ -90,6 +91,19 @@ export interface BookingResourceItem {
   assignedServiceIds: string[];
   weeklyAvailability: BookingWeeklyHours | null;
   active: boolean;
+  description?: string | null;
+  zoneId?: string | null;
+  shape?: string | null;
+  posX?: number | null;
+  posY?: number | null;
+  width?: number | null;
+  height?: number | null;
+  rotation?: number;
+  minCapacity?: number | null;
+  pricePerHour?: string | null;
+  pricePerDay?: string | null;
+  depositAmount?: string | null;
+  sku?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -143,7 +157,7 @@ export type ReservationPaymentStatus =
   | 'partially_refunded'
   | 'refunded'
   | 'failed';
-export type ReservationSource = 'website' | 'phone' | 'walkin' | 'manual' | 'api' | 'import' | 'telegram';
+export type ReservationSource = 'website' | 'phone' | 'walkin' | 'manual' | 'api' | 'import' | 'telegram' | 'whatsapp';
 
 export interface Reservation {
   id: string;
@@ -169,6 +183,21 @@ export interface Reservation {
   source: ReservationSource;
   assignedUserId: string | null;
   customFields: Record<string, any> | null;
+  classSessionId?: string | null;
+  passId?: string | null;
+  passVisitCharged?: boolean;
+  meetingFormat?: 'offline' | 'online' | 'phone' | null;
+  meetingUrl?: string | null;
+  sessionSummary?: string | null;
+  followUpAt?: string | null;
+  units?: number;
+  depositAmount?: string | null;
+  depositStatus?: 'none' | 'held' | 'returned' | 'withheld' | 'partial';
+  issuedAt?: string | null;
+  returnedAt?: string | null;
+  conditionOut?: string | null;
+  conditionIn?: string | null;
+  lateFee?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -223,6 +252,11 @@ export interface CreateReservationInput {
   price?: string;
   currency?: string;
   customFields?: Record<string, any>;
+  units?: number;
+  meetingFormat?: 'offline' | 'online' | 'phone';
+  meetingUrl?: string;
+  usePass?: boolean;
+  passId?: string;
 }
 
 export interface StaffGridSlot {

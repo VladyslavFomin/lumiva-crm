@@ -26,7 +26,12 @@ import {
   type BookingStaffProfile,
   type CustomerStats,
 } from '../../api/bookings';
+import { useBookingVertical } from './useBookingVertical';
+import { RestaurantBookingModal } from './RestaurantBookingModal';
+import { RentalNewModal } from './RentalNewModal';
+import { fetchVerticalSettings } from '../../api/bookingVerticals';
 import './bookings-design.css';
+import './bookings-verticals.css';
 
 type ViewKey = 'all' | 'today' | 'tomorrow' | 'week' | 'pending' | 'cancelled' | 'mine';
 const VIEW_KEYS: ViewKey[] = ['all', 'today', 'tomorrow', 'week', 'pending', 'cancelled', 'mine'];
@@ -119,6 +124,8 @@ const NewReservationModal: React.FC<{
   onCreated: () => void;
 }> = ({ open, locations, services, staff, onClose, onCreated }) => {
   const { t } = useTranslation();
+  const { type, terms } = useBookingVertical();
+  const [usePass, setUsePass] = useState(true);
   const { showAlert } = useAlertModal();
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -157,7 +164,9 @@ const NewReservationModal: React.FC<{
         endAt: endAt.toISOString(),
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
+        price: service?.price,
         source: 'manual',
+        usePass: type !== 'restaurant' && type !== 'rental' ? usePass : undefined,
       });
       onCreated();
       onClose();
@@ -189,7 +198,7 @@ const NewReservationModal: React.FC<{
             </select>
           </div>
           <div className="bk-field">
-            <label>{t('crm.bookings.list.modal.serviceLabel')}</label>
+            <label>{terms.service}</label>
             <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
               <option value="">{t('crm.bookings.list.modal.serviceNone')}</option>
               {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -197,7 +206,7 @@ const NewReservationModal: React.FC<{
           </div>
         </div>
         <div className="bk-field">
-          <label>{t('crm.bookings.list.modal.staffLabel')}</label>
+          <label>{terms.staff}</label>
           <select value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
             <option value="">{t('crm.bookings.list.modal.staffAny')}</option>
             {staff.filter((s) => s.availableForBooking).map((s) => (
@@ -215,6 +224,9 @@ const NewReservationModal: React.FC<{
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </div>
         </div>
+        {type !== 'restaurant' && type !== 'rental' && (
+          <label className="bk-check"><input type="checkbox" checked={usePass} onChange={(e) => setUsePass(e.target.checked)} /> {t(`crm.bookings.v.list.usePass_${type}`, { defaultValue: t('crm.bookings.v.list.usePass') })}</label>
+        )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-2)' }}>
           <button className="btn btn-sm" onClick={onClose}>{t('crm.bookings.list.modal.cancel')}</button>
           <button className="btn btn-primary btn-sm" disabled={saving} onClick={handleCreate}>
@@ -247,6 +259,11 @@ export const ReservationsPage: React.FC = () => {
   const [selected, setSelected] = useState<string[]>([]);
   const [drawerRes, setDrawerRes] = useState<Reservation | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const { type, terms } = useBookingVertical();
+  const [vset, setVset] = useState<{ turnMinutes: number; rentalUnit: 'hour' | 'day' }>({ turnMinutes: 120, rentalUnit: 'hour' });
+  useEffect(() => {
+    fetchVerticalSettings().then((v) => setVset({ turnMinutes: v.turnMinutes, rentalUnit: v.rentalUnit })).catch(() => undefined);
+  }, []);
 
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const statusLabel = (s: ReservationStatus) => t(`crm.bookings.status.${s}`);
@@ -355,7 +372,7 @@ export const ReservationsPage: React.FC = () => {
         <div className="bk-hero">
           <div>
             <div className="kicker"><span className="dot" />{t('crm.bookings.list.kicker', { count: reservations.length })}</div>
-            <h1>{t('crm.bookings.list.title')}</h1>
+            <h1>{t(`crm.bookings.navV.${type}.reservations`, { defaultValue: t('crm.bookings.list.title') })}</h1>
             <p className="sub">{t('crm.bookings.list.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
@@ -365,6 +382,12 @@ export const ReservationsPage: React.FC = () => {
             <button className="btn btn-sm" onClick={exportCsv} disabled={!filtered.length}>
               <Ic d={BK_ICON.more} size={13} /> {t('crm.bookings.list.export')}
             </button>
+            {type === 'fitness' && (
+              <button className="btn btn-sm" onClick={() => navigate('/bookings/schedule')}>{t('crm.bookings.v.list.toSchedule')}</button>
+            )}
+            {type === 'consultation' && (
+              <button className="btn btn-sm" onClick={() => navigate('/bookings/calendar')}>{t('crm.bookings.v.list.toCalendar')}</button>
+            )}
             <button data-tour="reservations-create" className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)} disabled={!locations.length}>
               <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.list.newBooking')}
             </button>
@@ -392,11 +415,11 @@ export const ReservationsPage: React.FC = () => {
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
           <select className="bk-select" value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
-            <option value="">{t('crm.bookings.list.filters.serviceAll')}</option>
+            <option value="">{t('crm.bookings.v.list.allOf', { label: terms.servicePlural })}</option>
             {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select className="bk-select" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
-            <option value="">{t('crm.bookings.list.filters.staffAll')}</option>
+            <option value="">{t('crm.bookings.v.list.allOf', { label: terms.staffPlural })}</option>
             {staff.map((s) => <option key={s.staffUserId} value={s.staffUserId}>{s.staffUser?.fullName}</option>)}
           </select>
           <select className="bk-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -424,9 +447,10 @@ export const ReservationsPage: React.FC = () => {
                 <th style={{ width: 34 }}></th>
                 <th>{t('crm.bookings.list.table.colDate')}</th>
                 <th>{t('crm.bookings.list.table.colClient')}</th>
-                <th>{t('crm.bookings.list.table.colService')}</th>
-                <th>{t('crm.bookings.list.table.colStaff')}</th>
-                <th>{t('crm.bookings.list.table.colResource')}</th>
+                {type !== 'restaurant' && <th>{terms.service}</th>}
+                {type !== 'restaurant' && type !== 'rental' && <th>{terms.staff}</th>}
+                {type !== 'consultation' && <th>{terms.resource}</th>}
+                {(type === 'restaurant' || type === 'rental') && <th>{type === 'restaurant' ? t('crm.bookings.v.rbook.guests') : t('crm.bookings.v.rental.units')}</th>}
                 <th>{t('crm.bookings.list.table.colStatus')}</th>
                 <th>{t('crm.bookings.list.table.colPayment')}</th>
                 <th>{t('crm.bookings.list.table.colSource')}</th>
@@ -454,9 +478,10 @@ export const ReservationsPage: React.FC = () => {
                     <span className="n">{r.customerName || t('crm.bookings.list.table.noName')}</span>
                     <span className="s">{r.customerPhone || ''}</span>
                   </td>
-                  <td>{serviceName(r.serviceId)}</td>
-                  <td>{staffName(r.staffUserId)}</td>
-                  <td>{resourceName(r.resourceId)}</td>
+                  {type !== 'restaurant' && <td>{serviceName(r.serviceId)}</td>}
+                  {type !== 'restaurant' && type !== 'rental' && <td>{staffName(r.staffUserId)}</td>}
+                  {type !== 'consultation' && <td>{resourceName(r.resourceId)}</td>}
+                  {(type === 'restaurant' || type === 'rental') && <td>{type === 'restaurant' ? r.participants : r.units || 1}</td>}
                   <td><span className={`bk-badge ${r.status}`}>{statusLabel(r.status)}</span></td>
                   <td style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>{r.paymentStatus === 'not_required' ? '—' : r.paymentStatus}</td>
                   <td><span className="src">{sourceLabel(r.source)}</span></td>
@@ -482,8 +507,22 @@ export const ReservationsPage: React.FC = () => {
           </div>
         )}
       </div>
+      <RestaurantBookingModal
+        open={modalOpen && type === 'restaurant'}
+        locations={locations}
+        turnMinutes={vset.turnMinutes}
+        onClose={() => setModalOpen(false)}
+        onCreated={load}
+      />
+      <RentalNewModal
+        open={modalOpen && type === 'rental'}
+        resources={resources.filter((x) => x.active && x.type !== 'table')}
+        rentalUnit={vset.rentalUnit}
+        onClose={() => setModalOpen(false)}
+        onCreated={(rid) => navigate(`/bookings/reservations/${rid}`)}
+      />
       <NewReservationModal
-        open={modalOpen}
+        open={modalOpen && type !== 'restaurant' && type !== 'rental'}
         locations={locations}
         services={services}
         staff={staff}

@@ -1,19 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { bookingNavItems, type BookingNavKey } from './bookingNav';
+import { useBookingBusinessType } from './useBookingVertical';
 
-type SubnavKey =
-  | 'overview'
-  | 'reservations'
-  | 'waitlist'
-  | 'resources'
-  | 'locations'
-  | 'services'
-  | 'availability'
-  | 'analytics'
-  | 'logs'
-  | 'roles'
-  | 'settings';
+type SubnavKey = BookingNavKey;
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   overview: (
@@ -72,28 +63,70 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
       <path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7z" />
     </svg>
   ),
+  floor: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <circle cx="7" cy="7" r="3" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="16" height="6" rx="1.5" />
+    </svg>
+  ),
+  floorEditor: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M9 21V9" />
+    </svg>
+  ),
+  menu: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M7 3v8a2 2 0 002 2v8" /><path d="M5 3v5" /><path d="M9 3v5" /><path d="M17 3c-2 2-2 6 0 8v10" />
+    </svg>
+  ),
+  orders: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6" /><path d="M9 12h6" />
+    </svg>
+  ),
+  schedule: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M7 14h3" /><path d="M14 14h3" /><path d="M7 17h3" />
+    </svg>
+  ),
+  passes: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="6" width="18" height="12" rx="2" /><path d="M8 6v12" strokeDasharray="2 2" /><path d="M12 12h5" />
+    </svg>
+  ),
+  calendar: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" /><circle cx="12" cy="15" r="2" />
+    </svg>
+  ),
+  desk: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M3 12h18" /><path d="M5 12v8" /><path d="M19 12v8" /><path d="M8 8l4-4 4 4" /><path d="M12 4v8" />
+    </svg>
+  ),
+  inventory: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M21 8l-9-5-9 5 9 5z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" />
+    </svg>
+  ),
 };
 
 export const BookingsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const items: Array<{ key: SubnavKey; label: string; path: string }> = [
-    { key: 'overview', label: t('crm.bookings.nav.overview'), path: '/bookings' },
-    { key: 'reservations', label: t('crm.bookings.nav.reservations'), path: '/bookings/reservations' },
-    { key: 'waitlist', label: t('crm.bookings.nav.waitlist'), path: '/bookings/waitlist' },
-    { key: 'resources', label: t('crm.bookings.nav.resources'), path: '/bookings/resources' },
-    { key: 'locations', label: t('crm.bookings.nav.locations'), path: '/bookings/locations' },
-    { key: 'services', label: t('crm.bookings.nav.services'), path: '/bookings/services' },
-    { key: 'availability', label: t('crm.bookings.nav.availability'), path: '/bookings/availability' },
-    { key: 'analytics', label: t('crm.bookings.nav.analytics'), path: '/bookings/analytics' },
-    { key: 'logs', label: t('crm.bookings.nav.logs'), path: '/bookings/logs' },
-    { key: 'roles', label: t('crm.bookings.nav.roles'), path: '/staff/permissions' },
-    { key: 'settings', label: t('crm.bookings.nav.settings'), path: '/bookings/settings' },
-  ];
+  const type = useBookingBusinessType();
+  const items = bookingNavItems(t, type);
+  const ref = useRef<HTMLDivElement>(null);
+  // на телефоне подменю — одна прокручиваемая строка: показываем активный пункт, а не начало списка
+  useEffect(() => {
+    const el = ref.current?.querySelector<HTMLElement>('button.active');
+    const box = ref.current;
+    if (!el || !box || box.scrollWidth <= box.clientWidth) return;
+    box.scrollLeft = el.offsetLeft - box.clientWidth / 2 + el.offsetWidth / 2;
+  }, [active, type]);
 
   return (
-    <div data-tour="bookings-subnav" className="px-subnav">
+    <div ref={ref} data-tour="bookings-subnav" className="px-subnav bk-subnav">
       {items.map((item) => (
         <button
           key={item.key}

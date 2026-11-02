@@ -14,6 +14,8 @@ import {
   type BookingServiceItem,
   type BookingStaffProfile,
 } from '../../api/bookings';
+import { useBookingBusinessType } from './useBookingVertical';
+import { bookingNavLabel } from './bookingNav';
 import './bookings-design.css';
 
 type ModalState = { mode: 'create' } | { mode: 'edit'; service: BookingServiceItem } | null;
@@ -146,6 +148,7 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
 
 export const BookingServicesPage: React.FC = () => {
   const { t } = useTranslation();
+  const businessType = useBookingBusinessType();
   const { showAlert, showConfirm } = useAlertModal();
   const [services, setServices] = useState<BookingServiceItem[]>([]);
   const [staff, setStaff] = useState<BookingStaffProfile[]>([]);
@@ -201,7 +204,7 @@ export const BookingServicesPage: React.FC = () => {
         <div className="bk-hero">
           <div>
             <div className="kicker"><span className="dot" />{t('crm.bookings.services.kicker', { total: services.length, active: services.filter((s) => s.active).length })}</div>
-            <h1>{t('crm.bookings.services.title')}</h1>
+            <h1>{bookingNavLabel(t, businessType, 'services')}</h1>
             <p className="sub">{t('crm.bookings.services.subtitle')}</p>
           </div>
           <div className="bk-hero-r">

@@ -30,10 +30,12 @@ import {
   type ReservationPaymentStatus,
 } from '../../api/bookings';
 import { fetchNotes, createNote, deleteNote, type Note } from '../../api/notes';
+import { useBookingVertical } from './useBookingVertical';
+import { ConsultSessionPanel, RentalPanel, ReservationOrdersPanel } from './verticalPanels';
 import './bookings-design.css';
+import './bookings-verticals.css';
 
-type TabId = 'overview' | 'client' | 'fields' | 'activity' | 'notes';
-const TAB_KEYS: TabId[] = ['overview', 'client', 'fields', 'activity', 'notes'];
+type TabId = 'overview' | 'session' | 'rental' | 'billing' | 'client' | 'fields' | 'activity' | 'notes';
 
 const ACTIVITY_TYPE_KEYS = ['created', 'status_changed', 'rescheduled', 'staff_changed', 'resource_changed', 'notification_sent', 'note_added'];
 
@@ -187,6 +189,18 @@ export const ReservationDetailPage: React.FC = () => {
   const [staff, setStaff] = useState<BookingStaffProfile[]>([]);
   const [resources, setResources] = useState<BookingResourceItem[]>([]);
   const [tab, setTab] = useState<TabId>('overview');
+  const { type: businessType, terms } = useBookingVertical();
+  // вертикальные вкладки: протокол сессии (консультации), выдача/возврат (аренда); счёт — у всех
+  const TAB_KEYS: TabId[] = [
+    'overview',
+    ...(businessType === 'consultation' ? (['session'] as TabId[]) : []),
+    ...(businessType === 'rental' && reservation?.resourceId ? (['rental'] as TabId[]) : []),
+    'billing',
+    'client',
+    'fields',
+    'activity',
+    'notes',
+  ];
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -366,11 +380,16 @@ export const ReservationDetailPage: React.FC = () => {
             <div data-tour="reservation-details" className="bk-panel">
               <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.overviewTab.detailsTitle')}</div></div>
               <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
-                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.service')}</span><span className="v">{service?.name || '—'}</span></div>
+                <div className="bk-info-row"><span className="l">{terms.service}</span><span className="v">{service?.name || '—'}</span></div>
                 <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.duration')}</span><span className="v">{service ? t('crm.bookings.detail.overviewTab.durationValue', { count: service.durationMinutes }) : '—'}</span></div>
                 <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.location')}</span><span className="v">{location?.name || '—'}</span></div>
-                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.staff')}</span><span className="v">{staffProfile?.staffUser?.fullName || '—'}</span></div>
-                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.participants')}</span><span className="v">{reservation.participants}</span></div>
+                <div className="bk-info-row"><span className="l">{terms.staff}</span><span className="v">{staffProfile?.staffUser?.fullName || '—'}</span></div>
+                {reservation.resourceId && <div className="bk-info-row"><span className="l">{terms.resource}</span><span className="v">{resources.find((r) => r.id === reservation.resourceId)?.name || '—'}{businessType === 'rental' && (reservation.units || 1) > 1 ? ` ×${reservation.units}` : ''}</span></div>}
+                <div className="bk-info-row"><span className="l">{businessType === 'restaurant' ? t('crm.bookings.v.rbook.guests') : t('crm.bookings.detail.overviewTab.participants')}</span><span className="v">{reservation.participants}</span></div>
+                {reservation.classSessionId && <div className="bk-info-row"><span className="l">{t('crm.bookings.v.detail.classSession')}</span><span className="v"><a style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => navigate('/bookings/schedule')}>{t('crm.bookings.v.detail.openSchedule')}</a></span></div>}
+                {reservation.passId && <div className="bk-info-row"><span className="l">{t('crm.bookings.v.detail.pass')}</span><span className="v">{reservation.passVisitCharged ? t('crm.bookings.v.detail.passCharged') : t('crm.bookings.v.detail.passPending')} · <a style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => navigate('/bookings/passes')}>{t('crm.bookings.v.detail.openPasses')}</a></span></div>}
+                {reservation.meetingFormat && <div className="bk-info-row"><span className="l">{t('crm.bookings.v.panels.format')}</span><span className="v">{t(`crm.bookings.v.panels.fmt.${reservation.meetingFormat}`)}{reservation.meetingUrl ? <> · <a href={reservation.meetingUrl} target="_blank" rel="noreferrer">{t('crm.bookings.v.panels.join')}</a></> : null}</span></div>}
+                {reservation.customFields?.comment && <div className="bk-info-row"><span className="l">{t('crm.bookings.v.rbook.comment')}</span><span className="v" style={{ maxWidth: 280 }}>{reservation.customFields.comment}</span></div>}
                 <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.price')}</span><span className="v">{reservation.price ? `${reservation.price} ${reservation.currency}` : '—'}</span></div>
                 <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.paymentStatus')}</span><span className="v">{paymentStatusLabel(reservation.paymentStatus)}</span></div>
                 <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.source')}</span><span className="v">{reservation.source}</span></div>
@@ -402,6 +421,16 @@ export const ReservationDetailPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {tab === 'session' && (
+          <ConsultSessionPanel reservation={reservation} onChanged={(r) => setReservation(r)} />
+        )}
+
+        {tab === 'rental' && (
+          <RentalPanel reservation={reservation} currency={reservation.currency || 'RUB'} onChanged={load} />
+        )}
+
+        {tab === 'billing' && <ReservationOrdersPanel reservation={reservation} />}
 
         {tab === 'client' && (
           <div className="bk-panel">

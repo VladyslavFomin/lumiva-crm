@@ -16,6 +16,8 @@ import {
   type BookingLocation,
   type ResourceStatsRow,
 } from '../../api/bookings';
+import { useBookingBusinessType } from './useBookingVertical';
+import { bookingNavLabel } from './bookingNav';
 import './bookings-design.css';
 
 type ModalState = { mode: 'create' } | { mode: 'edit'; resource: BookingResourceItem } | null;
@@ -120,6 +122,7 @@ const ResourceModal: React.FC<{
 
 export const BookingResourcesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const businessType = useBookingBusinessType();
   const { showAlert, showConfirm } = useAlertModal();
   const [resources, setResources] = useState<BookingResourceItem[]>([]);
   const [locations, setLocations] = useState<BookingLocation[]>([]);
@@ -175,7 +178,7 @@ export const BookingResourcesPage: React.FC = () => {
         <div className="bk-hero">
           <div>
             <div className="kicker"><span className="dot" />{t('crm.bookings.resources.kicker', { count: resources.length })}</div>
-            <h1>{t('crm.bookings.resources.title')}</h1>
+            <h1>{bookingNavLabel(t, businessType, 'resources')}</h1>
             <p className="sub">{t('crm.bookings.resources.subtitle')}</p>
           </div>
           <div className="bk-hero-r">

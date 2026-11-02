@@ -19,17 +19,17 @@
   --bg: #fff;
   --bg-muted: #fafafa;
   --bg-soft: #f5f5f5;
-  --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-display: var(--ff-heading);
   --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--fg-1);
-  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--ff-text);
   font-size: 15px;
   line-height: 1.55;
 }
 .px-scope h1, .px-scope h2, .px-scope h3, .px-scope h4 {
   font-family: var(--ff-display);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing:0;
   margin: 0;
   color: var(--ink);
 }
@@ -39,6 +39,12 @@
 .px-scope .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--ink)}
 
 .px-scope .px-subnav{display:flex;gap:4px;border-bottom:1px solid var(--line-2);margin-bottom:20px;overflow-x:auto;scrollbar-width:none}
+/* подменю бронирований: свой класс (.bk-subnav) — у «Товаров»/«Телефонии» те же базовые
+   правила .px-subnav, и порядок загрузки CSS-чанков не должен решать, влезет ли меню */
+.px-scope .px-subnav.bk-subnav{flex-wrap:wrap;gap:0 4px;overflow:visible}
+.px-scope .px-subnav.bk-subnav>button{flex-shrink:0}
+@media (max-width:1400px){.px-scope .px-subnav.bk-subnav>button{padding:9px 9px;font-size:12.5px;gap:6px}}
+@media (max-width:760px){.px-scope .px-subnav.bk-subnav{flex-wrap:nowrap;overflow-x:auto;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent);padding-right:24px}}
 .px-scope .px-subnav::-webkit-scrollbar{display:none}
 .px-scope .px-subnav a,.px-scope .px-subnav button{display:inline-flex;align-items:center;gap:7px;padding:10px 14px;font-size:13px;color:var(--fg-3);border-bottom:1.5px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .12s,border-color .12s;text-decoration:none;background:none;border-top:0;border-left:0;border-right:0;cursor:pointer;font-family:inherit}
 .px-scope .px-subnav a.active,.px-scope .px-subnav button.active{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
@@ -53,7 +59,7 @@
 .px-scope .btn-primary:hover{background:#000}
 
 .px-scope .bk-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:10px 0 18px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
-.px-scope .bk-hero h1{font-family:var(--ff-display);font-size:26px;font-weight:600;letter-spacing:-0.025em;color:var(--ink);line-height:1.1}
+.px-scope .bk-hero h1{font-family:var(--ff-display);font-size:34px;font-weight:600;letter-spacing:0;color:var(--ink);line-height:1.1}
 .px-scope .bk-hero .kicker{margin-bottom:6px}
 .px-scope .bk-hero .sub{font-size:13px;color:var(--fg-3);margin-top:6px;max-width:520px;line-height:1.5}
 .px-scope .bk-hero-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -71,17 +77,18 @@
 .px-scope .bk-kpi{padding:16px 18px;border-right:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
 .px-scope .bk-kpi:nth-child(4n){border-right:0}
 .px-scope .bk-kpi .l{font-family:var(--ff-mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-3);display:flex;align-items:center;gap:6px}
-.px-scope .bk-kpi .v{font-family:var(--ff-display);font-size:26px;font-weight:600;letter-spacing:-0.02em;color:var(--ink);margin-top:10px}
+.px-scope .bk-kpi .v{font-family:var(--ff-display);font-size:26px;font-weight:600;letter-spacing:0;color:var(--ink);margin-top:10px}
 .px-scope .bk-kpi .d{font-family:var(--ff-mono);font-size:10.5px;margin-top:6px}
 .px-scope .bk-kpi .d.up{color:#1f8a5e}
 .px-scope .bk-kpi .d.dn{color:#cc2f47}
 .px-scope .bk-kpi .d.warn{color:#c08319}
 
-.px-scope .bk-cols{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start}
+.px-scope .bk-cols{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start}
+.px-scope .bk-cols>*,.px-scope .bk-grid2>*{min-width:0}
 @media (max-width:1000px){.px-scope .bk-cols{grid-template-columns:1fr}}
 .px-scope .bk-panel{background:#fff;border:1px solid var(--line-2);border-radius:12px;overflow:hidden}
 .px-scope .bk-panel-head{padding:14px 18px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;justify-content:space-between}
-.px-scope .bk-panel-head .t{font-family:var(--ff-display);font-size:14px;font-weight:600;letter-spacing:-0.01em}
+.px-scope .bk-panel-head .t{font-family:var(--ff-display);font-size:14px;font-weight:600;letter-spacing:0}
 .px-scope .bk-panel-head .link{font-size:11.5px;color:var(--fg-3);cursor:pointer;background:none;border:0}
 .px-scope .bk-panel-body{padding:6px 0}
 
@@ -157,7 +164,7 @@
 
 .px-scope .bk-det-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--line-2);margin-bottom:18px}
 .px-scope .bk-det-head .idline{font-family:var(--ff-mono);font-size:11px;color:var(--fg-3);display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.px-scope .bk-det-head h1{font-family:var(--ff-display);font-size:22px;font-weight:600;letter-spacing:-0.02em}
+.px-scope .bk-det-head h1{font-family:var(--ff-display);font-size:22px;font-weight:600;letter-spacing:0}
 .px-scope .bk-det-head .sub{font-size:12.5px;color:var(--fg-3);margin-top:6px}
 .px-scope .bk-det-actions{display:flex;gap:8px;flex-wrap:wrap}
 
@@ -166,7 +173,7 @@
 .px-scope .bk-tab{padding:9px 14px;font-size:13px;color:var(--fg-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;border-top:0;border-left:0;border-right:0;white-space:nowrap;flex-shrink:0}
 .px-scope .bk-tab.active{color:var(--ink);border-color:var(--ink);font-weight:500}
 
-.px-scope .bk-grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+.px-scope .bk-grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px}
 @media (max-width:960px){.px-scope .bk-grid2{grid-template-columns:1fr}}
 .px-scope .bk-info-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line-3);font-size:12.5px}
 .px-scope .bk-info-row:last-child{border-bottom:0}
@@ -201,7 +208,16 @@
 /* modal */
 .px-scope .bk-modal-back{position:fixed;inset:0;background:rgba(20,20,20,0.4);backdrop-filter:blur(4px);z-index:60}
 .px-scope .bk-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:61;width:min(520px, calc(100vw - 32px));max-height:calc(100vh - 64px);overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,0.18);padding:22px 24px}
-.px-scope .bk-modal h3{font-family:var(--ff-display);font-size:16px;font-weight:600;letter-spacing:-0.015em;margin-bottom:16px}
+.px-scope .bk-modal h3{font-family:var(--ff-display);font-size:16px;font-weight:600;letter-spacing:0;margin-bottom:16px}
 .px-scope .bk-field{margin-bottom:12px}
 .px-scope .bk-field label{font-size:11px;color:var(--fg-3);display:block;margin-bottom:5px}
 .px-scope .bk-field input,.px-scope .bk-field select,.px-scope .bk-field textarea{width:100%;padding:9px 10px;border:1px solid var(--line-2);border-radius:8px;font-size:12.5px;font-family:inherit}
+
+/* телефон: шапка страницы и таблицы */
+@media (max-width:760px){
+  .px-scope .bk-hero{gap:14px;align-items:flex-start}
+  .px-scope .bk-hero h1{font-size:23px}
+  .px-scope .bk-hero-r{width:100%}
+  .px-scope .bk-table td,.px-scope .bk-table thead th{padding:10px 11px}
+  .px-scope .bk-filters>div[style]{width:100% !important}
+}

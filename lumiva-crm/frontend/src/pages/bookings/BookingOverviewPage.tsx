@@ -19,6 +19,8 @@ import {
   type BookingStaffProfile,
   type BookingLocation,
 } from '../../api/bookings';
+import { VerticalOverviewStrip } from './VerticalOverviewStrip';
+import { useBookingVertical } from './useBookingVertical';
 import './bookings-design.css';
 
 function isToday(iso: string) {
@@ -29,6 +31,7 @@ function isToday(iso: string) {
 
 export const BookingOverviewPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { terms } = useBookingVertical();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const [project, setProject] = useState<BookingProject | null>(null);
@@ -109,7 +112,7 @@ export const BookingOverviewPage: React.FC = () => {
         <BookingsSubnav active="overview" />
         <div className="bk-hero">
           <div>
-            <div className="kicker"><span className="dot" />{t('crm.bookings.overview.kicker')}{project ? ` · ${project.businessType.toUpperCase()}` : ''}</div>
+            <div className="kicker"><span className="dot" />{t('crm.bookings.overview.kicker')}{project ? ` · ${String(t(`crm.bookings.settings.businessTypes.${project.businessType}.name`)).toUpperCase()}` : ''}</div>
             <h1>{t('crm.bookings.overview.title')}</h1>
             <p className="sub">
               {project ? t('crm.bookings.overview.subtitleProject', { name: project.name }) : ''} ·{' '}
@@ -137,10 +140,12 @@ export const BookingOverviewPage: React.FC = () => {
           </div>
         )}
 
+        <VerticalOverviewStrip locationId={locationFilter} />
+
         <div data-tour="bookings-kpis" className="bk-kpi-grid" style={{ margin: '16px 0' }}>
           <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.cal} size={12} />{t('crm.bookings.overview.kpis.today')}</div><div className="v">{todayReservations.length}</div></div>
           <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.clock} size={12} />{t('crm.bookings.overview.kpis.pending')}</div><div className="v">{pendingCount}</div></div>
-          <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.users} size={12} />{t('crm.bookings.overview.kpis.staffLoad')}</div><div className="v">{avgStaffLoad}%</div></div>
+          <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.users} size={12} />{t('crm.bookings.v.overview.staffLoad', { label: terms.staffPlural })}</div><div className="v">{avgStaffLoad}%</div></div>
           <div className="bk-kpi"><div className="l"><Ic d={BK_ICON.x} size={12} />{t('crm.bookings.overview.kpis.noShow')}</div><div className="v">{cancelledLast7d}%</div></div>
         </div>
 
@@ -190,7 +195,7 @@ export const BookingOverviewPage: React.FC = () => {
           <div>
             {staffLoadToday.length > 0 && (
               <div data-tour="bookings-staff" className="bk-panel" style={{ marginBottom: 16 }}>
-                <div className="bk-panel-head"><div className="t">{t('crm.bookings.overview.staffLoadPanel.title')}</div></div>
+                <div className="bk-panel-head"><div className="t">{t('crm.bookings.v.overview.staffLoadToday', { label: terms.staffPlural })}</div></div>
                 <div className="bk-panel-body" style={{ padding: '8px 18px 14px' }}>
                   {staffLoadToday.map((m, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>

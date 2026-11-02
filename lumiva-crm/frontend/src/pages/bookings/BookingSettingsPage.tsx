@@ -13,10 +13,14 @@ import {
   type BookingConfirmationMode,
 } from '../../api/bookings';
 import { fetchApiTokens, createApiToken, deleteApiToken, type ApiTokenRecord } from '../../api/apiTokens';
+import { fetchVerticalSettings, updateVerticalSettings, type BookingVerticalSettings } from '../../api/bookingVerticals';
+import { syncBookingProject } from './useBookingVertical';
+import { BOOKING_NAV_BY_TYPE, bookingNavLabel } from './bookingNav';
 import './bookings-design.css';
+import './bookings-verticals.css';
 
-type TabId = 'general' | 'businessType' | 'confirmation' | 'notifications' | 'telegram' | 'connector' | 'roles';
-const TAB_KEYS: TabId[] = ['general', 'businessType', 'confirmation', 'notifications', 'telegram', 'connector', 'roles'];
+type TabId = 'general' | 'businessType' | 'vertical' | 'confirmation' | 'notifications' | 'telegram' | 'connector' | 'roles';
+const TAB_KEYS: TabId[] = ['general', 'businessType', 'vertical', 'confirmation', 'notifications', 'telegram', 'connector', 'roles'];
 
 const BUSINESS_TYPE_KEYS: BookingBusinessType[] = ['salon', 'restaurant', 'fitness', 'consultation', 'rental'];
 const CONFIRMATION_MODE_KEYS: BookingConfirmationMode[] = ['auto', 'manual', 'conditional'];
@@ -42,6 +46,8 @@ export const BookingSettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [vs, setVs] = useState<BookingVerticalSettings | null>(null);
+  const [savedType, setSavedType] = useState<BookingBusinessType | null>(null);
   const [connectorToken, setConnectorToken] = useState<ApiTokenRecord | null>(null);
   const [connectorLoading, setConnectorLoading] = useState(false);
 
@@ -49,9 +55,14 @@ export const BookingSettingsPage: React.FC = () => {
 
   useEffect(() => {
     fetchBookingProject()
-      .then(setProject)
+      .then((p) => {
+        setProject(p);
+        setSavedType(p.businessType);
+        syncBookingProject(p);
+      })
       .catch((e) => showAlert(e.message || t('crm.bookings.settings.error'), { variant: 'error' }))
       .finally(() => setLoading(false));
+    fetchVerticalSettings().then(setVs).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -74,14 +85,36 @@ export const BookingSettingsPage: React.FC = () => {
     if (!project) return;
     setSaving(true);
     try {
-      const saved = await updateBookingProject(fields || project);
+      // verticalSettings сохраняются своей вкладкой (PATCH /bookings/vertical/settings) — не
+      // отправляем здесь устаревший снимок, иначе «Основное» затирало бы «Параметры типа».
+      const { verticalSettings: _vs, ...payload } = (fields || project) as BookingProject;
+      const saved = await updateBookingProject(payload);
       setProject(saved);
+      if (saved.businessType !== savedType) {
+        setSavedType(saved.businessType);
+        syncBookingProject(saved);
+        showAlert(t('crm.bookings.v.settings.typeSwitched', { name: t(`crm.bookings.settings.businessTypes.${saved.businessType}.name`) }), { variant: 'success' });
+      }
     } catch (e: any) {
       showAlert(e.message || t('crm.bookings.settings.saveError'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
   };
+
+  const saveVertical = async () => {
+    if (!vs) return;
+    setSaving(true);
+    try {
+      setVs(await updateVerticalSettings(vs));
+      showAlert(t('crm.bookings.v.settings.saved'), { variant: 'success' });
+    } catch (e: any) {
+      showAlert(e.message || t('crm.bookings.settings.saveError'), { variant: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const vNum = (k: keyof BookingVerticalSettings) => (e: React.ChangeEvent<HTMLInputElement>) => vs && setVs({ ...vs, [k]: e.target.value === '' ? ('' as any) : Number(e.target.value) });
 
   const toggleChannel = (eventKey: string, channel: 'crm' | 'email' | 'telegram') => {
     if (!project) return;
@@ -176,13 +209,103 @@ export const BookingSettingsPage: React.FC = () => {
                           <div style={{ fontSize: 13, fontWeight: 600 }}>{t(`crm.bookings.settings.businessTypes.${bk}.name`)}</div>
                           <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 3 }}>{t(`crm.bookings.settings.businessTypes.${bk}.desc`)}</div>
                           <div style={{ fontSize: 10, fontFamily: 'var(--ff-mono)', color: 'var(--fg-4)', marginTop: 6, textTransform: 'uppercase' }}>{t('crm.bookings.settings.businessType.termsPrefix')} {t(`crm.bookings.settings.businessTypes.${bk}.terms`)}</div>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+                            {BOOKING_NAV_BY_TYPE[bk].filter((k) => !['overview', 'logs', 'roles', 'settings', 'analytics', 'locations'].includes(k)).map((k) => (
+                              <span key={k} className="mn-tag">{bookingNavLabel(t, bk, k)}</span>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>{t(`crm.bookings.v.settings.typeFeatures.${bk}`)}</div>
                         </div>
                         {project.businessType === bk && <span className="bk-badge confirmed">{t('crm.bookings.settings.businessType.selected')}</span>}
                       </label>
                     ))}
                   </div>
+                  {project.businessType !== savedType && <div className="bk-hint" style={{ marginTop: 12, color: '#c08319' }}>{t('crm.bookings.v.settings.switchHint')}</div>}
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} disabled={saving} onClick={() => save()}>
                     <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.settings.businessType.save')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {tab === 'vertical' && vs && (
+              <div className="bk-panel">
+                <div className="bk-panel-head"><div className="t">{t('crm.bookings.v.settings.verticalTitle', { name: t(`crm.bookings.settings.businessTypes.${savedType || project.businessType}.name`) })}</div></div>
+                <div className="bk-panel-body" style={{ padding: '14px 18px', maxWidth: 640 }}>
+                  {(savedType || project.businessType) === 'restaurant' && (
+                    <>
+                      <div className="bk-row3">
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.turnMinutes')}</label><input type="number" min={15} max={720} value={vs.turnMinutes} onChange={vNum('turnMinutes')} /></div>
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.serviceCharge')}</label><input type="number" min={0} max={50} value={vs.serviceChargePercent} onChange={vNum('serviceChargePercent')} /></div>
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.autoRelease')}</label><input type="number" min={0} max={240} value={vs.autoReleaseMinutes} onChange={vNum('autoReleaseMinutes')} /></div>
+                      </div>
+                      <div className="bk-hint">{t('crm.bookings.v.settings.restaurantHint')}</div>
+                    </>
+                  )}
+                  {(savedType || project.businessType) === 'fitness' && (
+                    <>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.passChargeOn')}</label>
+                        <div className="bk-seg">
+                          <button className={vs.passChargeOn === 'attendance' ? 'on' : ''} onClick={() => setVs({ ...vs, passChargeOn: 'attendance' })}>{t('crm.bookings.v.settings.chargeAttendance')}</button>
+                          <button className={vs.passChargeOn === 'booking' ? 'on' : ''} onClick={() => setVs({ ...vs, passChargeOn: 'booking' })}>{t('crm.bookings.v.settings.chargeBooking')}</button>
+                        </div>
+                      </div>
+                      <div className="bk-row2">
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.lateCancelHours')}</label><input type="number" min={0} max={168} value={vs.lateCancelHours} onChange={vNum('lateCancelHours')} /></div>
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.defaultCapacity')}</label><input type="number" min={1} max={500} value={vs.defaultClassCapacity} onChange={vNum('defaultClassCapacity')} /></div>
+                      </div>
+                      <label className="bk-check"><input type="checkbox" checked={vs.noShowChargesVisit} onChange={(e) => setVs({ ...vs, noShowChargesVisit: e.target.checked })} /> {t('crm.bookings.v.settings.noShowCharges')}</label>
+                      <div className="bk-hint">{t('crm.bookings.v.settings.fitnessHint')}</div>
+                    </>
+                  )}
+                  {(savedType || project.businessType) === 'consultation' && (
+                    <>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.defaultFormat')}</label>
+                        <div className="bk-seg">
+                          {(['offline', 'online', 'phone'] as const).map((f) => <button key={f} className={vs.defaultMeetingFormat === f ? 'on' : ''} onClick={() => setVs({ ...vs, defaultMeetingFormat: f })}>{t(`crm.bookings.v.panels.fmt.${f}`)}</button>)}
+                        </div>
+                      </div>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.meetingTemplate')}</label><input value={vs.meetingUrlTemplate} onChange={(e) => setVs({ ...vs, meetingUrlTemplate: e.target.value })} /></div>
+                      <div className="bk-hint" style={{ marginBottom: 10 }}>{t('crm.bookings.v.settings.meetingTemplateHint')}</div>
+                      <div className="bk-row2">
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.followUpDays')}</label><input type="number" min={1} max={365} value={vs.followUpDays} onChange={vNum('followUpDays')} /></div>
+                        <div className="bk-field"><label>{t('crm.bookings.v.settings.lateCancelHours')}</label><input type="number" min={0} max={168} value={vs.lateCancelHours} onChange={vNum('lateCancelHours')} /></div>
+                      </div>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.passChargeOn')}</label>
+                        <div className="bk-seg">
+                          <button className={vs.passChargeOn === 'attendance' ? 'on' : ''} onClick={() => setVs({ ...vs, passChargeOn: 'attendance' })}>{t('crm.bookings.v.settings.chargeAttendance')}</button>
+                          <button className={vs.passChargeOn === 'booking' ? 'on' : ''} onClick={() => setVs({ ...vs, passChargeOn: 'booking' })}>{t('crm.bookings.v.settings.chargeBooking')}</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {(savedType || project.businessType) === 'rental' && (
+                    <>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.rentalUnit')}</label>
+                        <div className="bk-seg">
+                          <button className={vs.rentalUnit === 'hour' ? 'on' : ''} onClick={() => setVs({ ...vs, rentalUnit: 'hour' })}>{t('crm.bookings.v.settings.unitHour')}</button>
+                          <button className={vs.rentalUnit === 'day' ? 'on' : ''} onClick={() => setVs({ ...vs, rentalUnit: 'day' })}>{t('crm.bookings.v.settings.unitDay')}</button>
+                        </div>
+                      </div>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.lateFeePercent')}</label><input type="number" min={0} max={1000} value={vs.lateFeePercent} onChange={vNum('lateFeePercent')} /></div>
+                      <label className="bk-check"><input type="checkbox" checked={vs.requireDeposit} onChange={(e) => setVs({ ...vs, requireDeposit: e.target.checked })} /> {t('crm.bookings.v.settings.requireDeposit')}</label>
+                      <div className="bk-hint">{t('crm.bookings.v.settings.rentalHint')}</div>
+                    </>
+                  )}
+                  {(savedType || project.businessType) === 'salon' && (
+                    <>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.passChargeOn')}</label>
+                        <div className="bk-seg">
+                          <button className={vs.passChargeOn === 'attendance' ? 'on' : ''} onClick={() => setVs({ ...vs, passChargeOn: 'attendance' })}>{t('crm.bookings.v.settings.chargeAttendance')}</button>
+                          <button className={vs.passChargeOn === 'booking' ? 'on' : ''} onClick={() => setVs({ ...vs, passChargeOn: 'booking' })}>{t('crm.bookings.v.settings.chargeBooking')}</button>
+                        </div>
+                      </div>
+                      <div className="bk-field"><label>{t('crm.bookings.v.settings.lateCancelHours')}</label><input type="number" min={0} max={168} value={vs.lateCancelHours} onChange={vNum('lateCancelHours')} /></div>
+                      <div className="bk-hint">{t('crm.bookings.v.settings.salonHint')}</div>
+                    </>
+                  )}
+                  <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} disabled={saving} onClick={saveVertical}>
+                    <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.settings.general.save')}
                   </button>
                 </div>
               </div>

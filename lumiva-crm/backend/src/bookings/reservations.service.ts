@@ -17,6 +17,15 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StaffUsersService } from '../staff/staff-users.service';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+import { BookingsPassLedgerService } from './bookings-pass-ledger.service';
+import { safeTimeZone, zonedParts } from './booking-time.util';
+
+/** Ссылка на онлайн-встречу по шаблону проекта ({ORG}/{ID}); по умолчанию — Jitsi Meet (работает без ключей). */
+export function buildMeetingUrl(template: string | undefined | null, projectName: string, reservationId: string): string {
+  const org = (projectName || 'lumiva').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'lumiva';
+  const tpl = template?.trim() || 'https://meet.jit.si/{ORG}-{ID}';
+  return tpl.replace(/\{ORG\}/g, org).replace(/\{ID\}/g, reservationId.slice(0, 8));
+}
 
 /** Расстояние Левенштейна — для восстановления после опечатки LLM в UUID (см. findNearestByTypo). */
 function levenshtein(a: string, b: string): number {
@@ -90,6 +99,7 @@ export class ReservationsService {
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     private readonly currencyRates: CurrencyRatesService,
+    private readonly passLedger: BookingsPassLedgerService,
   ) {}
 
   /** Уведомляет в колокольчик нового ответственного по брони (только если поле реально
@@ -399,6 +409,17 @@ export class ReservationsService {
       /** Лид, с которым уже идёт переписка (ИИ-консультант в WhatsApp/Telegram/чате) — бронь
        * привязывается к нему, а не к лиду, найденному/созданному по телефону. */
       leadId?: string;
+      /** Аренда: число единиц пула и залог. */
+      units?: number;
+      depositAmount?: string | number | null;
+      /** Фитнес: запись на занятие + абонемент. */
+      classSessionId?: string;
+      passId?: string;
+      /** Консультации. */
+      meetingFormat?: Reservation['meetingFormat'];
+      meetingUrl?: string;
+      /** Списать с активного абонемента/пакета клиента, если такой есть (цена брони → 0). */
+      usePass?: boolean;
     },
     actingStaffUserId: string | null,
     options: { skipValidation?: boolean } = {},
@@ -417,12 +438,12 @@ export class ReservationsService {
     }
 
     // Правила проекта (мин. уведомление / горизонт) применяются к само-сервисным источникам
-    // (сайт, API, Telegram) — у ресепшн/менеджера при ручном создании (walk-in, звонок) есть
+    // (сайт, API, Telegram) — у ресепшн/менеджера при ручном создании и посадке «с улицы» (walkin) есть
     // право переопределить их собственным суждением, как и в дизайн-брифе. Массовый импорт
     // (см. reservations-import.service.ts) исторических/внешних броней тоже освобождён —
     // options.skipValidation полностью отключает и это, и проверку конфликтов ниже, иначе
     // прошлые даты и совпадения с уже импортированными строками валили бы весь файл.
-    if (!options.skipValidation && dto.source && dto.source !== 'manual') {
+    if (!options.skipValidation && dto.source && dto.source !== 'manual' && dto.source !== 'walkin') {
       const rulesCheck = await this.availability.checkProjectRules(project, startAt);
       if (!rulesCheck.ok) throw new BadRequestException(rulesCheck.reason);
     }
@@ -434,6 +455,7 @@ export class ReservationsService {
         resourceId: dto.resourceId,
         startAt,
         endAt,
+        units: dto.units,
       });
       if (!conflict.ok) throw new BadRequestException(conflict.reason);
     }
@@ -443,6 +465,12 @@ export class ReservationsService {
       phone: dto.customerPhone,
       email: dto.customerEmail,
     });
+
+    let passId = dto.passId || null;
+    if (!passId && dto.usePass && contactId) {
+      const onDate = zonedParts(startAt, safeTimeZone(project.timezone)).ymd;
+      passId = (await this.passLedger.findUsable(tenantId, contactId, dto.serviceId || null, onDate))?.id || null;
+    }
 
     const reservation = this.repo.create({
       tenantId,
@@ -462,12 +490,24 @@ export class ReservationsService {
       status: project.confirmationMode === 'auto' ? 'confirmed' : 'pending',
       confirmationStatus: project.confirmationMode === 'auto' ? 'confirmed' : 'pending',
       source: dto.source || 'manual',
-      price: dto.price || null,
+      price: passId ? '0' : dto.price || null,
       currency: dto.currency || project.currency,
       customFields: dto.customFields || null,
       assignedUserId: dto.assignedUserId || actingStaffUserId || null,
+      units: Math.max(1, Number(dto.units) || 1),
+      depositAmount: dto.depositAmount != null && dto.depositAmount !== '' ? String(dto.depositAmount) : null,
+      classSessionId: dto.classSessionId || null,
+      passId,
+      paymentStatus: passId ? 'paid' : 'not_required',
+      meetingFormat: dto.meetingFormat || (project.businessType === 'consultation' ? project.verticalSettings?.defaultMeetingFormat || null : null),
+      meetingUrl: dto.meetingUrl || null,
     });
-    const saved = await this.repo.save(reservation);
+    let saved = await this.repo.save(reservation);
+    if (saved.meetingFormat === 'online' && !saved.meetingUrl) {
+      saved.meetingUrl = buildMeetingUrl(project.verticalSettings?.meetingUrlTemplate, project.name, saved.id);
+      saved = await this.repo.save(saved);
+    }
+    await this.passLedger.onCreated(project, saved).catch(() => undefined);
     await this.notifyNewAssignee(tenantId, null, saved.assignedUserId, actingStaffUserId, saved).catch(() => undefined);
 
     await this.logActivity(tenantId, saved.id, 'created', actingStaffUserId, 'Бронь создана');
@@ -506,7 +546,8 @@ export class ReservationsService {
     // конфликт (двойная бронь) искался только когда менялось время.
     const reassigningStaff = dto.staffUserId !== undefined && dto.staffUserId !== reservation.staffUserId;
     const reassigningResource = dto.resourceId !== undefined && dto.resourceId !== reservation.resourceId;
-    const needsConflictCheck = rescheduling || reassigningStaff || reassigningResource;
+    const changingUnits = dto.units !== undefined && Number(dto.units) !== reservation.units;
+    const needsConflictCheck = rescheduling || reassigningStaff || reassigningResource || changingUnits;
 
     if (needsConflictCheck) {
       const startAt = dto.startAt ? new Date(dto.startAt) : reservation.startAt;
@@ -517,6 +558,7 @@ export class ReservationsService {
         resourceId: dto.resourceId ?? reservation.resourceId,
         startAt,
         endAt,
+        units: dto.units ?? reservation.units,
         excludeReservationId: id,
       });
       if (!conflict.ok) throw new BadRequestException(conflict.reason);
@@ -562,6 +604,10 @@ export class ReservationsService {
     const fromStatus = reservation.status;
     reservation.status = status;
     const saved = await this.repo.save(reservation);
+    if (saved.passId) {
+      const project = await this.projects.getOrCreateDefaultProject(tenantId);
+      await this.passLedger.onStatus(project, saved, status).catch((e) => console.error('pass ledger:', e));
+    }
     await this.logActivity(
       tenantId,
       id,
@@ -589,6 +635,16 @@ export class ReservationsService {
       console.error('Failed to trigger automation:', error);
     }
     return saved;
+  }
+
+  /** Публичная смена статуса для сервисов вертикалей (выдача/возврат аренды, ростер занятия…). */
+  setStatus(tenantId: string, id: string, status: ReservationStatus, actingStaffUserId: string | null, description: string) {
+    return this.transition(tenantId, id, status, actingStaffUserId, description);
+  }
+
+  /** Запись в журнал брони от имени сотрудника. */
+  log(tenantId: string, id: string, actingStaffUserId: string | null, description: string) {
+    return this.logActivity(tenantId, id, 'note_added', actingStaffUserId, description);
   }
 
   confirm(tenantId: string, id: string, actingStaffUserId: string | null) {

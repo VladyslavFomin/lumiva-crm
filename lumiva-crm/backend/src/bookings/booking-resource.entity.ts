@@ -49,6 +49,50 @@ export class BookingResource {
   @Column({ type: 'boolean', default: true })
   active: boolean;
 
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  // ==== ПЛАН ЗАЛА (ресторан: стол на схеме зоны) ====
+  @Column({ type: 'uuid', nullable: true })
+  zoneId: string | null;
+
+  /** round / square / rect / booth / bar */
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  shape: string | null;
+
+  @Column({ type: 'integer', nullable: true })
+  posX: number | null;
+
+  @Column({ type: 'integer', nullable: true })
+  posY: number | null;
+
+  @Column({ type: 'integer', nullable: true })
+  width: number | null;
+
+  @Column({ type: 'integer', nullable: true })
+  height: number | null;
+
+  @Column({ type: 'integer', default: 0 })
+  rotation: number;
+
+  /** Минимум гостей, на которых имеет смысл сажать за этот стол. */
+  @Column({ type: 'integer', nullable: true })
+  minCapacity: number | null;
+
+  // ==== АРЕНДА (прокат оборудования / площадок) ====
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
+  pricePerHour: string | null;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
+  pricePerDay: string | null;
+
+  /** Залог за одну единицу. */
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
+  depositAmount: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  sku: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

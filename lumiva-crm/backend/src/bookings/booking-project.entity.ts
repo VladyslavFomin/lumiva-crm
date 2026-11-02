@@ -24,6 +24,27 @@ export type BookingProjectStatus =
   | 'paused'
   | 'error';
 
+/** Параметры, специфичные для типа бизнеса. Все поля опциональны — дефолты в getVerticalSettings(). */
+export interface BookingVerticalSettings {
+  // ресторан
+  turnMinutes?: number; // длительность брони стола по умолчанию
+  serviceChargePercent?: number; // сервисный сбор по умолчанию
+  autoReleaseMinutes?: number; // через сколько минут опоздания стол считается свободным
+  // фитнес
+  passChargeOn?: 'booking' | 'attendance'; // когда списывать посещение
+  noShowChargesVisit?: boolean;
+  lateCancelHours?: number; // отмена позже — посещение сгорает
+  defaultClassCapacity?: number;
+  // консультации
+  defaultMeetingFormat?: 'offline' | 'online' | 'phone';
+  meetingUrlTemplate?: string; // напр. https://meet.jit.si/{ORG}-{ID}
+  followUpDays?: number;
+  // аренда
+  rentalUnit?: 'hour' | 'day';
+  lateFeePercent?: number; // % от стоимости часа/дня за каждый просроченный час/день
+  requireDeposit?: boolean;
+}
+
 /**
  * Один проект бронирования на тенанта (v1: без мастера создания нескольких
  * проектов — авто-создаётся при первом обращении, см. BookingsProjectsService).
@@ -83,6 +104,10 @@ export class BookingProject {
   // Telegram/Email по этим событиям не подключена (см. lumiva_booking_module memory).
   @Column({ type: 'jsonb', default: {} })
   notificationChannels: Record<string, { crm: boolean; email: boolean; telegram: boolean }>;
+
+  // ==== НАСТРОЙКИ ВЕРТИКАЛИ (зависят от businessType) ====
+  @Column({ type: 'jsonb', default: {} })
+  verticalSettings: BookingVerticalSettings;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

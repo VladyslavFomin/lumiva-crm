@@ -10,6 +10,31 @@ import { Reservation } from './reservation.entity';
 import { ReservationActivity } from './reservation-activity.entity';
 import { BookingWaitlistEntry } from './booking-waitlist-entry.entity';
 import { ReservationImportSession } from './reservation-import-session.entity';
+import { BookingZone } from './booking-zone.entity';
+import { BookingMenuCategory } from './booking-menu-category.entity';
+import { BookingMenuItem } from './booking-menu-item.entity';
+import { BookingOrder } from './booking-order.entity';
+import { BookingOrderItem } from './booking-order-item.entity';
+import { BookingClassSession } from './booking-class-session.entity';
+import { BookingPassPlan } from './booking-pass-plan.entity';
+import { BookingPass } from './booking-pass.entity';
+import { Payment } from '../payments/payment.entity';
+import { PaymentsModule } from '../payments/payments.module';
+import { BookingsPassLedgerService } from './bookings-pass-ledger.service';
+import { BookingsOrdersService } from './bookings-orders.service';
+import { BookingsRestaurantService } from './bookings-restaurant.service';
+import { BookingsClassesService } from './bookings-classes.service';
+import { BookingsPassesService } from './bookings-passes.service';
+import { BookingsRentalService } from './bookings-rental.service';
+import { BookingsVerticalService } from './bookings-vertical.service';
+import {
+  BookingOrdersController,
+  BookingRestaurantController,
+  BookingClassesController,
+  BookingPassesController,
+  BookingRentalController,
+  BookingVerticalController,
+} from './booking-verticals.controller';
 
 import { Lead } from '../leads/lead.entity';
 import { Contact } from '../contacts/contact.entity';
@@ -56,6 +81,15 @@ import { StaffUsersModule } from '../staff/staff-users.module';
       ReservationActivity,
       BookingWaitlistEntry,
       ReservationImportSession,
+      BookingZone,
+      BookingMenuCategory,
+      BookingMenuItem,
+      BookingOrder,
+      BookingOrderItem,
+      BookingClassSession,
+      BookingPassPlan,
+      BookingPass,
+      Payment,
       Lead,
       Contact,
       StaffUser,
@@ -66,6 +100,7 @@ import { StaffUsersModule } from '../staff/staff-users.module';
     forwardRef(() => AutomationsModule),
     TenantsModule,
     CurrencyModule,
+    PaymentsModule,
     forwardRef(() => StaffUsersModule),
   ],
   controllers: [
@@ -76,6 +111,12 @@ import { StaffUsersModule } from '../staff/staff-users.module';
     BookingAnalyticsController,
     BookingLogsController,
     ReservationsImportController,
+    BookingOrdersController,
+    BookingRestaurantController,
+    BookingClassesController,
+    BookingPassesController,
+    BookingRentalController,
+    BookingVerticalController,
   ],
   providers: [
     BookingsProjectsService,
@@ -87,6 +128,13 @@ import { StaffUsersModule } from '../staff/staff-users.module';
     BookingsAnalyticsService,
     ReservationsImportService,
     BookingsAiService,
+    BookingsPassLedgerService,
+    BookingsOrdersService,
+    BookingsRestaurantService,
+    BookingsClassesService,
+    BookingsPassesService,
+    BookingsRentalService,
+    BookingsVerticalService,
     ApiTokenGuard,
   ],
   exports: [
@@ -97,6 +145,12 @@ import { StaffUsersModule } from '../staff/staff-users.module';
     BookingsCatalogService,
     BookingsAvailabilityService,
     BookingsStaffService,
+    BookingsOrdersService,
+    BookingsRestaurantService,
+    BookingsClassesService,
+    BookingsPassesService,
+    BookingsRentalService,
+    BookingsVerticalService,
   ],
 })
 export class BookingsModule {}

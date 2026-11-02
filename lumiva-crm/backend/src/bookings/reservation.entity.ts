@@ -48,6 +48,9 @@ export type ReservationSource =
   | 'telegram'
   | 'whatsapp';
 
+export type ReservationMeetingFormat = 'offline' | 'online' | 'phone';
+export type ReservationDepositStatus = 'none' | 'held' | 'returned' | 'withheld' | 'partial';
+
 /** Открытые (не финальные) статусы — участвуют в проверке конфликтов ресурса/мастера. */
 export const RESERVATION_ACTIVE_STATUSES: ReservationStatus[] = [
   'draft',
@@ -144,6 +147,57 @@ export class Reservation {
 
   @Column({ type: 'jsonb', nullable: true })
   customFields: Record<string, any> | null;
+
+  // ==== ФИТНЕС: запись на групповое занятие / списание с абонемента ====
+  @Column({ type: 'uuid', nullable: true })
+  classSessionId: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  passId: string | null;
+
+  /** Посещение уже списано с абонемента (чтобы не списать дважды и вернуть при отмене). */
+  @Column({ type: 'boolean', default: false })
+  passVisitCharged: boolean;
+
+  // ==== КОНСУЛЬТАЦИИ ====
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  meetingFormat: ReservationMeetingFormat | null;
+
+  @Column({ type: 'text', nullable: true })
+  meetingUrl: string | null;
+
+  /** Итоги сессии / протокол консультации. */
+  @Column({ type: 'text', nullable: true })
+  sessionSummary: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  followUpAt: Date | null;
+
+  // ==== АРЕНДА ====
+  /** Количество единиц ресурса (пул: «3 велосипеда из 12»). */
+  @Column({ type: 'integer', default: 1 })
+  units: number;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
+  depositAmount: string | null;
+
+  @Column({ type: 'varchar', length: 16, default: 'none' })
+  depositStatus: ReservationDepositStatus;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  issuedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  returnedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  conditionOut: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  conditionIn: string | null;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
+  lateFee: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
