@@ -9,7 +9,7 @@ import {
   HotelReviewSyncRun,
   HotelReviewVersion,
 } from './reputation.entities';
-import { APIFY_PLATFORMS, ReputationConfig, historyFloor, toRating10 } from './reputation.constants';
+import { APIFY_PLATFORMS, ReputationConfig, historyFloor, lastScheduleSlot, maxScheduleGapDays, toRating10 } from './reputation.constants';
 import { NormalizedReview, normalizeApifyItem, normalizeGoogleApiReview, placeStatsOf } from './reputation-normalize.util';
 import { ReputationCompetitorsService } from './reputation-competitors.service';
 import { ReputationReservationsService } from './reputation-reservations.service';
@@ -383,7 +383,10 @@ export class ReputationSyncService {
     const overlap = SINCE_OVERLAP_DAYS[source.platform] ?? 3;
     const sinceTs = first || opts.backfill ? floor : Math.max(floor, (latest!.publishedAt?.getTime() ?? Date.now()) - overlap * DAY);
     const lim = cfg.apifyActors[source.platform];
-    const max = opts.backfill ?? opts.max ?? (first ? lim.firstLoadMax : await this.plannedMax(source, lim.maxPerRun));
+    const max =
+      opts.backfill ??
+      opts.max ??
+      (first ? lim.firstLoadMax : cfg.schedule.mode === 'days' ? await this.gapMax(source, latest!.publishedAt, overlap) : await this.plannedMax(source, lim.maxPerRun));
     const input = this.apify.buildInput(actor.input, { url: source.url, max, since: new Date(sinceTs).toISOString().slice(0, 10) });
     const run = await this.openRun(source, opts.test ? 'test' : opts.backfill ? 'backfill' : trigger, actor.id);
     try {
@@ -393,6 +396,7 @@ export class ReputationSyncService {
       if (opts.backfill) await this.sources.update({ id: source.id }, { backfillMax: null });
       if (cfg.apifyPause.reason) await this.settings.patchConfig(source.tenantId, { apifyPause: { reason: null, at: null } } as any);
       await this.sources.update({ id: source.id }, { lastSyncAt: new Date() });
+      this.retryAt.delete(source.id);
       return { runId: run.id, apifyRunId: started.runId, firstLoad: first };
     } catch (e: any) {
       const msg = e?.getResponse?.()?.message || e?.message || String(e);
@@ -413,7 +417,8 @@ export class ReputationSyncService {
       // 5xx / сеть у самого Apify — площадка ни при чём: тихий повтор через 20 минут (плановый запуск)
       if (!opts.test && trigger === 'schedule' && APIFY_TRANSIENT_RE.test(msg)) {
         await this.runs.delete({ id: run.id });
-        await this.sources.update({ id: source.id }, { lastSyncAt: new Date(Date.now() - this.intervalMs(source, cfg) + 20 * 60_000) });
+        if (cfg.schedule.mode === 'days') this.retryAt.set(source.id, Date.now() + 20 * 60_000);
+        else await this.sources.update({ id: source.id }, { lastSyncAt: new Date(Date.now() - this.intervalMs(source, cfg) + 20 * 60_000) });
         this.log.warn(`apify start ${source.platform}/${source.hotelId}: ${msg} — retry in 20 min`);
         return { queued: true };
       }
@@ -437,6 +442,53 @@ export class ReputationSyncService {
     if (regular[0].newCount > 0 && regular[0].newCount >= regular[0].fetched) return cap;
     const avgNew = regular.reduce((a, r) => a + r.newCount, 0) / regular.length;
     return Math.max(3, Math.min(cap, Math.ceil(avgNew * 2) + 3));
+  }
+
+  /**
+   * Режим «по дням недели»: между запусками бывает неделя и больше (а после паузы по бюджету — несколько недель),
+   * поэтому объём считаем от реального потока площадки: отзывов в день за последние 60/30 дней × дни с последнего
+   * собранного отзыва (+ нахлёст), с запасом ×1.5. Скрейперы с фильтром по дате всё равно отдают только новое,
+   * HolidayCheck (без фильтра) — платим лишь за небольшой запас.
+   */
+  private async gapMax(source: HotelReviewSource, latestAt: Date | null, overlapDays: number): Promise<number> {
+    const [r] = await this.reviews.query(
+      `SELECT count(*) FILTER (WHERE "publishedAt" >= now() - interval '60 days')::int AS n60,
+              count(*) FILTER (WHERE "publishedAt" >= now() - interval '30 days')::int AS n30
+         FROM hotel_reviews WHERE "sourceId" = $1`,
+      [source.id],
+    );
+    const perDay = Math.max((r?.n60 || 0) / 60, (r?.n30 || 0) / 30);
+    const days = Math.min(90, (Date.now() - (latestAt?.getTime() ?? Date.now())) / DAY + overlapDays);
+    return Math.max(5, Math.min(1000, Math.ceil(perDay * days * 1.5) + 5));
+  }
+
+  /** Поток отзывов по каждому активному источнику (отзывов в день за 60/30 дней) — для прогноза расхода Apify в настройках. */
+  async sourceFlows(tenantId: string): Promise<Array<{ platform: string; perDay: number }>> {
+    const rows: Array<{ platform: string; n60: number; n30: number }> = await this.reviews.query(
+      `SELECT s.platform,
+              count(r.id) FILTER (WHERE r."publishedAt" >= now() - interval '60 days')::int AS n60,
+              count(r.id) FILTER (WHERE r."publishedAt" >= now() - interval '30 days')::int AS n30
+         FROM hotel_review_sources s LEFT JOIN hotel_reviews r ON r."sourceId" = s.id
+        WHERE s."tenantId" = $1 AND s.active AND s.url IS NOT NULL
+        GROUP BY s.id, s.platform`,
+      [tenantId],
+    );
+    return rows.map((x) => ({ platform: x.platform, perDay: Math.round(Math.max(x.n60 / 60, x.n30 / 30) * 100) / 100 }));
+  }
+
+  /** Повтор после временного сбоя Apify в режиме «по дням» (слот уже наступил — ждём 20 минут, не 2). */
+  private readonly retryAt = new Map<string, number>();
+
+  /** Пора ли собирать источник по расписанию клиента. */
+  private isDue(s: HotelReviewSource, cfg: ReputationConfig): boolean {
+    if (s.backfillMax || !s.lastSyncAt) return true;
+    if (cfg.schedule.mode === 'days') {
+      const retry = this.retryAt.get(s.id);
+      if (retry && Date.now() < retry) return false;
+      const slot = lastScheduleSlot(cfg.schedule);
+      return !!slot && s.lastSyncAt.getTime() < slot.getTime();
+    }
+    return Date.now() - s.lastSyncAt.getTime() >= this.intervalMs(s, cfg) - 60_000;
   }
 
   /** Бюджет кончился: весь сбор тенанта на паузу (повтор раз в 3 часа или по кнопке), один алерт. */
@@ -608,7 +660,7 @@ export class ReputationSyncService {
       for (const s of mine) {
         const viaApify = APIFY_PLATFORMS.includes(s.platform) || (s.platform === 'google' && (!googleApi || !s.externalId));
         if (!viaApify || !hasToken || !s.url) continue;
-        if (!s.backfillMax && s.lastSyncAt && Date.now() - s.lastSyncAt.getTime() < this.intervalMs(s, cfg) - 60_000) continue;
+        if (!this.isDue(s, cfg)) continue;
         if ((await this.runningApifyCount(tenantId)) >= cfg.schedule.maxConcurrentRuns) {
           ownWaiting = true;
           break;
@@ -847,7 +899,8 @@ export class ReputationSyncService {
     const all = await this.sources.find({ where: { active: true } });
     for (const s of all) {
       const cfg = await this.settings.config(s.tenantId);
-      const days = cfg.thresholds.staleDays;
+      // при сборе раз в несколько дней «тишина» между запусками — норма, а не поломка площадки
+      const days = cfg.thresholds.staleDays + (cfg.schedule.mode === 'days' ? maxScheduleGapDays(cfg.schedule.days) : 0);
       const lastNew = s.lastNewAt?.getTime() ?? 0;
       if (!lastNew || Date.now() - lastNew < days * DAY) continue;
       // «обычный поток»: за 60 дней до затишья приходило хотя бы ~1 отзыв в неделю

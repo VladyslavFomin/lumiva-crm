@@ -8,6 +8,7 @@ import {
   draftRepReply,
   fetchRepDuplicateCandidates,
   fetchRepReview,
+  fetchRepSettings,
   markRepDuplicate,
   markRepReplied,
   reanalyzeRepReview,
@@ -17,9 +18,10 @@ import {
   type RepDupBrief,
   type RepStay,
   type RepReviewCard,
+  type RepSettings,
   type RepTranslationLang,
 } from '../../../api/hotelReputation';
-import { fmtDate, topicLabel, useRepT, PLATFORM_META } from './ReputationShared';
+import { fillReplyTemplate, fmtDate, templateToneFor, topicLabel, useRepT, PLATFORM_META } from './ReputationShared';
 import { AiCharacterMono } from '../../ai-employees/AiCharacter';
 import { useNumFmt, Btn, Frame, Ico, PlatformBadge, Seg, Track, cx, scoreClass } from './rvui';
 
@@ -35,6 +37,22 @@ const normalizeTranslationLang = (value?: string | null): RepTranslationLang => 
     ? (code as RepTranslationLang)
     : 'en';
 };
+
+let settingsCache: Promise<RepSettings | null> | null = null;
+/** Шаблоны и подписи — одни на все карточки; при правке в настройках страница перезагружается. */
+const loadSettingsOnce = () => (settingsCache ??= fetchRepSettings().catch(() => null));
+export const resetRepSettingsCache = () => {
+  settingsCache = null;
+};
+
+/** Очередь «без ответа»: позиция, переходы, выход. */
+export interface RepQueueNav {
+  pos: number;
+  total: number;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onExit: () => void;
+}
 
 /** Короткая строка о другом отзыве (дубликат / кандидат). */
 const DupLine: React.FC<{ d: RepDupBrief; negBelow: number; onOpen?: (id: string) => void }> = ({ d, negBelow, onOpen }) => {
@@ -262,7 +280,11 @@ export const ReviewCardDrawer: React.FC<{
   onChanged: () => void;
   /** Открыть другой отзыв в этой же карточке (дубликат на другой площадке). */
   onOpen?: (id: string) => void;
-}> = ({ id, negBelow, canWrite, onClose, onChanged, onOpen }) => {
+  /** Режим очереди: счётчик, ←/→ и автопереход после ответа. */
+  queue?: RepQueueNav;
+  /** Ответ отправлен или отмечен — очередь переходит к следующему. */
+  onReplied?: () => void;
+}> = ({ id, negBelow, canWrite, onClose, onChanged, onOpen, queue, onReplied }) => {
   const { r, lang } = useRepT();
   const num = useNumFmt();
   const { showAlert } = useAlertModal();
@@ -273,6 +295,11 @@ export const ReviewCardDrawer: React.FC<{
   const [busy, setBusy] = useState<string | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [tone, setTone] = useState<(typeof TONES)[number] | ''>('');
+  const [settings, setSettings] = useState<RepSettings | null>(null);
+  const [tplNote, setTplNote] = useState<string | null>(null);
+  useEffect(() => {
+    loadSettingsOnce().then(setSettings);
+  }, []);
 
   const load = () =>
     fetchRepReview(id)
@@ -289,16 +316,31 @@ export const ReviewCardDrawer: React.FC<{
     setCard(null);
     setReplyOpen(false);
     setTone('');
+    setTplNote(null);
+    setDraft('');
     setShowOriginal(true);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (!queue || e.metaKey || e.ctrlKey || e.altKey) return;
+      // в поле ввода стрелки и буквы — для текста, не для навигации
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
+      if ((e.key === 'ArrowRight' || e.key === 'j') && queue.onNext) {
+        e.preventDefault();
+        queue.onNext();
+      } else if ((e.key === 'ArrowLeft' || e.key === 'k') && queue.onPrev) {
+        e.preventDefault();
+        queue.onPrev();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, queue]);
 
   const run = async (name: string, fn: () => Promise<unknown>, okMsg?: string) => {
     setBusy(name);
@@ -327,6 +369,7 @@ export const ReviewCardDrawer: React.FC<{
         const c = await sendRepReply(id, draft);
         setCard(c);
         onChanged();
+        onReplied?.();
       },
       r('card.replyQueued'),
     );
@@ -348,6 +391,7 @@ export const ReviewCardDrawer: React.FC<{
       const c = await markRepReplied(id, replied, replied ? draft : undefined);
       setCard(c);
       onChanged();
+      if (replied) onReplied?.();
     });
 
   const c = card;
@@ -367,6 +411,38 @@ export const ReviewCardDrawer: React.FC<{
   })();
   const agentName = c?.reviewsAgent?.name;
 
+  // шаблоны: сначала подходящие по оценке, потом универсальные, потом остальные
+  const templates = (() => {
+    const list = settings?.config.replyTemplates || [];
+    const want = c ? templateToneFor(c.rating10, negBelow) : 'any';
+    const rank = (t: (typeof list)[number]) => (t.tone === want ? 0 : t.tone === 'any' ? 1 : 2);
+    return [...list].sort((a, b) => rank(a) - rank(b));
+  })();
+  const applyTemplate = (tid: string) => {
+    const t = templates.find((x) => x.id === tid);
+    if (!t || !c) return;
+    const hotel = c.hotel?.name || '';
+    const res = fillReplyTemplate(t, c.lang, { author: c.author, hotel, signature: settings?.config.signatures?.[c.hotelId] || hotel });
+    setDraft(res.text);
+    setReplyOpen(true);
+    setTplNote(res.exact ? null : r('tpl.fallbackLang', { have: res.lang.toUpperCase(), want: (c.lang || '—').slice(0, 2).toUpperCase() }));
+  };
+  const templatePicker = templates.length > 0 && (
+    <select
+      className="rv-in"
+      style={{ width: 'auto', height: 32, fontSize: 12.5 }}
+      aria-label={r('tpl.pick')}
+      value=""
+      disabled={busy === 'draft'}
+      onChange={(e) => applyTemplate(e.target.value)}
+    >
+      <option value="">{r('tpl.pick')}</option>
+      {templates.map((t) => (
+        <option key={t.id} value={t.id}>{t.name}</option>
+      ))}
+    </select>
+  );
+
   return (
     <>
       <div className="rv-scrim" onClick={onClose} />
@@ -378,6 +454,16 @@ export const ReviewCardDrawer: React.FC<{
           </div>
           <span className="x"><Btn gh sm icon="x" onClick={onClose} aria-label={r('card.close')} /></span>
         </div>
+        {queue && (
+          <div className="rv-queue-bar">
+            <b>{r('queue.pos', { pos: queue.pos, total: queue.total })}</b>
+            <span className="hint">{r('queue.keys')}</span>
+            <span className="sp" />
+            <Btn sm gh disabled={!queue.onPrev} onClick={queue.onPrev} aria-label={r('queue.prev')} title={r('queue.prev')}>‹</Btn>
+            <Btn sm gh disabled={!queue.onNext} onClick={queue.onNext} aria-label={r('queue.next')} title={r('queue.next')}>{r('queue.skip')} ›</Btn>
+            <Btn sm gh onClick={queue.onExit}>{r('queue.exit')}</Btn>
+          </div>
+        )}
         {c && (
           <div className="rv-dr-body">
             <div className="rv-dr-top">
@@ -567,6 +653,7 @@ export const ReviewCardDrawer: React.FC<{
                     <Btn pri icon="sparkle" disabled={busy === 'draft' || !c.reviewsAgent} onClick={() => genDraft()}>
                       {busy === 'draft' ? r('card.draftingBy', { name: agentName || '' }) : agentName ? r('card.aiDraftBy', { name: agentName }) : r('card.aiDraft')}
                     </Btn>
+                    {templatePicker}
                     <Btn onClick={() => setReplyOpen(true)}>{r('card.writeManually')}</Btn>
                   </div>
                 ) : (
@@ -582,7 +669,9 @@ export const ReviewCardDrawer: React.FC<{
                       </div>
                     )}
                     <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={r('card.replyPlaceholder')} disabled={busy === 'draft'} />
+                    {tplNote && <div className="rv-note warn" style={{ margin: '8px 0 0' }}>{tplNote}</div>}
                     <div className="rv-compose-f">
+                      {templatePicker}
                       <span style={{ fontSize: 11.5, color: 'var(--n7)' }}>{r('rv.card.chars', { n: draft.length, lang: (c.lang || '—').toUpperCase() })}</span>
                       <span className="sp" />
                       {mode === 'api' ? (
@@ -592,7 +681,7 @@ export const ReviewCardDrawer: React.FC<{
                       ) : (
                         <>
                           <Btn icon="copy" disabled={!draft.trim() || busy === 'draft'} onClick={copyAndOpen}>{r('card.copyOpen')}</Btn>
-                          {!c.hasReply && <Btn pri disabled={busy === 'mark' || busy === 'draft'} onClick={() => mark(true)}>{r('card.markReplied')}</Btn>}
+                          {!c.hasReply && <Btn pri disabled={busy === 'mark' || busy === 'draft'} onClick={() => mark(true)}>{queue ? r('queue.markNext') : r('card.markReplied')}</Btn>}
                         </>
                       )}
                     </div>

@@ -14,6 +14,7 @@ import {
   Recipients,
   TOPIC_KEYS,
   mergeConfig,
+  sanitizeReplyTemplates,
 } from './reputation.constants';
 import { decryptSecret, encryptSecret, maskSecret } from './reputation-crypto.util';
 
@@ -24,6 +25,15 @@ const clampNum = (v: unknown, min: number, max: number, def: number) => {
 };
 
 /** Настройки модуля отзывов, бренды и привязка отелей к площадкам. */
+function validTz(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 @Injectable()
 export class ReputationSettingsService {
   constructor(
@@ -134,7 +144,14 @@ export class ReputationSettingsService {
         maxPerRun: Math.round(clampNum(sc.maxPerRun, 5, 500, cur.schedule.maxPerRun)),
         firstLoadMax: Math.round(clampNum(sc.firstLoadMax, 10, 20000, cur.schedule.firstLoadMax)),
         maxConcurrentRuns: Math.round(clampNum(sc.maxConcurrentRuns, 1, 100, cur.schedule.maxConcurrentRuns)),
+        mode: sc.mode === 'days' || sc.mode === 'interval' ? sc.mode : cur.schedule.mode,
+        days: Array.isArray(sc.days)
+          ? [...new Set<number>(sc.days.map(Number).filter((x: number) => Number.isInteger(x) && x >= 1 && x <= 7))].sort((a, b) => a - b)
+          : cur.schedule.days,
+        at: typeof sc.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(sc.at) ? sc.at : cur.schedule.at,
+        tz: typeof sc.tz === 'string' && validTz(sc.tz) ? sc.tz : cur.schedule.tz,
       };
+      if (cur.schedule.mode === 'days' && !cur.schedule.days.length) throw new BadRequestException('Choose at least one day of the week');
     }
     if (b.translateTo === 'ru' || b.translateTo === 'en') cur.translateTo = b.translateTo;
     if (b.telegramBotId !== undefined) {
@@ -152,6 +169,7 @@ export class ReputationSettingsService {
       if (b.recipients.brands) for (const [k, v] of Object.entries(b.recipients.brands)) cur.recipients.brands[k] = clean(v);
       if (b.recipients.hotels) for (const [k, v] of Object.entries(b.recipients.hotels)) cur.recipients.hotels[k] = clean(v);
     }
+    if (b.replyTemplates !== undefined) cur.replyTemplates = sanitizeReplyTemplates(b.replyTemplates);
     if (b.signatures) for (const [k, v] of Object.entries(b.signatures)) cur.signatures[k] = String(v || '').slice(0, 200);
     if (b.apifyActors) {
       for (const [k, v] of Object.entries(b.apifyActors as Record<string, any>)) {

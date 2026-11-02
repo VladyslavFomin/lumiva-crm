@@ -111,7 +111,8 @@ export class ReputationReviewsService {
     };
   }
 
-  async feed(tenantId: string, q: FeedQuery) {
+  /** scopeIds — отели, доступные сотруднику (null — все): счётчик «негатив без ответа» тоже только по ним. */
+  async feed(tenantId: string, q: FeedQuery, scopeIds: string[] | null = null) {
     const cfg = await this.settings.config(tenantId);
     const qb = this.reviews.createQueryBuilder('r').where('r.tenantId = :tenantId', { tenantId });
     // мультивыбор: «id1,id2» — любой из списка
@@ -160,6 +161,7 @@ export class ReputationReviewsService {
     const unansweredNegative = await this.reviews
       .createQueryBuilder('r')
       .where(`r.tenantId = :tenantId AND r.hasReply = false AND r.platform <> 'check24' AND ${reviewHasTextSql('r')} AND r.status <> 'deleted' AND r.rating10 < :nb`, { tenantId, nb: negBelow })
+      .andWhere(scopeIds ? 'r.hotelId = ANY(:scopeIds)' : '1=1', { scopeIds: scopeIds?.length ? scopeIds : ['00000000-0000-0000-0000-000000000000'] })
       .getCount();
     return {
       total,

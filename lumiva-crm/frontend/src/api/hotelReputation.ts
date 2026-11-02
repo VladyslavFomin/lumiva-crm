@@ -184,6 +184,7 @@ export async function downloadRepReport(body: RepReportRequest): Promise<void> {
 }
 export const sendRepReport = (body: RepReportRequest & { emails: string[]; message?: string }) =>
   api.post<{ sent: number; results: Array<{ email: string; ok: boolean; error?: string }> }>('/hotel-reputation/analytics/report/send', body);
+export const fetchRepApifyFlows = () => api.get<Array<{ platform: RepPlatform; perDay: number }>>('/hotel-reputation/apify/flows');
 export const fetchRepApifyUsage = () => api.get<{ used: number | null; limit: number | null; cycleEnd: string | null } | null>('/hotel-reputation/apify/usage');
 
 export interface RepSeriesPoint { bucket: string; count: number; avg10: number | null; negativeShare: number | null }
@@ -235,7 +236,7 @@ export type RepAlertKind = 'negative' | 'no_reply' | 'rating_lowered' | 'avg_dro
 export interface RepConfig {
   thresholds: { negativeBelow: number; noReplyHours: number; ratingDropPoints: number; topicRepeatCount: number; topicRepeatDays: number; staleDays: number; countDriftPct: number };
   alerts: Record<RepAlertKind, boolean>;
-  schedule: { holidaycheckMinutes: number; apifyHours: number; otelpuanHours: number; offSeason: boolean; maxPerRun: number; firstLoadMax: number; maxConcurrentRuns: number };
+  schedule: { holidaycheckMinutes: number; apifyHours: number; otelpuanHours: number; offSeason: boolean; maxPerRun: number; firstLoadMax: number; maxConcurrentRuns: number; mode: 'interval' | 'days'; days: number[]; at: string; tz: string };
   translateTo: 'ru' | 'en';
   telegramBotId: string | null;
   recipients: { developer: RepRecipients; brands: Record<string, RepRecipients>; hotels: Record<string, RepRecipients> };
@@ -251,7 +252,16 @@ export interface RepConfig {
   monthlyReport: { enabled: boolean };
   apifyPause: { reason: string | null; at: string | null };
   historyFrom: string | null;
+  replyTemplates: RepReplyTemplate[];
 }
+export type RepTemplateTone = 'positive' | 'mixed' | 'negative' | 'any';
+/** Готовый ответ: тексты по языкам (en, de, ru, tr …), подстановки {author} {hotel} {signature}. */
+export interface RepReplyTemplate { id: string; name: string; tone: RepTemplateTone; texts: Record<string, string> }
+export interface RepAccessUser { id: string; name: string | null; email: string; role: string; limited: boolean; hotelIds: string[]; brandIds: string[] }
+export const fetchRepAccessMe = () => api.get<{ limited: boolean; hotelIds: string[] }>('/hotel-reputation/access/me');
+export const fetchRepAccess = () => api.get<RepAccessUser[]>('/hotel-reputation/access');
+export const setRepAccess = (userId: string, body: { limited: boolean; hotelIds?: string[]; brandIds?: string[] }) =>
+  api.put<RepAccessUser>(`/hotel-reputation/access/${userId}`, body);
 export interface RepSettings {
   config: RepConfig;
   apifyToken: string | null;

@@ -2,8 +2,8 @@
    сталь #5980a6, волосяные рамки с метками «+», квадратные углы. Всё в области .rv. */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600&family=Fira+Sans+Condensed:wght@500;600;700&subset=cyrillic,latin-ext&display=swap');
 
-.rv{--h:'Fira Sans Condensed','Inter Tight',sans-serif;--t:'Fira Sans','Inter',sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;--acc:#5980a6;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#d4d4d7;--n5:#98989b;--n7:#5d5d60;--tx:#1d1f20;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#d4d4d7;font-family:var(--t);font-size:14px;color:var(--tx);width:100%}
-.rv-portal{--h:'Fira Sans Condensed','Inter Tight',sans-serif;--t:'Fira Sans','Inter',sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,monospace;--acc:#5980a6;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#d4d4d7;--n5:#98989b;--n7:#5d5d60;--tx:#1d1f20;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#d4d4d7;font-family:var(--t)}
+.rv{--h:var(--ff-heading);--t:var(--ff-text);--ff-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;--acc:#222;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#e7e7e7;--n5:#98989b;--n7:#5d5d60;--tx:#222;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#e7e7e7;font-family:var(--t);font-size:14px;color:var(--tx);width:100%}
+.rv-portal{--h:var(--ff-heading);--t:var(--ff-text);--ff-mono:'JetBrains Mono',ui-monospace,monospace;--acc:#222;--acc1:#eef6ff;--acc2:#d6ebff;--acc3:#b5d9fd;--acc4:#94bce3;--acc6:#597ea3;--acc7:#416180;--acc8:#2c455d;--acc9:#1d2d3d;--n2:#e7e7ea;--n3:#e7e7e7;--n5:#98989b;--n7:#5d5d60;--tx:#222;--neg:#c23a4e;--neg1:#fbecee;--pos:#2b7a57;--pos1:#e8f3ed;--mid:#b9772a;--mid1:#f8efe2;--ln:#e7e7e7;font-family:var(--t)}
 .rv h1,.rv h2,.rv h3,.rv h4,.rv .h{font-family:var(--h);font-weight:600;margin:0;letter-spacing:.005em;color:var(--tx)}
 .rv .num{font-family:var(--h);font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
 .rv .kick{font-family:var(--ff-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--n7)}
@@ -40,7 +40,7 @@
 
 /* шапка */
 .rv-head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap;padding:6px 0 18px}
-.rv-head h1{font-size:40px;line-height:.95;margin-top:10px;text-transform:uppercase;letter-spacing:.01em}
+.rv-head h1{font-size:34px;line-height:1.05;margin-top:10px;letter-spacing:0}
 .rv-head .sub{font-size:13.5px;color:var(--n7);margin-top:8px;max-width:560px;line-height:1.5;text-wrap:pretty}
 .rv-head-r{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .rv-kick{display:inline-flex;align-items:center;gap:8px}
@@ -49,7 +49,7 @@
 
 /* вкладки */
 .rv-tabs{display:flex;gap:0;border-bottom:1px solid var(--ln);margin-bottom:18px;position:relative}
-.rv-tab{position:relative;padding:11px 18px 12px;font-family:var(--h)!important;font-size:16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--n7);cursor:pointer;display:flex;align-items:center;gap:8px;background:none;border:0;transition:color .15s}
+.rv-tab{position:relative;padding:9px 14px 10px;font-family:var(--t)!important;font-size:13px;font-weight:500;letter-spacing:0;color:var(--n7);cursor:pointer;display:flex;align-items:center;gap:8px;background:none;border:0;transition:color .15s}
 .rv-tab:hover{color:var(--tx)}
 .rv-tab.on{color:var(--tx)}
 .rv-tab-ink{position:absolute;bottom:-1px;height:2px;background:var(--acc);transition:left .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1)}
@@ -157,7 +157,7 @@
 .rv-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .rv-more{display:flex;justify-content:center;padding:18px}
 .rv-empty{padding:40px 20px;text-align:center;color:var(--n7);font-size:13px}
-.rv-empty h4{font-size:20px;text-transform:uppercase;margin-bottom:6px;color:var(--tx)}
+.rv-empty h4{font-size:20px;margin-bottom:6px;color:var(--tx)}
 
 /* карточка отзыва (рисуется вне .rv — портал/фиксированный слой, поэтому дублируем область) */
 .rv-scrim{position:fixed;inset:0;background:rgba(29,45,61,.28);z-index:80;animation:rvFade .25s ease-out both}
@@ -165,8 +165,12 @@
 .rv-drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100vw);background:#f7f7f8;z-index:81;display:flex;flex-direction:column;border-left:1px solid var(--ln);box-shadow:-20px 0 60px rgba(29,45,61,.14);animation:rvSlide .38s cubic-bezier(.2,.8,.2,1) both;max-width:none;margin:0}
 @keyframes rvSlide{from{transform:translateX(40px);opacity:0}}
 .rv-dr-head{display:flex;align-items:flex-start;gap:14px;padding:18px 22px 16px;border-bottom:1px solid var(--ln);background:#fff}
-.rv-dr-head h3{font-size:26px;text-transform:uppercase;line-height:1;margin-top:6px}
+.rv-dr-head h3{font-size:26px;line-height:1;margin-top:6px}
 .rv-dr-head .x{margin-left:auto}
+.rv-queue-bar{display:flex;align-items:center;gap:8px;padding:9px 22px;border-bottom:1px solid var(--ln);background:#f7f7f5;font-size:12.5px;flex-wrap:wrap}
+.rv-queue-bar b{font-weight:600;color:var(--ink)}
+.rv-queue-bar .hint{color:var(--n7);font-size:11.5px}
+.rv-queue-bar .sp{flex:1}
 .rv-dr-body{flex:1;overflow-y:auto;padding:0 22px 30px}
 .rv-dr-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center;padding:18px 0;border-bottom:1px solid var(--ln)}
 .rv-dr-big{width:96px;height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -177,7 +181,7 @@
 .rv-sec{padding:18px 0;border-bottom:1px solid var(--ln)}
 .rv-sec:last-child{border-bottom:0}
 .rv-sec-h{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-.rv-sec-h h4{font-size:15px;text-transform:uppercase;letter-spacing:.06em}
+.rv-sec-h h4{font-size:15px;letter-spacing:0}
 .rv-sec-h .sp{flex:1}
 .rv-text{font-size:14px;line-height:1.65;color:#2a2c2e;white-space:pre-wrap;text-wrap:pretty}
 .rv-text b{font-weight:600}
@@ -223,7 +227,7 @@
 .rv-grid3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:22px;margin-bottom:22px}
 .rv-card{padding:18px 18px 16px;min-width:0}
 .rv-card-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.rv-card-h h3{font-size:19px;text-transform:uppercase;letter-spacing:.03em;line-height:1.1}
+.rv-card-h h3{font-size:19px;letter-spacing:0;line-height:1.1}
 .rv-card-h .sub{font-size:12px;color:var(--n7);margin-top:4px;line-height:1.45}
 .rv-card-h .r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .rv-card-h h3.neg{color:var(--neg)}.rv-card-h h3.pos{color:var(--pos)}
@@ -280,7 +284,7 @@
 .rv-set-nav .no{font-family:var(--ff-mono);font-size:10px;color:var(--n5);width:18px}
 .rv-set-nav .bd{margin-left:auto}
 .rv-set-sec{padding:20px;margin-bottom:22px}
-.rv-set-sec h3{font-size:19px;text-transform:uppercase;letter-spacing:.03em}
+.rv-set-sec h3{font-size:19px;letter-spacing:0}
 .rv-set-sec .sub{font-size:12.5px;color:var(--n7);margin:4px 0 16px;line-height:1.5;max-width:640px}
 .rv-fgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 18px}
 .rv-field{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--n7);min-width:0}
@@ -316,7 +320,7 @@
   linear-gradient(var(--acc),var(--acc)) calc(100% - 4px) 100%/1px 9px no-repeat,linear-gradient(var(--acc),var(--acc)) 100% calc(100% - 4px)/9px 1px no-repeat}
 .rv .rp-conn .rp-conn{margin-bottom:12px}
 .rv .ha-section-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.rv .ha-section-head h3,.rv .rp-conn-head h3,.rv .rp-conn h3{font-family:var(--h);font-size:19px;text-transform:uppercase;letter-spacing:.03em;line-height:1.1;display:flex;align-items:center;gap:8px}
+.rv .ha-section-head h3,.rv .rp-conn-head h3,.rv .rp-conn h3{font-family:var(--h);font-size:19px;letter-spacing:0;line-height:1.1;display:flex;align-items:center;gap:8px}
 .rv .ha-section-head .sub{font-size:12.5px;color:var(--n7);margin-top:4px;line-height:1.5;max-width:680px}
 .rv .rp-conn-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .rv .btn{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--n3);background:transparent;color:var(--tx);font:500 13px var(--t);cursor:pointer;border-radius:0;box-shadow:none;transition:background .15s,border-color .15s;white-space:nowrap;text-transform:none;letter-spacing:0}

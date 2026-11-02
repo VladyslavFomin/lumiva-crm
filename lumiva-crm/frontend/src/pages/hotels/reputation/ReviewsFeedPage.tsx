@@ -15,7 +15,7 @@ import {
   type RepFeedQuery,
   type RepSetup,
 } from '../../../api/hotelReputation';
-import { AiStatusBanner, ApifyPauseBanner, PLATFORM_META, TOPIC_KEYS, fmtDate, topicLabel, useRepT } from './ReputationShared';
+import { AiStatusBanner, ApifyPauseBanner, PLATFORM_META, TOPIC_KEYS, fmtDate, topicLabel, useRepAccessMe, useRepT } from './ReputationShared';
 import { AgentStrip, Btn, Ico, PlatformBadge, RvHead, RvTabs, Score, Sel, cx } from './rvui';
 import { ReviewCardDrawer } from './ReviewCardDrawer';
 import { DateRangePicker, fromIsoDate, lastDays, toIsoDate } from '../../../components/ui/DateRangePicker';
@@ -42,8 +42,12 @@ export const ReviewsFeedPage: React.FC = () => {
   const [extraTopics, setExtraTopics] = useState<Array<{ key: string; label: string; translations?: Partial<Record<'ru' | 'tr' | 'en', string>> }>>([]);
   const [feed, setFeed] = useState<RepFeed | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Для каких фильтров загружена текущая лента (очередь не должна открыть отзыв из прежней выборки). */
+  const [loadedKey, setLoadedKey] = useState('');
   const [qInput, setQInput] = useState(params.get('q') || '');
 
+  // ключ только из фильтров: открытие карточки (?review=) не перезагружает ленту и не сбивает очередь
+  const filtersKey = [...FILTER_KEYS.map((k) => params.get(k) || ''), params.get('hotel') || ''].join('|');
   const filters: RepFeedQuery = useMemo(() => {
     const f: any = {};
     for (const k of FILTER_KEYS) {
@@ -53,7 +57,11 @@ export const ReviewsFeedPage: React.FC = () => {
     // «hotel» / «topic» в ссылках из алертов и дашборда
     if (params.get('hotel')) f.hotelId = params.get('hotel');
     return f;
-  }, [params]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey]);
+  const access = useRepAccessMe();
+  const queueMode = params.get('queue') === '1';
+  const reviewId = params.get('review');
 
   const setFilter = (k: string, v: string | null) => {
     const p = new URLSearchParams(params);
@@ -67,7 +75,69 @@ export const ReviewsFeedPage: React.FC = () => {
     const p = new URLSearchParams(params);
     if (id) p.set('review', id);
     else p.delete('review');
-    setParams(p, { replace: !id });
+    // в очереди листаем без записи каждого отзыва в историю браузера
+    setParams(p, { replace: !id || queueMode });
+  };
+
+  // ---------------------------------------------------------------- очередь «без ответа»
+  /** Неотвеченные с текстом, сначала негатив; по умолчанию за 30 дней (старые обычно уже не ждут ответа). */
+  const startQueue = () => {
+    const p = new URLSearchParams(params);
+    p.set('queue', '1');
+    p.set('reply', 'none');
+    p.set('sort', 'priority');
+    for (const k of ['ratingMin', 'ratingMax', 'status', 'dup', 'review']) p.delete(k);
+    if (!p.get('from') && !p.get('to')) p.set('from', toIsoDate(lastDays(30).from!));
+    setParams(p, { replace: true });
+  };
+  const exitQueue = () => {
+    const p = new URLSearchParams(params);
+    p.delete('queue');
+    p.delete('review');
+    setParams(p, { replace: true });
+  };
+  const loadMoreAndOpen = (skipId?: string) =>
+    fetchRepFeed({ ...filters, offset: feed ? feed.items.length : 0, limit: PAGE })
+      .then((d) => {
+        setFeed((prev) => (prev ? { ...d, items: [...prev.items, ...d.items.filter((x) => !prev.items.some((y) => y.id === x.id))] } : d));
+        const next = d.items.find((x) => x.id !== skipId);
+        if (next) openReview(next.id);
+        else finishQueue();
+      })
+      .catch((e) => showAlert(e.message, { variant: 'error' }));
+  const finishQueue = () => {
+    showAlert(r('queue.done'), { variant: 'success' });
+    exitQueue();
+  };
+  // очередь открыта — сразу первый отзыв; пусто — сообщаем и выходим
+  useEffect(() => {
+    if (!queueMode || loading || !feed || reviewId || loadedKey !== filtersKey) return;
+    if (feed.items.length) openReview(feed.items[0].id);
+    else finishQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueMode, loading, feed, reviewId, loadedKey, filtersKey]);
+  const queueNav = (() => {
+    if (!queueMode || !feed || !reviewId) return undefined;
+    const idx = feed.items.findIndex((x) => x.id === reviewId);
+    const hasMore = feed.items.length < feed.total;
+    return {
+      pos: idx >= 0 ? idx + 1 : 1,
+      total: feed.total,
+      onPrev: idx > 0 ? () => openReview(feed.items[idx - 1].id) : undefined,
+      onNext: idx >= 0 && idx + 1 < feed.items.length ? () => openReview(feed.items[idx + 1].id) : hasMore ? () => loadMoreAndOpen() : undefined,
+      onExit: exitQueue,
+    };
+  })();
+  /** Ответили — убираем из очереди и открываем следующий. */
+  const onQueueReplied = () => {
+    if (!feed || !reviewId) return;
+    const idx = feed.items.findIndex((x) => x.id === reviewId);
+    const rest = feed.items.filter((x) => x.id !== reviewId);
+    setFeed({ ...feed, total: Math.max(0, feed.total - 1), items: rest });
+    const next = rest[idx] || null;
+    if (next) setTimeout(() => openReview(next.id), 350);
+    else if (rest.length < feed.total - 1) setTimeout(() => loadMoreAndOpen(reviewId), 350);
+    else setTimeout(finishQueue, 350);
   };
 
   useEffect(() => {
@@ -84,8 +154,12 @@ export const ReviewsFeedPage: React.FC = () => {
   const load = useCallback(
     (append = false) => {
       setLoading(true);
+      const key = filtersKey;
       return fetchRepFeed({ ...filters, offset: append && feed ? feed.items.length : 0, limit: PAGE })
-        .then((d) => setFeed((prev) => (append && prev ? { ...d, items: [...prev.items, ...d.items] } : d)))
+        .then((d) => {
+          setFeed((prev) => (append && prev ? { ...d, items: [...prev.items, ...d.items] } : d));
+          setLoadedKey(key);
+        })
         .catch((e) => showAlert(e.message, { variant: 'error' }))
         .finally(() => setLoading(false));
     },
@@ -131,6 +205,7 @@ export const ReviewsFeedPage: React.FC = () => {
   const hotelName = (id: string) => hotels.find((h) => h.id === id)?.name || '—';
   const activeCount = FILTER_KEYS.filter((k) => k !== 'sort' && (filters as any)[k]).length;
   const noSources = setup && !hotels.some((h) => h.sources.length);
+  const noSourcesHead = !setup || noSources;
 
   const set1 = (k: string, v: string[]) => setFilter(k, v[0] || null);
   const ratingValue = filters.ratingMin || filters.ratingMax ? `${filters.ratingMin || ''}-${filters.ratingMax || ''}` : '';
@@ -190,7 +265,12 @@ export const ReviewsFeedPage: React.FC = () => {
         <HotelsSubnav active="reviews" />
         <div className="rv">
           <RvHead title={r('feed.title')} sub={r('feed.subtitle')}>
-            <Btn icon="settings" data-tour="rv-setup" onClick={() => navigate('/hotels/reviews/settings')}>{r('feed.setup')}</Btn>
+            {!noSourcesHead && (queueMode ? (
+              <Btn onClick={exitQueue}>{r('queue.exit')}</Btn>
+            ) : (
+              <Btn pri icon="arrow" onClick={startQueue} title={r('queue.startHint')}>{r('queue.start')}</Btn>
+            ))}
+            {access && !access.limited && <Btn icon="settings" data-tour="rv-setup" onClick={() => navigate('/hotels/reviews/settings')}>{r('feed.setup')}</Btn>}
           </RvHead>
           <RvTabs active="feed" urgent={feed?.unansweredNegative} />
 
@@ -345,14 +425,17 @@ export const ReviewsFeedPage: React.FC = () => {
             </div>
           )}
 
-          {params.get('review') && (
+          {reviewId && (
             <ReviewCardDrawer
-              id={params.get('review')!}
+              id={reviewId}
               negBelow={negBelow}
               canWrite
-              onClose={() => openReview(null)}
-              onChanged={() => load(false)}
+              onClose={() => (queueMode ? exitQueue() : openReview(null))}
+              // в очереди список не перезагружаем — порядок и позиция остаются на месте
+              onChanged={() => !queueMode && load(false)}
               onOpen={(rid) => openReview(rid)}
+              queue={queueNav}
+              onReplied={queueMode ? onQueueReplied : undefined}
             />
           )}
         </div>

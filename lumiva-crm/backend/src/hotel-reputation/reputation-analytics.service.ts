@@ -439,9 +439,10 @@ export class ReputationAnalyticsService {
   }
 
   /** Короткая сводка по всем отелям (карточки отелей, список, виджет главной): 90 дней. */
-  async hotelsSummary(tenantId: string) {
+  /** onlyHotels — отели, доступные сотруднику (null — все): и строки, и итоги только по ним. */
+  async hotelsSummary(tenantId: string, onlyHotels: string[] | null = null) {
     const cfg = await this.settings.config(tenantId);
-    const rows = await this.reviews.query(
+    const all = await this.reviews.query(
       `SELECT r."hotelId",
               COUNT(*) FILTER (WHERE r."publishedAt" > now() - interval '90 days')::int AS n90,
               ROUND(AVG(r."rating10") FILTER (WHERE r."publishedAt" > now() - interval '90 days'), 2) AS avg90,
@@ -453,6 +454,7 @@ export class ReputationAnalyticsService {
          FROM hotel_reviews r WHERE r."tenantId" = $1 AND r.status <> 'deleted' GROUP BY r."hotelId"`,
       [tenantId, cfg.thresholds.negativeBelow],
     );
+    const rows = onlyHotels ? all.filter((x: any) => onlyHotels.includes(x.hotelId)) : all;
     const totals = rows.reduce((a: any, x: any) => ({ n7: a.n7 + x.n7, openNeg: a.openNeg + x.open_neg, openAll: a.openAll + x.open_all }), { n7: 0, openNeg: 0, openAll: 0 });
     const n90 = rows.reduce((a: number, x: any) => a + x.n90, 0);
     const avg90 = n90 ? round(rows.reduce((a: number, x: any) => a + (x.avg90 ? Number(x.avg90) * x.n90 : 0), 0) / n90) : null;

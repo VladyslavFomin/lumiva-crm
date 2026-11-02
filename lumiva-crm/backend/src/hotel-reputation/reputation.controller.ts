@@ -19,9 +19,10 @@ import { ReputationDuplicatesService } from './reputation-duplicates.service';
 import { ReportRequest, ReputationReportService } from './reputation-report.service';
 import { CompetitorAnalyticsQuery, ReputationCompetitorsService } from './reputation-competitors.service';
 import { ReputationReservationsService } from './reputation-reservations.service';
+import { ReputationAccessService } from './reputation-access.service';
 import { tenantFrontend } from './reputation-tenant.util';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { HotelReviewSource, HotelReviewSyncRun } from './reputation.entities';
 
 /** Отели → Отзывы: лента, карточка, ответы, дашборд, настройки площадок. */
@@ -43,6 +44,7 @@ export class ReputationController {
     private readonly report: ReputationReportService,
     private readonly competitors: ReputationCompetitorsService,
     private readonly stays: ReputationReservationsService,
+    private readonly access: ReputationAccessService,
     @InjectRepository(HotelReviewSyncRun) private readonly runs: Repository<HotelReviewSyncRun>,
     @InjectRepository(HotelReviewSource) private readonly sources: Repository<HotelReviewSource>,
   ) {}
@@ -50,8 +52,8 @@ export class ReputationController {
   // ---------------------------------------------------------------- лента и карточка
 
   @Get('reviews')
-  feed(@CurrentUser() u: CurrentUserPayload, @Query() q: FeedQuery) {
-    return this.reviews.feed(u.tenantId, q);
+  async feed(@CurrentUser() u: CurrentUserPayload, @Query() q: FeedQuery) {
+    return this.reviews.feed(u.tenantId, await this.access.restrict(u, q), await this.access.allowed(u));
   }
 
   @Get('ai-status')
@@ -65,44 +67,51 @@ export class ReputationController {
   }
 
   @Get('reviews/:id')
-  card(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async card(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.assertReview(u, id);
     return this.reviews.card(u.tenantId, id);
   }
 
   @Post('reviews/:id/draft')
   @RequirePermission('hotels', 'write')
-  draft(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { tone?: string }) {
+  async draft(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { tone?: string }) {
+    await this.access.assertReview(u, id);
     return this.agent.draftReview(u.tenantId, id, b?.tone, 'card');
   }
 
   @Post('reviews/:id/reply')
   @RequirePermission('hotels', 'write')
-  reply(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { text: string }) {
+  async reply(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { text: string }) {
+    await this.access.assertReview(u, id);
     return this.reviews.reply(u.tenantId, (u.userId ?? u.id ?? u.sub)!, id, b?.text);
   }
 
   @Post('reviews/:id/mark-replied')
   @RequirePermission('hotels', 'write')
-  markReplied(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { replied: boolean; text?: string }) {
+  async markReplied(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { replied: boolean; text?: string }) {
+    await this.access.assertReview(u, id);
     return this.reviews.markReplied(u.tenantId, (u.userId ?? u.id ?? u.sub)!, id, b?.replied !== false, b?.text);
   }
 
   @Post('reviews/:id/reanalyze')
   @RequirePermission('hotels', 'write')
-  reanalyze(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async reanalyze(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.assertReview(u, id);
     return this.reviews.reanalyze(u.tenantId, id);
   }
 
   @Post('reviews/:id/translate')
   @RequirePermission('hotels', 'read')
-  translate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { lang?: string }) {
+  async translate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { lang?: string }) {
+    await this.access.assertReview(u, id);
     return this.reviews.translate(u.tenantId, id, b?.lang);
   }
 
   // ---------------------------------------------------------------- бронь гостя
 
   @Get('reviews/:id/stay-candidates')
-  stayCandidates(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async stayCandidates(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.assertReview(u, id);
     return this.stays.candidates(u.tenantId, id);
   }
 
@@ -110,6 +119,7 @@ export class ReputationController {
   @Post('reviews/:id/stay')
   @RequirePermission('hotels', 'write')
   async stayDecide(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { action?: string; reservationId?: string }) {
+    await this.access.assertReview(u, id);
     await this.stays.decide(u.tenantId, id, b);
     return this.reviews.card(u.tenantId, id);
   }
@@ -117,14 +127,16 @@ export class ReputationController {
   /** Подобрать брони для всех непроверенных отзывов (без внешних запросов). */
   @Post('stays/match')
   @RequirePermission('hotels', 'write')
-  matchStays(@CurrentUser() u: CurrentUserPayload) {
+  async matchStays(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return this.stays.matchReviews(u.tenantId);
   }
 
   // ---------------------------------------------------------------- дубликаты
 
   @Get('reviews/:id/duplicate-candidates')
-  duplicateCandidates(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async duplicateCandidates(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.assertReview(u, id);
     return this.duplicates.candidates(u.tenantId, id);
   }
 
@@ -132,6 +144,8 @@ export class ReputationController {
   @Post('reviews/:id/duplicate')
   @RequirePermission('hotels', 'write')
   async markDuplicate(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { ofId?: string | null }) {
+    await this.access.assertReview(u, id);
+    if (b?.ofId) await this.access.assertReview(u, b.ofId);
     await this.duplicates.mark(u.tenantId, (u.userId ?? u.id ?? u.sub) || null, id, b?.ofId || null);
     return this.reviews.card(u.tenantId, id);
   }
@@ -139,6 +153,7 @@ export class ReputationController {
   @Post('duplicates/:pairId/dismiss')
   @RequirePermission('hotels', 'write')
   async dismissDuplicate(@CurrentUser() u: CurrentUserPayload, @Param('pairId') pairId: string, @Body() b: { reviewId?: string }) {
+    await this.access.assertDuplicatePair(u, pairId);
     await this.duplicates.dismiss(u.tenantId, (u.userId ?? u.id ?? u.sub) || null, pairId);
     return b?.reviewId ? this.reviews.card(u.tenantId, b.reviewId) : { ok: true };
   }
@@ -146,55 +161,60 @@ export class ReputationController {
   /** Подтвердить разом все пары с дословно тем же текстом. */
   @Post('duplicates/confirm-exact')
   @RequirePermission('hotels', 'write')
-  confirmExactDuplicates(@CurrentUser() u: CurrentUserPayload) {
+  async confirmExactDuplicates(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return this.duplicates.confirmExact(u.tenantId, (u.userId ?? u.id ?? u.sub) || null);
   }
 
   /** Поиск дубликатов по всей истории (с даты «Отзывы с»). */
   @Post('duplicates/scan')
   @RequirePermission('hotels', 'write')
-  scanDuplicates(@CurrentUser() u: CurrentUserPayload) {
+  async scanDuplicates(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return this.duplicates.scanTenant(u.tenantId);
   }
 
   @Post('replies/:id/retry')
   @RequirePermission('hotels', 'write')
-  retry(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async retry(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.assertReply(u, id);
     return this.reviews.retryReply(u.tenantId, id);
   }
 
   // ---------------------------------------------------------------- аналитика
 
   @Get('analytics/dashboard')
-  dashboard(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery) {
-    return this.analytics.dashboard(u.tenantId, q);
+  async dashboard(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery) {
+    return this.analytics.dashboard(u.tenantId, await this.access.restrict(u, q));
   }
 
   @Get('hotels-summary')
-  hotelsSummary(@CurrentUser() u: CurrentUserPayload) {
-    return this.analytics.hotelsSummary(u.tenantId);
+  async hotelsSummary(@CurrentUser() u: CurrentUserPayload) {
+    return this.analytics.hotelsSummary(u.tenantId, await this.access.allowed(u));
   }
 
   @Get('hotels/:hotelId/tasks')
-  hotelTasks(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
+  async hotelTasks(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
+    await this.access.assertHotel(u, hotelId);
     return this.agent.hotelTasks(u.tenantId, hotelId);
   }
 
   @Get('hotels/:hotelId/summary')
-  hotelSummary(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
+  async hotelSummary(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string) {
+    await this.access.assertHotel(u, hotelId);
     return this.analytics.hotelSummary(u.tenantId, hotelId);
   }
 
   /** Сравнение на графике: несколько отелей (dim=hotel) или площадок (dim=platform). */
   @Get('analytics/compare')
-  compare(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery & { dim?: string }) {
-    return this.analytics.compare(u.tenantId, q, q.dim === 'platform' ? 'platform' : 'hotel');
+  async compare(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery & { dim?: string }) {
+    return this.analytics.compare(u.tenantId, await this.access.restrict(u, q), q.dim === 'platform' ? 'platform' : 'hotel');
   }
 
   /** PDF-отчёт по текущим фильтрам дашборда на выбранном языке — скачать. */
   @Post('analytics/report/pdf')
   async reportPdf(@CurrentUser() u: CurrentUserPayload, @Body() b: ReportRequest, @Res() res: Response) {
-    const { buffer, filename } = await this.report.build(u.tenantId, b);
+    const { buffer, filename } = await this.report.build(u.tenantId, await this.access.restrict(u, b));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(buffer);
@@ -203,38 +223,44 @@ export class ReputationController {
   /** Тот же PDF — письмом на указанные адреса. */
   @Post('analytics/report/send')
   @RequirePermission('hotels', 'write')
-  reportSend(@CurrentUser() u: CurrentUserPayload, @Body() b: ReportRequest & { emails?: string[]; message?: string }) {
-    return this.report.send(u.tenantId, b);
+  async reportSend(@CurrentUser() u: CurrentUserPayload, @Body() b: ReportRequest & { emails?: string[]; message?: string }) {
+    return this.report.send(u.tenantId, await this.access.restrict(u, b));
   }
 
   /** Мы против конкурентов: по каждому отелю в срезе, у которого добавлены конкуренты. */
   @Get('analytics/competitors')
-  competitorsCompare(@CurrentUser() u: CurrentUserPayload, @Query() q: CompetitorAnalyticsQuery) {
-    return this.competitors.compare(u.tenantId, q);
+  async competitorsCompare(@CurrentUser() u: CurrentUserPayload, @Query() q: CompetitorAnalyticsQuery) {
+    return this.competitors.compare(u.tenantId, await this.access.restrict(u, q));
   }
 
   // ---------------------------------------------------------------- конкуренты (настройки)
 
   @Get('competitors')
-  listCompetitors(@CurrentUser() u: CurrentUserPayload, @Query('hotelId') hotelId?: string) {
-    return this.competitors.list(u.tenantId, hotelId || undefined);
+  async listCompetitors(@CurrentUser() u: CurrentUserPayload, @Query('hotelId') hotelId?: string) {
+    if (hotelId) await this.access.assertHotel(u, hotelId);
+    const ids = await this.access.allowed(u);
+    const rows = await this.competitors.list(u.tenantId, hotelId || undefined);
+    return ids ? rows.filter((x: any) => ids.includes(x.hotelId)) : rows;
   }
 
   @Post('competitors')
   @RequirePermission('hotels', 'write')
-  createCompetitor(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+  async createCompetitor(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+    await this.access.requireFull(u);
     return this.competitors.create(u.tenantId, b);
   }
 
   @Patch('competitors/:id')
   @RequirePermission('hotels', 'write')
-  updateCompetitor(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: any) {
+  async updateCompetitor(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: any) {
+    await this.access.requireFull(u);
     return this.competitors.update(u.tenantId, id, b);
   }
 
   @Delete('competitors/:id')
   @RequirePermission('hotels', 'write')
-  removeCompetitor(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async removeCompetitor(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     return this.competitors.remove(u.tenantId, id);
   }
 
@@ -242,17 +268,19 @@ export class ReputationController {
   @Post('competitors/sources/:id/sync')
   @RequirePermission('hotels', 'write')
   async syncCompetitorSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     const src = await this.competitors.sourceForTenant(u.tenantId, id);
     return this.sync.startCompetitorApify(src, true);
   }
 
   @Get('analytics/topic-matrix')
-  matrix(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery) {
-    return this.analytics.topicMatrix(u.tenantId, q);
+  async matrix(@CurrentUser() u: CurrentUserPayload, @Query() q: AnalyticsQuery) {
+    return this.analytics.topicMatrix(u.tenantId, await this.access.restrict(u, q));
   }
 
   @Get('analytics/monthly-report')
-  monthly(@CurrentUser() u: CurrentUserPayload, @Query('brandId') brandId?: string, @Query('month') month?: string) {
+  async monthly(@CurrentUser() u: CurrentUserPayload, @Query('brandId') brandId?: string, @Query('month') month?: string) {
+    await this.access.assertBrandReport(u, brandId || null);
     return this.analytics.monthlyReportWithSummary(u.tenantId, brandId || null, month);
   }
 
@@ -265,84 +293,100 @@ export class ReputationController {
 
   @Patch('settings')
   @RequirePermission('hotels', 'write')
-  updateSettings(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+  async updateSettings(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+    await this.access.requireFull(u);
     return this.settings.updateSettings(u.tenantId, b);
   }
 
   @Post('settings/topics/translate')
   @RequirePermission('hotels', 'write')
-  translateTopic(@CurrentUser() u: CurrentUserPayload, @Body() b: { label?: string }) {
+  async translateTopic(@CurrentUser() u: CurrentUserPayload, @Body() b: { label?: string }) {
+    await this.access.requireFull(u);
     const label = String(b?.label || '').trim();
     if (!label) throw new BadRequestException('Category name is required');
     return this.ai.translateTopicLabel(u.tenantId, label);
   }
 
   @Get('setup')
-  setup(@CurrentUser() u: CurrentUserPayload) {
-    return this.settings.listHotelsWithSources(u.tenantId);
+  async setup(@CurrentUser() u: CurrentUserPayload) {
+    const ids = await this.access.allowed(u);
+    const s = await this.settings.listHotelsWithSources(u.tenantId);
+    if (!ids) return s;
+    const hotels = s.hotels.filter((h: any) => ids.includes(h.id));
+    return { ...s, hotels, brands: s.brands.filter((b: any) => hotels.some((h: any) => h.brandId === b.id)) };
   }
 
   @Post('brands')
   @RequirePermission('hotels', 'write')
-  createBrand(@CurrentUser() u: CurrentUserPayload, @Body() b: { name: string; color?: string }) {
+  async createBrand(@CurrentUser() u: CurrentUserPayload, @Body() b: { name: string; color?: string }) {
+    await this.access.requireFull(u);
     return this.settings.saveBrand(u.tenantId, null, b);
   }
 
   @Patch('brands/:id')
   @RequirePermission('hotels', 'write')
-  updateBrand(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { name: string; color?: string }) {
+  async updateBrand(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { name: string; color?: string }) {
+    await this.access.requireFull(u);
     return this.settings.saveBrand(u.tenantId, id, b);
   }
 
   @Delete('brands/:id')
   @RequirePermission('hotels', 'write')
-  removeBrand(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async removeBrand(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     return this.settings.removeBrand(u.tenantId, id);
   }
 
   @Patch('hotels/:hotelId/brand')
   @RequirePermission('hotels', 'write')
-  setBrand(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string, @Body() b: { brandId: string | null }) {
+  async setBrand(@CurrentUser() u: CurrentUserPayload, @Param('hotelId') hotelId: string, @Body() b: { brandId: string | null }) {
+    await this.access.requireFull(u);
     return this.settings.setHotelBrand(u.tenantId, hotelId, b?.brandId || null);
   }
 
   @Put('hotels/:hotelId/sources/:platform')
   @RequirePermission('hotels', 'write')
-  upsertSource(
+  async upsertSource(
     @CurrentUser() u: CurrentUserPayload,
     @Param('hotelId') hotelId: string,
     @Param('platform') platform: string,
     @Body() b: { url?: string | null; externalId?: string | null; apiKey?: string | null; active?: boolean },
   ) {
+    await this.access.requireFull(u);
     return this.settings.upsertSource(u.tenantId, hotelId, platform, b || {});
   }
 
   @Delete('sources/:id')
   @RequirePermission('hotels', 'write')
-  removeSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async removeSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     return this.settings.removeSource(u.tenantId, id);
   }
 
   @Post('sources/:id/sync')
   @RequirePermission('hotels', 'write')
-  syncSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async syncSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     return this.sync.syncNow(u.tenantId, id);
   }
 
   @Post('sources/:id/test')
   @RequirePermission('hotels', 'write')
-  testSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { max?: number }) {
+  async testSource(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: { max?: number }) {
+    await this.access.requireFull(u);
     return this.sync.testRun(u.tenantId, id, Math.min(100, Math.max(1, Number(b?.max) || 20)));
   }
 
   @Get('older-count')
-  olderCount(@CurrentUser() u: CurrentUserPayload, @Query('before') before: string) {
+  async olderCount(@CurrentUser() u: CurrentUserPayload, @Query('before') before: string) {
+    await this.access.requireFull(u);
     return this.sync.countOlder(u.tenantId, before);
   }
 
   @Post('purge-older')
   @RequirePermission('hotels', 'write')
-  purgeOlder(@CurrentUser() u: CurrentUserPayload, @Body() b: { before: string }) {
+  async purgeOlder(@CurrentUser() u: CurrentUserPayload, @Body() b: { before: string }) {
+    await this.access.requireFull(u);
     return this.sync.purgeOlder(u.tenantId, b?.before);
   }
 
@@ -355,25 +399,29 @@ export class ReputationController {
 
   @Patch('agent')
   @RequirePermission('hotels', 'write')
-  agentUpdate(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+  async agentUpdate(@CurrentUser() u: CurrentUserPayload, @Body() b: any) {
+    await this.access.requireFull(u);
     return this.agent.updateWork(u.tenantId, b);
   }
 
   @Post('agent/digest')
   @RequirePermission('hotels', 'write')
-  agentDigest(@CurrentUser() u: CurrentUserPayload, @Body() b: { deliver?: boolean }) {
+  async agentDigest(@CurrentUser() u: CurrentUserPayload, @Body() b: { deliver?: boolean }) {
+    await this.access.requireFull(u);
     return this.agent.runDigest(u.tenantId, { deliver: b?.deliver !== false });
   }
 
   @Post('agent/insights')
   @RequirePermission('hotels', 'write')
-  agentInsights(@CurrentUser() u: CurrentUserPayload, @Body() b: { deliver?: boolean }) {
+  async agentInsights(@CurrentUser() u: CurrentUserPayload, @Body() b: { deliver?: boolean }) {
+    await this.access.requireFull(u);
     return this.agent.runInsights(u.tenantId, { deliver: b?.deliver !== false });
   }
 
   @Post('agent/reminders')
   @RequirePermission('hotels', 'write')
   async agentReminders(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     const a = await this.agent.agentFor(u.tenantId);
     if (!a) return { reminded: 0, escalated: 0, noAgent: true };
     return this.agent.remind(a, this.agent.work(a));
@@ -381,13 +429,15 @@ export class ReputationController {
 
   @Post('backfill')
   @RequirePermission('hotels', 'write')
-  backfill(@CurrentUser() u: CurrentUserPayload, @Body() b: { sourceIds?: string[]; platform?: string; max: number }) {
+  async backfill(@CurrentUser() u: CurrentUserPayload, @Body() b: { sourceIds?: string[]; platform?: string; max: number }) {
+    await this.access.requireFull(u);
     return this.sync.requestBackfill(u.tenantId, b || ({} as any));
   }
 
   @Post('sources/:id/use-primary')
   @RequirePermission('hotels', 'write')
   async usePrimary(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     await this.sources.update({ id, tenantId: u.tenantId }, { useFallback: false });
     return { ok: true };
   }
@@ -398,31 +448,62 @@ export class ReputationController {
     if (platform) where.platform = platform;
     if (hotelId) where.hotelId = hotelId;
     if (status) where.status = status;
+    const ids = await this.access.allowed(u);
+    if (ids) where.hotelId = In(hotelId ? ids.filter((x) => x === hotelId) : ids);
     const rows = await this.runs.find({ where, order: { startedAt: 'DESC' }, take: 200 });
     return rows.map((r) => ({ ...r, new: r.newCount }));
   }
 
   @Get('runs/:id/preview')
-  previewRun(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+  async previewRun(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string) {
+    await this.access.requireFull(u);
     return this.sync.previewTestRun(u.tenantId, id);
   }
 
   @Get('alerts')
-  recentAlerts(@CurrentUser() u: CurrentUserPayload) {
-    return this.alerts.recent(u.tenantId);
+  async recentAlerts(@CurrentUser() u: CurrentUserPayload) {
+    const ids = await this.access.allowed(u);
+    const rows = await this.alerts.recent(u.tenantId);
+    return ids ? rows.filter((x: any) => x.hotelId && ids.includes(x.hotelId)) : rows;
+  }
+
+  // ---------------------------------------------------------------- доступ сотрудников к отелям
+
+  @Get('access/me')
+  accessMe(@CurrentUser() u: CurrentUserPayload) {
+    return this.access.me(u);
+  }
+
+  @Get('access')
+  accessList(@CurrentUser() u: CurrentUserPayload) {
+    return this.access.list(u);
+  }
+
+  @Put('access/:userId')
+  accessSet(@CurrentUser() u: CurrentUserPayload, @Param('userId') userId: string, @Body() b: { limited?: boolean; hotelIds?: string[]; brandIds?: string[] }) {
+    return this.access.set(u, userId, b || {});
   }
 
   // ---------------------------------------------------------------- подключения
 
   /** Расход Apify за текущий платёжный цикл (из самого Apify). */
   @Get('apify/usage')
-  apifyUsage(@CurrentUser() u: CurrentUserPayload) {
+  async apifyUsage(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return this.sync.apifyUsage(u.tenantId, true);
+  }
+
+  /** Поток отзывов по источникам — прогноз расхода Apify для выбранного расписания. */
+  @Get('apify/flows')
+  async apifyFlows(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
+    return this.sync.sourceFlows(u.tenantId);
   }
 
   @Post('apify/verify')
   @RequirePermission('hotels', 'write')
   async verifyApify(@CurrentUser() u: CurrentUserPayload, @Body() b: { token?: string }) {
+    await this.access.requireFull(u);
     const token = b?.token?.trim() || (await this.settings.secret(u.tenantId, 'apifyToken'));
     if (!token) return { ok: false, username: null };
     const r = await this.apify.verifyToken(token);
@@ -432,29 +513,34 @@ export class ReputationController {
   @Get('google/auth-url')
   @RequirePermission('hotels', 'write')
   async googleAuthUrl(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return { url: await this.google.authUrl(u.tenantId) };
   }
 
   @Post('google/disconnect')
   @RequirePermission('hotels', 'write')
   async googleDisconnect(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     await this.google.disconnect(u.tenantId);
     return { ok: true };
   }
 
   @Get('google/accounts')
-  googleAccounts(@CurrentUser() u: CurrentUserPayload) {
+  async googleAccounts(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return this.google.listAccounts(u.tenantId);
   }
 
   @Get('google/locations')
-  googleLocations(@CurrentUser() u: CurrentUserPayload, @Query('account') account?: string) {
+  async googleLocations(@CurrentUser() u: CurrentUserPayload, @Query('account') account?: string) {
+    await this.access.requireFull(u);
     return this.google.listLocations(u.tenantId, account);
   }
 
   @Post('google/notifications')
   @RequirePermission('hotels', 'write')
-  googleNotifications(@CurrentUser() u: CurrentUserPayload) {
+  async googleNotifications(@CurrentUser() u: CurrentUserPayload) {
+    await this.access.requireFull(u);
     return this.google.setupNotifications(u.tenantId);
   }
 }

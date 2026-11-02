@@ -32,6 +32,12 @@ import {
   requestRepBackfill,
   APIFY_PRICE_PER_1000,
   verifyRepApify,
+  fetchRepAccess,
+  fetchRepApifyFlows,
+  setRepAccess,
+  type RepAccessUser,
+  type RepReplyTemplate,
+  type RepTemplateTone,
   fetchRepApifyUsage,
   scanRepDuplicates,
   matchRepStays,
@@ -45,16 +51,19 @@ import {
   type RepSource,
   translateRepTopic,
 } from '../../../api/hotelReputation';
-import { ApifyPauseBanner, PlatformBadge, TOPIC_KEYS, fmtDate, useRepT } from './ReputationShared';
-import { RvHead, RvTabs } from './rvui';
+import { ApifyPauseBanner, PlatformBadge, TOPIC_KEYS, fmtDate, fillReplyTemplate, useRepAccessMe, useRepT } from './ReputationShared';
+import { RvHead, RvTabs, Sel } from './rvui';
+import { resetRepSettingsCache } from './ReviewCardDrawer';
+import { getStoredUser } from '../../../auth/session';
 import { CompetitorsTab } from './RepCompetitorsSettings';
 import { TenantMailNotice } from '../../../components/mail/TenantMailNotice';
 import { useTenantComponents } from '../../../hooks/useTenantComponents';
 import '../hotels-design.css';
 import './reputation.css';
+import { DateInput } from '../../../components/ui/DateInput';
 
-type Tab = 'hotels' | 'connections' | 'competitors' | 'alerts' | 'ai' | 'log';
-const TABS: Tab[] = ['hotels', 'connections', 'competitors', 'alerts', 'ai', 'log'];
+type Tab = 'hotels' | 'connections' | 'competitors' | 'alerts' | 'ai' | 'templates' | 'access' | 'log';
+const TABS: Tab[] = ['hotels', 'connections', 'competitors', 'alerts', 'ai', 'templates', 'access', 'log'];
 const emptyRec = (): RepRecipients => ({ emails: [], telegram: [], userIds: [] });
 
 // ============================================================ Дозагрузка истории
@@ -78,6 +87,354 @@ function useBackfill() {
     }
   };
 }
+
+// ============================================================ Когда собирать отзывы
+
+type Sched = RepSettings['config']['schedule'];
+const NO_SINCE = (input: string | undefined) => !String(input || '').includes('{{since}}');
+
+/**
+ * Прогноз расхода Apify в месяц для выбранного расписания — та же логика объёма запуска, что на сервере
+ * (plannedMax для «каждые N часов», gapMax для «по дням недели»), по реальному потоку отзывов каждого отеля.
+ */
+function forecastApify(flows: Array<{ platform: RepPlatform; perDay: number }>, sched: Sched, hours: Record<string, number>, actors: RepSettings['config']['apifyActors']) {
+  const by: Partial<Record<RepPlatform, number>> = {};
+  for (const f of flows) {
+    const a = actors[f.platform];
+    if (!a) continue;
+    const overlap = f.platform === 'google' ? 1 : 3;
+    let runs: number;
+    let fetched: number;
+    if (sched.mode === 'days') {
+      const n = sched.days.length || 1;
+      runs = (n * 30) / 7;
+      const span = 7 / n + overlap;
+      const max = Math.max(5, Math.min(1000, Math.ceil(f.perDay * span * 1.5) + 5));
+      fetched = NO_SINCE(a.input) ? max : Math.min(max, f.perDay * span);
+    } else {
+      const h = sched.offSeason ? Math.max(24, hours[f.platform] || 24) : hours[f.platform] || 24;
+      runs = 720 / h;
+      const fresh = (f.perDay * h) / 24;
+      const max = f.platform === 'otelpuan' ? a.maxPerRun : Math.max(3, Math.min(a.maxPerRun, Math.ceil(fresh * 2) + 3));
+      fetched = NO_SINCE(a.input) ? max : Math.min(max, fresh + f.perDay * overlap);
+    }
+    by[f.platform] = (by[f.platform] || 0) + (runs * fetched * (APIFY_PRICE_PER_1000[f.platform] || 2)) / 1000;
+  }
+  const total = Object.values(by).reduce((a, b) => a + (b || 0), 0);
+  return { total, by };
+}
+
+const ScheduleCard: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) => Promise<void> }> = ({ settings, setup, save }) => {
+  const { r, lang } = useRepT();
+  const { showAlert } = useAlertModal();
+  const cfg = settings.config;
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Istanbul';
+  const [sched, setSched] = useState<Sched>({ ...cfg.schedule });
+  const platforms = REP_PLATFORMS.filter((p) => cfg.apifyActors[p] && setup.hotels.some((h) => h.sources.some((x) => x.platform === p && x.url)));
+  const initHours = () => Object.fromEntries(platforms.map((p) => [p, cfg.apifyActors[p].everyHours]));
+  const [hours, setHours] = useState<Record<string, number>>(initHours);
+  const [flows, setFlows] = useState<Array<{ platform: RepPlatform; perDay: number }> | null>(null);
+  const [usage, setUsage] = useState<{ limit: number | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setSched({ ...cfg.schedule });
+    setHours(initHours());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg]);
+  useEffect(() => {
+    fetchRepApifyFlows().then(setFlows).catch(() => setFlows(null));
+    if (settings.apifyToken) fetchRepApifyUsage().then(setUsage).catch(() => setUsage(null));
+  }, [settings.apifyToken]);
+
+  const dayName = (d: number) => new Intl.DateTimeFormat(lang, { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 0, 4 + d)));
+  const tzList: string[] = (() => {
+    let l: string[] = [];
+    try {
+      l = (Intl as any).supportedValuesOf('timeZone');
+    } catch {
+      l = [];
+    }
+    return [...new Set([sched.tz, browserTz, 'Europe/Istanbul', 'Europe/Moscow', ...l])].filter(Boolean);
+  })();
+  const toggleDay = (d: number) => setSched({ ...sched, days: sched.days.includes(d) ? sched.days.filter((x) => x !== d) : [...sched.days, d].sort((a, b) => a - b) });
+  const summary = (sc: Sched) =>
+    sc.mode === 'days'
+      ? sc.days.length === 7
+        ? r('sched.sumDaily', { t: sc.at })
+        : r('sched.sumDays', { d: sc.days.map(dayName).join(', '), t: sc.at })
+      : r('sched.sumInterval');
+  const fc = flows ? forecastApify(flows, sched, hours, cfg.apifyActors) : null;
+  const usd = (v: number) => (v < 10 ? v.toFixed(2) : Math.round(v).toString());
+  const dirty = JSON.stringify(sched) !== JSON.stringify(cfg.schedule) || platforms.some((p) => hours[p] !== cfg.apifyActors[p].everyHours);
+
+  const submit = async () => {
+    if (sched.mode === 'days' && !sched.days.length) return showAlert(r('sched.noDays'), { variant: 'error' });
+    setBusy(true);
+    try {
+      const apifyActors = Object.fromEntries(platforms.map((p) => [p, { ...cfg.apifyActors[p], everyHours: hours[p] }]));
+      await save({ schedule: { mode: sched.mode, days: sched.days, at: sched.at, tz: sched.tz }, apifyActors });
+      showAlert(r('settings.saved'), { variant: 'success' });
+    } catch (e: any) {
+      showAlert(e?.message || r('card.error'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rp-conn">
+      <div className="rp-conn-head">
+        <h3>{r('sched.title')}</h3>
+        <span className="rp-status ok">{summary(cfg.schedule)}</span>
+      </div>
+      <p style={{ fontSize: 12.5, color: 'var(--fg-2)', margin: '0 0 12px' }}>{r('sched.text')}</p>
+      <div className="rp-seg" style={{ marginBottom: 14 }}>
+        <button type="button" className={sched.mode === 'days' ? 'on' : ''} onClick={() => setSched({ ...sched, mode: 'days', days: sched.days.length ? sched.days : [1], tz: sched.tz || browserTz })}>{r('sched.modeDays')}</button>
+        <button type="button" className={sched.mode === 'interval' ? 'on' : ''} onClick={() => setSched({ ...sched, mode: 'interval' })}>{r('sched.modeInterval')}</button>
+      </div>
+
+      {sched.mode === 'days' ? (
+        <>
+          <div className="rp-chipbar">
+            {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+              <button key={d} type="button" className={`rp-chip${sched.days.includes(d) ? ' on' : ''}`} onClick={() => toggleDay(d)} aria-pressed={sched.days.includes(d)}>{dayName(d)}</button>
+            ))}
+            <span style={{ width: 8 }} />
+            <button type="button" className="rp-chip" onClick={() => setSched({ ...sched, days: [1, 2, 3, 4, 5, 6, 7] })}>{r('sched.everyDay')}</button>
+            <button type="button" className="rp-chip" onClick={() => setSched({ ...sched, days: [1] })}>{r('sched.onceWeek')}</button>
+          </div>
+          <div className="rp-set-grid">
+            <label className="rp-field"><span>{r('sched.at')}</span><input className="rp-input" type="time" value={sched.at} onChange={(e) => setSched({ ...sched, at: e.target.value || '02:00' })} /></label>
+            <label className="rp-field">
+              <span>{r('sched.tz')}</span>
+              <select className="rp-input" value={sched.tz} onChange={(e) => setSched({ ...sched, tz: e.target.value })}>
+                {tzList.map((z) => <option key={z} value={z}>{z}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="rp-src-meta" style={{ marginTop: 8 }}>{r('sched.daysHint')}</div>
+        </>
+      ) : (
+        <>
+          <div className="rp-set-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            {platforms.map((p) => (
+              <label key={p} className="rp-field">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PlatformBadge platform={p} compact /> {r('sched.everyHours')}</span>
+                <input className="rp-input" type="number" min={1} max={744} value={hours[p] ?? ''} onChange={(e) => setHours({ ...hours, [p]: Math.max(1, Number(e.target.value) || 1) })} />
+              </label>
+            ))}
+          </div>
+          {!platforms.length && <div className="rp-src-meta">{r('sched.noPlatforms')}</div>}
+        </>
+      )}
+
+      {fc && flows!.length > 0 && (
+        <div className={`rp-note${usage?.limit && fc.total > usage.limit * 0.8 ? ' warn' : ''}`} style={{ marginTop: 14 }}>
+          <b>{r('sched.forecast', { v: usd(fc.total) })}</b>
+          {usage?.limit ? ` · ${r('sched.forecastLimit', { l: usage.limit })}` : ''}
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 12 }}>
+            {(Object.entries(fc.by) as Array<[RepPlatform, number]>).sort((a, b) => b[1] - a[1]).map(([p, v]) => (
+              <span key={p} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PlatformBadge platform={p} compact /> ${usd(v)}</span>
+            ))}
+          </div>
+          <div className="rp-src-meta" style={{ marginTop: 6 }}>{r('sched.forecastHint')}</div>
+        </div>
+      )}
+
+      <div className="rp-save-bar">
+        <button type="button" className="btn btn-primary" disabled={busy || !dirty} onClick={submit}>{r('settings.save')}</button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================ Шаблоны ответов
+
+const TPL_TONES: RepTemplateTone[] = ['positive', 'mixed', 'negative', 'any'];
+const TPL_LANGS = ['en', 'de', 'ru', 'tr', 'fr', 'es', 'it', 'nl', 'pl', 'uk', 'ar', 'cs', 'ro', 'hu', 'bg', 'da', 'no', 'sv', 'pt', 'he'];
+const TPL_VARS = ['{author}', '{hotel}', '{signature}'];
+
+const TemplatesTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (b: any) => Promise<void> }> = ({ settings, setup, save }) => {
+  const { r } = useRepT();
+  const { showAlert, showConfirm } = useAlertModal();
+  const [list, setList] = useState<RepReplyTemplate[]>(() => settings.config.replyTemplates.map((t) => ({ ...t, texts: { ...t.texts } })));
+  const [langOf, setLangOf] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const areas = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const dirty = JSON.stringify(list) !== JSON.stringify(settings.config.replyTemplates);
+  const sampleHotel = setup.hotels[0]?.name || 'Hotel';
+
+  const patch = (id: string, p: Partial<RepReplyTemplate>) => setList((l) => l.map((t) => (t.id === id ? { ...t, ...p } : t)));
+  const curLang = (t: RepReplyTemplate) => langOf[t.id] && langOf[t.id] in t.texts ? langOf[t.id] : Object.keys(t.texts)[0] || 'en';
+  const insertVar = (t: RepReplyTemplate, v: string) => {
+    const lang = curLang(t);
+    const el = areas.current[t.id];
+    const text = t.texts[lang] || '';
+    const at = el ? el.selectionStart : text.length;
+    patch(t.id, { texts: { ...t.texts, [lang]: text.slice(0, at) + v + text.slice(at) } });
+    setTimeout(() => el?.focus(), 0);
+  };
+  const add = () => {
+    const id = `t${Date.now().toString(36)}`;
+    setList((l) => [...l, { id, name: r('tpl.newName'), tone: 'any', texts: { en: '' } }]);
+    setLangOf((m) => ({ ...m, [id]: 'en' }));
+  };
+  const submit = async () => {
+    const empty = list.find((t) => !t.name.trim() || !Object.values(t.texts).some((x) => x.trim()));
+    if (empty) return showAlert(r('tpl.needText', { name: empty.name || '—' }), { variant: 'error' });
+    setBusy(true);
+    try {
+      // пустые языки не сохраняем
+      await save({ replyTemplates: list.map((t) => ({ ...t, texts: Object.fromEntries(Object.entries(t.texts).filter(([, v]) => v.trim())) })) });
+      resetRepSettingsCache();
+      showAlert(r('settings.saved'), { variant: 'success' });
+    } catch (e: any) {
+      showAlert(e?.message || r('card.error'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rp-conn">
+      <div className="rp-conn-head">
+        <h3>{r('tpl.title')}</h3>
+        <span className="rp-status ok">{r('tpl.count', { n: list.length })}</span>
+      </div>
+      <p style={{ fontSize: 12.5, color: 'var(--fg-2)', margin: '0 0 14px' }}>{r('tpl.text')}</p>
+      {list.map((t) => {
+        const lang = curLang(t);
+        const preview = fillReplyTemplate(t, lang, { author: 'Anna', hotel: sampleHotel, signature: sampleHotel }).text;
+        return (
+          <div key={t.id} style={{ padding: '14px 0', borderTop: '1px solid var(--line-3)' }}>
+            <div className="rp-set-grid" style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) auto', alignItems: 'end' }}>
+              <label className="rp-field"><span>{r('tpl.name')}</span><input className="rp-input" value={t.name} maxLength={80} onChange={(e) => patch(t.id, { name: e.target.value })} /></label>
+              <label className="rp-field">
+                <span>{r('tpl.tone')}</span>
+                <select className="rp-input" value={t.tone} onChange={(e) => patch(t.id, { tone: e.target.value as RepTemplateTone })}>
+                  {TPL_TONES.map((x) => <option key={x} value={x}>{r(`tpl.tones.${x}`)}</option>)}
+                </select>
+              </label>
+              <button type="button" className="btn" onClick={async () => (await showConfirm(r('tpl.removeConfirm', { name: t.name }))) && setList((l) => l.filter((x) => x.id !== t.id))}>{r('tpl.remove')}</button>
+            </div>
+            <div className="rp-chipbar" style={{ margin: '10px 0 8px' }}>
+              {Object.keys(t.texts).map((l) => (
+                <button key={l} type="button" className={`rp-chip${l === lang ? ' on' : ''}`} onClick={() => setLangOf((m) => ({ ...m, [t.id]: l }))}>{l.toUpperCase()}</button>
+              ))}
+              <select
+                className="rp-input"
+                style={{ width: 'auto', height: 28, fontSize: 12 }}
+                value=""
+                aria-label={r('tpl.addLang')}
+                onChange={(e) => {
+                  const l = e.target.value;
+                  if (!l) return;
+                  patch(t.id, { texts: { ...t.texts, [l]: t.texts[l] || '' } });
+                  setLangOf((m) => ({ ...m, [t.id]: l }));
+                }}
+              >
+                <option value="">+ {r('tpl.addLang')}</option>
+                {TPL_LANGS.filter((l) => !(l in t.texts)).map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
+              </select>
+              {Object.keys(t.texts).length > 1 && (
+                <button type="button" className="rp-chip" onClick={() => {
+                  const { [lang]: _drop, ...rest } = t.texts;
+                  patch(t.id, { texts: rest });
+                }}>{r('tpl.removeLang', { l: lang.toUpperCase() })}</button>
+              )}
+            </div>
+            <textarea
+              ref={(el) => { areas.current[t.id] = el; }}
+              className="rp-input"
+              style={{ width: '100%', minHeight: 110, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
+              value={t.texts[lang] || ''}
+              maxLength={3000}
+              onChange={(e) => patch(t.id, { texts: { ...t.texts, [lang]: e.target.value } })}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+              <span className="rp-src-meta">{r('tpl.vars')}</span>
+              {TPL_VARS.map((v) => <button key={v} type="button" className="rp-chip" onClick={() => insertVar(t, v)}>{v}</button>)}
+            </div>
+            {preview && (
+              <details style={{ marginTop: 8 }}>
+                <summary className="rp-src-meta" style={{ cursor: 'pointer' }}>{r('tpl.preview')}</summary>
+                <div className="rp-note" style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{preview}</div>
+              </details>
+            )}
+          </div>
+        );
+      })}
+      <div className="rp-save-bar" style={{ gap: 8 }}>
+        <button type="button" className="btn" onClick={add}>+ {r('tpl.add')}</button>
+        <span style={{ flex: 1 }} />
+        <button type="button" className="btn btn-primary" disabled={busy || !dirty} onClick={submit}>{r('settings.save')}</button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================ Доступ сотрудников к отелям
+
+const AccessTab: React.FC<{ setup: RepSetup }> = ({ setup }) => {
+  const { r } = useRepT();
+  const { showAlert } = useAlertModal();
+  const [users, setUsers] = useState<RepAccessUser[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    fetchRepAccess().then(setUsers).catch((e) => showAlert(e.message, { variant: 'error' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const apply = async (u: RepAccessUser, body: { limited: boolean; hotelIds?: string[]; brandIds?: string[] }) => {
+    setBusy(u.id);
+    try {
+      const next = await setRepAccess(u.id, body);
+      setUsers((l) => (l || []).map((x) => (x.id === u.id ? next : x)));
+    } catch (e: any) {
+      showAlert(e?.message || r('card.error'), { variant: 'error' });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const count = (u: RepAccessUser) => setup.hotels.filter((h) => u.hotelIds.includes(h.id) || (!!h.brandId && u.brandIds.includes(h.brandId))).length;
+
+  return (
+    <div className="rp-conn">
+      <div className="rp-conn-head"><h3>{r('access.title')}</h3></div>
+      <p style={{ fontSize: 12.5, color: 'var(--fg-2)', margin: '0 0 14px' }}>{r('access.text')}</p>
+      {!users ? (
+        <div className="rv-empty-s">{r('card.loading')}</div>
+      ) : !users.length ? (
+        <div className="rp-note">{r('access.noUsers')}</div>
+      ) : (
+        users.map((u) => (
+          <div key={u.id} style={{ padding: '12px 0', borderTop: '1px solid var(--line-3)', display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(0, 2fr)', gap: 14, alignItems: 'start' }}>
+            <div>
+              <div style={{ fontWeight: 600 }}>{u.name || u.email}</div>
+              <div className="rp-src-meta">{u.name ? `${u.email} · ` : ''}{u.role}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="rp-seg">
+                <button type="button" className={!u.limited ? 'on' : ''} disabled={busy === u.id} onClick={() => u.limited && apply(u, { limited: false })}>{r('access.all')}</button>
+                <button type="button" className={u.limited ? 'on' : ''} disabled={busy === u.id} onClick={() => !u.limited && apply(u, { limited: true, hotelIds: [], brandIds: [] })}>{r('access.only')}</button>
+              </div>
+              {u.limited && (
+                <>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {setup.brands.length > 0 && (
+                      <Sel allLabel={r('access.brands')} value={u.brandIds} onChange={(v) => apply(u, { limited: true, hotelIds: u.hotelIds, brandIds: v })} options={setup.brands.map((b) => ({ value: b.id, label: b.name }))} />
+                    )}
+                    <Sel allLabel={r('access.hotels')} value={u.hotelIds} onChange={(v) => apply(u, { limited: true, hotelIds: v, brandIds: u.brandIds })} options={setup.hotels.map((h) => ({ value: h.id, label: h.name }))} />
+                  </div>
+                  <div className={`rp-note${count(u) ? '' : ' warn'}`}>{count(u) ? r('access.summary', { n: count(u) }) : r('access.none')}</div>
+                </>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
 
 // ============================================================ Отели и площадки
 
@@ -303,7 +660,7 @@ const HistoryFromCard: React.FC<{ value: string | null; save: (b: any) => Promis
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--fg-2)', margin: '0 0 12px' }}>{r('history.text')}</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input className="rp-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <DateInput className="rp-input" value={date} onChange={(v) => setDate(v)} />
         <button type="button" className="btn btn-primary" disabled={date === (value || '')} onClick={() => save({ historyFrom: date || null }).then(() => showAlert(r('settings.saved'), { variant: 'success' })).catch((e) => showAlert(e.message, { variant: 'error' }))}>
           {r('settings.save')}
         </button>
@@ -365,6 +722,7 @@ const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (
 
   return (
     <>
+      <ScheduleCard settings={settings} setup={setup} save={save} />
       <HistoryFromCard value={cfg.historyFrom} save={save} />
       <div className="rp-conn">
         <div className="rp-conn-head">
@@ -453,7 +811,7 @@ const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (
         <div className="rp-set-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
           <label className="rp-field"><span>{r('conn.maxConcurrent')}</span><input className="rp-input" type="number" min={1} value={sched.maxConcurrentRuns} onChange={(e) => setSched({ ...sched, maxConcurrentRuns: Number(e.target.value) })} /><small>{r('conn.maxConcurrentHint')}</small></label>
         </div>
-        <div className="rp-toggle">
+        <div className="rp-toggle" hidden={cfg.schedule.mode === 'days'}>
           <div><div>{r('conn.offSeason')}</div><div className="d">{r('conn.offSeasonHint')}</div></div>
           <button type="button" className={`rp-switch-btn${sched.offSeason ? ' on' : ''}`} onClick={() => setSched({ ...sched, offSeason: !sched.offSeason })} aria-pressed={sched.offSeason} />
         </div>
@@ -479,8 +837,8 @@ const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (
               <label className="rp-field"><span>{r('conn.primary')}</span><input className="rp-input" value={actors[p]?.primary || ''} onChange={(e) => setActors({ ...actors, [p]: { ...actors[p], primary: e.target.value } })} /></label>
               <label className="rp-field"><span>{r('conn.fallback')}</span><input className="rp-input" value={actors[p]?.fallback || ''} placeholder={r('conn.fallbackPh')} onChange={(e) => setActors({ ...actors, [p]: { ...actors[p], fallback: e.target.value } })} /></label>
             </div>
-            <div className="rp-set-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))', marginTop: 8 }}>
-              {(['everyHours', 'firstLoadMax', 'maxPerRun'] as const).map((f) => (
+            <div className="rp-set-grid" style={{ marginTop: 8 }}>
+              {(['firstLoadMax', 'maxPerRun'] as const).map((f) => (
                 <label key={f} className="rp-field">
                   <span>{r(`conn.lim.${f}`)}</span>
                   <input className="rp-input" type="number" min={1} value={actors[p]?.[f] ?? ''} onChange={(e) => setActors({ ...actors, [p]: { ...actors[p], [f]: Number(e.target.value) } })} />
@@ -494,7 +852,10 @@ const ConnectionsTab: React.FC<{ settings: RepSettings; setup: RepSetup; save: (
           </div>
         ))}
         <div className="rp-save-bar">
-          <button type="button" className="btn btn-primary" disabled={busy === 's'} onClick={() => act('s', () => save({ apifyActors: actors, schedule: sched }), r('settings.saved'))}>{r('settings.save')}</button>
+          <button type="button" className="btn btn-primary" disabled={busy === 's'} onClick={() => act('s', () => save({
+                apifyActors: Object.fromEntries(Object.entries(actors).map(([k, v]) => [k, { ...v, everyHours: cfg.apifyActors[k]?.everyHours ?? v.everyHours }])),
+                schedule: { maxConcurrentRuns: sched.maxConcurrentRuns, offSeason: sched.offSeason },
+              }), r('settings.saved'))}>{r('settings.save')}</button>
         </div>
       </div>
 
@@ -967,7 +1328,10 @@ export const ReviewsSettingsPage: React.FC = () => {
   const { r } = useRepT();
   const { showAlert } = useAlertModal();
   const [params, setParams] = useSearchParams();
-  const tab: Tab = TABS.includes(params.get('tab') as Tab) ? (params.get('tab') as Tab) : 'hotels';
+  const isOwner = getStoredUser()?.role === 'owner';
+  const access = useRepAccessMe();
+  const tabs = TABS.filter((t) => t !== 'access' || isOwner);
+  const tab: Tab = tabs.includes(params.get('tab') as Tab) ? (params.get('tab') as Tab) : 'hotels';
   const [settings, setSettings] = useState<RepSettings | null>(null);
   const [setup, setSetup] = useState<RepSetup | null>(null);
 
@@ -1005,7 +1369,7 @@ export const ReviewsSettingsPage: React.FC = () => {
           <ApifyPauseBanner pause={settings?.config.apifyPause} />
           <div className="rv-view rv-set">
             <nav data-tour="rvs-tabs" className="rv-set-nav" aria-label={r('settings.title')}>
-              {TABS.map((t, i) => (
+              {tabs.map((t, i) => (
                 <button key={t} type="button" className={tab === t ? 'on' : ''} aria-current={tab === t ? 'page' : undefined} onClick={() => setParams({ tab: t }, { replace: true })}>
                   <span className="no">{String(i + 1).padStart(2, '0')}</span>
                   {r(`settings.tabs.${t}`)}
@@ -1013,7 +1377,9 @@ export const ReviewsSettingsPage: React.FC = () => {
               ))}
             </nav>
             <div key={tab} className="rv-set-body" style={{ minWidth: 0, animation: 'rvIn .4s cubic-bezier(.2,.8,.2,1) both' }}>
-              {!settings || !setup ? (
+              {access?.limited ? (
+                <div className="rp-note warn">{r('access.settingsLimited')}</div>
+              ) : !settings || !setup ? (
                 <div className="rv-empty-s">{r('card.loading')}</div>
               ) : tab === 'hotels' ? (
                 <HotelsTab setup={setup} settings={settings} reload={reload} />
@@ -1025,6 +1391,10 @@ export const ReviewsSettingsPage: React.FC = () => {
                 <AlertsTab settings={settings} setup={setup} save={save} />
               ) : tab === 'ai' ? (
                 <AiTab settings={settings} setup={setup} save={save} />
+              ) : tab === 'templates' ? (
+                <TemplatesTab settings={settings} setup={setup} save={save} />
+              ) : tab === 'access' ? (
+                <AccessTab setup={setup} />
               ) : (
                 <LogTab setup={setup} />
               )}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { fetchRepAgent, type RepAgentState, type RepAiStatus, type RepPlatform } from '../../../api/hotelReputation';
+import { fetchRepAccessMe, fetchRepAgent, type RepAgentState, type RepAiStatus, type RepPlatform, type RepReplyTemplate, type RepTemplateTone } from '../../../api/hotelReputation';
 
 /** Префикс ключей переводов раздела «Отзывы». */
 export function useRepT() {
@@ -189,3 +189,39 @@ export const ReviewsAgentStrip: React.FC = () => {
     </div>
   );
 };
+
+// ============================================================ доступ к отелям и шаблоны ответов
+
+let accessMeCache: Promise<{ limited: boolean; hotelIds: string[] }> | null = null;
+/** Ограничен ли текущий сотрудник своими отелями (настройки модуля тогда недоступны). Кэш на время сессии вкладки. */
+export function useRepAccessMe() {
+  const [me, setMe] = useState<{ limited: boolean; hotelIds: string[] } | null>(null);
+  useEffect(() => {
+    if (!accessMeCache) accessMeCache = fetchRepAccessMe().catch(() => ({ limited: false, hotelIds: [] }));
+    accessMeCache.then(setMe);
+  }, []);
+  return me;
+}
+
+/** Какой тон шаблона подходит отзыву по оценке. */
+export function templateToneFor(rating10: number | null, negBelow: number): RepTemplateTone {
+  if (rating10 == null) return 'any';
+  if (rating10 < negBelow) return 'negative';
+  return rating10 >= 8 ? 'positive' : 'mixed';
+}
+
+const GUEST: Record<string, string> = { en: 'Guest', de: 'Gast', ru: 'Дорогой гость', tr: 'Misafirimiz', fr: 'Cher client', es: 'Estimado huésped', it: 'Gentile ospite', uk: 'Шановний гість', pl: 'Drogi Gościu', nl: 'Beste gast' };
+
+/** Текст шаблона на языке отзыва (нет такого — английский, иначе первый) с подстановками. */
+export function fillReplyTemplate(t: RepReplyTemplate, reviewLang: string | null, vars: { author: string | null; hotel: string; signature: string }) {
+  const want = (reviewLang || '').slice(0, 2).toLowerCase();
+  const lang = t.texts[want] ? want : t.texts.en ? 'en' : Object.keys(t.texts)[0];
+  const raw = t.texts[lang] || '';
+  const text = raw
+    .replace(/\{author\}/g, vars.author?.trim() || GUEST[lang] || GUEST.en)
+    .replace(/\{hotel\}/g, vars.hotel)
+    .replace(/\{signature\}/g, vars.signature)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { text, lang, exact: lang === want };
+}

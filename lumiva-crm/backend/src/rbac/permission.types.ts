@@ -27,9 +27,11 @@ export type PermissionKey =
   | 'companies_manage_tasks'
   | 'helpdesk'
   | 'esign'
+  | 'media'
   | 'notes'
   | 'telegram'
   | 'whatsapp'
+  | 'instagram'
   | 'telephony'
   | 'tools_automation'
   | 'custom_objects'
@@ -54,7 +56,7 @@ export type PermissionKey =
 
 /** Модули, добавленные позже матрицы ролей: без явной строки в матрице открыты всем (fail-open),
  * явный индивидуальный запрет всё равно побеждает. Используется RbacGuard и RbacService.canUserAccess. */
-export const FAIL_OPEN_PERMISSIONS: PermissionKey[] = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
+export const FAIL_OPEN_PERMISSIONS: PermissionKey[] = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'instagram', 'telephony', 'notes', 'media'];
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 

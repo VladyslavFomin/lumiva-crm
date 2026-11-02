@@ -43,6 +43,7 @@ import { ReputationDuplicatesService } from './reputation-duplicates.service';
 import { ReputationReportService } from './reputation-report.service';
 import { ReputationCompetitorsService } from './reputation-competitors.service';
 import { ReputationReservationsService } from './reputation-reservations.service';
+import { ReputationAccessService } from './reputation-access.service';
 import { ReputationController, ReputationPublicController } from './reputation.controller';
 
 /**
@@ -82,6 +83,7 @@ import { ReputationController, ReputationPublicController } from './reputation.c
   ],
   controllers: [ReputationController, ReputationPublicController],
   providers: [
+    ReputationAccessService,
     ReputationSettingsService,
     GoogleBusinessService,
     ApifyService,

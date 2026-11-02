@@ -60,6 +60,12 @@ export class HotelsController {
     private readonly rateEngine: HotelRateEngineService,
   ) {}
 
+  /** Отели, доступные сотруднику (Отзывы → Настройки → Доступ); null — все. Лениво: без прямой связи модулей. */
+  private async allowedHotels(user: CurrentUserPayload): Promise<string[] | null> {
+    const { ReputationAccessService } = await import('../hotel-reputation/reputation-access.service.js');
+    return this.moduleRef.get(ReputationAccessService, { strict: false }).allowed(user);
+  }
+
   /* ---------- fixed literal routes — must come before hotels/:id ---------- */
 
   @Get('overview-kpis')
@@ -659,8 +665,10 @@ export class HotelsController {
   /* ---------- hotel CRUD (catch-all :id — must stay last) ---------- */
 
   @Get()
-  list(@CurrentUser() user: CurrentUserPayload) {
-    return this.hotels.list(user.tenantId);
+  async list(@CurrentUser() user: CurrentUserPayload) {
+    const ids = await this.allowedHotels(user);
+    const rows: any[] = await this.hotels.list(user.tenantId);
+    return ids ? rows.filter((h) => ids.includes(h.id)) : rows;
   }
 
   @Post()
@@ -670,7 +678,9 @@ export class HotelsController {
   }
 
   @Get(':id')
-  get(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+  async get(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    const ids = await this.allowedHotels(user);
+    if (ids && !ids.includes(id)) throw new NotFoundException('Hotel not found');
     return this.hotels.get(user.tenantId, id);
   }
 

@@ -257,6 +257,13 @@ export const PMIC: Record<string, React.ReactNode> = {
       <path d="M9 4v16" />
     </>
   ),
+  image: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="M21 15l-5-5L5 21" />
+    </>
+  ),
 };
 
 /** Base module key → icon in PMIC above, purely decorative (mirrors the sidebar's own icons). */
@@ -275,6 +282,7 @@ export const MODULE_ICON: Record<string, keyof typeof PMIC> = {
   chat: 'chat',
   helpdesk: 'help',
   esign: 'sign',
+  media: 'image',
   email: 'email',
   marketing: 'marketing',
   telegram: 'telegramPlane',

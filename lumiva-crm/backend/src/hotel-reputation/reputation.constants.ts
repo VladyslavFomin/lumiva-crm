@@ -49,6 +49,49 @@ export function historyFloor(cfg: { historyFrom: string | null }): number {
   return cfg.historyFrom ? Date.parse(`${cfg.historyFrom}T00:00:00Z`) : Date.parse('2000-01-01T00:00:00Z');
 }
 
+/** Часы и минуты «по стенке» в часовом поясе tz + день недели (1 = Пн … 7 = Вс). */
+function wallClock(tz: string, at: Date) {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, weekday: 'short' });
+  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
+  const dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday) + 1;
+  return { y: +p.year, m: +p.month, d: +p.day, h: +p.hour % 24, min: +p.minute, s: +p.second, dow };
+}
+
+/** Момент «дата ymd, время hh:mm в поясе tz» в UTC (с поправкой на летнее время). */
+function zonedTime(tz: string, y: number, m: number, d: number, hh: number, mm: number): number {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const w = wallClock(tz, new Date(guess));
+  const offset = Date.UTC(w.y, w.m - 1, w.d, w.h, w.min, w.s) - guess;
+  return guess - offset;
+}
+
+/**
+ * Последний наступивший слот расписания «по дням недели» (≤ now) — или null, если дни не выбраны.
+ * Источник «должен» собраться, если с этого момента он ещё не запускался.
+ */
+export function lastScheduleSlot(sc: { days: number[]; at: string; tz: string }, now = new Date()): Date | null {
+  const days = new Set((sc.days || []).filter((x) => x >= 1 && x <= 7));
+  if (!days.size) return null;
+  const [hh, mm] = (/^\d{1,2}:\d{2}$/.test(sc.at) ? sc.at : '02:00').split(':').map(Number);
+  const tz = sc.tz || 'UTC';
+  for (let back = 0; back <= 7; back++) {
+    const w = wallClock(tz, new Date(now.getTime() - back * 864e5));
+    if (!days.has(w.dow)) continue;
+    const t = zonedTime(tz, w.y, w.m, w.d, hh, mm);
+    if (t <= now.getTime()) return new Date(t);
+  }
+  return null;
+}
+
+/** Самый длинный промежуток между соседними слотами, в днях (для порога «площадка затихла»). */
+export function maxScheduleGapDays(days: number[]): number {
+  const d = [...new Set(days.filter((x) => x >= 1 && x <= 7))].sort((a, b) => a - b);
+  if (!d.length) return 7;
+  let gap = 7 - d[d.length - 1] + d[0];
+  for (let i = 1; i < d.length; i++) gap = Math.max(gap, d[i] - d[i - 1]);
+  return gap;
+}
+
 export function toRating10(raw: number | null, scale: number | null): number | null {
   if (raw == null || !Number.isFinite(raw) || !scale) return null;
   return Math.round(Math.min(10, Math.max(0, (raw / scale) * 10)) * 100) / 100;
@@ -166,6 +209,16 @@ export interface ReputationConfig {
     firstLoadMax: number;
     /** Сколько запусков Apify держать одновременно (на бесплатном тарифе Apify лимит 5; оставляем слот для тестов). */
     maxConcurrentRuns: number;
+    /**
+     * Когда собирать: 'interval' — каждые N часов по площадкам (everyHours), 'days' — в выбранные дни недели
+     * в заданное время (все площадки разом; клиент сам решает, насколько свежие отзывы ему нужны и сколько платить Apify).
+     */
+    mode: 'interval' | 'days';
+    /** Дни недели для mode='days': 1 = понедельник … 7 = воскресенье. */
+    days: number[];
+    /** Время запуска 'ЧЧ:ММ' в часовом поясе tz. */
+    at: string;
+    tz: string;
   };
   translateTo: 'ru' | 'en';
   telegramBotId: string | null;
@@ -206,6 +259,11 @@ export interface ReputationConfig {
   competitors: { everyDays: number; historyMonths: number; firstLoadMax: number; maxPerRun: number; ai: boolean };
   /** Брать только отзывы не старше этой даты (YYYY-MM-DD); null — без ограничения. */
   historyFrom: string | null;
+  /**
+   * Готовые ответы на отзывы — без ИИ, на языке гостя (нет перевода на его язык — английский).
+   * Подстановки: {author} — имя гостя, {hotel} — отель, {signature} — подпись отеля.
+   */
+  replyTemplates: ReplyTemplate[];
   /** Сбор через Apify на паузе: кончился месячный бюджет тарифа (повтор раз в 3 часа или вручную). */
   apifyPause: { reason: string | null; at: string | null };
   /** Отчёт по бренду в начале месяца — кому слать. */
@@ -266,11 +324,75 @@ export const DEFAULT_ACTORS: Record<string, ApifyActorConfig> = {
   },
 };
 
+export type ReplyTemplateTone = 'positive' | 'mixed' | 'negative' | 'any';
+export interface ReplyTemplate {
+  id: string;
+  name: string;
+  /** Для каких отзывов предлагать первым (по оценке). */
+  tone: ReplyTemplateTone;
+  /** Текст по языкам: ключ — 2 буквы (en, de, ru, tr …). */
+  texts: Record<string, string>;
+}
+
+/** Стартовый набор — клиент правит под себя в настройках. */
+export const DEFAULT_REPLY_TEMPLATES: ReplyTemplate[] = [
+  {
+    id: 'thanks',
+    name: 'Спасибо за высокую оценку',
+    tone: 'positive',
+    texts: {
+      en: 'Dear {author}, thank you for your wonderful review! We are delighted that you enjoyed your stay at {hotel} and hope to welcome you back soon.\n\n{signature}',
+      de: 'Liebe/r {author}, vielen Dank für Ihre wunderbare Bewertung! Es freut uns sehr, dass Ihnen Ihr Aufenthalt im {hotel} gefallen hat. Wir hoffen, Sie bald wieder bei uns begrüßen zu dürfen.\n\n{signature}',
+      ru: '{author}, спасибо за прекрасный отзыв! Мы очень рады, что вам понравился отдых в {hotel}, и будем ждать вас снова.\n\n{signature}',
+      tr: 'Sevgili {author}, harika yorumunuz için çok teşekkür ederiz! {hotel} konaklamanızdan memnun kalmanıza çok sevindik, sizi yeniden ağırlamayı umuyoruz.\n\n{signature}',
+    },
+  },
+  {
+    id: 'mixed',
+    name: 'Спасибо + учтём замечания',
+    tone: 'mixed',
+    texts: {
+      en: 'Dear {author}, thank you for taking the time to share your feedback. We are glad you enjoyed many aspects of your stay, and we have passed your comments on to the relevant teams so we can improve. We hope to welcome you back to {hotel}.\n\n{signature}',
+      de: 'Liebe/r {author}, vielen Dank, dass Sie sich die Zeit für Ihre Bewertung genommen haben. Es freut uns, dass Ihnen vieles gefallen hat. Ihre Hinweise haben wir an die zuständigen Abteilungen weitergegeben, damit wir uns verbessern können. Wir hoffen, Sie wieder im {hotel} begrüßen zu dürfen.\n\n{signature}',
+      ru: '{author}, спасибо, что нашли время поделиться впечатлениями. Мы рады, что многое вам понравилось, а ваши замечания уже передали в профильные службы, чтобы стать лучше. Будем рады видеть вас снова в {hotel}.\n\n{signature}',
+      tr: 'Sevgili {author}, görüşlerinizi paylaşmak için zaman ayırdığınız için teşekkür ederiz. Konaklamanızın birçok yönünden memnun kalmanıza sevindik; geliştirmek için yorumlarınızı ilgili ekiplerimize ilettik. Sizi yeniden {hotel} misafiri olarak görmeyi umuyoruz.\n\n{signature}',
+    },
+  },
+  {
+    id: 'apology',
+    name: 'Извинение за негативный опыт',
+    tone: 'negative',
+    texts: {
+      en: 'Dear {author}, thank you for your feedback, and please accept our sincere apologies that your stay at {hotel} did not meet your expectations. We have shared your comments with our management team and are taking steps to address them. We would welcome the chance to discuss this further — please contact us directly.\n\n{signature}',
+      de: 'Liebe/r {author}, vielen Dank für Ihr Feedback. Bitte entschuldigen Sie, dass Ihr Aufenthalt im {hotel} nicht Ihren Erwartungen entsprochen hat. Wir haben Ihre Hinweise an unsere Hotelleitung weitergegeben und kümmern uns darum. Gerne würden wir mit Ihnen persönlich darüber sprechen — bitte kontaktieren Sie uns direkt.\n\n{signature}',
+      ru: '{author}, спасибо за отзыв и примите наши искренние извинения: отдых в {hotel} не оправдал ваших ожиданий. Мы передали ваши замечания руководству отеля и уже занимаемся ими. Будем благодарны, если вы свяжетесь с нами напрямую — хотим разобраться в ситуации.\n\n{signature}',
+      tr: 'Sevgili {author}, geri bildiriminiz için teşekkür ederiz; {hotel} konaklamanız beklentilerinizi karşılamadığı için içtenlikle özür dileriz. Yorumlarınızı otel yönetimimize ilettik ve gerekli adımları atıyoruz. Konuyu sizinle görüşmek isteriz — lütfen bizimle doğrudan iletişime geçin.\n\n{signature}',
+    },
+  },
+];
+
+export function sanitizeReplyTemplates(v: unknown): ReplyTemplate[] {
+  if (!Array.isArray(v)) return DEFAULT_REPLY_TEMPLATES.map((t) => ({ ...t, texts: { ...t.texts } }));
+  const tones: ReplyTemplateTone[] = ['positive', 'mixed', 'negative', 'any'];
+  return v.slice(0, 40).flatMap((x: any, i: number) => {
+    const texts: Record<string, string> = {};
+    for (const [k, t] of Object.entries(x?.texts || {})) {
+      const lang = String(k).toLowerCase().slice(0, 2);
+      const text = String(t ?? '').trim().slice(0, 3000);
+      if (/^[a-z]{2}$/.test(lang) && text) texts[lang] = text;
+    }
+    const name = String(x?.name ?? '').trim().slice(0, 80);
+    if (!name || !Object.keys(texts).length) return [];
+    const id = /^[a-z0-9_-]{1,40}$/i.test(String(x?.id || '')) ? String(x.id) : `t${Date.now().toString(36)}${i}`;
+    return [{ id, name, tone: tones.includes(x?.tone) ? x.tone : 'any', texts }];
+  });
+}
+
 export function defaultConfig(): ReputationConfig {
   return {
     thresholds: { negativeBelow: 6, noReplyHours: 48, ratingDropPoints: 0.3, topicRepeatCount: 3, topicRepeatDays: 7, staleDays: 7, countDriftPct: 1 },
     alerts: { negative: true, no_reply: true, rating_lowered: true, avg_drop: true, topic_spike: true, sync_problem: true },
-    schedule: { holidaycheckMinutes: 60, apifyHours: 6, otelpuanHours: 24, offSeason: false, maxPerRun: 50, firstLoadMax: 1000, maxConcurrentRuns: 4 },
+    schedule: { holidaycheckMinutes: 60, apifyHours: 6, otelpuanHours: 24, offSeason: false, maxPerRun: 50, firstLoadMax: 1000, maxConcurrentRuns: 4, mode: 'interval', days: [1], at: '02:00', tz: 'Europe/Istanbul' },
     translateTo: 'ru',
     telegramBotId: null,
     recipients: { developer: r(), brands: {}, hotels: {} },
@@ -285,6 +407,7 @@ export function defaultConfig(): ReputationConfig {
     monthlyReport: { enabled: true },
     apifyPause: { reason: null, at: null },
     historyFrom: null,
+    replyTemplates: DEFAULT_REPLY_TEMPLATES.map((t) => ({ ...t, texts: { ...t.texts } })),
   };
 }
 
@@ -315,6 +438,7 @@ export function mergeConfig(saved: any): ReputationConfig {
     competitors: { ...d.competitors, ...(s.competitors || {}) },
     monthlyReport: { ...d.monthlyReport, ...(s.monthlyReport || {}) },
     apifyPause: { ...d.apifyPause, ...(s.apifyPause || {}) },
+    replyTemplates: sanitizeReplyTemplates(s.replyTemplates),
     historyFrom: typeof s.historyFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.historyFrom) ? s.historyFrom : null,
   };
 }
