@@ -56,3 +56,9 @@ lumiva-crm/deploy-backups/
 dups.json
 n8n-backups/
 lumiva-crm-recovery/
+
+# --- local secrets/state at repo root (never commit) ---
+.lumiva-backup/
+.agents/
+.playwright-mcp/
+crontab.bak-*
