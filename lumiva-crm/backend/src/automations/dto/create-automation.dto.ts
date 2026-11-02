@@ -9,7 +9,9 @@ import {
   IsObject,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { TriggerEvent, ActionType } from '../automation.entity';
 
 export class ConditionDto {
@@ -44,11 +46,17 @@ export class CreateAutomationDto {
   @IsEnum(TriggerEvent)
   triggerEvent: TriggerEvent;
 
+  // @Type обязателен: с enableImplicitConversion без него class-transformer превращал каждый элемент в [] —
+  // условия сохранялись как [[]] и ломали автоматизацию
   @IsOptional()
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ConditionDto)
   conditions?: ConditionDto[];
 
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ActionDto)
   actions: ActionDto[];
 
   @IsOptional()
