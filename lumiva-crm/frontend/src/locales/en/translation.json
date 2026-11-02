@@ -20869,6 +20869,7 @@
           "HOTEL_POS_NAME": "Enter the outlet name",
           "HOTEL_POS_IN_USE": "The outlet has checks — switch it off",
           "HOTEL_POS_LIMIT": "Room credit limit exceeded",
+          "HOTEL_POS_VOID_NO_SHIFT": "This check's shift is already closed — open a cash shift and the refund will go through it.",
           "HOTEL_POS_OUTLET": "Outlet not found or off",
           "HOTEL_POS_EMPTY": "Add items to the check",
           "HOTEL_POS_NOT_IN_HOUSE": "Room charges only for in-house guests",
@@ -21246,6 +21247,8 @@
           "fees": "Fees"
         },
         "noPayments": "No payments in this shift",
+        "posCheck": "check {{n}}",
+        "posVoid": "check void",
         "col": {
           "time": "Time",
           "guest": "Guest",
@@ -22864,7 +22867,9 @@
         "attach": "+ Item from the cashier catalog…",
         "secLimit": "Room credit limit",
         "noLimit": "No limit",
-        "limitHint": "Unpaid extra charges (bar, restaurant, services) after which the till asks for confirmation. Unpaid accommodation is not counted."
+        "limitHint": "Unpaid extra charges (bar, restaurant, services) after which the till asks for confirmation. Unpaid accommodation is not counted.",
+        "shiftHint": "This payment goes into the open cash shift and its Z-report.",
+        "noShiftHint": "No cash shift is open — this payment won't appear in a Z-report. Open a shift under “Cashier”."
       }
     },
     "telephony": {

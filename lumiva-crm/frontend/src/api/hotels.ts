@@ -813,10 +813,10 @@ export const HOTEL_POS_KINDS: HotelPosKind[] = ['restaurant', 'bar', 'spa', 'min
 export interface HotelPosOutlet { id: string; hotelId: string; name: string; kind: HotelPosKind; active: boolean; sortOrder: number; items: HotelExtraService[] }
 export interface HotelPosGuest { reservationId: string; guestName: string; roomLabel: string | null; boardType: string | null; allInclusive: boolean; pax: number; checkOut: string; extrasOwed: number; creditLimit: number | null }
 export interface HotelPosLine { extraServiceId: string; name: string; quantity: number; unitPrice: number; amount: number; included: boolean }
-export interface HotelPosCheck { id: string; outletId: string; number: number; businessDate: string; reservationId: string | null; roomLabel: string | null; guestName: string | null; paymentMethod: string | null; lines: HotelPosLine[]; total: string; includedValue: string; status: 'posted' | 'voided'; note: string | null; voidReason: string | null; createdAt: string }
+export interface HotelPosCheck { id: string; outletId: string; number: number; businessDate: string; reservationId: string | null; roomLabel: string | null; guestName: string | null; paymentMethod: string | null; shiftId?: string | null; voidShiftId?: string | null; lines: HotelPosLine[]; total: string; includedValue: string; status: 'posted' | 'voided'; note: string | null; voidReason: string | null; createdAt: string }
 export interface HotelPosReportRow { outletId: string; name: string; kind: HotelPosKind; checks: number; voided: number; room: number; cash: number; card: number; other: number; included: number; total: number }
 const POS = '/hotels/pos';
-export const fetchPosOutlets = (hotelId: string) => api.get<{ outlets: HotelPosOutlet[]; creditLimit: number | null; currency: string; businessDate: string }>(`${POS}/outlets`, { params: { hotelId } });
+export const fetchPosOutlets = (hotelId: string) => api.get<{ outlets: HotelPosOutlet[]; creditLimit: number | null; currency: string; businessDate: string; shiftOpen?: boolean }>(`${POS}/outlets`, { params: { hotelId } });
 export const createPosOutlet = (dto: { hotelId: string; name: string; kind: HotelPosKind }) => api.post<HotelPosOutlet>(`${POS}/outlets`, dto);
 export const updatePosOutlet = (id: string, dto: Partial<Pick<HotelPosOutlet, 'name' | 'kind' | 'active' | 'sortOrder'>>) => api.patch<HotelPosOutlet>(`${POS}/outlets/${id}`, dto);
 export const deletePosOutlet = (id: string) => api.delete<{ ok: boolean }>(`${POS}/outlets/${id}`);
@@ -2332,7 +2332,8 @@ export interface HotelCashShift {
   id: string; hotelId: string; status: 'open' | 'closed'; openedBy: string | null; openedAt: string; openingCash: string;
   closedBy: string | null; closedAt: string | null; countedCash: string | null; expectedCash: string | null; difference: string | null; totals: Record<string, number> | null; note: string | null;
 }
-export interface HotelShiftPayment { reservationId: string; guestName: string; bookingCode: string | null; id: string; date: string; amount: number; method: string; note: string | null; createdAt?: string }
+/** Платёж смены: платёж брони или (source 'pos') оплата на месте в точке продаж — guestName = точка, bookingCode = № чека */
+export interface HotelShiftPayment { reservationId: string | null; guestName: string; bookingCode: string | null; id: string; date: string; amount: number; method: string; note: string | null; createdAt?: string; source?: 'pos'; posCheckId?: string; voided?: boolean }
 
 const CASH = '/hotels/cashier';
 export const fetchCashierSettings = (hotelId: string) => api.get<{ earlyCheckInFeePct: string; lateCheckOutFeePct: string; currency: string; businessDate: string; lastAuditDate: string | null }>(`${CASH}/settings`, { params: { hotelId } });

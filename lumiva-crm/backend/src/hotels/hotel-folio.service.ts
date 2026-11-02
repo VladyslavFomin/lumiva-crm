@@ -299,18 +299,30 @@ export class HotelFolioService {
     return this.shifts.findOne({ where: { tenantId, hotelId, status: 'open' } });
   }
 
-  /** Платежи смены — из платежей броней отеля, помеченных этой сменой */
+  /** Платежи смены — платежи броней отеля, помеченные этой сменой, и оплаты на месте в точках продаж */
   async shiftPayments(tenantId: string, hotelId: string, shiftId: string) {
     const rows = await this.reservations
       .createQueryBuilder('r')
       .where('r.tenantId = :tenantId AND r.hotelId = :hotelId', { tenantId, hotelId })
       .andWhere(`r.payments @> :needle::jsonb`, { needle: JSON.stringify([{ shiftId }]) })
       .getMany();
-    const out: Array<{ reservationId: string; guestName: string; bookingCode: string | null; id: string; date: string; amount: number; method: string; note: string | null; createdAt?: string }> = [];
+    const out: Array<{ reservationId: string | null; guestName: string; bookingCode: string | null; id: string; date: string; amount: number; method: string; note: string | null; createdAt?: string; source?: 'pos'; posCheckId?: string; voided?: boolean }> = [];
     for (const r of rows) {
       for (const p of r.payments || []) {
         if (p.shiftId === shiftId) out.push({ reservationId: r.id, guestName: r.guestName, bookingCode: r.bookingCode, id: p.id, date: p.date, amount: num(p.amount), method: p.method, note: p.note, createdAt: p.createdAt });
       }
+    }
+    // чеки точек продаж с оплатой на месте: продажа (+) в смене продажи, сторно (−) в смене возврата денег
+    const pos: Array<{ id: string; number: number; businessDate: string; total: string; paymentMethod: string; shiftId: string | null; voidShiftId: string | null; voidReason: string | null; voidedAt: Date | null; createdAt: Date; outletName: string }> = await this.shifts.manager.query(
+      `SELECT c.id, c.number, c."businessDate"::text AS "businessDate", c.total, c."paymentMethod", c."shiftId", c."voidShiftId", c."voidReason", c."voidedAt", c."createdAt", o.name AS "outletName"
+         FROM hotel_pos_checks c JOIN hotel_pos_outlets o ON o.id = c."outletId"
+        WHERE c."tenantId" = $1 AND c."hotelId" = $2 AND (c."shiftId" = $3 OR c."voidShiftId" = $3)`,
+      [tenantId, hotelId, shiftId],
+    );
+    for (const c of pos) {
+      const base = { reservationId: null, guestName: c.outletName, bookingCode: `#${c.number}`, method: c.paymentMethod, source: 'pos' as const, posCheckId: c.id };
+      if (c.shiftId === shiftId) out.push({ ...base, id: `pos:${c.id}`, date: c.businessDate, amount: num(c.total), note: null, createdAt: new Date(c.createdAt).toISOString() });
+      if (c.voidShiftId === shiftId) out.push({ ...base, id: `pos-void:${c.id}`, date: c.businessDate, amount: -num(c.total), note: c.voidReason, createdAt: c.voidedAt ? new Date(c.voidedAt).toISOString() : undefined, voided: true });
     }
     out.sort((a, b) => String(a.createdAt || a.date).localeCompare(String(b.createdAt || b.date)));
     return out;

@@ -44,6 +44,10 @@ export class HotelPosCheck {
   @Column({ type: 'varchar', length: 200, nullable: true }) guestName: string | null;
   /** оплата на месте: cash / card / other; на номер — null */
   @Column({ type: 'varchar', length: 16, nullable: true }) paymentMethod: string | null;
+  /** смена, в кассу которой пришли деньги за оплату на месте; null — на номер или смена не была открыта */
+  @Column({ type: 'uuid', nullable: true }) shiftId: string | null;
+  /** смена, из кассы которой вернули деньги при сторно оплаченного на месте чека */
+  @Column({ type: 'uuid', nullable: true }) voidShiftId: string | null;
   @Column({ type: 'jsonb', default: [] }) lines: HotelPosLine[];
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 }) total: string;
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 }) includedValue: string;

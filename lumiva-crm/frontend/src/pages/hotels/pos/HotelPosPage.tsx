@@ -86,7 +86,7 @@ export const HotelPosPage: React.FC = () => {
         {!data ? null : !active.length && tab !== 'settings' && tab !== 'report' ? (
           <div className="htl-empty"><h4>{k('noOutlets')}</h4><p>{k('noOutletsHint')}</p><button className="btn btn-primary" onClick={() => setTab('settings')}>{k('setup')}</button></div>
         ) : tab === 'till' && outlet ? (
-          <Till key={outlet.id} hotelId={hotelId} outlet={outlet} currency={data.currency} onPosted={() => undefined} />
+          <Till key={outlet.id} hotelId={hotelId} outlet={outlet} currency={data.currency} shiftOpen={!!data.shiftOpen} onPosted={() => undefined} />
         ) : tab === 'checks' && outlet ? (
           <Checks hotelId={hotelId} outlet={outlet} currency={data.currency} businessDate={data.businessDate} />
         ) : tab === 'report' ? (
@@ -100,7 +100,7 @@ export const HotelPosPage: React.FC = () => {
 };
 
 /** Касса точки: плитки позиций, корзина, кому — номер гостя или оплата на месте */
-const Till: React.FC<{ hotelId: string; outlet: HotelPosOutlet; currency: string; onPosted: () => void }> = ({ hotelId, outlet, currency, onPosted }) => {
+const Till: React.FC<{ hotelId: string; outlet: HotelPosOutlet; currency: string; shiftOpen: boolean; onPosted: () => void }> = ({ hotelId, outlet, currency, shiftOpen, onPosted }) => {
   const { t } = useTranslation();
   const k = (key: string, o?: Record<string, unknown>) => t(`crm.hotels.pos.${key}`, o);
   const loc = useLoc();
@@ -182,7 +182,10 @@ const Till: React.FC<{ hotelId: string; outlet: HotelPosOutlet; currency: string
             </>
           )
         ) : (
-          <div className="htl-seg">{['cash', 'card', 'other'].map((m) => <button key={m} type="button" className={pay === m ? 'on' : ''} onClick={() => setPay(m)}>{t(`crm.hotels.reservations.paymentMethods.${m}`, { defaultValue: m })}</button>)}</div>
+          <>
+            <div className="htl-seg">{['cash', 'card', 'other'].map((m) => <button key={m} type="button" className={pay === m ? 'on' : ''} onClick={() => setPay(m)}>{t(`crm.hotels.reservations.paymentMethods.${m}`, { defaultValue: m })}</button>)}</div>
+            <div className="htl-hint">{shiftOpen ? k('shiftHint') : k('noShiftHint')}</div>
+          </>
         )}
         <div className="pos-lines">
           {!lines.length ? <div className="htl-sub">{k('emptyCart')}</div> : lines.map((l) => (

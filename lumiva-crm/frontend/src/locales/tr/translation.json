@@ -20845,6 +20845,7 @@
           "HOTEL_POS_NAME": "Nokta adını girin",
           "HOTEL_POS_IN_USE": "Noktada fiş var — kapatın",
           "HOTEL_POS_LIMIT": "Oda limiti aşıldı",
+          "HOTEL_POS_VOID_NO_SHIFT": "Bu fişin vardiyası kapandı — kasa vardiyası açın, iade bu vardiyadan yapılır.",
           "HOTEL_POS_OUTLET": "Nokta bulunamadı veya kapalı",
           "HOTEL_POS_EMPTY": "Fişe ürün ekleyin",
           "HOTEL_POS_NOT_IN_HOUSE": "Odaya yalnızca konaklayan misafire",
@@ -21220,6 +21221,8 @@
           "fees": "Ücretler"
         },
         "noPayments": "Bu vardiyada ödeme yok",
+        "posCheck": "fiş {{n}}",
+        "posVoid": "fiş iptali",
         "col": {
           "time": "Saat",
           "guest": "Misafir",
@@ -22836,7 +22839,9 @@
         "attach": "+ Kasa kataloğundan ürün…",
         "secLimit": "Oda harcama limiti",
         "noLimit": "Limitsiz",
-        "limitHint": "Misafirin ödenmemiş ek harcamaları (bar, restoran, hizmetler) bu tutarı aşınca kasa onay ister. Ödenmemiş konaklama sayılmaz."
+        "limitHint": "Misafirin ödenmemiş ek harcamaları (bar, restoran, hizmetler) bu tutarı aşınca kasa onay ister. Ödenmemiş konaklama sayılmaz.",
+        "shiftHint": "Ödeme açık kasa vardiyasına ve Z raporuna yazılır.",
+        "noShiftHint": "Açık kasa vardiyası yok — bu ödeme Z raporuna girmez. «Kasa» bölümünden vardiya açın."
       }
     },
     "telephony": {

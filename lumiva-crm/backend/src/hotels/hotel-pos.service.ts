@@ -52,7 +52,7 @@ export class HotelPosService {
     const items = list.length ? await this.extras.find({ where: { tenantId, hotelId, outletId: In(list.map((o) => o.id)) }, order: { sortOrder: 'ASC', name: 'ASC' } }) : [];
     const h = await this.hotel(tenantId, hotelId);
     // бизнес-дата отеля (по его часовому поясу и ночному аудиту) — чеки пишутся на неё, а не на дату браузера
-    return { outlets: list.map((o) => ({ ...o, items: items.filter((i) => i.outletId === o.id) })), creditLimit: h.posCreditLimit === null ? null : num(h.posCreditLimit), currency: (h.currency || '').toUpperCase(), businessDate: businessDateOf(h) };
+    return { outlets: list.map((o) => ({ ...o, items: items.filter((i) => i.outletId === o.id) })), creditLimit: h.posCreditLimit === null ? null : num(h.posCreditLimit), currency: (h.currency || '').toUpperCase(), businessDate: businessDateOf(h), shiftOpen: !!(await this.folio.openShiftOf(tenantId, hotelId)) };
   }
 
   async saveOutlet(tenantId: string, dto: { hotelId?: string; name?: string; kind?: string; active?: boolean; sortOrder?: number }, id?: string) {
@@ -134,6 +134,8 @@ export class HotelPosService {
     }
     const unit = res?.roomUnitId ? await this.units.findOne({ where: { id: res.roomUnitId, tenantId } }) : null;
     const [{ n }] = await this.checks.manager.query(`SELECT coalesce(max(number), 0)::int + 1 AS n FROM hotel_pos_checks WHERE "outletId" = $1`, [outlet.id]);
+    // оплата на месте — деньги в кассе открытой смены (как платёж брони); без смены продаём, но в Z-отчёт не попадёт
+    const shift = res ? null : await this.folio.openShiftOf(tenantId, hotel.id);
     const folioLineIds: string[] = [];
     if (res) {
       // по строке на позицию: в счёте гостя видно, что именно; «всё включено» в счёт не идёт
@@ -144,7 +146,7 @@ export class HotelPosService {
     }
     return this.checks.save(this.checks.create({
       tenantId, hotelId: hotel.id, outletId: outlet.id, number: n, businessDate: businessDateOf(hotel), reservationId: res?.id ?? null,
-      roomLabel: unit?.label ?? null, guestName: res?.guestName ?? null, paymentMethod: res ? null : String(dto.paymentMethod), lines,
+      roomLabel: unit?.label ?? null, guestName: res?.guestName ?? null, paymentMethod: res ? null : String(dto.paymentMethod), shiftId: shift?.id ?? null, lines,
       total: String(total), includedValue: String(includedValue), folioLineIds, status: 'posted', note: String(dto.note || '').trim().slice(0, 500) || null, createdBy: actor,
     }));
   }
@@ -156,8 +158,16 @@ export class HotelPosService {
     if (c.status === 'voided') throw bad('HOTEL_POS_VOIDED', 'Чек уже сторнирован');
     const why = String(reason || '').trim();
     if (!why) throw bad('HOTEL_POS_REASON', 'Укажите причину сторно');
+    // деньги за оплату на месте возвращаются из кассы: смена продажи, пока открыта, иначе — текущая открытая смена
+    let voidShiftId: string | null = null;
+    if (c.shiftId) {
+      const open = await this.folio.openShiftOf(tenantId, c.hotelId);
+      if (!open) throw bad('HOTEL_POS_VOID_NO_SHIFT', 'Смена этого чека закрыта — откройте смену, возврат денег пройдёт через неё');
+      voidShiftId = open.id;
+    }
     if (c.reservationId) for (const lid of c.folioLineIds || []) await this.folio.voidLine(tenantId, c.reservationId, lid, `POS #${c.number}: ${why}`, actor);
     c.status = 'voided';
+    c.voidShiftId = voidShiftId;
     c.voidReason = why.slice(0, 500);
     c.voidedBy = actor;
     c.voidedAt = new Date();

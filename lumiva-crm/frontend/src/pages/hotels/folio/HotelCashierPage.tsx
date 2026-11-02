@@ -87,10 +87,10 @@ const PaymentsTable: React.FC<{ payments: HotelShiftPayment[]; currency?: string
         <thead><tr><th>{k('col.time')}</th><th>{k('col.guest')}</th><th>{k('col.method')}</th><th>{k('col.note')}</th><th style={{ textAlign: 'right' }}>{k('col.amount')}</th></tr></thead>
         <tbody>
           {payments.map((p) => (
-            <tr key={p.id} onClick={() => navigate(`/hotels/reservations?reservation=${p.reservationId}`)} style={{ cursor: 'pointer' }}>
+            <tr key={p.id} onClick={() => navigate(p.source === 'pos' ? '/hotels/pos' : `/hotels/reservations?reservation=${p.reservationId}`)} style={{ cursor: 'pointer' }}>
               <td>{p.createdAt ? new Date(p.createdAt).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' }) : p.date}</td>
-              <td><b>{p.guestName}</b>{p.bookingCode && <span className="htl-sub"> · {p.bookingCode}</span>}</td>
-              <td>{t(`crm.hotels.reservations.paymentMethods.${p.method}`, { defaultValue: p.method })}{p.amount < 0 ? ` · ${t('crm.hotels.folio.refund')}` : ''}</td>
+              <td>{p.source === 'pos' ? <><b>{p.guestName}</b><span className="htl-sub"> · {k('posCheck', { n: p.bookingCode })}</span></> : <><b>{p.guestName}</b>{p.bookingCode && <span className="htl-sub"> · {p.bookingCode}</span>}</>}</td>
+              <td>{t(`crm.hotels.reservations.paymentMethods.${p.method}`, { defaultValue: p.method })}{p.voided ? ` · ${k('posVoid')}` : p.amount < 0 ? ` · ${t('crm.hotels.folio.refund')}` : ''}</td>
               <td style={{ color: 'var(--fg-2)' }}>{p.note || '—'}</td>
               <td style={{ textAlign: 'right', fontWeight: 600, color: p.amount < 0 ? '#9a1f31' : undefined }}>{money(p.amount, currency, loc)}</td>
             </tr>
