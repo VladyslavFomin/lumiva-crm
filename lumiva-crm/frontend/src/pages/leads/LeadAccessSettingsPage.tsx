@@ -136,7 +136,7 @@ export const LeadAccessSettingsPage: React.FC = () => {
   if (forbidden) {
     return (
       <MainLayout>
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm text-center space-y-3">
+        <div className="bg-white border border-slate-200 rounded-[14px] p-6 shadow-sm text-center space-y-3">
           <div className="text-sm font-semibold text-lumiva-accent">{t('crm.leads.access.pageTitle')}</div>
           <div className="text-xs text-slate-500">{t('crm.leads.access.forbiddenPage')}</div>
           <button
@@ -166,7 +166,7 @@ export const LeadAccessSettingsPage: React.FC = () => {
           </div>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm space-y-3">
+        <div className="bg-white border border-slate-200 rounded-[14px] p-4 shadow-sm space-y-3">
           <h2 className="text-sm font-semibold text-lumiva-accent">{t('crm.leads.access.addGrantTitle')}</h2>
 
           <div className="flex flex-wrap items-end gap-3">
@@ -244,7 +244,7 @@ export const LeadAccessSettingsPage: React.FC = () => {
           <div className="text-[10px] text-slate-400 leading-relaxed max-w-[640px]">{tierHint(tier)}</div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm space-y-3">
+        <div className="bg-white border border-slate-200 rounded-[14px] p-4 shadow-sm space-y-3">
           <h2 className="text-sm font-semibold text-lumiva-accent">{t('crm.leads.access.existingGrantsTitle')}</h2>
 
           {loading ? (

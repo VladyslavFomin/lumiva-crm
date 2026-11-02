@@ -585,7 +585,7 @@ export const CampaignsPage: React.FC = () => {
                 <div className={marketingKpiLabel}>
                   {t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}
                 </div>
-                <div className={`${marketingKpiValue} text-emerald-700`}>
+                <div className={marketingKpiValue}>
                   {formatNumber(engagementTotals.imp)}
                 </div>
                 <div className={marketingKpiHint}>
@@ -598,7 +598,7 @@ export const CampaignsPage: React.FC = () => {
                 <div className={marketingKpiLabel}>
                   {t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' })}
                 </div>
-                <div className={`${marketingKpiValue} text-violet-700`}>
+                <div className={marketingKpiValue}>
                   {formatNumber(engagementTotals.clk)}
                 </div>
                 <div className={marketingKpiHint}>
@@ -645,7 +645,7 @@ export const CampaignsPage: React.FC = () => {
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-[12px] text-[#222222]/85">
                 <span className="font-medium">
                   {t('crm.marketingChannels.kpi.leads')}:{' '}
-                  <span className="tabular-nums text-violet-700">{formatNumber(engagementTotals.leads)}</span>
+                  <span className="tabular-nums">{formatNumber(engagementTotals.leads)}</span>
                 </span>
                 <span className="font-medium">
                   {t('crm.marketingChannelBlocks.ctr', { defaultValue: 'CTR' })}:{' '}

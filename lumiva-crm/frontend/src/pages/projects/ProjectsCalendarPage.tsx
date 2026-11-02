@@ -399,7 +399,7 @@ export const ProjectsCalendarPage: React.FC = () => {
           </div>
         )}
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
             <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
               <button
@@ -471,7 +471,7 @@ export const ProjectsCalendarPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
@@ -561,7 +561,7 @@ export const ProjectsCalendarPage: React.FC = () => {
           )}
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <h2 className="text-sm font-semibold text-slate-900 mb-3">
             {t('crm.projects.calendar.upcoming.title')}
           </h2>

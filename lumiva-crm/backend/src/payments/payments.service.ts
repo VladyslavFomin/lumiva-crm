@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, MoreThanOrEqual, Repository } from 'typeorm';
+import { Between, EntityManager, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { randomUUID, randomBytes } from 'crypto';
 
 import { Payment, PaymentProvider, PaymentSource } from './payment.entity';
@@ -52,6 +54,8 @@ type BuyerInput = {
 
 @Injectable()
 export class PaymentsService {
+  private readonly log = new Logger(PaymentsService.name);
+
   constructor(
     @InjectRepository(Payment)
     private readonly repo: Repository<Payment>,
@@ -74,15 +78,45 @@ export class PaymentsService {
     return `${base}/v1/payments/${provider}/callback`;
   }
 
+  /**
+   * allowDisabled — для проверки уже выставленных счетов (callback, сверка): если интеграцию
+   * выключили, пока покупатель платил, деньги всё равно надо засчитать.
+   */
+  private async findConnectionRow(tenantId: string, provider: PaymentProvider, allowDisabled = false): Promise<IntegrationConnection | null> {
+    const rows = await this.integrationRepo.find({
+      where: { tenantId, isDeleted: false, kind: 'third_party_link' } as any,
+    });
+    const match = (r: IntegrationConnection) => {
+      if (!r.configJson) return false;
+      try {
+        return (JSON.parse(r.configJson) as { catalogId?: string }).catalogId === provider;
+      } catch {
+        return false;
+      }
+    };
+    return rows.find((r) => r.isEnabled && match(r)) || (allowDisabled ? rows.find(match) || null : null);
+  }
+
+  /** Статус подключения в «Интеграциях»: ошибка ключей → баннер и уведомление владельцу. */
+  private async markProviderHealth(tenantId: string, provider: PaymentProvider, ok: boolean, error?: string) {
+    const row = await this.findConnectionRow(tenantId, provider, true).catch(() => null);
+    if (!row) return;
+    if (ok && row.lastSyncStatus === 'ok' && !row.lastError) return;
+    await this.integrationRepo
+      .update({ id: row.id }, ok ? { lastSyncStatus: 'ok', lastError: null, lastSyncAt: new Date() } : { lastSyncStatus: 'error', lastError: (error || '').slice(0, 1000), lastSyncAt: new Date() })
+      .catch(() => undefined);
+  }
+
   private async findConnectionConfig(
     tenantId: string,
     provider: PaymentProvider,
+    allowDisabled = false,
   ): Promise<Record<string, unknown>> {
     const rows = await this.integrationRepo.find({
       where: { tenantId, isDeleted: false, kind: 'third_party_link' } as any,
     });
     const row = rows.find((r) => {
-      if (!r.isEnabled || !r.configJson) return false;
+      if ((!r.isEnabled && !allowDisabled) || !r.configJson) return false;
       try {
         const cfg = JSON.parse(r.configJson) as { catalogId?: string };
         return cfg.catalogId === provider;
@@ -98,8 +132,8 @@ export class PaymentsService {
     return JSON.parse(row.configJson) as Record<string, unknown>;
   }
 
-  private async getIyzicoCredentials(tenantId: string): Promise<IyzicoCredentials> {
-    const cfg = await this.findConnectionConfig(tenantId, 'iyzico');
+  private async getIyzicoCredentials(tenantId: string, allowDisabled = false): Promise<IyzicoCredentials> {
+    const cfg = await this.findConnectionConfig(tenantId, 'iyzico', allowDisabled);
     const apiKey = String(cfg.apiKey || '').trim();
     const secretKey = String(cfg.apiToken || '').trim();
     if (!apiKey || !secretKey) {
@@ -214,8 +248,14 @@ export class PaymentsService {
         locale: params.locale,
       });
     } catch (e) {
-      throw new BadRequestException(e instanceof Error ? e.message : 'iyzico: не удалось создать форму оплаты');
+      const msg = e instanceof Error ? e.message : 'iyzico: не удалось создать форму оплаты';
+      // 1000/1001 — подпись/ключ не приняты: сломано подключение, а не этот счёт
+      if (/\((1000|1001)\)/.test(msg) || /api ?key|signature|imza/i.test(msg)) {
+        await this.markProviderHealth(params.tenantId, 'iyzico', false, `Ключи iyzico не приняты: ${msg}`);
+      }
+      throw new BadRequestException(msg);
     }
+    void this.markProviderHealth(params.tenantId, 'iyzico', true);
 
     const payment = this.repo.create({
       tenantId: params.tenantId,
@@ -556,18 +596,43 @@ export class PaymentsService {
   ): Promise<{ status: 'paid' | 'failed'; saleId: string | null; tenantId: string }> {
     const payment = await this.repo.findOne({ where: { token, provider: 'iyzico' } as any });
     if (!payment) throw new NotFoundException('Платёж не найден');
+    const status = await this.settleIyzicoPayment(payment, false);
+    return { status: status === 'paid' ? 'paid' : 'failed', saleId: payment.saleId, tenantId: payment.tenantId };
+  }
 
-    const creds = await this.getIyzicoCredentials(payment.tenantId);
+  /**
+   * Сверка одного iyzico-платежа с сервером iyzico (callback и фоновая сверка).
+   * Оплаченный не откатываем; сумма и валюта должны совпасть с выставленными.
+   * finalizeUnknown=false (callback): «ещё не оплачен» = failed, как и раньше;
+   * в фоновой сверке неокончательный ответ оставляет платёж в pending.
+   */
+  private async settleIyzicoPayment(payment: Payment, background: boolean): Promise<'paid' | 'failed' | 'pending'> {
+    if (payment.status === 'paid') return 'paid';
+    if (!payment.token) return 'pending';
+    const creds = await this.getIyzicoCredentials(payment.tenantId, true);
     const result = await this.iyzico.retrieveCheckoutForm(creds, {
-      token,
+      token: payment.token,
       conversationId: payment.conversationId || randomUUID(),
     });
 
-    const paid = result.status === 'success' && result.paymentStatus === 'SUCCESS';
+    const success = result.status === 'success' && result.paymentStatus === 'SUCCESS';
+    const paidAmount = Number(result.paidPrice ?? result.price);
+    const amountOk = Number.isFinite(paidAmount) && paidAmount + 0.01 >= Number(payment.amount);
+    const currencyOk = !result.currency || result.currency.toUpperCase() === String(payment.currency).toUpperCase();
+    const paid = success && amountOk && currencyOk;
+
+    if (success && !paid) {
+      this.log.error(`iyzico payment ${payment.id}: amount/currency mismatch (${result.paidPrice} ${result.currency} vs ${payment.amount} ${payment.currency})`);
+    }
+    if (!paid && background && !success && result.paymentStatus !== 'FAILURE') {
+      // форма ещё открыта / покупатель не дошёл до оплаты — ждём
+      return 'pending';
+    }
+
     payment.status = paid ? 'paid' : 'failed';
     payment.providerRaw = result as unknown as Record<string, unknown>;
     if (!paid) {
-      payment.failReason = result.errorMessage || result.paymentStatus || 'unknown';
+      payment.failReason = success ? 'amount_mismatch' : result.errorMessage || result.paymentStatus || 'unknown';
     } else if (!payment.paidAt) {
       // Не перезаписываем при повторной доставке вебхука — иначе теряется реальное время
       // ПЕРВОЙ оплаты, которым пользуется аналитика.
@@ -577,8 +642,33 @@ export class PaymentsService {
       await em.save(Payment, payment);
       await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
     });
+    return paid ? 'paid' : 'failed';
+  }
 
-    return { status: paid ? 'paid' : 'failed', saleId: payment.saleId, tenantId: payment.tenantId };
+  /**
+   * Фоновая сверка iyzico: callback может не дойти (закрыли вкладку, сбой сети, сервер перезапускался) —
+   * тогда деньги списаны, а в CRM счёт висит «ожидает». Раз в 10 минут спрашиваем iyzico сами.
+   * Форма iyzico живёт ~30 минут; через сутки без оплаты счёт закрываем как просроченный.
+   */
+  @Cron('*/10 * * * *')
+  async reconcileIyzicoPayments(): Promise<void> {
+    const now = Date.now();
+    const pending = await this.repo.find({
+      where: { provider: 'iyzico', status: 'pending', createdAt: Between(new Date(now - 48 * 3600e3), new Date(now - 3 * 60e3)) } as any,
+      take: 200,
+    });
+    for (const p of pending) {
+      try {
+        const st = await this.settleIyzicoPayment(p, true);
+        if (st === 'pending' && new Date(p.createdAt).getTime() < now - 24 * 3600e3) {
+          await this.repo.update({ id: p.id }, { status: 'cancelled', failReason: 'expired' });
+        }
+      } catch (e) {
+        this.log.warn(`iyzico reconcile ${p.id}: ${(e as Error).message}`);
+      }
+    }
+    // старше 48 ч и всё ещё pending — уже точно не оплатят этой ссылкой
+    await this.repo.update({ provider: 'iyzico', status: 'pending', createdAt: LessThan(new Date(now - 48 * 3600e3)) } as any, { status: 'cancelled', failReason: 'expired' });
   }
 
   /**

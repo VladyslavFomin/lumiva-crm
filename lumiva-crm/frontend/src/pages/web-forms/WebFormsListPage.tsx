@@ -223,7 +223,7 @@ export const WebFormsListPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="lv-embed-page w-full min-w-0 max-w-none px-2 sm:px-4 md:px-6 lg:px-8 py-6 md:py-8 pb-16">
+      <div className="lv-embed-page w-full min-w-0 max-w-none pb-16">
         <div className="lv-embed-hero">
           <div>
             <div className="lv-embed-kicker"><span className="dot" />{t('crm.embedForms.kicker')}</div>

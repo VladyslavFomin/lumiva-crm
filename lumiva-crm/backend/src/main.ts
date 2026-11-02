@@ -105,12 +105,24 @@ async function bootstrap() {
       next();
     },
   );
+  // Медиатека отдаётся только через /v1/public/media/* (подпись, пароль, срок, форма-гейт).
+  expressApp.use('/v1/uploads/media', (_req: any, res: any) => res.status(404).end());
   expressApp.use('/v1/uploads', serveLegacyUploadsIfPresent(uploadsRoot));
   expressApp.use('/v1/uploads', express.static(uploadsRoot));
 
   // Вебхук WhatsApp (Meta) подписан HMAC-SHA256 от СЫРЫХ байт тела (X-Hub-Signature-256). Meta
   // экранирует кириллицу как \uXXXX, поэтому JSON.stringify(req.body) подпись не повторит —
   // сохраняем исходный буфер до того, как тело распарсит Nest.
+  // Вебхук Instagram того же платформенного Meta-приложения — та же подпись по сырому телу.
+  expressApp.use(
+    '/v1/webhooks/instagram',
+    express.json({
+      limit: '2mb',
+      verify: (req, _res, buf) => {
+        (req as any).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
   expressApp.use(
     '/v1/webhooks/whatsapp',
     express.json({
@@ -154,6 +166,8 @@ async function bootstrap() {
       'X-Requested-With',
       'X-WP-Nonce',
       'X-Lumiva-Secret',
+      'X-Media-Visitor',
+      'X-Media-Access',
     ],
     exposedHeaders: ['X-Total-Count', 'X-Request-Id', 'X-Marketing-Sync-Rows', 'Content-Disposition'],
     credentials: false,

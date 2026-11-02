@@ -65,6 +65,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@sentry/nestjs": "^10.51.0",
     "@types/bcryptjs": "^2.4.6",
+    "archiver": "^5.3.2",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.76.4",

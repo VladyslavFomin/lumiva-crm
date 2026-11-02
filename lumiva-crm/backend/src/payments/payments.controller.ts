@@ -116,7 +116,9 @@ export class PaymentsController {
         `${frontend}/pay/result?status=${r.status}${r.saleId ? `&sale=${r.saleId}` : ''}`,
       );
     } catch {
-      return fail();
+      // не смогли проверить (сеть, ключи) — деньги могли списаться: не пугаем «не прошла»,
+      // фоновая сверка (PaymentsService.reconcileIyzicoPayments) досчитает платёж
+      return res.redirect(`${frontend}/pay/result?status=pending`);
     }
   }
 

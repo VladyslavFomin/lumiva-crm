@@ -146,7 +146,7 @@ export const TeamCalendarPage: React.FC = () => {
           </div>
         )}
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="flex flex-wrap gap-2">
             {(Object.keys(TYPE_META) as CalendarEventType[]).map((type) => {
               const meta = TYPE_META[type];
@@ -168,7 +168,7 @@ export const TeamCalendarPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
@@ -241,7 +241,7 @@ export const TeamCalendarPage: React.FC = () => {
           )}
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('crm.calendar.upcoming.title')}</h2>
           <div className="overflow-x-auto">
             <table className="min-w-[600px] w-full text-xs">

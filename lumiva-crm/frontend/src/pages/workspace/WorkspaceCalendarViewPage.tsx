@@ -311,7 +311,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
             </div>
           </div>
         )}
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="text-sm text-slate-600">{monthLabel}</div>
             <div className="flex flex-wrap items-center gap-2">
@@ -424,7 +424,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
             {t('crm.workspace.calendar.noDatedRecords')}
           </div>
         ) : viewMode === 'month' ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+          <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
             <div className="grid grid-cols-7 gap-2 text-[11px] text-slate-500 mb-2">
               {weekdayLabels.map((day) => <div key={day} className="px-2 py-1">{day}</div>)}
             </div>
@@ -469,7 +469,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+          <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
             <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
             {weekDays.map((d) => {
               const dayItems = grouped[d.iso] || [];
@@ -505,7 +505,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
           </div>
         )}
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('crm.workspace.calendar.upcomingTitle')}</h2>
           <div className="overflow-x-auto">
             <table className="min-w-[600px] w-full text-xs">

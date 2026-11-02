@@ -33,6 +33,8 @@ import { SalesChannelsModule } from './sales-channels/sales-channels.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { WhatsappWebhookModule } from './integrations/whatsapp/whatsapp-webhook.module';
 import { WhatsappCrmModule } from './whatsapp-crm/whatsapp-crm.module';
+import { InstagramCrmModule } from './instagram-crm/instagram-crm.module';
+import { CrmMigrationModule } from './crm-migration/crm-migration.module';
 import { TelephonyModule } from './telephony/telephony.module';
 import { AmocrmInboundWebhookModule } from './integrations/amocrm/amocrm-inbound-webhook.module';
 import { BitrixInboundWebhookModule } from './integrations/bitrix/bitrix-inbound-webhook.module';
@@ -74,6 +76,7 @@ import { ExportModule } from './export/export.module';
 import { PortalModule } from './portal/portal.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
 import { EsignModule } from './esign/esign.module';
+import { MediaModule } from './media/media.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AccountModule } from './account/account.module';
 import { DataVisibilityModule } from './data-visibility/data-visibility.module';
@@ -313,6 +316,7 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     PortalModule,
     HelpdeskModule,
     EsignModule,
+    MediaModule,
     AuditLogModule,
     AccountModule,
     DataVisibilityModule,
@@ -334,6 +338,8 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     SalesChannelsModule,
     IntegrationsModule,
     WhatsappCrmModule,
+    InstagramCrmModule,
+    CrmMigrationModule,
     TelephonyModule,
     WhatsappWebhookModule,
     AmocrmInboundWebhookModule,

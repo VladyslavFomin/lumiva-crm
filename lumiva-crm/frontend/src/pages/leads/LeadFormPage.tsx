@@ -1660,11 +1660,12 @@ export const LeadFormPage: React.FC = () => {
             <div className="ld-grid">
               {/* ════ LEFT ════════════════════════════════════════ */}
               <aside data-tour="lead-info" className="ld-left">
-                {showContacts && <Sec title={t('crm.leadCard.sec.contact')}>
+                {/* name/phone/email are the lead's own fields — not gated by the Contacts module */}
+                <Sec title={t('crm.leadCard.sec.contact')}>
                   <div className="ld-fs">
                     <label className="ld-f w">
                       <span className="l">{t('crm.leads.form.fields.namePlaceholder')}</span>
-                      <input value={lead.name} onChange={handleChange('name')} placeholder={t('crm.leads.form.fields.namePlaceholder')} />
+                      <input value={lead.name} onChange={handleChange('name')} />
                     </label>
                     <label className="ld-f w">
                       <span className="l">{t('crm.leads.form.fields.phonePlaceholder')}</span>
@@ -1676,12 +1677,12 @@ export const LeadFormPage: React.FC = () => {
                     </label>
                     <label className="ld-f w">
                       <span className="l">{t('crm.leads.form.fields.countryPlaceholder')}</span>
-                      <input value={lead.country} onChange={handleChange('country')} placeholder={t('crm.leads.form.fields.countryPlaceholder')} />
+                      <input value={lead.country} onChange={handleChange('country')} placeholder="TR, DE, RU…" />
                     </label>
                   </div>
                   {!isNew && (
                     <div className="ld-chlinks">
-                      {(['whatsapp', 'telegram', 'email'] as ChannelKey[]).map((k) =>
+                      {(['whatsapp', 'telegram', ...(chContacts.instagram ? ['instagram'] : []), 'email'] as ChannelKey[]).map((k) =>
                         chContacts[k] ? (
                           <a
                             key={k}
@@ -1704,7 +1705,7 @@ export const LeadFormPage: React.FC = () => {
                       )}
                     </div>
                   )}
-                </Sec>}
+                </Sec>
 
                 <Sec title={t('crm.leadCard.sec.deal')}>
                   <div className="ld-fs">

@@ -7,7 +7,7 @@ export const marketingPageShell = 'pb-2';
 export const marketingKicker =
   'inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-[#888] mb-2 font-medium font-mono';
 export const marketingH1 =
-  'text-[26px] font-[600] tracking-[-0.025em] text-[#222] leading-[1.1]';
+  'cd-display text-[34px] font-[600] text-[#222] leading-[1.05]';
 export const marketingLead = 'text-[13px] text-[#888] mt-1.5 max-w-2xl leading-[1.45]';
 
 /** Разделитель секций: «КАНАЛЫ ──────────» */
@@ -32,13 +32,13 @@ export const marketingSectionTitle = 'text-sm font-semibold text-[#222222]';
 export const marketingSectionSub = 'text-[11px] text-[#222222]/55 mt-0.5 leading-snug';
 export const marketingMetaLine = 'text-[11px] text-[#222222]/50';
 
-const kpiBase =
-  'relative overflow-hidden rounded-[14px] border border-[#e7e7e7] bg-white p-5 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-[3px] before:content-[""]';
+/** KPI-карточка: нейтральная, как во всей CRM (цветные полоски сверху убраны — выбивались из системы). */
+const kpiBase = 'relative overflow-hidden rounded-[14px] border border-[#e7e7e7] bg-white p-5';
 
-export const marketingKpiStripeBrand = `${kpiBase} before:bg-[#222222]`;
-export const marketingKpiStripeViolet = `${kpiBase} before:bg-violet-500`;
-export const marketingKpiStripeEmerald = `${kpiBase} before:bg-emerald-500`;
-export const marketingKpiStripeDuo = `${kpiBase} before:bg-gradient-to-r before:from-violet-500 before:to-rose-500`;
+export const marketingKpiStripeBrand = kpiBase;
+export const marketingKpiStripeViolet = kpiBase;
+export const marketingKpiStripeEmerald = kpiBase;
+export const marketingKpiStripeDuo = kpiBase;
 
 /** Ячейка в hairline-полосе KPI: рамки рисует gap-px контейнера (bg = цвет линии), поэтому сетка свободно перестраивается 2/3/6 колонок. */
 export const marketingKpiCell =
@@ -47,7 +47,7 @@ export const marketingKpiCell =
 export const marketingKpiLabel =
   'font-mono text-[9.5px] font-[500] uppercase tracking-[0.1em] text-[#888]';
 export const marketingKpiValue =
-  'font-semibold text-[24px] tracking-[-0.025em] text-[#222] leading-none mt-2.5 tabular-nums';
+  'cd-display font-semibold text-[28px] text-[#222] leading-none mt-2.5 tabular-nums';
 export const marketingKpiHint = 'text-[10.5px] text-[#888] mt-1.5 leading-snug font-mono';
 
 /** Обёртка таблицы: рамка + скругление + лёгкий inner-shadow */

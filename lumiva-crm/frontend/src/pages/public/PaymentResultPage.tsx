@@ -8,6 +8,7 @@ export const PaymentResultPage: React.FC = () => {
   const [params] = useSearchParams();
   const status = params.get('status');
   const paid = status === 'paid';
+  const pending = status === 'pending';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#fafafa] px-4">
@@ -16,16 +17,20 @@ export const PaymentResultPage: React.FC = () => {
           <div className="mx-auto mb-2 flex justify-center">
             <LottieIcon name="invoice-check" size={90} loop={false} />
           </div>
+        ) : pending ? (
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-2xl text-amber-600">
+            …
+          </div>
         ) : (
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-2xl text-rose-600">
             ✕
           </div>
         )}
         <h1 className="text-lg font-semibold text-[#222]">
-          {paid ? t('crm.pay.result.successTitle') : t('crm.pay.result.failTitle')}
+          {paid ? t('crm.pay.result.successTitle') : pending ? t('crm.pay.result.pendingTitle') : t('crm.pay.result.failTitle')}
         </h1>
         <p className="mt-2 text-[13px] text-[#666] leading-relaxed">
-          {paid ? t('crm.pay.result.successSubtitle') : t('crm.pay.result.failSubtitle')}
+          {paid ? t('crm.pay.result.successSubtitle') : pending ? t('crm.pay.result.pendingSubtitle') : t('crm.pay.result.failSubtitle')}
         </p>
       </div>
     </div>

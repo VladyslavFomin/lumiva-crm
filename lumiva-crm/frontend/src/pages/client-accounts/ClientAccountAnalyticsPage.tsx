@@ -72,7 +72,7 @@ const KpiCard: React.FC<{
   }[tone];
 
   return (
-    <div className={`rounded-3xl border p-5 shadow-sm ${tones}`}>
+    <div className={`rounded-[14px] border p-5 shadow-sm ${tones}`}>
       <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{label}</div>
       <div className="mt-2 text-2xl font-semibold">{value}</div>
       {hint ? <div className="mt-2 text-xs text-neutral-600">{hint}</div> : null}
@@ -249,7 +249,7 @@ const ClientAccountAnalyticsPage: React.FC = () => {
       </div>
 
       {accounts.length ? (
-        <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
+        <div className="rounded-[14px] border border-neutral-200 bg-neutral-50 p-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{ca('accountsSection.title')}</div>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {accounts.map((account: any, index) => {
@@ -276,7 +276,7 @@ const ClientAccountAnalyticsPage: React.FC = () => {
       ) : null}
 
       {investments.length ? (
-        <div className="rounded-3xl border border-neutral-200 bg-white p-4">
+        <div className="rounded-[14px] border border-neutral-200 bg-white p-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{ca('investmentsSection.title')}</div>
           <div className="mt-3 overflow-auto">
             <table className="w-full text-left text-xs">
@@ -313,7 +313,7 @@ const ClientAccountAnalyticsPage: React.FC = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="rounded-3xl border border-neutral-200 bg-white p-6 text-sm text-neutral-700">
+        <div className="rounded-[14px] border border-neutral-200 bg-white p-6 text-sm text-neutral-700">
           {ca('loadingText')}
         </div>
       </MainLayout>
@@ -323,7 +323,7 @@ const ClientAccountAnalyticsPage: React.FC = () => {
   if (error || !data) {
     return (
       <MainLayout>
-        <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900">
+        <div className="rounded-[14px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900">
           {error || ca('noAnalyticsData')}
         </div>
       </MainLayout>

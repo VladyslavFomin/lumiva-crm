@@ -140,6 +140,8 @@ const PortalTicketsPage = lazy(() => import('../pages/portal/PortalTicketsPage')
 const PortalTicketDetailPage = lazy(() => import('../pages/portal/PortalTicketDetailPage').then((m) => ({ default: m.PortalTicketDetailPage })));
 const HelpdeskPage = lazy(() => import('../pages/helpdesk/HelpdeskPage').then((m) => ({ default: m.HelpdeskPage })));
 const EsignPage = lazy(() => import('../pages/esign/EsignPage').then((m) => ({ default: m.EsignPage })));
+const MediaPage = lazy(() => import('../pages/media/MediaPage').then((m) => ({ default: m.MediaPage })));
+const MediaSharePage = lazy(() => import('../pages/media/MediaSharePage').then((m) => ({ default: m.MediaSharePage })));
 const EsignPublicPage = lazy(() => import('../pages/esign/EsignPublicPage').then((m) => ({ default: m.EsignPublicPage })));
 
 // NEW MODULES
@@ -173,6 +175,16 @@ const BookingSettingsPage = lazy(() => import('../pages/bookings/BookingSettings
 const BookingWaitlistPage = lazy(() => import('../pages/bookings/BookingWaitlistPage').then((m) => ({ default: m.BookingWaitlistPage })));
 const BookingAnalyticsPage = lazy(() => import('../pages/bookings/BookingAnalyticsPage').then((m) => ({ default: m.BookingAnalyticsPage })));
 const BookingLogsPage = lazy(() => import('../pages/bookings/BookingLogsPage').then((m) => ({ default: m.BookingLogsPage })));
+const RestaurantFloorPage = lazy(() => import('../pages/bookings/RestaurantFloorPage').then((m) => ({ default: m.RestaurantFloorPage })));
+const RestaurantFloorEditorPage = lazy(() => import('../pages/bookings/RestaurantFloorEditorPage').then((m) => ({ default: m.RestaurantFloorEditorPage })));
+const RestaurantMenuPage = lazy(() => import('../pages/bookings/RestaurantMenuPage').then((m) => ({ default: m.RestaurantMenuPage })));
+const BookingOrdersPage = lazy(() => import('../pages/bookings/BookingOrdersPage').then((m) => ({ default: m.BookingOrdersPage })));
+const BookingOrderPage = lazy(() => import('../pages/bookings/BookingOrderPage').then((m) => ({ default: m.BookingOrderPage })));
+const ClassSchedulePage = lazy(() => import('../pages/bookings/ClassSchedulePage').then((m) => ({ default: m.ClassSchedulePage })));
+const PassesPage = lazy(() => import('../pages/bookings/PassesPage').then((m) => ({ default: m.PassesPage })));
+const ConsultCalendarPage = lazy(() => import('../pages/bookings/ConsultCalendarPage').then((m) => ({ default: m.ConsultCalendarPage })));
+const RentalDeskPage = lazy(() => import('../pages/bookings/RentalDeskPage').then((m) => ({ default: m.RentalDeskPage })));
+const RentalInventoryPage = lazy(() => import('../pages/bookings/RentalInventoryPage').then((m) => ({ default: m.RentalInventoryPage })));
 const HotelsOverviewPage = lazy(() => import('../pages/hotels/HotelsOverviewPage').then((m) => ({ default: m.HotelsOverviewPage })));
 const HotelsListPage = lazy(() => import('../pages/hotels/HotelsListPage').then((m) => ({ default: m.HotelsListPage })));
 const HotelDetailPage = lazy(() => import('../pages/hotels/HotelDetailPage').then((m) => ({ default: m.HotelDetailPage })));
@@ -217,6 +229,9 @@ const EmailInboxPage = lazy(() => import('../pages/email/EmailInboxPage').then((
 const TelegramPage = lazy(() => import('../pages/telegram/TelegramPage').then((m) => ({ default: m.TelegramPage })));
 const TelegramInboxPage = lazy(() => import('../pages/telegram-crm/TelegramInboxPage'));
 const WhatsappInboxPage = lazy(() => import('../pages/whatsapp-crm/WhatsappInboxPage'));
+const InstagramPage = lazy(() => import('../pages/instagram-crm/InstagramPage'));
+const InstagramInboxPage = lazy(() => import('../pages/instagram-crm/InstagramInboxPage'));
+const CrmMigrationPage = lazy(() => import('../pages/crm-migration/CrmMigrationPage'));
 const TelephonyPage = lazy(() => import('../pages/telephony/TelephonyPage').then((m) => ({ default: m.TelephonyPage })));
 const TelephonySmsPage = lazy(() => import('../pages/telephony/TelephonySmsPage').then((m) => ({ default: m.TelephonySmsPage })));
 const TelephonyAnalyticsPage = lazy(() => import('../pages/telephony/TelephonyAnalyticsPage').then((m) => ({ default: m.TelephonyAnalyticsPage })));
@@ -484,6 +499,16 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route path="/esign/:token" element={<EsignPublicPage />} />
+
+        <Route
+          path="/media"
+          element={
+            <ProtectedRoute>
+              <MediaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/m/:slug" element={<MediaSharePage />} />
         <Route path="/g/:token" element={<GuestRequestPublicPage />} />
         <Route path="/c/:token" element={<PrecheckinPublicPage />} />
 
@@ -1338,6 +1363,87 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        <Route
+          path="/bookings/floor"
+          element={
+            <ProtectedRoute>
+              <RestaurantFloorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/floor/editor"
+          element={
+            <ProtectedRoute>
+              <RestaurantFloorEditorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/menu"
+          element={
+            <ProtectedRoute>
+              <RestaurantMenuPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/orders"
+          element={
+            <ProtectedRoute>
+              <BookingOrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/orders/:id"
+          element={
+            <ProtectedRoute>
+              <BookingOrderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/schedule"
+          element={
+            <ProtectedRoute>
+              <ClassSchedulePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/passes"
+          element={
+            <ProtectedRoute>
+              <PassesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/calendar"
+          element={
+            <ProtectedRoute>
+              <ConsultCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/desk"
+          element={
+            <ProtectedRoute>
+              <RentalDeskPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/inventory"
+          element={
+            <ProtectedRoute>
+              <RentalInventoryPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* -------- ОТЕЛИ (Система резервации) -------- */}
         <Route
           path="/hotels"
@@ -1691,6 +1797,30 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <WhatsappInboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/instagram"
+          element={
+            <ProtectedRoute>
+              <InstagramPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/instagram/inbox"
+          element={
+            <ProtectedRoute>
+              <InstagramInboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/migration"
+          element={
+            <ProtectedRoute>
+              <CrmMigrationPage />
             </ProtectedRoute>
           }
         />

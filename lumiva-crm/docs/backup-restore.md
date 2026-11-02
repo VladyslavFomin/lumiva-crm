@@ -13,6 +13,12 @@
 - `files-YYYYMMDD-HHMMSS.tar.gz.age` — загруженные файлы (`/app/uploads`), зашифрованные;
 - `checksums-YYYYMMDD-HHMMSS.sha256` — контрольные суммы.
 
+Медиатека (`uploads/media`, модуль «Медиа») в `files-*` не входит: она большая и меняется редко, поэтому
+лежит отдельным архивом `media-YYYYMMDD-HHMMSS.tar.age` (без gzip), который создаётся только когда
+список/размеры/даты файлов изменились (сравнение с `media-last.manifest`). Хранятся 2 последних —
+локально и в B2 (`media/`). До 2026-10-30 медиатека входила в каждый `files-*` (2,2 ГБ × 14 копий) —
+это забило и диск сервера, и лимит B2.
+
 Результат бэкапа и проверки приходит в Telegram.
 
 ## Ключи шифрования
@@ -58,6 +64,9 @@ cat /root/.lumiva-backup/age.key
    ```bash
    age -d -i /root/.lumiva-backup/age.key files-<STAMP>.tar.gz.age \
      | tar -xzf - -C /var/lib/docker/volumes/infra_lumiva_crm_uploads/_data
+   # медиатека — последний media-*.tar.age (из B2: папка media/)
+   age -d -i /root/.lumiva-backup/age.key media-<STAMP>.tar.age \
+     | tar -xf - -C /var/lib/docker/volumes/infra_lumiva_crm_uploads/_data
    ```
 
 7. Перезапустить API: `docker restart lumiva_crm_api`, проверить `https://crm.lumiva.agency/v1/health`.

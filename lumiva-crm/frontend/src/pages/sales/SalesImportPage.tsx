@@ -648,12 +648,18 @@ export const SalesImportPage: React.FC = () => {
               <label className="mb-1 block text-[11px] font-medium text-[var(--fg-3)]">
                 {t('crm.salesImport.fileInputLabel')}
               </label>
-              <input
-                type="file"
-                accept=".csv,.xml,text/csv,application/xml,text/xml"
-                onChange={handleFileChange}
-                className="block w-full cursor-pointer text-[12px] text-[var(--ink)] file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#222] file:px-3 file:py-2 file:text-[11px] file:font-semibold file:text-white hover:file:opacity-90"
-              />
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="file"
+                  accept=".csv,.xml,text/csv,application/xml,text/xml"
+                  onChange={handleFileChange}
+                  className="sr-only"
+                />
+                <span className="btn-secondary-sm">{t('crm.salesImport.chooseFile')}</span>
+                <span className="min-w-0 truncate text-[12px] text-[var(--fg-3)]">
+                  {file?.name || fileName || t('crm.salesImport.fileNone')}
+                </span>
+              </label>
               <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t('crm.salesImport.fileHint')}</p>
             </div>
 

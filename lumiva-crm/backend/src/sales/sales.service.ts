@@ -1502,6 +1502,83 @@ export class SalesService {
     return saved;
   }
 
+  /**
+   * Счёт модуля «Бронирования» (заказ стола, продажа абонемента, аренда…) → Sale в канале
+   * «Витрина и формы на сайте», чтобы выручка попадала в «Продажи», а онлайн-оплата шла
+   * через тот же PaymentsService.createSalePaymentLink. Лид/контакт уже известны из брони —
+   * не ищем заново. Повторный вызов с тем же saleId обновляет сумму/состав, а не плодит продажи.
+   */
+  async upsertFromBooking(
+    tenantId: string,
+    dto: {
+      saleId?: string | null;
+      orderNo: string;
+      items: Array<{ name: string; qty: number; unitPrice: number }>;
+      amount: number;
+      currency: string;
+      customerName: string | null;
+      customerEmail?: string | null;
+      customerPhone?: string | null;
+      leadId?: string | null;
+      contactId?: string | null;
+      paid: boolean;
+    },
+  ): Promise<Sale> {
+    if (dto.saleId) {
+      const existing = await this.saleRepo.findOne({ where: { id: dto.saleId, tenantId } as any });
+      if (existing) {
+        existing.amount = dto.amount;
+        existing.currency = dto.currency;
+        existing.customFields = {
+          ...(existing.customFields || {}),
+          // пустой список = «только отметить оплату», состав счёта не трогаем
+          items: dto.items.length ? dto.items : (existing.customFields as any)?.items || [],
+          bookingOrderNo: dto.orderNo,
+          customerEmail: dto.customerEmail ?? null,
+          customerPhone: dto.customerPhone ?? null,
+        };
+        if (dto.paid) existing.status = 'confirmed' as any;
+        return this.saleRepo.save(existing);
+      }
+    }
+    const externalOrderNo = await this.generateOrderCode();
+    const channel = await this.resolveDirectSalesChannel(tenantId, dto.currency);
+    const sale = this.saleRepo.create({
+      tenantId,
+      leadId: dto.leadId || null,
+      contactId: dto.contactId || null,
+      channelId: channel.id,
+      externalOrderNo,
+      guestName: dto.customerName,
+      amount: dto.amount,
+      currency: dto.currency,
+      status: dto.paid ? 'confirmed' : 'new',
+      saleDate: new Date(),
+      customFields: {
+        items: dto.items,
+        bookingOrderNo: dto.orderNo,
+        customerEmail: dto.customerEmail ?? null,
+        customerPhone: dto.customerPhone ?? null,
+      },
+    } as any);
+    const saved = (await this.saleRepo.save(sale)) as unknown as Sale;
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.SALE_CREATED, {
+        entityType: 'sale',
+        entityId: saved.id,
+        sale: saved,
+      });
+    } catch {
+      // автоматизации не должны блокировать выставление счёта
+    }
+    return saved;
+  }
+
+  /** Отмена счёта бронирования — продажа уходит в отменённые, а не висит «новой». */
+  async cancelBookingSale(tenantId: string, saleId: string): Promise<void> {
+    await this.saleRepo.update({ id: saleId, tenantId } as any, { status: 'cancelled' as any });
+  }
+
   async findStorefrontOrder(tenantId: string, code: string, email: string): Promise<Sale> {
     const sale = await this.saleRepo.findOne({ where: { tenantId, externalOrderNo: code } });
     const orderEmail = (sale?.customFields as any)?.customerEmail?.toLowerCase?.();

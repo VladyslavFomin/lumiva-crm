@@ -1,6 +1,8 @@
 // src/layout/MainLayout.tsx
 import { AiActivityFab } from '../components/ai/AiActivityFab';
 import React, { useEffect, useMemo, useReducer, useState, useRef } from 'react';
+import { bookingNavItems } from '../pages/bookings/bookingNav';
+import { useBookingBusinessType } from '../pages/bookings/useBookingVertical';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   getStoredUser,
@@ -1085,6 +1087,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     };
   }, []);
 
+  // Тип бизнеса грузим только внутри модуля (GET /bookings/project авто-создаёт проект — не
+  // хотим этого побочного эффекта у каждого тенанта на каждой странице); дальше — из кэша.
+  const bookingBusinessType = useBookingBusinessType(normalizeLayoutPath(location.pathname).startsWith('/bookings'));
+
   const NAV = useMemo(
     (): NavItem[] => [
       {
@@ -1194,18 +1200,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         icon: 'ticket',
         section: 'bookings',
         matchPaths: ['/app/bookings'],
-        children: [
-          { label: t('crm.nav.bookingOverview'), path: '/bookings' },
-          { label: t('crm.nav.bookingReservations'), path: '/bookings/reservations' },
-          { label: t('crm.nav.bookingWaitlist'), path: '/bookings/waitlist' },
-          { label: t('crm.nav.bookingResources'), path: '/bookings/resources' },
-          { label: t('crm.nav.bookingLocations'), path: '/bookings/locations' },
-          { label: t('crm.nav.bookingServices'), path: '/bookings/services' },
-          { label: t('crm.nav.bookingAvailability'), path: '/bookings/availability' },
-          { label: t('crm.nav.bookingAnalytics'), path: '/bookings/analytics' },
-          { label: t('crm.nav.bookingLogs'), path: '/bookings/logs' },
-          { label: t('crm.nav.bookingSettings'), path: '/bookings/settings' },
-        ],
+        // Разделы зависят от типа бизнеса проекта (ресторан: зал/меню/счета, фитнес: расписание/
+        // абонементы, консультации: календарь/пакеты, аренда: выдача/инвентарь) — см. bookingNav.ts.
+        children: bookingNavItems(t, bookingBusinessType)
+          .filter((item) => item.key !== 'roles')
+          .map((item) => ({ label: item.label, path: item.path })),
       },
 
       {
@@ -1282,6 +1281,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.esign'),
         path: '/esign',
         icon: 'sign',
+        section: 'communications',
+      },
+
+      {
+        label: t('crm.nav.media'),
+        path: '/media',
+        icon: 'photo',
         section: 'communications',
       },
 
@@ -1369,6 +1375,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           '/telegram',
           '/app/whatsapp',
           '/whatsapp',
+          '/app/instagram',
+          '/instagram',
+          '/app/migration',
+          '/migration',
           '/app/integrations-hub',
           '/integrations-hub',
           '/app/web-forms',
@@ -1397,6 +1407,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             path: '/app/integrations-hub',
             matchPaths: ['/app/integrations-hub', '/integrations-hub'],
           },
+          {
+            label: t('crm.nav.migration'),
+            path: '/app/migration',
+            matchPaths: ['/app/migration', '/migration'],
+          },
           { label: t('crm.nav.toolsTelegram'), path: '/app/telegram' },
           {
             label: t('crm.nav.telegramInbox'),
@@ -1407,6 +1422,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             label: t('crm.nav.whatsappInbox'),
             path: '/app/whatsapp/inbox',
             matchPaths: ['/app/whatsapp/inbox', '/whatsapp/inbox'],
+          },
+          {
+            label: t('crm.nav.instagramInbox'),
+            path: '/app/instagram/inbox',
+            matchPaths: ['/app/instagram/inbox', '/instagram/inbox', '/app/instagram', '/instagram'],
           },
         ],
       },
@@ -1467,7 +1487,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         ],
       },
     ],
-    [t, auraMenu],
+    [t, auraMenu, bookingBusinessType],
   );
 
   const commandPaletteNavItems = useMemo(
@@ -1515,6 +1535,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/ai-employees')) return 'ai_employees';
     if (p.startsWith('/helpdesk')) return 'helpdesk';
     if (p.startsWith('/esign')) return 'esign';
+    if (p.startsWith('/media')) return 'media';
     if (p.startsWith('/staff') || p.startsWith('/departments')) return 'team';
     if (p.startsWith('/projects/analytics')) return 'projects_analytics';
     if (p.startsWith('/projects/board')) return 'projects_kanban';
@@ -1541,10 +1562,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/web-forms/settings')) return 'tools_web_forms_settings';
     if (p.startsWith('/web-forms')) return 'tools_web_forms';
     if (p.startsWith('/integrations-hub')) return 'tools_integrations';
+    if (p.startsWith('/migration')) return 'tools_integrations';
     if (p.startsWith('/email')) return 'email';
     if (p.startsWith('/telegram/inbox')) return 'tools_telegram_inbox';
     if (p.startsWith('/telegram')) return 'telegram';
     if (p.startsWith('/whatsapp')) return 'whatsapp';
+    if (p.startsWith('/instagram')) return 'instagram';
     if (p.startsWith('/settings')) return 'tools_settings';
     if (p.startsWith('/profile')) return 'tools_settings';
     if (p.startsWith('/chat')) return 'chat';
@@ -1600,7 +1623,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       if (marketing && !marketing.enabled) return false;
     }
     if (
-      ['tools_automation', 'tools_approvals', 'tools_web_forms', 'tools_web_forms_settings', 'tools_integrations', 'tools_telegram_inbox', 'telegram', 'whatsapp'].includes(componentKey)
+      ['tools_automation', 'tools_approvals', 'tools_web_forms', 'tools_web_forms_settings', 'tools_integrations', 'tools_telegram_inbox', 'telegram', 'whatsapp', 'instagram'].includes(componentKey)
     ) {
       const tools = tenantComponents.find((c) => c.key === 'tools');
       if (tools && !tools.enabled) return false;
@@ -1630,13 +1653,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/automations')) return 'tools_automation';
     if (p.startsWith('/web-forms')) return 'tools_automation';
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
+    if (p.startsWith('/migration')) return 'leads';
     if (p.startsWith('/email')) return 'email';
     if (p.startsWith('/telegram')) return 'telegram';
     if (p.startsWith('/whatsapp')) return 'whatsapp';
+    if (p.startsWith('/instagram')) return 'instagram';
     if (p.startsWith('/chat')) return 'chat';
     if (p.startsWith('/online-chat')) return 'chat';
     if (p.startsWith('/helpdesk')) return 'helpdesk';
     if (p.startsWith('/esign')) return 'esign';
+    if (p.startsWith('/media')) return 'media';
     if (p.startsWith('/ai-employees')) return 'ai_employees';
     if (p.startsWith('/ai-office')) return 'ai_office';
     if (p.startsWith('/aura')) return 'analytics';
@@ -1916,7 +1942,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const sidebarTenantName = tenantNameDisplay ?? getStoredTenantName();
 
   return (
-    <div className="h-full flex bg-lumiva-bg text-lumiva-accent">
+    <div className="lv-crm h-full flex bg-lumiva-bg text-lumiva-accent">
       {/* SIDEBAR — только на md+ (узкий режим: только иконки + кнопка на грани) */}
       <div
         className="relative hidden md:flex shrink-0"

@@ -47,7 +47,7 @@ export const WebFormsSettingsPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="px-scope lv-embed-page w-full min-w-0 max-w-none px-2 sm:px-4 md:px-6 lg:px-8 py-6 md:py-8 pb-16">
+      <div className="px-scope lv-embed-page w-full min-w-0 max-w-none pb-16">
         <button type="button" onClick={() => navigate('/web-forms')} className="lv-embed-back">
           ← {t('crm.embedForms.list.title')}
         </button>

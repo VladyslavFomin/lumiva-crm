@@ -2323,7 +2323,7 @@ export const ProjectFormPage: React.FC = () => {
             )}
             {tab === 'tasks' && (
           <div
-            className="rounded-3xl p-4 sm:p-5 space-y-4"
+            className="rounded-[14px] p-4 sm:p-5 space-y-4"
             style={{ border: `1px solid ${LINE}`, background: BG_MUTED }}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2827,7 +2827,7 @@ export const ProjectFormPage: React.FC = () => {
 
             {tab === 'comments' && (
           <div
-            className="rounded-3xl p-4 space-y-4"
+            className="rounded-[14px] p-4 space-y-4"
             style={{ border: `1px solid ${LINE}`, background: '#fff' }}
           >
             <div className="space-y-3">
@@ -3036,7 +3036,7 @@ export const ProjectFormPage: React.FC = () => {
 
             {tab === 'history' && (
           <div
-            className="rounded-3xl p-4 space-y-4"
+            className="rounded-[14px] p-4 space-y-4"
             style={{ border: `1px solid ${LINE}`, background: '#fff' }}
           >
             {!!activities.length && (

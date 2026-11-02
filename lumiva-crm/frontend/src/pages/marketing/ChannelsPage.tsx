@@ -380,11 +380,11 @@ export const ChannelsPage: React.FC = () => {
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' })}</div>
-                <div className={`${kpiValue} text-[#5a45a8]`}>{formatNumber(totalClicks)}</div>
+                <div className={kpiValue}>{formatNumber(totalClicks)}</div>
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.leads')}</div>
-                <div className={`${kpiValue} text-[#c08319]`}>{formatNumber(view.totalLeads || 0)}</div>
+                <div className={kpiValue}>{formatNumber(view.totalLeads || 0)}</div>
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingTraffic.spendLabel', { defaultValue: 'Расходы' })}</div>
@@ -404,7 +404,7 @@ export const ChannelsPage: React.FC = () => {
               </div>
               <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.revenue')}</div>
-                <div className={`${kpiValue} text-[#1f8a5e]`}>
+                <div className={kpiValue}>
                   {kpiRevenue.kind === 'split' ? (
                     kpiRevenue.parts.map((p) => (
                       <span key={p.c} className="block">
