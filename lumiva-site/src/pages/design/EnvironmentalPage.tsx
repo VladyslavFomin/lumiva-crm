@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 const ZONE_CODES = ['Z01', 'Z02', 'Z03', 'Z04']
 const DELIV_CODES = ['EV/01', 'EV/02', 'EV/03', 'EV/04', 'EV/05', 'EV/06']
@@ -88,7 +90,7 @@ export default function EnvironmentalPage() {
                     {String(i + 1).padStart(2, '0')}/04
                   </div>
                 </div>
-                <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 28, letterSpacing: '-0.01em', margin: '0 0 28px' }}>{t(`environmental.zone${i}_name`)}</h3>
+                <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 28, letterSpacing: '-0.01em', margin: '0 0 28px' }}>{t(`environmental.zone${i}_name`)}</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[0,1,2,3].map(j => (
                     <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 15, color: i === 1 ? 'rgba(255,255,255,0.65)' : '#444' }}>
@@ -120,7 +122,7 @@ export default function EnvironmentalPage() {
               }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', paddingTop: 4 }}>{code}</div>
                 <div>
-                  <h4 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 22, letterSpacing: '-0.01em', margin: '0 0 8px' }}>{t(`environmental.d${i}_title`)}</h4>
+                  <h4 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 22, letterSpacing: '-0.01em', margin: '0 0 8px' }}>{t(`environmental.d${i}_title`)}</h4>
                   <p style={{ margin: 0, color: '#555', fontSize: 14.5, lineHeight: 1.6 }}>{t(`environmental.d${i}_desc`)}</p>
                 </div>
               </div>
@@ -191,6 +193,8 @@ export default function EnvironmentalPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="environmental" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

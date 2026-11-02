@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../components/PageSEO'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 export default function StrategyPage() {
   const { t } = useTranslation()
@@ -110,10 +112,10 @@ export default function StrategyPage() {
           </div>
           <div className="pmini">
             {[
-              { n: '01', hKey: 'strategy.proc01', dKey: 'strategy.proc01' },
-              { n: '02', hKey: 'strategy.proc02', dKey: 'strategy.proc02' },
-              { n: '03', hKey: 'strategy.proc03', dKey: 'strategy.proc03' },
-              { n: '04', hKey: 'strategy.proc04', dKey: 'strategy.proc04' },
+              { n: '01', hKey: 'strategy.proc01', dKey: 'strategy.proc01_desc' },
+              { n: '02', hKey: 'strategy.proc02', dKey: 'strategy.proc02_desc' },
+              { n: '03', hKey: 'strategy.proc03', dKey: 'strategy.proc03_desc' },
+              { n: '04', hKey: 'strategy.proc04', dKey: 'strategy.proc04_desc' },
             ].map((r, i) => (
               <div key={i} className="pmini-row">
                 <div className="pmini-num">{r.n}</div>
@@ -201,6 +203,8 @@ export default function StrategyPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_MAIN} slug="strategy" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../components/PageSEO'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 function FAQ() {
   const { t } = useTranslation()
@@ -187,6 +189,8 @@ export default function ServicesPage() {
       </section>
 
       {/* CTA STRIP */}
+      <SeoArticle set={SEO_MAIN} slug="services" />
+
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">
           <div className="grid">

@@ -5,6 +5,8 @@ import PageSEO from '../components/PageSEO'
 import RelatedServices from '../components/RelatedServices'
 import RelatedCases from '../components/RelatedCases'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 function AnimCounter({ target, suffix = '' }: { target: number; suffix?: string }) {
   const [val, setVal] = useState(0)
@@ -111,7 +113,7 @@ export default function AnalyticsPage() {
           <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--paper-2)' }}>
             {/* Dashboard header */}
             <div style={{ background: 'var(--ink)', color: 'var(--paper)', padding: '20px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 24 }}>Performance Dashboard <em style={{ opacity: 0.5, fontSize: 18, fontStyle: 'italic' }}>· live</em></div>
+              <div style={{ fontFamily: 'Inter Tight, sans-serif', fontSize: 24 }}>Performance Dashboard <em style={{ opacity: 0.5, fontSize: 18, fontStyle: 'italic' }}>· live</em></div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
                 <span className="dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3ee07d', display: 'inline-block' }} />
                 updated: just now
@@ -128,7 +130,7 @@ export default function AnalyticsPage() {
               ].map((k, i) => (
                 <div key={i} style={{ padding: '28px 32px', borderRight: i < 3 ? '1px solid var(--line)' : 'none' }}>
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>{k.label}</div>
-                  <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 48, lineHeight: 1, letterSpacing: '-0.02em' }}>
+                  <div style={{ fontFamily: 'Inter Tight, sans-serif', fontSize: 48, lineHeight: 1, letterSpacing: '-0.02em' }}>
                     <AnimCounter target={k.val % 1 !== 0 ? Math.round(k.val * 10) / 10 : k.val} suffix={k.suffix} />
                   </div>
                   <div style={{ marginTop: 6, fontSize: 12, color: k.up ? '#1a8a4f' : '#c0392b', fontFamily: 'JetBrains Mono, monospace' }}>{k.trend} {t('analytics.dash_prev')}</div>
@@ -159,7 +161,7 @@ export default function AnalyticsPage() {
                   <div key={i} style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                       <span>{f.stage}</span>
-                      <span style={{ fontFamily: 'Instrument Serif, serif', fontSize: 18 }}>{f.val.toLocaleString()}</span>
+                      <span style={{ fontFamily: 'Inter Tight, sans-serif', fontSize: 18 }}>{f.val.toLocaleString()}</span>
                     </div>
                     <div style={{ height: 4, background: 'var(--line)', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${f.pct === 100 ? 100 : f.pct * 10}%`, background: 'var(--ink)', borderRadius: 2, transition: 'width 1s var(--ease)' }} />
@@ -178,7 +180,7 @@ export default function AnalyticsPage() {
                   <div key={i} style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                       <span>{c.ch}</span>
-                      <span style={{ fontFamily: 'Instrument Serif, serif', fontSize: 18 }}>×{c.roas}</span>
+                      <span style={{ fontFamily: 'Inter Tight, sans-serif', fontSize: 18 }}>×{c.roas}</span>
                     </div>
                     <div style={{ height: 4, background: 'var(--line)', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${c.share}%`, background: 'var(--ink)', borderRadius: 2 }} />
@@ -256,10 +258,10 @@ export default function AnalyticsPage() {
           </div>
           <div className="pmini">
             {[
-              { n: '01', hKey: 'analytics.proc01', dKey: 'analytics.proc01' },
-              { n: '02', hKey: 'analytics.proc02', dKey: 'analytics.proc02' },
-              { n: '03', hKey: 'analytics.proc03', dKey: 'analytics.proc03' },
-              { n: '04', hKey: 'analytics.proc04', dKey: 'analytics.proc04' },
+              { n: '01', hKey: 'analytics.proc01', dKey: 'analytics.proc01_desc' },
+              { n: '02', hKey: 'analytics.proc02', dKey: 'analytics.proc02_desc' },
+              { n: '03', hKey: 'analytics.proc03', dKey: 'analytics.proc03_desc' },
+              { n: '04', hKey: 'analytics.proc04', dKey: 'analytics.proc04_desc' },
             ].map((r, i) => (
               <div key={i} className="pmini-row">
                 <div className="pmini-num">{r.n}</div>
@@ -368,6 +370,8 @@ export default function AnalyticsPage() {
           { title: t('analytics.rel3_title'), desc: t('analytics.rel3_desc'), to: p('/services/development/integrations') },
         ]}
       />
+      <SeoArticle set={SEO_MAIN} slug="analytics" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

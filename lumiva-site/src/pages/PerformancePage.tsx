@@ -5,6 +5,8 @@ import PageSEO from '../components/PageSEO'
 import RelatedServices from '../components/RelatedServices'
 import RelatedCases from '../components/RelatedCases'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 export default function PerformancePage() {
   const { t } = useTranslation()
@@ -123,10 +125,10 @@ export default function PerformancePage() {
           </div>
           <div className="pmini">
             {[
-              { n: '01', hKey: 'performance.proc01', dKey: 'performance.proc01' },
-              { n: '02', hKey: 'performance.proc02', dKey: 'performance.proc02' },
-              { n: '03', hKey: 'performance.proc03', dKey: 'performance.proc03' },
-              { n: '04', hKey: 'performance.proc04', dKey: 'performance.proc04' },
+              { n: '01', hKey: 'performance.proc01', dKey: 'performance.proc01_desc' },
+              { n: '02', hKey: 'performance.proc02', dKey: 'performance.proc02_desc' },
+              { n: '03', hKey: 'performance.proc03', dKey: 'performance.proc03_desc' },
+              { n: '04', hKey: 'performance.proc04', dKey: 'performance.proc04_desc' },
             ].map((r, i) => (
               <div key={i} className="pmini-row">
                 <div className="pmini-num">{r.n}</div>
@@ -234,6 +236,8 @@ export default function PerformancePage() {
           { title: t('performance.rel3_title'), desc: t('performance.rel3_desc'), to: p('/services/seo') },
         ]}
       />
+      <SeoArticle set={SEO_MAIN} slug="performance" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

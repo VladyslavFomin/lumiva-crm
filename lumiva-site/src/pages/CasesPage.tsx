@@ -37,7 +37,7 @@ export default function CasesPage() {
       />
 
       {/* Hero */}
-      <header style={{ padding: '80px 0 64px', borderBottom: '1px solid var(--line)' }}>
+      <header className="page-hero cases-hero" style={{ paddingBottom: 64 }}>
         <div className="wrap">
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', marginBottom: 32 }}>
             <div>
@@ -45,18 +45,11 @@ export default function CasesPage() {
                 <span className="num" style={{ borderColor: 'var(--ink)' }}>{cases.length || '—'}</span>
                 {t('cases.eyebrow', 'Case studies')}
               </div>
-              <h1 style={{
-                fontFamily: '"Instrument Serif", serif', fontWeight: 400,
-                fontSize: 'clamp(48px,7vw,112px)', lineHeight: .95, letterSpacing: '-.03em', margin: 0
-              }}>
+              <h1 className="page-title" style={{ margin: 0 }}>
                 {t('cases.title', 'Portfolio')}
               </h1>
             </div>
-            <p style={{
-              fontFamily: '"Instrument Serif", serif', fontStyle: 'italic',
-              fontSize: 'clamp(18px,2vw,24px)', lineHeight: 1.4, color: '#444',
-              maxWidth: '36ch', margin: 0, alignSelf: 'flex-end'
-            }}>
+            <p style={{ fontSize: 'clamp(17px,1.6vw,20px)', lineHeight: 1.5, color: 'var(--fg-2)', maxWidth: '40ch', margin: 0, alignSelf: 'flex-end' }}>
               {t('cases.sub', 'Measurable results — from brand identity to performance campaigns.')}
             </p>
           </div>
@@ -142,7 +135,7 @@ export default function CasesPage() {
                             }} />
                             <div style={{
                               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontFamily: '"Instrument Serif", serif', fontStyle: 'italic',
+                              fontFamily: '"Inter Tight", serif', fontStyle: 'italic',
                               fontSize: 'clamp(64px,8vw,96px)', color: 'rgba(255,255,255,.7)',
                               letterSpacing: '-.04em', lineHeight: 1,
                             }}>
@@ -158,7 +151,7 @@ export default function CasesPage() {
                           background: 'rgba(255,255,255,.12)', backdropFilter: 'blur(8px)',
                           border: '1px solid rgba(255,255,255,.2)',
                           padding: '6px 14px', borderRadius: 999,
-                          fontFamily: '"Instrument Serif", serif', fontSize: 22,
+                          fontFamily: '"Inter Tight", serif', fontSize: 22,
                           color: '#fff', letterSpacing: '-.01em',
                         }}>
                           {c.resultValue || c.shortResult}
@@ -170,7 +163,7 @@ export default function CasesPage() {
                     <div style={{ padding: '24px 28px 28px', background: 'var(--paper)', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                         <h2 style={{
-                          fontFamily: '"Instrument Serif", serif', fontWeight: 400,
+                          fontFamily: '"Inter Tight", serif', fontWeight: 400,
                           fontSize: 24, lineHeight: 1.1, letterSpacing: '-.01em', margin: 0,
                         }}>
                           {c.clientName}

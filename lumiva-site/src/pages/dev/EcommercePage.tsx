@@ -5,6 +5,8 @@ import PageSEO from '../../components/PageSEO'
 import RelatedServices from '../../components/RelatedServices'
 import RelatedCases from '../../components/RelatedCases'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DEV } from '../../content/seo/dev'
 
 export default function EcommercePage() {
   const { t, i18n } = useTranslation()
@@ -307,6 +309,8 @@ export default function EcommercePage() {
           { title: t('ecommerce.rel3_title'), desc: t('ecommerce.rel3_desc'), to: p('/services/development/landings') },
         ]}
       />
+      <SeoArticle set={SEO_DEV} slug="ecommerce" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

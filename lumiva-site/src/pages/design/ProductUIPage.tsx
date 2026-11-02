@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 type LangKey = 'en' | 'ru' | 'tr'
 
@@ -502,14 +504,14 @@ export default function ProductUIPage() {
               <div className="sub-deliv-l" style={{ borderColor: 'var(--line)' }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: 16 }}>{item.n}</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>{item.side}</div>
-                <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 'clamp(22px, 2vw, 32px)', letterSpacing: '-0.015em', margin: '0 0 20px', lineHeight: 1.1 }}>
+                <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 'clamp(22px, 2vw, 32px)', letterSpacing: '-0.015em', margin: '0 0 20px', lineHeight: 1.1 }}>
                   {item.title}
                 </h3>
                 <p style={{ margin: 0, color: '#444', fontSize: 15.5, lineHeight: 1.65 }}>{item.desc}</p>
               </div>
               <div className="sub-deliv-r" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <p style={{
-                  fontFamily: "'Instrument Serif', serif",
+                  fontFamily: "'Inter Tight', sans-serif",
                   fontStyle: 'italic',
                   fontSize: 'clamp(18px, 1.8vw, 26px)',
                   color: 'var(--muted)',
@@ -573,6 +575,8 @@ export default function ProductUIPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="product-ui" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

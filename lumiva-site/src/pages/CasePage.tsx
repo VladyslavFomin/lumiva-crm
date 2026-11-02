@@ -530,12 +530,12 @@ export default function CasePage() {
                     <div className="slot s2 reveal">
                       <span className="corner-tag">FIG. 03 · Type</span>
                       <div className="type">
-                        <small>Display · {c.primaryFont || 'Instrument Serif'}</small>
+                        <small>Display · {c.primaryFont || 'Inter Tight'}</small>
                         Aa<em>Aa</em>
                       </div>
                       <div className="label">
                         <span className="nm">Aa</span>
-                        <span>Body · {c.bodyFont || 'Geist'} · 16/24</span>
+                        <span>Body · {c.bodyFont || 'Inter'} · 16/24</span>
                       </div>
                     </div>
                   )}
@@ -742,7 +742,7 @@ export default function CasePage() {
         <div className="wrap">
           <div className="cta-grid">
             <div>
-              <h2 className="cta-strip-h" style={{ fontFamily: "'Instrument Serif',serif", fontWeight: 400, fontSize: 'clamp(36px,4vw,64px)', lineHeight: 1.05, letterSpacing: '-.02em', margin: '0 0 16px' }}>
+              <h2 className="cta-strip-h" style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 'clamp(36px,4vw,64px)', lineHeight: 1.05, letterSpacing: '-.02em', margin: '0 0 16px' }}>
                 {renderTitle(t('case.cta_title'))}
               </h2>
               <p style={{ color: '#444', fontSize: 18, lineHeight: 1.55, maxWidth: '44ch', margin: '0 0 28px' }}>

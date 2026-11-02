@@ -685,7 +685,11 @@
     "rel2_title": "Performance Marketing",
     "rel2_desc": "Feed attribution data straight back into campaign optimisation across every paid channel.",
     "rel3_title": "Integrations & API",
-    "rel3_desc": "Pipe verified analytics data directly into your CRM, ERP, or BI stack."
+    "rel3_desc": "Pipe verified analytics data directly into your CRM, ERP, or BI stack.",
+    "proc01_desc": "We check what is tracked today, where data is lost and which business questions remain unanswered.",
+    "proc02_desc": "Event plan, GA4 / Yandex Metrica, Tag Manager, conversion APIs and CRM integration.",
+    "proc03_desc": "Dashboards for the questions you ask, with attribution of leads and sales to their sources.",
+    "proc04_desc": "Regular reviews of the data, growth hypotheses and tests — analytics that changes decisions."
   },
   "strategy": {
     "eyebrow": "S/04 · Strategy & Research",
@@ -750,7 +754,11 @@
     "cta_title": "Ready to understand where you are now?",
     "cta_sub": "45 minutes — and it becomes clear whether you need a full strategic project",
     "cta_btn": "Schedule a Call",
-    "tier_discuss": "Discuss"
+    "tier_discuss": "Discuss",
+    "proc01_desc": "A working session with your team: goals, constraints, existing data and what success should look like.",
+    "proc02_desc": "Customer interviews, competitor analysis, search demand and a review of your analytics and CRM.",
+    "proc03_desc": "We turn findings into positioning, key insights and hypotheses ranked by expected impact.",
+    "proc04_desc": "A roadmap with tasks by quarter, owners, budgets and KPIs — ready to execute."
   },
   "performance": {
     "eyebrow": "S/05 · Performance Marketing",
@@ -852,7 +860,11 @@
     "rel2_title": "Marketing Analytics",
     "rel2_desc": "See the full path from ad click to closed deal with end-to-end attribution.",
     "rel3_title": "SEO and Organic Growth",
-    "rel3_desc": "Reduce reliance on paid spend over time by building a compounding organic channel."
+    "rel3_desc": "Reduce reliance on paid spend over time by building a compounding organic channel.",
+    "proc01_desc": "Review of ad accounts, tracking, landing pages and unit economics: what a lead or sale may cost.",
+    "proc02_desc": "Channel mix, budget split, audiences and creative plan built around your targets.",
+    "proc03_desc": "Campaign launch with conversion tracking and structured tests of audiences, offers and creatives.",
+    "proc04_desc": "Budget moves to what works, weak campaigns are paused, and successful ones are scaled."
   },
   "content": {
     "eyebrow": "S/06 · Content & Communities",
@@ -918,7 +930,11 @@
     "cta_title": "Ready to start creating content?",
     "cta_sub": "In 45 minutes we'll discuss platforms, formats, and publishing frequency",
     "cta_btn": "Schedule a Call",
-    "tier_discuss": "Discuss"
+    "tier_discuss": "Discuss",
+    "proc01_desc": "Audience, tone of voice, formats and an editorial policy tied to your business goals.",
+    "proc02_desc": "Scripts, shoots, editing, design and copy — produced in-house in agreed batches.",
+    "proc03_desc": "Publishing schedule, paid promotion and work with creators to reach the right audience.",
+    "proc04_desc": "We measure what performs and adjust formats, topics and frequency every month."
   },
   "seo": {
     "eyebrow": "S/07 · SEO & Organic Traffic",
@@ -1018,7 +1034,11 @@
     "rel2_title": "Performance Marketing",
     "rel2_desc": "Combine long-term organic growth with paid campaigns to fill the gap while SEO compounds.",
     "rel3_title": "Content Production",
-    "rel3_desc": "SEO needs a steady stream of content — we produce the articles and pages your strategy targets."
+    "rel3_desc": "SEO needs a steady stream of content — we produce the articles and pages your strategy targets.",
+    "proc01_desc": "Technical audit, indexation check, competitor review and analysis of current visibility.",
+    "proc02_desc": "Keyword research and clustering, target pages for each cluster and a prioritised plan.",
+    "proc03_desc": "Fixes for speed, structure, structured data, internal linking and multilingual hreflang.",
+    "proc04_desc": "Optimised pages and articles, plus link building through outreach and partnerships."
   },
   "smm": {
     "eyebrow": "S/06 · Social Media Marketing",
@@ -1138,7 +1158,11 @@
     "rel2_title": "Brand & Visual Systems",
     "rel2_desc": "Keep every post visually consistent with your brand identity.",
     "rel3_title": "Performance Marketing",
-    "rel3_desc": "Amplify your best-performing posts with targeted paid campaigns."
+    "rel3_desc": "Amplify your best-performing posts with targeted paid campaigns.",
+    "proc01_desc": "Review of your current accounts, audience and competitors; we define the role of each platform and the goals for the quarter.",
+    "proc02_desc": "Rubrics, visual style and a monthly content plan with formats, dates and goals for every post.",
+    "proc03_desc": "Paid promotion, collaborations and activations that grow reach among the right audience.",
+    "proc04_desc": "UTM links, lead forms and CRM integration so social channels bring enquiries and sales, not just likes."
   },
   "blog": {
     "eyebrow": "Journal",

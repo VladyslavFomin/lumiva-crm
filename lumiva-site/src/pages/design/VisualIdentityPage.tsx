@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 const ELEMENT_CODES = ['VI/01','VI/02','VI/03','VI/04','VI/05','VI/06','VI/07','VI/08']
 
@@ -79,7 +81,7 @@ export default function VisualIdentityPage() {
         <div className="wrap" style={{ padding: '80px var(--pad-x)' }}>
           <blockquote style={{
             margin: 0,
-            fontFamily: "'Instrument Serif', serif",
+            fontFamily: "'Inter Tight', sans-serif",
             fontStyle: 'italic',
             fontSize: 'clamp(28px, 4vw, 54px)',
             letterSpacing: '-0.02em',
@@ -128,7 +130,7 @@ export default function VisualIdentityPage() {
                 }}
               >
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em' }}>{code}</div>
-                <div style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 20, letterSpacing: '-0.01em', lineHeight: 1.2 }}>{t(`visual_identity.el${i}_name`)}</div>
+                <div style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 20, letterSpacing: '-0.01em', lineHeight: 1.2 }}>{t(`visual_identity.el${i}_name`)}</div>
                 <div style={{ fontSize: 13.5, color: '#555', lineHeight: 1.55 }}>{t(`visual_identity.el${i}_desc`)}</div>
               </div>
             ))}
@@ -148,7 +150,7 @@ export default function VisualIdentityPage() {
               <div key={i} className="reveal" style={{ padding: '40px 32px 32px', position: 'relative' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ink)', border: '2px solid var(--paper)', position: 'absolute', top: 14, left: 32 }} />
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.08em', marginBottom: 12 }}>{t(`visual_identity.${s.w}`)}</div>
-                <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 22, letterSpacing: '-0.01em', marginBottom: 10 }}>{t(`visual_identity.${s.h}`)}</div>
+                <div style={{ fontFamily: "'Inter Tight', sans-serif", fontSize: 22, letterSpacing: '-0.01em', marginBottom: 10 }}>{t(`visual_identity.${s.h}`)}</div>
                 <div style={{ fontSize: 14, color: '#555', lineHeight: 1.55 }}>{t(`visual_identity.${s.d}`)}</div>
               </div>
             ))}
@@ -199,6 +201,8 @@ export default function VisualIdentityPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="visual-identity" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

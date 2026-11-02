@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 const MAT_CODES = ['G300', 'D250', 'K350', 'KR200', 'PL', 'SP']
 const DELIV_CODES = ['PK/01', 'PK/02', 'PK/03', 'PK/04', 'PK/05', 'PK/06']
@@ -81,7 +83,7 @@ export default function PackagingPage() {
               }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--muted)', paddingTop: 4 }}>{code}</div>
                 <div>
-                  <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 26, letterSpacing: '-0.01em', margin: '0 0 10px' }}>{t(`packaging.d${i}_title`)}</h3>
+                  <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 26, letterSpacing: '-0.01em', margin: '0 0 10px' }}>{t(`packaging.d${i}_title`)}</h3>
                   <p style={{ margin: 0, color: '#555', fontSize: 15, lineHeight: 1.6 }}>{t(`packaging.d${i}_desc`)}</p>
                 </div>
                 <div className="sub-pkg-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', paddingTop: 4 }}>
@@ -108,7 +110,7 @@ export default function PackagingPage() {
             {MAT_CODES.map((code, i) => (
               <div key={i} className="reveal" style={{ borderRight: '1px solid var(--line)', borderBottom: '1px solid var(--line)', padding: '28px 32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 18 }}>{t(`packaging.mat${i}_name`)}</div>
+                  <div style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 18 }}>{t(`packaging.mat${i}_name`)}</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', alignSelf: 'center' }}>{code}</div>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>{t('packaging.mat_finish_label')} {t(`packaging.mat${i}_finish`)}</div>
@@ -162,6 +164,8 @@ export default function PackagingPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="packaging" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

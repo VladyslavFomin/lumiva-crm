@@ -5,6 +5,8 @@ import PageSEO from '../../components/PageSEO'
 import RelatedServices from '../../components/RelatedServices'
 import RelatedCases from '../../components/RelatedCases'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DEV } from '../../content/seo/dev'
 
 export default function LandingsPage() {
   const { t, i18n } = useTranslation()
@@ -265,6 +267,8 @@ export default function LandingsPage() {
           { title: t('landings.rel3_title'), desc: t('landings.rel3_desc'), to: p('/services/development/ecommerce') },
         ]}
       />
+      <SeoArticle set={SEO_DEV} slug="landings" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

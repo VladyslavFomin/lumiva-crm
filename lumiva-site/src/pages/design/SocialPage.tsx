@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 const PLATFORMS = [
   { name: 'Instagram', handle: '@brand', color: '#E1306C' },
@@ -100,7 +102,7 @@ export default function SocialPage() {
                 <div style={{ padding: '32px 36px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
                     <div>
-                      <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 28, letterSpacing: '-0.01em', margin: '0 0 4px' }}>{plat.name}</h3>
+                      <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 28, letterSpacing: '-0.01em', margin: '0 0 4px' }}>{plat.name}</h3>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--muted)', letterSpacing: '0.04em' }}>{plat.handle}</div>
                     </div>
                     <div style={{ width: 44, height: 44, borderRadius: 12, background: `${plat.color}18`, display: 'grid', placeItems: 'center' }}>
@@ -140,7 +142,7 @@ export default function SocialPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
             {[0,1,2,3,4,5].map(i => (
               <div key={i} className="reveal" style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '32px 28px' }}>
-                <h4 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 20, letterSpacing: '-0.01em', margin: '0 0 12px' }}>{t(`social.del${i}_title`)}</h4>
+                <h4 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 20, letterSpacing: '-0.01em', margin: '0 0 12px' }}>{t(`social.del${i}_title`)}</h4>
                 <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>{t(`social.del${i}_desc`)}</p>
               </div>
             ))}
@@ -210,6 +212,8 @@ export default function SocialPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="social" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

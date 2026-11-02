@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DEV } from '../../content/seo/dev'
 
 export default function IntegrationsPage() {
   const { t, i18n } = useTranslation()
@@ -248,6 +250,8 @@ export default function IntegrationsPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DEV} slug="integrations" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

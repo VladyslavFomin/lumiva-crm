@@ -48,7 +48,7 @@ export default function NotFoundPage() {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -52%)',
-          fontFamily: "'Instrument Serif', serif",
+          fontFamily: "'Inter Tight', sans-serif",
           fontStyle: 'italic',
           fontSize: 'clamp(260px, 35vw, 520px)',
           fontWeight: 400,
@@ -82,7 +82,7 @@ export default function NotFoundPage() {
           </div>
 
           <h1 style={{
-            fontFamily: "'Instrument Serif', serif",
+            fontFamily: "'Inter Tight', sans-serif",
             fontWeight: 400,
             fontSize: 'clamp(36px, 5vw, 64px)',
             letterSpacing: '-0.02em',

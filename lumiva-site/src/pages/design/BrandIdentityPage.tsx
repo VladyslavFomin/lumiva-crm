@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 export default function BrandIdentityPage() {
   const { t } = useTranslation()
@@ -83,7 +85,7 @@ export default function BrandIdentityPage() {
             {axes.map((a, i) => (
               <div key={i} className="reveal" style={{ borderRight: '1px solid var(--line)', borderBottom: '1px solid var(--line)', padding: '40px 36px' }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: 20 }}>{a.code}</div>
-                <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 28, letterSpacing: '-0.01em', margin: '0 0 24px' }}>{t(a.titleKey)}</h3>
+                <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 28, letterSpacing: '-0.01em', margin: '0 0 24px' }}>{t(a.titleKey)}</h3>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {a.items.map(item => (
                     <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, color: '#444' }}>
@@ -151,7 +153,7 @@ export default function BrandIdentityPage() {
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: item.dark ? 'rgba(255,255,255,0.4)' : 'var(--muted)', letterSpacing: '0.1em', marginBottom: 20 }}>
                     BR/0{item.n}
                   </div>
-                  <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 'clamp(24px, 2.5vw, 38px)', letterSpacing: '-0.015em', margin: '0 0 16px', lineHeight: 1.1 }}>
+                  <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 'clamp(24px, 2.5vw, 38px)', letterSpacing: '-0.015em', margin: '0 0 16px', lineHeight: 1.1 }}>
                     {t(item.titleKey)}
                   </h3>
                   <p style={{ margin: 0, color: item.dark ? 'rgba(255,255,255,0.65)' : '#444', fontSize: 16, lineHeight: 1.65 }}>
@@ -174,7 +176,7 @@ export default function BrandIdentityPage() {
                 order: i % 2 === 0 ? 1 : 0,
                 background: item.dark ? 'rgba(255,255,255,0.04)' : 'var(--paper-2)',
               }}>
-                <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 'clamp(80px, 10vw, 140px)', color: item.dark ? 'rgba(255,255,255,0.07)' : 'rgba(34,34,34,0.07)', letterSpacing: '-0.04em', userSelect: 'none' }}>
+                <span style={{ fontFamily: "'Inter Tight', sans-serif", fontStyle: 'italic', fontSize: 'clamp(80px, 10vw, 140px)', color: item.dark ? 'rgba(255,255,255,0.07)' : 'rgba(34,34,34,0.07)', letterSpacing: '-0.04em', userSelect: 'none' }}>
                   {String(i + 1).padStart(2, '0')}
                 </span>
               </div>
@@ -253,6 +255,8 @@ export default function BrandIdentityPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="brand-identity" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

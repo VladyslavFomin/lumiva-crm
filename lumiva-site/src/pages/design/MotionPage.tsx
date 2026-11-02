@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 const REEL_DURS = ['0:05–0:15', '0:15–0:60', '0:06–0:15', '0:03–0:08', '∞', '0:30–2:00']
 const TOOLS = ['After Effects', 'Premiere Pro', 'GSAP', 'Lottie', 'Framer Motion', 'Cinema 4D']
@@ -73,7 +75,7 @@ export default function MotionPage() {
       <div style={{ background: 'var(--ink)', overflow: 'hidden', height: 80, display: 'flex', alignItems: 'center', borderTop: '1px solid #000' }}>
         <div style={{
           display: 'flex', gap: 48, paddingLeft: 48,
-          fontFamily: "'Instrument Serif', serif", fontStyle: 'italic',
+          fontFamily: "'Inter Tight', sans-serif", fontStyle: 'italic',
           fontSize: 28, color: 'rgba(255,255,255,0.18)', whiteSpace: 'nowrap',
           animation: 'none', letterSpacing: '-0.01em',
         }}>
@@ -111,7 +113,7 @@ export default function MotionPage() {
                 }}>
                   {dur}
                 </div>
-                <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 22, letterSpacing: '-0.01em', margin: 0 }}>
+                <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 22, letterSpacing: '-0.01em', margin: 0 }}>
                   {t(`motion.reel${i}_type`)}
                 </h3>
                 <p className="sub-motion-reel-desc" style={{ margin: 0, color: '#555', fontSize: 14.5, lineHeight: 1.55 }}>{t(`motion.reel${i}_desc`)}</p>
@@ -132,7 +134,7 @@ export default function MotionPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               {TOOLS.map((tool, i) => (
                 <div key={tool} className="reveal" style={{ background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 10, padding: '20px 22px' }}>
-                  <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 18, marginBottom: 6 }}>{tool}</div>
+                  <div style={{ fontFamily: "'Inter Tight', sans-serif", fontSize: 18, marginBottom: 6 }}>{tool}</div>
                   <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.4 }}>{t(`motion.tool${i}_use`)}</div>
                 </div>
               ))}
@@ -203,6 +205,8 @@ export default function MotionPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="motion" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

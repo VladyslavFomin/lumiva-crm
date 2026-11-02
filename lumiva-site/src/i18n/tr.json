@@ -685,7 +685,11 @@
     "rel2_title": "Performans Pazarlama",
     "rel2_desc": "Atıf verisini her ücretli kanaldaki kampanya optimizasyonuna doğrudan geri besleyin.",
     "rel3_title": "Entegrasyonlar & API",
-    "rel3_desc": "Doğrulanmış analitik verisini doğrudan CRM, ERP veya BI yığınınıza aktarın."
+    "rel3_desc": "Doğrulanmış analitik verisini doğrudan CRM, ERP veya BI yığınınıza aktarın.",
+    "proc01_desc": "Bugün neyin takip edildiğini, verilerin nerede kaybolduğunu ve hangi iş sorularının yanıtsız kaldığını kontrol ederiz.",
+    "proc02_desc": "Olay planı, GA4 / Yandex Metrica, Tag Manager, dönüşüm API’leri ve CRM entegrasyonu.",
+    "proc03_desc": "Lead ve satışların kaynaklarına atfedildiği, sorduğunuz sorulara yönelik panolar.",
+    "proc04_desc": "Verilerin düzenli incelenmesi, büyüme hipotezleri ve testler — kararları değiştiren analitik."
   },
   "strategy": {
     "eyebrow": "S/04 · Strateji & Araştırma",
@@ -750,7 +754,11 @@
     "cta_title": "Şu anda nerede olduğunuzu anlamaya hazır mısınız?",
     "cta_sub": "45 dakika — tam bir stratejik projeye ihtiyacınız olup olmadığı netleşir",
     "cta_btn": "Görüşme Planla",
-    "tier_discuss": "Görüşelim"
+    "tier_discuss": "Görüşelim",
+    "proc01_desc": "Ekibinizle bir çalışma oturumu: hedefler, kısıtlar, mevcut veriler ve başarının ölçütleri.",
+    "proc02_desc": "Müşteri görüşmeleri, rakip analizi, arama talebi ve analitik ile CRM incelemesi.",
+    "proc03_desc": "Bulguları konumlandırmaya, temel içgörülere ve beklenen etkiye göre sıralanmış hipotezlere dönüştürürüz.",
+    "proc04_desc": "Çeyreklere göre görevler, sorumlular, bütçeler ve KPI’lar içeren, uygulamaya hazır bir yol haritası."
   },
   "performance": {
     "eyebrow": "S/05 · Performans Pazarlama",
@@ -852,7 +860,11 @@
     "rel2_title": "Pazarlama Analitiği",
     "rel2_desc": "Uçtan uca atıfla reklam tıklamasından kapanan satışa kadar tam yolu görün.",
     "rel3_title": "SEO ve Organik Büyüme",
-    "rel3_desc": "Zamanla biriken bir organik kanal kurarak ücretli harcamaya bağımlılığı azaltın."
+    "rel3_desc": "Zamanla biriken bir organik kanal kurarak ücretli harcamaya bağımlılığı azaltın.",
+    "proc01_desc": "Reklam hesaplarının, takibin, açılış sayfalarının ve birim ekonomisinin incelenmesi: bir lead veya satış ne kadara mal olabilir.",
+    "proc02_desc": "Hedeflerinize göre kanal karması, bütçe dağılımı, kitleler ve kreatif plan.",
+    "proc03_desc": "Dönüşüm takibiyle kampanya lansmanı ve kitle, teklif ve kreatiflerin yapılandırılmış testleri.",
+    "proc04_desc": "Bütçe işe yarayana kaydırılır, zayıf kampanyalar durdurulur, başarılı olanlar ölçeklendirilir."
   },
   "content": {
     "eyebrow": "S/06 · İçerik & Topluluklar",
@@ -918,7 +930,11 @@
     "cta_title": "İçerik üretmeye başlamaya hazır mısınız?",
     "cta_sub": "45 dakikada platformları, formatları ve yayın sıklığını konuşuruz",
     "cta_btn": "Görüşme Planla",
-    "tier_discuss": "Görüşelim"
+    "tier_discuss": "Görüşelim",
+    "proc01_desc": "İş hedeflerinize bağlı kitle, marka dili, formatlar ve editoryal politika.",
+    "proc02_desc": "Senaryolar, çekimler, kurgu, tasarım ve metinler — şirket içinde, kararlaştırılan paketler halinde.",
+    "proc03_desc": "İçeriğin doğru kitleye ulaşması için yayın takvimi, ücretli tanıtım ve içerik üreticileriyle çalışma.",
+    "proc04_desc": "Neyin işe yaradığını ölçer, formatları, konuları ve sıklığı her ay ayarlarız."
   },
   "seo": {
     "eyebrow": "S/07 · SEO & Organik Trafik",
@@ -1018,7 +1034,11 @@
     "rel2_title": "Performans Pazarlama",
     "rel2_desc": "SEO etkisini biriktirirken boşluğu doldurmak için uzun vadeli organik büyümeyi ücretli kampanyalarla birleştirin.",
     "rel3_title": "İçerik Üretimi",
-    "rel3_desc": "SEO sürekli içerik akışı gerektirir — stratejinizin hedeflediği makaleleri ve sayfaları biz üretiriz."
+    "rel3_desc": "SEO sürekli içerik akışı gerektirir — stratejinizin hedeflediği makaleleri ve sayfaları biz üretiriz.",
+    "proc01_desc": "Teknik denetim, dizin kontrolü, rakip incelemesi ve mevcut görünürlüğün analizi.",
+    "proc02_desc": "Anahtar kelime araştırması ve kümeleme, her küme için hedef sayfalar ve önceliklendirilmiş plan.",
+    "proc03_desc": "Hız, yapı, yapılandırılmış veri, iç bağlantılar ve çok dilli hreflang düzeltmeleri.",
+    "proc04_desc": "Optimize edilmiş sayfalar ve makaleler, erişim ve ortaklıklarla bağlantı kazanımı."
   },
   "smm": {
     "eyebrow": "S/06 · Sosyal Medya Pazarlama",
@@ -1138,7 +1158,11 @@
     "rel2_title": "Marka & Görsel Sistemler",
     "rel2_desc": "Her gönderiyi marka kimliğinizle görsel olarak tutarlı tutun.",
     "rel3_title": "Performans Pazarlama",
-    "rel3_desc": "En iyi performans gösteren gönderilerinizi hedefli ücretli kampanyalarla güçlendirin."
+    "rel3_desc": "En iyi performans gösteren gönderilerinizi hedefli ücretli kampanyalarla güçlendirin.",
+    "proc01_desc": "Mevcut hesaplarınızı, kitlenizi ve rakiplerinizi inceler; her platformun rolünü ve çeyrek hedeflerini belirleriz.",
+    "proc02_desc": "İçerik başlıkları, görsel stil ve her gönderinin formatı, tarihi ve hedefiyle aylık içerik planı.",
+    "proc03_desc": "Doğru kitlede erişimi büyüten ücretli tanıtım, iş birlikleri ve aktivasyonlar.",
+    "proc04_desc": "UTM bağlantıları, lead formları ve CRM entegrasyonu — sosyal kanallar sadece beğeni değil, talep ve satış getirsin."
   },
   "blog": {
     "eyebrow": "Dergi",

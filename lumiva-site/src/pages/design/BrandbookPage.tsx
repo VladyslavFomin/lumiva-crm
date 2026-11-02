@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 type LangKey = 'en' | 'ru' | 'tr'
 
@@ -400,11 +402,11 @@ export default function BrandbookPage() {
                 onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--paper-2)'}
                 onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
               >
-                <div style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 48, lineHeight: 1, color: 'var(--paper-3)', letterSpacing: '-0.03em', userSelect: 'none' }}>
+                <div style={{ fontFamily: "'Inter Tight', sans-serif", fontStyle: 'italic', fontSize: 48, lineHeight: 1, color: 'var(--paper-3)', letterSpacing: '-0.03em', userSelect: 'none' }}>
                   {ch.n}
                 </div>
                 <div>
-                  <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 22, margin: '0 0 16px', letterSpacing: '-0.01em' }}>
+                  <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 22, margin: '0 0 16px', letterSpacing: '-0.01em' }}>
                     {ch.title}
                   </h3>
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -448,7 +450,7 @@ export default function BrandbookPage() {
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>
                   {f.fmt}
                 </div>
-                <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 26, margin: '0 0 16px', letterSpacing: '-0.01em' }}>
+                <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 26, margin: '0 0 16px', letterSpacing: '-0.01em' }}>
                   {f.title}
                 </h3>
                 <p style={{ margin: 0, fontSize: 15, lineHeight: 1.65, color: 'rgba(255,255,255,0.6)' }}>{f.desc}</p>
@@ -509,6 +511,8 @@ export default function BrandbookPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="brandbook" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

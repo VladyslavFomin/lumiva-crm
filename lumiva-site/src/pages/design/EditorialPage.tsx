@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PageSEO from '../../components/PageSEO'
 import { useLangPath } from '../../hooks/useLangPath'
+import SeoArticle from '../../components/lh/SeoArticle'
+import { SEO_DESIGN } from '../../content/seo/design'
 
 const FORMAT_CODES = ['ED/01', 'ED/02', 'ED/03', 'ED/04', 'ED/05', 'ED/06']
 const PROCESS = [
@@ -75,7 +77,7 @@ export default function EditorialPage() {
               <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.12em', marginBottom: 32 }}>
                 {t('editorial.typo_label')}
               </p>
-              <div style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 'clamp(64px, 9vw, 130px)', lineHeight: 0.9, letterSpacing: '-0.03em', color: 'var(--paper)' }}>
+              <div style={{ fontFamily: "'Inter Tight', sans-serif", fontStyle: 'italic', fontSize: 'clamp(64px, 9vw, 130px)', lineHeight: 0.9, letterSpacing: '-0.03em', color: 'var(--paper)' }}>
                 Aa
               </div>
               <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -86,7 +88,7 @@ export default function EditorialPage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 24 }}>
-                <p style={{ fontFamily: "'Instrument Serif', serif", fontSize: 24, lineHeight: 1.4, color: 'rgba(255,255,255,0.85)', margin: '0 0 12px', letterSpacing: '-0.01em' }}>
+                <p style={{ fontFamily: "'Inter Tight', sans-serif", fontSize: 24, lineHeight: 1.4, color: 'rgba(255,255,255,0.85)', margin: '0 0 12px', letterSpacing: '-0.01em' }}>
                   {t('editorial.typo_quote')}
                 </p>
                 <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', margin: 0, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.05em' }}>{t('editorial.typo_attr')}</p>
@@ -126,7 +128,7 @@ export default function EditorialPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: 8 }}>{code}</div>
-                    <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 24, letterSpacing: '-0.01em', margin: 0 }}>{t(`editorial.f${i}_title`)}</h3>
+                    <h3 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 24, letterSpacing: '-0.01em', margin: 0 }}>{t(`editorial.f${i}_title`)}</h3>
                   </div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.06em', textAlign: 'right', marginTop: 6 }}>{t(`editorial.f${i}_sub`)}</div>
                 </div>
@@ -199,6 +201,8 @@ export default function EditorialPage() {
           </div>
         </div>
       </section>
+      <SeoArticle set={SEO_DESIGN} slug="editorial" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

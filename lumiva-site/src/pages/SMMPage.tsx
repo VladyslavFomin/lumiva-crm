@@ -5,6 +5,8 @@ import PageSEO from '../components/PageSEO'
 import RelatedServices from '../components/RelatedServices'
 import RelatedCases from '../components/RelatedCases'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 const PLATFORMS = [
   { id: 'TG', name: 'Telegram', color: '#2AABEE', stat: '48M', statSub: 'audience' },
@@ -116,7 +118,7 @@ export default function SMMPage() {
                 <div style={{ background: pl.color, padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.1em' }}>{pl.id} / 0{i + 1}</div>
                   <div>
-                    <div style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 40, color: '#fff', lineHeight: 1, marginBottom: 4 }}>{pl.name}</div>
+                    <div style={{ fontFamily: "'Inter Tight', sans-serif", fontStyle: 'italic', fontSize: 40, color: '#fff', lineHeight: 1, marginBottom: 4 }}>{pl.name}</div>
                   </div>
                 </div>
                 <div style={{ padding: '48px 52px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0 48px', alignContent: 'start' }}>
@@ -154,7 +156,7 @@ export default function SMMPage() {
             ].map((item, i) => (
               <div key={i} className="reveal" style={{ background: 'var(--paper)', padding: '40px 36px' }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: 20 }}>{item.n}</div>
-                <h4 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 22, letterSpacing: '-0.01em', margin: '0 0 12px' }}>{t(item.titleKey)}</h4>
+                <h4 style={{ fontFamily: "'Inter Tight', sans-serif", fontWeight: 400, fontSize: 22, letterSpacing: '-0.01em', margin: '0 0 12px' }}>{t(item.titleKey)}</h4>
               </div>
             ))}
           </div>
@@ -170,10 +172,10 @@ export default function SMMPage() {
           </div>
           <div className="pmini">
             {[
-              { n: '01', hKey: 'smm.proc01', dKey: 'smm.proc01' },
-              { n: '02', hKey: 'smm.proc02', dKey: 'smm.proc02' },
-              { n: '03', hKey: 'smm.proc03', dKey: 'smm.proc03' },
-              { n: '04', hKey: 'smm.proc04', dKey: 'smm.proc04' },
+              { n: '01', hKey: 'smm.proc01', dKey: 'smm.proc01_desc' },
+              { n: '02', hKey: 'smm.proc02', dKey: 'smm.proc02_desc' },
+              { n: '03', hKey: 'smm.proc03', dKey: 'smm.proc03_desc' },
+              { n: '04', hKey: 'smm.proc04', dKey: 'smm.proc04_desc' },
             ].map((r, i) => (
               <div key={i} className="pmini-row reveal">
                 <div className="pmini-num">{r.n}</div>
@@ -193,9 +195,9 @@ export default function SMMPage() {
             {PLATFORMS.map((pl) => (
               <div key={pl.id} className="reveal" style={{ background: 'var(--ink)', padding: '40px 36px', borderBottom: '4px solid ' + pl.color }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', marginBottom: 16 }}>{pl.id}</div>
-                <div style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 40, color: '#fff', lineHeight: 1, marginBottom: 6 }}>{pl.stat}</div>
+                <div style={{ fontFamily: "'Inter Tight', sans-serif", fontStyle: 'italic', fontSize: 40, color: '#fff', lineHeight: 1, marginBottom: 6 }}>{pl.stat}</div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{pl.statSub}</div>
-                <div style={{ marginTop: 20, fontFamily: "'Instrument Serif', serif", fontSize: 18, color: pl.color }}>{pl.name}</div>
+                <div style={{ marginTop: 20, fontFamily: "'Inter Tight', sans-serif", fontSize: 18, color: pl.color }}>{pl.name}</div>
               </div>
             ))}
           </div>
@@ -301,6 +303,8 @@ export default function SMMPage() {
           { title: t('smm.rel3_title'), desc: t('smm.rel3_desc'), to: p('/services/performance') },
         ]}
       />
+      <SeoArticle set={SEO_MAIN} slug="smm" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

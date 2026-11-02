@@ -5,6 +5,8 @@ import PageSEO from '../components/PageSEO'
 import RelatedServices from '../components/RelatedServices'
 import RelatedCases from '../components/RelatedCases'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 export default function SEOPage() {
   const { t } = useTranslation()
@@ -123,10 +125,10 @@ export default function SEOPage() {
           </div>
           <div className="pmini">
             {[
-              { n: '01', hKey: 'seo.proc01', dKey: 'seo.proc01' },
-              { n: '02', hKey: 'seo.proc02', dKey: 'seo.proc02' },
-              { n: '03', hKey: 'seo.proc03', dKey: 'seo.proc03' },
-              { n: '04', hKey: 'seo.proc04', dKey: 'seo.proc04' },
+              { n: '01', hKey: 'seo.proc01', dKey: 'seo.proc01_desc' },
+              { n: '02', hKey: 'seo.proc02', dKey: 'seo.proc02_desc' },
+              { n: '03', hKey: 'seo.proc03', dKey: 'seo.proc03_desc' },
+              { n: '04', hKey: 'seo.proc04', dKey: 'seo.proc04_desc' },
             ].map((r, i) => (
               <div key={i} className="pmini-row">
                 <div className="pmini-num">{r.n}</div>
@@ -234,6 +236,8 @@ export default function SEOPage() {
           { title: t('seo.rel3_title'), desc: t('seo.rel3_desc'), to: p('/services/content') },
         ]}
       />
+      <SeoArticle set={SEO_MAIN} slug="seo" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

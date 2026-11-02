@@ -5,6 +5,8 @@ import PageSEO from '../components/PageSEO'
 import RelatedServices from '../components/RelatedServices'
 import RelatedCases from '../components/RelatedCases'
 import { useLangPath } from '../hooks/useLangPath'
+import SeoArticle from '../components/lh/SeoArticle'
+import { SEO_MAIN } from '../content/seo/main'
 
 export default function DevelopmentPage() {
   const { t } = useTranslation()
@@ -270,6 +272,8 @@ export default function DevelopmentPage() {
           { title: t('dev.rel3_title'), desc: t('dev.rel3_desc'), to: p('/services/seo') },
         ]}
       />
+      <SeoArticle set={SEO_MAIN} slug="development" />
+
 
       <section className="cta-strip" style={{ borderBottom: 0 }}>
         <div className="wrap">

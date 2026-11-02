@@ -21,13 +21,12 @@ export default function RelatedServices({ num, tag, heading, items }: RelatedSer
           <div className="sec-tag"><span className="num">{num}</span>{tag}</div>
           <div><h2 className="sec-title">{heading}</h2></div>
         </div>
-        <div className="deliv">
+        <div className="rel-svc">
           {items.map((item, i) => (
-            <Link key={i} to={item.to} className="deliv-row" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, width: '100%' }}>
-                <div><h4>{item.title}</h4><p>{item.desc}</p></div>
-                <span style={{ color: 'var(--muted)', fontSize: 18, flexShrink: 0, marginTop: 6 }}>↗</span>
-              </div>
+            <Link key={i} to={item.to}>
+              <span className="n">{String(i + 1).padStart(2, '0')}<span aria-hidden="true">↗</span></span>
+              <h4>{item.title}</h4>
+              <p>{item.desc}</p>
             </Link>
           ))}
         </div>
