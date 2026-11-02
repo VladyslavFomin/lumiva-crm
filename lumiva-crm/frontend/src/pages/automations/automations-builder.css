@@ -15,8 +15,8 @@
   --bg: #fff;
   --bg-muted: #fafafa;
   --bg-soft: #f5f5f5;
-  --ff-display: 'Poppins', system-ui, -apple-system, sans-serif;
-  --ff-mono: 'Poppins', system-ui, -apple-system, sans-serif;
+  --ff-display: var(--ff-heading);
+  --ff-mono: var(--ff-mono-ui);
 }
 
 /* ── Negate MainLayout padding so builder fills edge-to-edge ── */
@@ -100,7 +100,7 @@
 }
 .auto-strip-name .name-input {
   font-family: var(--ff-display); font-size: 16px; font-weight: 600;
-  letter-spacing: -0.012em; color: var(--ink); border: 0; background: transparent;
+  letter-spacing:0; color: var(--ink); border: 0; background: transparent;
   outline: 0; padding: 4px 8px; border-radius: 6px;
   width: 100%; max-width: 480px; transition: background .12s;
 }
@@ -183,7 +183,7 @@
 .auto-lib-head { padding: 0 18px 12px; }
 .auto-lib-head h3 {
   font-family: var(--ff-display); font-size: 13px; font-weight: 600;
-  letter-spacing: -0.005em; color: var(--ink); margin: 0 0 4px;
+  letter-spacing:0; color: var(--ink); margin: 0 0 4px;
 }
 .auto-lib-head p { font-size: 11.5px; color: var(--fg-3); line-height: 1.4; margin: 0; }
 .auto-lib-search {
@@ -281,7 +281,7 @@
 }
 .flow-step-name {
   font-family: var(--ff-display); font-size: 14px; font-weight: 600;
-  color: var(--ink); letter-spacing: -0.01em; line-height: 1.25;
+  color: var(--ink); letter-spacing:0; line-height: 1.25;
 }
 .flow-step-meta {
   font-size: 11.5px; color: var(--fg-3); margin-top: 5px;
@@ -356,7 +356,7 @@
 }
 .auto-cfg-head .ttl {
   font-family: var(--ff-display); font-size: 15px; font-weight: 600;
-  color: var(--ink); letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25;
+  color: var(--ink); letter-spacing:0; margin-top: 2px; line-height: 1.25;
 }
 .auto-cfg-tabs {
   display: flex; border-bottom: 1px solid var(--line-2);

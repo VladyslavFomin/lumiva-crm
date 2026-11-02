@@ -18,7 +18,7 @@
 
 /* head + toolbar */
 .px-scope .sm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 6px 0 18px; border-bottom: 1px solid var(--line-2); margin-bottom: 18px; flex-wrap: wrap; }
-.px-scope .sm-head h1 { font-family: var(--ff-display); font-size: 26px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
+.px-scope .sm-head h1 { font-family: var(--ff-display); font-size:34px; font-weight: 600; letter-spacing:0; line-height: 1.1; }
 .px-scope .sm-head .kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
 .px-scope .sm-head .kicker .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); flex-shrink: 0; }
 .px-scope .sm-head .sub { font-size: 13px; color: var(--fg-3); margin-top: 6px; max-width: 560px; line-height: 1.45; }
@@ -47,7 +47,7 @@
 .px-scope .sm-kpi { padding: 15px 18px 13px; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 9px; min-width: 0; }
 .px-scope .sm-kpi:last-child { border-right: 0; }
 .px-scope .sm-kpi .l { font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); font-weight: 500; }
-.px-scope .sm-kpi .v { font-family: var(--ff-display); font-size: 25px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; color: var(--ink); }
+.px-scope .sm-kpi .v { font-family: var(--ff-display); font-size: 25px; font-weight: 600; letter-spacing:0; line-height: 1; color: var(--ink); }
 .px-scope .sm-kpi .v .u { font-size: 12px; color: var(--fg-3); font-weight: 500; margin-left: 4px; letter-spacing: 0; }
 .px-scope .sm-kpi-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .px-scope .sm-kpi .note { font-size: 11.5px; color: var(--fg-3); line-height: 1.4; }
@@ -59,7 +59,7 @@
 /* cards */
 .px-scope .sm-card { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; margin-bottom: 16px; min-width: 0; }
 .px-scope .sm-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
-.px-scope .sm-card-head h3 { font-family: var(--ff-display); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.px-scope .sm-card-head h3 { font-family: var(--ff-display); font-size: 14px; font-weight: 600; letter-spacing:0; }
 .px-scope .sm-card-head .meta { font-family: var(--ff-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
 .px-scope .sm-card-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -144,7 +144,7 @@
 .px-scope .sm-pcard-top { display: flex; align-items: flex-start; gap: 10px; }
 .px-scope .sm-pcard-top .sm-prof { flex: 1; }
 .px-scope .sm-pcard .nm { white-space: normal; word-break: break-word; }
-.px-scope .sm-pcard-foll { text-align: right; font-family: var(--ff-display); font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.px-scope .sm-pcard-foll { text-align: right; font-family: var(--ff-display); font-size: 20px; font-weight: 600; letter-spacing:0; line-height: 1.1; }
 .px-scope .sm-pcard-foll small { display: block; font-family: var(--ff-mono); font-size: 10px; font-weight: 400; letter-spacing: 0; }
 .px-scope .sm-pcard-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; margin-top: 12px; }
 .px-scope .sm-pcard-grid div { min-width: 0; }
@@ -161,12 +161,12 @@
 .px-scope .sm-drawer { width: min(520px, 100%); background: var(--bg-muted); height: 100%; overflow-y: auto; box-shadow: -20px 0 60px rgba(0,0,0,0.18); animation: smSlide .2s ease; }
 @keyframes smSlide { from { transform: translateX(24px) } to { transform: translateX(0) } }
 .px-scope .sm-drawer-head { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid var(--line-2); padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
-.px-scope .sm-drawer-head h2 { font-family: var(--ff-display); font-size: 17px; font-weight: 600; letter-spacing: -0.02em; flex: 1; }
+.px-scope .sm-drawer-head h2 { font-family: var(--ff-display); font-size: 17px; font-weight: 600; letter-spacing:0; flex: 1; }
 .px-scope .sm-drawer-body { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 14px; }
 .px-scope .sm-int { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; }
 .px-scope .sm-int-head { display: flex; align-items: center; gap: 11px; padding: 14px 16px; border-bottom: 1px solid var(--line-3); }
 .px-scope .sm-int-head .nm { flex: 1; min-width: 0; }
-.px-scope .sm-int-head .nm b { display: block; font-family: var(--ff-display); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.px-scope .sm-int-head .nm b { display: block; font-family: var(--ff-display); font-size: 14px; font-weight: 600; letter-spacing:0; }
 .px-scope .sm-int-head .nm span { font-size: 11.5px; color: var(--fg-3); }
 .px-scope .sm-int-acts { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line-3); flex-wrap: wrap; }
 .px-scope .sm-acc { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--line-3); flex-wrap: wrap; }
@@ -190,7 +190,7 @@
 }
 @media (max-width: 640px) {
   .px-scope .sm-head { padding-top: 0; gap: 14px; align-items: stretch; }
-  .px-scope .sm-head h1 { font-size: 22px; }
+  .px-scope .sm-head h1 { font-size:22px; }
   .px-scope .sm-head .sub { font-size: 12.5px; }
   .px-scope .sm-head-actions { width: 100%; }
   .px-scope .sm-head-actions .btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-height: 40px; }

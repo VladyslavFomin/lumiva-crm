@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { useTranslation } from 'react-i18next';
 import {
   fetchLostLeadsStats,
@@ -124,19 +125,12 @@ export const LostLeadsPage: React.FC = () => {
       <PageHelpButton topic="leadsLost" />
       <div className="space-y-4 md:space-y-6 pb-8">
         {/* Заголовок + пресеты */}
-        <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              {t('crm.leads.lost.sectionLabel')}
-            </div>
-            <h1 className="text-lg md:text-xl font-semibold text-lumiva-accent">
-              {t('crm.leads.lost.title')}
-            </h1>
-            <p className="text-xs text-slate-600 mt-1 max-w-2xl">
-              {t('crm.leads.lost.subtitle')}
-            </p>
-          </div>
-
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.leads.lost.sectionLabel')}
+          title={t('crm.leads.lost.title')}
+          subtitle={t('crm.leads.lost.subtitle')}
+          actions={
           <DateRangePicker
             value={{ from: fromIsoDate(range.from), to: fromIsoDate(range.to) }}
             presetId={preset === 'custom' ? null : preset}
@@ -151,7 +145,8 @@ export const LostLeadsPage: React.FC = () => {
               setRange({ from: v.from ? toIsoDate(v.from) : undefined, to: v.to ? toIsoDate(v.to) : undefined });
             }}
           />
-        </section>
+          }
+        />
 
         {loading && (
           <div className="text-[11px] text-slate-500">
@@ -169,7 +164,7 @@ export const LostLeadsPage: React.FC = () => {
           <>
             {/* KPI */}
             <section data-tour="lost-kpis" className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+              <div className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                   {t('crm.leads.lost.kpi.lostTitle')}
                 </div>
@@ -181,7 +176,7 @@ export const LostLeadsPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="rounded-3xl border border-rose-100 bg-rose-50 px-4 py-4 shadow-sm">
+              <div className="rounded-[14px] border border-rose-100 bg-rose-50 px-4 py-4 shadow-sm">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-rose-600">
                   {t('crm.leads.lost.kpi.amountTitle')}
                 </div>
@@ -197,7 +192,7 @@ export const LostLeadsPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+              <div className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                   {t('crm.leads.lost.kpi.managersTitle')}
                 </div>
@@ -212,7 +207,7 @@ export const LostLeadsPage: React.FC = () => {
 
             {/* График + таблица по менеджерам */}
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-2 md:gap-5">
-              <div data-tour="lost-chart" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+              <div data-tour="lost-chart" className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-lumiva-accent">
@@ -253,7 +248,7 @@ export const LostLeadsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div data-tour="lost-managers" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+              <div data-tour="lost-managers" className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-lumiva-accent">
                     {t('crm.leads.lost.tableManagers.title')}
@@ -312,7 +307,7 @@ export const LostLeadsPage: React.FC = () => {
             </section>
 
             {/* Таблица по лидам */}
-            <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+            <section className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
                 <div data-tour="lost-table" className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-lumiva-accent">

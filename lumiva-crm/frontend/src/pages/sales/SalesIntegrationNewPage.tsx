@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import {
   fetchAdapters,
   fetchIntegrations,
@@ -109,28 +110,22 @@ export const SalesIntegrationNewPage: React.FC = () => {
   return (
     <MainLayout>
       <PageHelpButton topic="salesIntegrations" />
-      <div className="space-y-4 md:space-y-6 pb-8 max-w-3xl">
-        <section className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-text-tertiary mb-1">
-              {t('crm.salesIntegrationNew.kicker')}
-            </div>
-            <h1 className="page-title">
-              {t('crm.salesIntegrationNew.title')}
-            </h1>
-            <p className="text-xs text-text-tertiary mt-1 max-w-xl">
-              {t('crm.salesIntegrationNew.subtitle')}
-            </p>
-          </div>
-
-          <button
+      <div className="space-y-4 md:space-y-6 pb-8">
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.salesIntegrationNew.kicker')}
+          title={t('crm.salesIntegrationNew.title')}
+          subtitle={t('crm.salesIntegrationNew.subtitle')}
+          actions={
+            <button
             type="button"
             onClick={() => navigate('/app/sales/integrations')}
             className="btn-secondary btn-secondary-sm"
           >
             {t('crm.salesIntegrationNew.back')}
           </button>
-        </section>
+          }
+        />
 
         {error && (
           <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">

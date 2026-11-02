@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import {
   deleteProject,
   fetchProjects,
@@ -68,14 +69,7 @@ export const ProjectsArchivePage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="projectsArchive" />
       <div className="space-y-4">
-        <div>
-          <h1 className="page-title">
-            {t('crm.projects.archive.title')}
-          </h1>
-          <div className="page-subtitle">
-            {t('crm.projects.archive.subtitle')}
-          </div>
-        </div>
+        <PageHero className="!mb-0" title={t('crm.projects.archive.title')} subtitle={t('crm.projects.archive.subtitle')} />
 
         {error && (
           <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">

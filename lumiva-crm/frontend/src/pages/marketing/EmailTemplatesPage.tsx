@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -107,7 +108,7 @@ export const EmailTemplatesPage: React.FC = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center min-h-[40vh] rounded-3xl border border-zinc-200 bg-white">
+        <div className="flex items-center justify-center min-h-[40vh] rounded-[14px] border border-zinc-200 bg-white">
           <div className="text-sm text-zinc-500">{t('crm.emailTemplates.list.loading')}</div>
         </div>
       </MainLayout>
@@ -118,37 +119,25 @@ export const EmailTemplatesPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="marketingEmailTemplates" />
       <div className="space-y-8">
-        <section
-          className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm"
-          style={{ color: ACCENT }}
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
-                {t('crm.emailTemplates.list.title')}
-              </h1>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-600">
-                {t('crm.emailTemplates.list.subtitle')}
-              </p>
-            </div>
-            <button data-tour="etpl-create"
-              type="button"
-              onClick={handleCreateBlank}
-              className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-              style={{ backgroundColor: ACCENT }}
-            >
-              + {t('crm.emailTemplates.list.create')}
-            </button>
-          </div>
-
+        <div>
+          <PageHero
+            kicker={t('crm.emailTemplates.list.kicker')}
+            title={t('crm.emailTemplates.list.title')}
+            subtitle={t('crm.emailTemplates.list.subtitle')}
+            actions={
+              <button data-tour="etpl-create" type="button" onClick={handleCreateBlank} className="btn-primary">
+                + {t('crm.emailTemplates.list.create')}
+              </button>
+            }
+          />
           {error && (
-            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
               {error}
             </div>
           )}
-        </section>
+        </div>
 
-        <section data-tour="etpl-presets" className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
+        <section data-tour="etpl-presets" className="rounded-[14px] border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
           <div className="mb-5 flex flex-col gap-1 border-b border-zinc-100 pb-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
               {t('crm.emailTemplates.list.presetsTitle')}
@@ -190,7 +179,7 @@ export const EmailTemplatesPage: React.FC = () => {
           </div>
         </section>
 
-        <section data-tour="etpl-mine" className="rounded-3xl border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
+        <section data-tour="etpl-mine" className="rounded-[14px] border border-zinc-200 bg-white px-5 py-6 md:px-8 md:py-8 shadow-sm">
           <h2 className="mb-5 border-b border-zinc-100 pb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
             {t('crm.emailTemplates.list.myTemplatesTitle')}
           </h2>

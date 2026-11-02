@@ -96,7 +96,7 @@
 .of-brain .t b{font-family:var(--ff-mono);font-size:14px;margin:0 2px}
 .of-brain .s{font-size:11.5px;color:var(--of-fg2);margin-top:2px;line-height:1.35;min-height:31px}
 .of-ts-h{display:flex;align-items:baseline;justify-content:space-between;margin:2px 14px 0;padding-bottom:10px;border-bottom:1px solid var(--line-2)}
-.of-ts-h h2{margin:0;font-family:var(--ff-display);font-size:15px;font-weight:600;letter-spacing:-.01em}
+.of-ts-h h2{margin:0;font-family:var(--ff-display);font-size:15px;font-weight:600;letter-spacing:0}
 .of-scope{font-size:12px;color:var(--of-fg2);border:0;background:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .of-scope i{width:7px;height:7px;border-radius:50%}
 .of-chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
@@ -149,7 +149,7 @@
 .of-iss .fx:hover{opacity:.85}
 .of-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .of-head .kicker{margin-bottom:6px}
-.of-head h1{font-family:var(--ff-display);font-size:26px;font-weight:600;letter-spacing:-.025em;line-height:1.1;margin:0}
+.of-head h1{font-family:var(--ff-display);font-size:34px;font-weight:600;letter-spacing:0;line-height:1.1;margin:0}
 .of-head .sub{font-size:13px;color:var(--fg-3);margin-top:6px;max-width:560px;line-height:1.45}
 .of-head-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .of-strip{display:flex;align-items:center;gap:16px;min-width:0;padding-top:10px;border-top:1px solid var(--line-3)}
@@ -180,16 +180,16 @@
 .ofp{color:var(--of-ink);background:var(--bg-muted)}
 .ofp-main{display:flex;flex-direction:column;gap:18px;max-width:1400px}
 .ofp-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:6px 0 18px;border-bottom:1px solid var(--line-2)}
-.ofp-head h1{margin:0;font-family:var(--ff-display);font-size:26px;font-weight:600;letter-spacing:-.025em;line-height:1.1}
+.ofp-head h1{margin:0;font-family:var(--ff-display);font-size:34px;font-weight:600;letter-spacing:0;line-height:1.1}
 .ofp-head p{margin:8px 0 0;font-size:13px;color:var(--fg-3);line-height:1.45;max-width:640px;text-wrap:pretty}
 .ofp-head-r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .ofp-card{background:var(--of-paper);border:1px solid var(--of-line2);border-radius:10px;min-width:0}
 .ofp-card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--of-line)}
-.ofp-card-h h2{margin:0;font-family:var(--ff-display);font-size:15px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:baseline;gap:8px}
+.ofp-card-h h2{margin:0;font-family:var(--ff-display);font-size:15px;font-weight:600;letter-spacing:0;display:flex;align-items:baseline;gap:8px}
 .ofp-card-h h2 small{font-family:var(--of-mono);font-size:10px;letter-spacing:.1em;color:var(--of-fg3);font-weight:400}
 .ofp-card-b{padding:16px 18px}
 .ofp-k{font-family:var(--of-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--of-fg2)}
-.ofp-big{font-family:var(--ff-display);font-weight:600;font-size:32px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.ofp-big{font-family:var(--ff-display);font-weight:600;font-size:32px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:0}
 .ofp-btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--of-line2);background:var(--of-paper);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:500;cursor:pointer;text-decoration:none;color:var(--of-ink) !important;white-space:nowrap}
 .ofp-btn:hover{border-color:var(--of-ink)}
 .ofp-btn.pri{background:var(--of-ink);color:var(--of-paper) !important;border-color:var(--of-ink)}
@@ -527,7 +527,7 @@
 @keyframes tdIn{from{transform:translateX(40px);opacity:0}}
 .td *{box-sizing:border-box}
 .td-h{display:flex;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid var(--of-line)}
-.td-h h2{margin:6px 0 0;font-family:var(--ff-display);font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+.td-h h2{margin:6px 0 0;font-family:var(--ff-display);font-size:19px;font-weight:600;letter-spacing:0;line-height:1.25}
 .td-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
 .td-b{flex:1;overflow-y:auto;padding:18px 22px 28px;display:flex;flex-direction:column;gap:18px}
 .td-b section{display:flex;flex-direction:column;gap:8px}

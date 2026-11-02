@@ -5,8 +5,8 @@
    ============================================ */
 
 .e2 {
-  --ff-h: 'Barlow Condensed', 'Inter Tight', sans-serif;
-  --ff-t: 'Barlow', 'Inter', sans-serif;
+  --ff-h: var(--ff-heading);
+  --ff-t: var(--ff-text);
   font-family: var(--ff-t);
   font-size: 14px;
   color: var(--fg-1);
@@ -19,7 +19,7 @@
 
 /* head */
 .e2-head { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--line-1); }
-.e2-head h1 { font-size: 34px; line-height: 1; margin-top: 8px; }
+.e2-head h1 { font-size:34px; line-height: 1; margin-top: 8px; }
 .e2-head .sub { font-size: 13.5px; color: var(--fg-2); margin-top: 8px; max-width: 560px; line-height: 1.5; }
 .e2-head-r { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .e2-plan { border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 12px; min-width: 170px; background: #fff; }
@@ -303,3 +303,18 @@
 .ai-msgop-state.auto { color: #0f6b3a; border-color: #bfe3cc; background: #f1faf4; }
 .ai-msgop-state.draft { color: #9a5a09; border-color: #ecd9b8; background: #fdf8ef; }
 .ai-msgop-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-top: 1px solid var(--line-2); background: #fff; }
+
+/* «ИИ-офис: знания и медиа» у консультантов: отделы «Мозга» и дерево папок медиатеки */
+.ai-olink-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ai-olink-tree { border: 1px solid var(--line-2, #e5e5e5); border-radius: 10px; max-height: 340px; overflow-y: auto; padding: 4px 0; margin-top: 6px; }
+.ai-olink-tree .grp + .grp { border-top: 1px solid var(--line-3, #f0f0f0); }
+.ai-olink-tree .gh { padding: 8px 12px 4px; font-family: var(--ff-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-3, #888); }
+.ai-olink-row { display: flex; align-items: center; gap: 4px; padding: 2px 12px; }
+.ai-olink-row .tw { width: 20px; height: 20px; flex: none; border: 0; background: transparent; color: var(--fg-3, #888); font: inherit; font-size: 14px; line-height: 1; cursor: pointer; border-radius: 5px; }
+.ai-olink-row button.tw:hover { background: var(--bg-muted, #f4f4f5); color: var(--ink, #111); }
+.ai-olink-row label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 4px 0; font-size: 13px; cursor: pointer; }
+.ai-olink-row label span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-olink-row .n { margin-left: auto; flex: none; font-size: 11.5px; color: var(--fg-3, #888); }
+.ai-olink-row input:disabled + span { color: var(--fg-2, #555); }
+.ai-olink-tree .gh.pick { display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; letter-spacing: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink, #111); padding: 9px 12px 5px; }
+.ai-olink-tree .gh.pick .all { margin-left: auto; font-weight: 400; font-size: 11.5px; color: var(--fg-3, #888); }

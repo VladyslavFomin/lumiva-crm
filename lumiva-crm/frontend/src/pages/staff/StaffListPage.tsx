@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHero } from '../../components/ui';
 
 import {
   fetchStaff,
@@ -266,12 +267,7 @@ export const StaffListPage: React.FC = () => {
     <MainLayout>
       <div className="space-y-4">
         {/* HEADER */}
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">{t('crm.staff.title')}</h1>
-          <div className="text-[11px] text-slate-500">
-            {t('crm.staff.subtitle')}
-          </div>
-        </div>
+        <PageHero className="!mb-0" title={t('crm.staff.title')} subtitle={t('crm.staff.subtitle')} />
 
         {/* Ошибка */}
         {error && (
@@ -281,7 +277,7 @@ export const StaffListPage: React.FC = () => {
         )}
 
         {/* Форма добавления */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-[14px] p-4 space-y-3 shadow-sm">
           <div className="text-xs text-slate-500 mb-1">{t('crm.staff.create.title')}</div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -345,7 +341,7 @@ export const StaffListPage: React.FC = () => {
 
         {/* Таблица */}
         {loading ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-[14px] p-4 shadow-sm">
             <div className="text-xs text-slate-400">{t('crm.staff.loading')}</div>
           </div>
         ) : (

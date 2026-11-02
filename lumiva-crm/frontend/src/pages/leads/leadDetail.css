@@ -1,6 +1,6 @@
 /* Карточка лида (редизайн 2026-09-28, макет claude.ai/design lead-detail.html) */
 .ld{--ink:#16181c;--fg-1:#23262b;--fg-2:#555a62;--fg-3:#8a8f97;--fg-4:#b3b7bd;--line-2:#e4e5e8;--line-3:#eff0f2;--bg-muted:#f6f6f7;
-  --ff-h:'Inter Tight','Inter',system-ui,sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,monospace;
+  --ff-h: var(--ff-heading);--ff-mono:'JetBrains Mono',ui-monospace,monospace;
   font-size:14px;color:var(--fg-1);display:flex;flex-direction:column;gap:14px;padding-bottom:80px}
 .ld a{color:var(--ink);text-decoration:none}.ld a:hover{color:var(--fg-2)}
 .ld button{font-family:inherit}
@@ -27,7 +27,7 @@
 .ld-head{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
 .ld-id{flex:1;min-width:260px}
 .ld-id .kick{display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap}
-.ld-id h1{font-family:var(--ff-h);font-weight:600;font-size:32px;letter-spacing:-.02em;line-height:1.05;margin:8px 0 6px;color:var(--ink)}
+.ld-id h1{font-family:var(--ff-h);font-weight:600;font-size:32px;letter-spacing:0;line-height:1.05;margin:8px 0 6px;color:var(--ink)}
 .ld-id .sub{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13px;color:var(--fg-2)}
 .ld-id .sub a{border-bottom:1px solid var(--line-2)}
 .ld-acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:relative}
@@ -168,6 +168,7 @@
 .ld-msg.out.auto .b{background:#fff;color:var(--fg-1);border:1px dashed color-mix(in oklch,var(--ch) 55%,var(--line-2))}
 .ld-msg .src{display:flex;align-items:center;gap:5px;font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ch);margin-bottom:4px}
 .ld-msg .tx{white-space:pre-wrap;word-break:break-word}
+.ld-msg .tx.tr{font-style:italic}
 .ld-msg .meta{display:flex;align-items:center;justify-content:flex-end;gap:5px;font-family:var(--ff-mono);font-size:9.5px;margin-top:3px;opacity:.6}
 .ld-msg .atts{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:4px}
 .ld-msg audio{width:240px;max-width:100%;height:34px}
@@ -329,7 +330,7 @@
 .ld-modal-bg{position:fixed;inset:0;z-index:8500;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.45)}
 .ld-modal{background:#fff;border-radius:18px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:0 30px 80px rgba(0,0,0,.2);font-size:14px;color:#23262b}
 .ld-modal>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 24px;border-bottom:1px solid #e4e5e8}
-.ld-modal>header h3{font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:600;margin:0;color:#16181c}
+.ld-modal>header h3{font-family:var(--ff-heading);font-size:17px;font-weight:600;margin:0;color:#16181c}
 .ld-modal>header p{margin:4px 0 0;font-size:12px;color:#8a8f97}
 .ld-modal>header .x{background:none;border:0;font-size:22px;color:#8a8f97;cursor:pointer;line-height:1}
 .ld-modal .bd{padding:20px 24px;display:flex;flex-direction:column;gap:14px}

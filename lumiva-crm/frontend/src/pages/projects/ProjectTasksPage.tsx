@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { fetchProject, fetchProjects, updateProject } from '../../api/projects';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { getLocale } from '../../i18n/utils';
@@ -499,17 +500,12 @@ export const ProjectTasksPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="projectsTasks" />
       <div className="space-y-4 md:space-y-6 pb-8">
-        <section className="flex flex-col gap-1">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-            {t('crm.projects.tasks.kicker')}
-          </div>
-          <h1 className="text-lg md:text-xl font-semibold text-lumiva-accent">
-            {t('crm.projects.tasks.title')}
-          </h1>
-          <p className="text-xs text-slate-600 max-w-2xl">
-            {t('crm.projects.tasks.subtitle')}
-          </p>
-        </section>
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.projects.tasks.kicker')}
+          title={t('crm.projects.tasks.title')}
+          subtitle={t('crm.projects.tasks.subtitle')}
+        />
 
         {error && (
           <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
@@ -517,7 +513,7 @@ export const ProjectTasksPage: React.FC = () => {
           </div>
         )}
 
-        <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5 space-y-4">
+        <section className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5 space-y-4">
           <div data-tour="ptasks-filters" className="flex flex-wrap items-center gap-3">
             <input
               value={search}

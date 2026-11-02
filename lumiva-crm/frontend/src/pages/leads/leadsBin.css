@@ -1,6 +1,6 @@
 /* Корзина и архив лидов (редизайн 2026-10-01, макет claude.ai/design leads-trash.html) */
 .lb{--ink:#16181c;--fg-1:#23262b;--fg-2:#555a62;--fg-3:#8a8f97;--fg-4:#b3b7bd;--line-2:#e4e5e8;--line-3:#eff0f2;--bg-muted:#f6f6f7;--bg-soft:#efeff1;
-  --ff-h:'Inter Tight','Inter',system-ui,sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,monospace;
+  --ff-h: var(--ff-heading);--ff-mono:'JetBrains Mono',ui-monospace,monospace;
   --neg:#9a1f31;--neg-bg:#fbecef;--neg-bd:#f1ccd3;
   font-size:14px;color:var(--fg-1);display:flex;flex-direction:column;gap:14px}
 .lb button,.lb input,.lb select{font-family:inherit}
@@ -17,7 +17,7 @@
 .lb-btn:disabled{opacity:.4;cursor:default}
 
 .lb-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.lb-head h1{font-family:var(--ff-h);font-weight:600;font-size:34px;line-height:1.05;margin:8px 0;letter-spacing:-.015em;color:var(--ink)}
+.lb-head h1{font-family:var(--ff-h);font-weight:600;font-size:34px;line-height:1.05;margin:8px 0;letter-spacing:0;color:var(--ink)}
 .lb-head p{margin:0;color:var(--fg-2);font-size:13.5px;max-width:620px;text-wrap:pretty}
 .lb-tabs{display:flex;border:1px solid var(--line-2);border-radius:10px;background:#fff;overflow:hidden;height:38px}
 .lb-tabs button{border:0;background:none;padding:0 16px;display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--fg-3);cursor:pointer}
@@ -97,7 +97,7 @@
 .lb-toast button:hover{border-color:#fff}
 .lb-dlg-bd{position:fixed;inset:0;background:rgba(17,17,17,.28);display:grid;place-items:center;z-index:100;padding:20px}
 .lb-dlg{width:min(440px,100%);background:#fff;border:1px solid #e4e5e8;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.16);padding:18px 20px;display:flex;flex-direction:column;gap:12px;color:#23262b}
-.lb-dlg h3{font-family:'Inter Tight','Inter',system-ui,sans-serif;font-weight:600;font-size:22px;margin:0;color:#16181c}
+.lb-dlg h3{font-family:var(--ff-heading);font-weight:600;font-size:22px;margin:0;color:#16181c}
 .lb-dlg p{margin:0;font-size:13.5px;color:#555a62;text-wrap:pretty}
 .lb-dlg footer{display:flex;justify-content:flex-end;gap:6px}
 .lb-dlg .lb-btn{border-color:#e4e5e8;color:#16181c}

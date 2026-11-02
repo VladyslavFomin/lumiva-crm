@@ -9,7 +9,7 @@
   --bg-muted:#fafafa; --bg-soft:#f5f5f5;
   --ff-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --shadow-2:0 8px 24px rgba(0,0,0,0.06);
-  --ff-h:'Barlow Condensed','Inter Tight',sans-serif;--ff-t:'Barlow','Inter',sans-serif;
+  --ff-h:var(--ff-heading);--ff-t:var(--ff-text);
   --pos:#15693a;--pos-bg:#f1faf4;--pos-bd:#bfe3cc;--neg:#9a1f31;--neg-bg:#fbecef;--neg-bd:#f1ccd3;--sp:#cfd1d4;
 }
 .roi{font-family:var(--ff-t);font-size:14px;color:var(--fg-1);display:flex;flex-direction:column;gap:14px}
@@ -39,7 +39,7 @@
 .roi-seg.sm{height:28px}.roi-seg.sm button{padding:0 9px;font-size:10.5px}
 
 /* head + toolbar */
-.roi-head h1{font-family:var(--ff-h);font-weight:600;font-size:38px;line-height:1;margin:8px 0 8px;letter-spacing:-.005em;color:var(--ink)}
+.roi-head h1{font-family:var(--ff-h);font-weight:600;font-size:34px;line-height:1;margin:8px 0 8px;letter-spacing:-.005em;color:var(--ink)}
 .roi-head p{margin:0;color:var(--fg-2);font-size:13.5px;max-width:640px;text-wrap:pretty}
 .roi-bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:8px;border:1px solid var(--line-2);border-radius:12px;background:#fff;position:sticky;top:-16px;z-index:20}
 /* <main> CRM прокручивается с внутренним отступом (py-4 / md:py-6) — компенсируем, чтобы над панелью не просвечивал контент */
@@ -47,6 +47,8 @@
 .roi-vsep{width:1px;height:22px;background:var(--line-2)}
 .roi-src{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .roi-src .kick{margin-right:3px}
+.roi-q{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:999px;border:1px solid var(--line-2,#ddd);font-size:10px;color:var(--fg-3,#777);cursor:help;margin-left:2px;flex:none}
+.roi-dup{font-size:11px;color:#7a5411;border:1px solid color-mix(in srgb,#c08319 35%,transparent);border-radius:999px;padding:2px 8px;white-space:nowrap;cursor:help}
 .roi-chip{height:30px;display:inline-flex;align-items:center;gap:7px;padding:0 10px;border:1px solid var(--line-2);border-radius:7px;background:#fff;font-size:12.5px;color:var(--fg-3);cursor:pointer;white-space:nowrap}
 .roi-chip:hover{color:var(--ink);border-color:var(--fg-4)}
 .roi-chip .bx{width:13px;height:13px;border:1px solid var(--fg-4);border-radius:3px;display:grid;place-items:center;flex-shrink:0}
@@ -212,10 +214,10 @@
 
 /* dialogs */
 .roi-dlg-bd{position:fixed;inset:0;background:rgba(17,17,17,.28);display:grid;place-items:center;z-index:100;padding:20px}
-.roi-dlg{width:min(520px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#fff;border:1px solid var(--line-2);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.16);padding:18px 20px;display:flex;flex-direction:column;gap:14px;font-family:'Barlow','Inter',sans-serif;color:var(--fg-1);font-size:14px}
+.roi-dlg{width:min(520px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#fff;border:1px solid var(--line-2);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.16);padding:18px 20px;display:flex;flex-direction:column;gap:14px;font-family:var(--ff-text);color:var(--fg-1);font-size:14px}
 .roi-dlg.wide{width:min(980px,100%)}
 .roi-dlg header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.roi-dlg h3{font-family:'Barlow Condensed','Inter Tight',sans-serif;font-weight:600;font-size:24px;letter-spacing:0;color:var(--ink)}
+.roi-dlg h3{font-family:var(--ff-heading);font-weight:600;font-size:24px;letter-spacing:0;color:var(--ink)}
 .roi-dlg p{margin:0;font-size:13.5px;color:var(--fg-2)}
 .roi-drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px;border:1px dashed var(--fg-4);border-radius:10px;cursor:pointer;color:var(--fg-2);font-size:13.5px;text-align:center}
 .roi-drop:hover,.roi-drop.has{border-color:var(--ink);color:var(--ink)}

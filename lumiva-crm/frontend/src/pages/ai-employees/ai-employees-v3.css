@@ -2,7 +2,7 @@
    Портировано из Claude Design (ai-employees-v3.html, styles/aie3.css). Токены — из .ai-emp
    (ai-employees.css). Персонажи/портреты — ai-characters.css. */
 .ai-emp.e3{padding-bottom:72px}
-.e3 h1,.e3 h2{font-family:var(--ff-display);letter-spacing:-0.03em;color:var(--ink);margin:0}
+.e3 h1,.e3 h2{font-family:var(--ff-display);letter-spacing:0;color:var(--ink);margin:0}
 .e3-kick{font-family:var(--ff-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
 .e3 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @keyframes e3Up{from{opacity:0;transform:translateY(14px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
@@ -39,7 +39,7 @@
 .e3-big{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;align-items:end;gap:4px 16px;padding:18px 22px;border-top:1px solid var(--line-2)}
 .e3-big:first-child{border-top:0}
 .e3-big .e3-kick{grid-column:1/-1}
-.e3-big b{font-family:var(--ff-display);font-size:44px;font-weight:600;letter-spacing:-0.045em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.e3-big b{font-family:var(--ff-display);font-size:44px;font-weight:600;letter-spacing:0;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
 .e3-big b small{font-size:20px;letter-spacing:-0.02em;color:var(--fg-3);font-weight:500}
 .e3-big em{font-style:normal;font-size:12px;color:var(--fg-3);padding-bottom:5px;text-align:right}
 .e3-big em.err{color:#b4232a;font-weight:500}
@@ -89,7 +89,7 @@
 .e3-card:hover svg.ch.live .ch-head{animation-duration:2.4s}
 .e3-card-top{display:flex;align-items:center;gap:12px;margin-top:4px}
 .e3-who{flex:1;min-width:0}
-.e3-nm{font-family:var(--ff-display);font-size:18px;font-weight:600;letter-spacing:-0.02em;color:var(--ink);line-height:1.15}
+.e3-nm{font-family:var(--ff-display);font-size:18px;font-weight:600;letter-spacing:0;color:var(--ink);line-height:1.15}
 .e3-rl{font-size:12.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .e3-cur{font-size:11.5px;color:#6d28d9;margin-top:2px}
 .e3-st{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:500;background:var(--bg-soft);color:var(--fg-2);white-space:nowrap}
@@ -116,7 +116,7 @@
 .e3-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line-3);border-bottom:1px solid var(--line-3)}
 .e3-stats>div{padding:10px 0;display:flex;flex-direction:column;gap:2px;min-width:0}
 .e3-stats>div+div{padding-left:12px;border-left:1px solid var(--line-3)}
-.e3-stats b{font-family:var(--ff-display);font-size:22px;font-weight:600;letter-spacing:-0.03em;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums}
+.e3-stats b{font-family:var(--ff-display);font-size:22px;font-weight:600;letter-spacing:0;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums}
 .e3-stats span{font-size:11px;color:var(--fg-3)}
 .e3-stats .warn b{color:#b4580b}
 .e3-stats .bad b{color:#b4232a}
@@ -147,7 +147,7 @@
 .e3-role .e3-por-fig{top:2%}
 .e3-role-t{display:flex;align-items:center;gap:10px}
 .e3-role-t>div{flex:1;min-width:0}
-.e3-role-t b{display:block;font-family:var(--ff-display);font-size:16px;font-weight:600;color:var(--ink);letter-spacing:-0.01em}
+.e3-role-t b{display:block;font-family:var(--ff-display);font-size:16px;font-weight:600;color:var(--ink);letter-spacing:0}
 .e3-role-t span{font-size:11.5px;color:var(--fg-3)}
 .e3-role-t em{font-style:normal;font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:999px;background:var(--ink);color:#fff;white-space:nowrap}
 .e3-role p{margin:0;font-size:13px;line-height:1.5;color:var(--fg-2);flex:1;text-wrap:pretty}
@@ -164,7 +164,7 @@
 .e3-drawer{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:94vw;background:#fff;z-index:61;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(17,17,19,.14);animation:e3In .45s cubic-bezier(.2,.8,.2,1)}
 @keyframes e3In{from{transform:translateX(40px);opacity:0}}
 .e3-dr-h{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 22px 16px;border-bottom:1px solid var(--line-2)}
-.e3-dr-h h2{font-family:var(--ff-display);font-size:24px;letter-spacing:-0.03em;margin-top:6px}
+.e3-dr-h h2{font-family:var(--ff-display);font-size:24px;letter-spacing:0;margin-top:6px}
 .e3-dr-b{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column}
 .e3-dr-f{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;padding:14px 22px 18px;border-top:1px solid var(--line-2)}
 .e3-dr-f .e3-link{margin-right:auto;padding:0;font-size:12.5px;color:var(--fg-2);white-space:nowrap}
@@ -194,7 +194,7 @@
 
 /* ---- profile skin ---- */
 .e3p.e2{padding-bottom:72px}
-.e3p.e2 h1,.e3p .e2-id h1,.e3p.e2 .h,.e3p.e2 .num{font-family:var(--ff-display);letter-spacing:-0.03em}
+.e3p.e2 h1,.e3p .e2-id h1,.e3p.e2 .h,.e3p.e2 .num{font-family:var(--ff-display);letter-spacing:0}
 .e3p .e2-back{position:relative;z-index:2;animation:e3Up .5s both}
 .e3p .e2-id{position:relative;margin:8px 0 22px;padding:28px 24px;background:#fbfbfc;border:1px solid var(--line-2);border-radius:20px;isolation:isolate;overflow:hidden;align-items:flex-end;animation:e3Fade .5s both}
 .e3p .e2-id::before{content:'';position:absolute;inset:0;background-image:radial-gradient(rgba(17,17,19,.09) 1px,transparent 1px);background-size:22px 22px;mask-image:radial-gradient(ellipse 60% 90% at 15% 30%,#000 20%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 60% 90% at 15% 30%,#000 20%,transparent 75%);z-index:-1}

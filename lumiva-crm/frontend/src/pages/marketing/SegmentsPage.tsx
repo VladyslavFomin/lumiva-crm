@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import {
   createSegment,
   fetchSegments,
@@ -175,32 +176,17 @@ export const SegmentsPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="marketingSegments" />
       <div className="space-y-4 pb-8 md:space-y-6">
-        <section
-          className="rounded-2xl border bg-white px-5 py-5 shadow-sm md:px-7 md:py-6"
-          style={{ borderColor: borderSubtle }}
-        >
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
-                {t('crm.marketingSegments.kicker')}
-              </div>
-              <h1 className="text-lg font-semibold tracking-tight text-neutral-900 md:text-xl">
-                {t('crm.marketingSegments.title')}
-              </h1>
-              <p className="mt-2 max-w-2xl text-xs leading-relaxed text-neutral-600">
-                {t('crm.marketingSegments.subtitle')}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadAll()}
-              disabled={loading}
-              className="shrink-0 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] text-neutral-700 transition hover:border-neutral-300 disabled:opacity-50"
-            >
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.marketingSegments.kicker')}
+          title={t('crm.marketingSegments.title')}
+          subtitle={t('crm.marketingSegments.subtitle')}
+          actions={
+            <button type="button" onClick={() => void loadAll()} disabled={loading} className="btn-secondary">
               {t('crm.marketingSegments.actions.refresh')}
             </button>
-          </div>
-        </section>
+          }
+        />
 
         {error && <div className="text-[11px] text-rose-600">{error}</div>}
 

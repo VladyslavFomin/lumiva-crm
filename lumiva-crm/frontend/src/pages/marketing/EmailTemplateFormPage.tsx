@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -172,7 +173,7 @@ export const EmailTemplateFormPage: React.FC = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="flex min-h-[40vh] items-center justify-center rounded-3xl border border-zinc-200 bg-white">
+        <div className="flex min-h-[40vh] items-center justify-center rounded-[14px] border border-zinc-200 bg-white">
           <div className="text-sm text-zinc-500">{t('crm.emailTemplates.list.loading')}</div>
         </div>
       </MainLayout>
@@ -183,22 +184,17 @@ export const EmailTemplateFormPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="marketingEmailTemplates" />
       <div className="space-y-6">
-        <div className="rounded-3xl border border-zinc-200 bg-white px-5 py-5 shadow-sm md:px-8 md:py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
-                {id ? t('crm.emailTemplates.form.titleEdit') : t('crm.emailTemplates.form.titleNew')}
-              </h1>
-              <p className="mt-1 max-w-2xl text-sm text-zinc-600">{t('crm.emailTemplates.form.subtitle')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/app/marketing/email-templates')}
-              className="self-start rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-800 transition hover:bg-zinc-100"
-            >
-              {t('crm.emailTemplates.form.actions.cancel')}
-            </button>
-          </div>
+        <div>
+          <PageHero
+            kicker={t('crm.emailTemplates.list.kicker')}
+            title={id ? t('crm.emailTemplates.form.titleEdit') : t('crm.emailTemplates.form.titleNew')}
+            subtitle={t('crm.emailTemplates.form.subtitle')}
+            actions={
+              <button type="button" onClick={() => navigate('/app/marketing/email-templates')} className="btn-secondary">
+                {t('crm.emailTemplates.form.actions.cancel')}
+              </button>
+            }
+          />
 
           {error && (
             <div
@@ -220,7 +216,7 @@ export const EmailTemplateFormPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div data-tour="etplf-fields" className="rounded-3xl border border-zinc-200 bg-white px-5 py-5 shadow-sm md:px-8 md:py-6 space-y-4">
+          <div data-tour="etplf-fields" className="rounded-[14px] border border-zinc-200 bg-white px-5 py-5 shadow-sm md:px-8 md:py-6 space-y-4">
             <p className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-600">
               {t('crm.emailTemplates.form.constructorHint')}
             </p>

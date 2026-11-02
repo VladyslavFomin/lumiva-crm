@@ -1,6 +1,7 @@
 // src/pages/departments/DepartmentFormPage.tsx
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHero } from '../../components/ui';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -139,24 +140,16 @@ export const DepartmentFormPage: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {id
-                ? t('crm.departments.form.titleEdit')
-                : t('crm.departments.form.titleNew')}
-            </h1>
-            <div className="text-[11px] text-slate-600">
-              {t('crm.departments.form.subtitle')}
-            </div>
-          </div>
-          <button
-            onClick={() => navigate('/app/departments')}
-            className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            {t('crm.common.cancel')}
-          </button>
-        </div>
+        <PageHero
+          className="!mb-0"
+          title={id ? t('crm.departments.form.titleEdit') : t('crm.departments.form.titleNew')}
+          subtitle={t('crm.departments.form.subtitle')}
+          actions={
+            <button onClick={() => navigate('/app/departments')} className="btn-secondary">
+              {t('crm.common.cancel')}
+            </button>
+          }
+        />
 
         {error && (
           <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
@@ -165,7 +158,7 @@ export const DepartmentFormPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-[14px] p-4 space-y-4">
             <h2 className="text-xs font-semibold text-slate-900 mb-3">
               {t('crm.departments.form.sections.basic')}
             </h2>

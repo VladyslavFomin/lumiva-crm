@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   fetchIntegration,
@@ -870,19 +871,12 @@ export const SalesIntegrationsPage: React.FC = () => {
       <PageHelpButton topic="salesIntegrations" />
       <div className="space-y-4 md:space-y-6 pb-8">
         {/* Заголовок */}
-        <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              {t('crm.salesIntegrations.kicker')}
-            </div>
-            <h1 className="page-title">
-              {t('crm.salesIntegrations.title')}
-            </h1>
-            <p className="text-xs text-text-tertiary mt-1 max-w-2xl">
-              {t('crm.salesIntegrations.subtitle')}
-            </p>
-          </div>
-        </section>
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.salesIntegrations.kicker')}
+          title={t('crm.salesIntegrations.title')}
+          subtitle={t('crm.salesIntegrations.subtitle')}
+        />
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)]">
           <div data-tour="sint-available" className="card p-4 md:p-5">

@@ -19,14 +19,14 @@
   --bg: #fff;
   --bg-muted: #fafafa;
   --bg-soft: #f5f5f5;
-  --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-display: var(--ff-heading);
   --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--fg-1);
-  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--ff-text);
   font-size: 15px;
   line-height: 1.55;
 }
-.px-scope h1, .px-scope h2, .px-scope h3, .px-scope h4 { font-family: var(--ff-display); font-weight: 600; letter-spacing: -0.02em; margin: 0; color: var(--ink); }
+.px-scope h1, .px-scope h2, .px-scope h3, .px-scope h4 { font-family: var(--ff-display); font-weight: 600; letter-spacing:0; margin: 0; color: var(--ink); }
 .px-scope button { font-family: inherit; cursor: pointer; }
 .px-scope svg { display: block; }
 .px-scope select { font-family: inherit; }
@@ -46,7 +46,7 @@
 .px-scope .cl-wrap{width:100%}
 
 .px-scope .cl-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:16px}
-.px-scope .cl-hero h1{font-family:var(--ff-display);font-size:26px;font-weight:600;letter-spacing:-.02em;color:var(--ink);display:flex;align-items:baseline;gap:10px}
+.px-scope .cl-hero h1{font-family:var(--ff-display);font-size:34px;font-weight:600;letter-spacing:0;color:var(--ink);display:flex;align-items:baseline;gap:10px}
 .px-scope .cl-hero h1 .cnt{font-family:var(--ff-mono);font-size:12px;font-weight:400;color:var(--fg-3);letter-spacing:0}
 .px-scope .cl-hero p{font-size:12.5px;color:var(--fg-3);margin-top:5px;max-width:600px;line-height:1.5}
 .px-scope .cl-hero-a{display:flex;gap:8px;flex-wrap:wrap}
@@ -59,7 +59,7 @@
 .px-scope .cl-kpi:hover{background:var(--bg-muted)}
 .px-scope .cl-kpi.on{background:var(--bg-soft);box-shadow:inset 0 -2px 0 var(--ink)}
 .px-scope .cl-kpi .k{font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3)}
-.px-scope .cl-kpi .v{font-family:var(--ff-display);font-size:23px;font-weight:600;letter-spacing:-.025em;color:var(--ink);margin-top:5px;line-height:1.1}
+.px-scope .cl-kpi .v{font-family:var(--ff-display);font-size:23px;font-weight:600;letter-spacing:0;color:var(--ink);margin-top:5px;line-height:1.1}
 .px-scope .cl-kpi .d{font-size:11px;color:var(--fg-3);margin-top:3px}
 
 /* frame */
@@ -182,7 +182,7 @@
 .px-scope .cl-card{padding:15px 16px;border-right:1px solid var(--line-3);border-bottom:1px solid var(--line-3);cursor:pointer;position:relative;min-width:0}
 .px-scope .cl-card:hover{background:var(--bg-muted)}
 .px-scope .cl-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.px-scope .cl-card .nm{font-family:var(--ff-display);font-size:15px;font-weight:600;letter-spacing:-.015em;color:var(--ink);margin-top:11px;line-height:1.25}
+.px-scope .cl-card .nm{font-family:var(--ff-display);font-size:15px;font-weight:600;letter-spacing:0;color:var(--ink);margin-top:11px;line-height:1.25}
 .px-scope .cl-card .sub{font-size:11.5px;color:var(--fg-3);margin-top:3px}
 .px-scope .cl-card-m{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-3)}
 .px-scope .cl-card-m .k{font-family:var(--ff-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--fg-4)}
@@ -195,7 +195,7 @@
 .px-scope .cl-dr{position:fixed;top:0;right:0;bottom:0;width:400px;max-width:92vw;background:#fff;border-left:1px solid var(--line-2);z-index:61;display:flex;flex-direction:column;animation:clSlide .22s ease}
 @keyframes clSlide{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}
 .px-scope .cl-dr-h{padding:16px 18px;border-bottom:1px solid var(--line-3);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.px-scope .cl-dr-h .t{font-family:var(--ff-display);font-size:18px;font-weight:600;letter-spacing:-.02em;color:var(--ink)}
+.px-scope .cl-dr-h .t{font-family:var(--ff-display);font-size:18px;font-weight:600;letter-spacing:0;color:var(--ink)}
 .px-scope .cl-dr-h .s{font-size:11.5px;color:var(--fg-3);margin-top:3px}
 .px-scope .cl-dr-b{padding:16px 18px;overflow-y:auto;flex:1}
 .px-scope .cl-dr-f{padding:12px 18px;border-top:1px solid var(--line-3);display:flex;gap:8px;flex-wrap:wrap}

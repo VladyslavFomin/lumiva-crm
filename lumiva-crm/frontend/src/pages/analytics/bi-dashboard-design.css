@@ -18,7 +18,7 @@
 .px-scope .bi-mod-sub{font-size:11px;color:var(--fg-3);margin:2px 0 12px}
 .px-scope .bi-mod-kpis{display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap}
 .px-scope .bi-mod-kpi .l{font-size:10px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.04em;font-family:var(--ff-mono)}
-.px-scope .bi-mod-kpi .v{font-family:var(--ff-display);font-size:19px;font-weight:600;color:var(--ink);letter-spacing:-0.01em;margin-top:3px}
+.px-scope .bi-mod-kpi .v{font-family:var(--ff-display);font-size:19px;font-weight:600;color:var(--ink);letter-spacing:0;margin-top:3px}
 .px-scope .bi-mod-kpi .v small{font-size:11px;color:var(--fg-3);font-weight:500;margin-left:1px}
 .px-scope .bi-mod-spark{margin-top:auto}
 .px-scope .bi-mod-foot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--fg-3);margin-top:8px;padding-top:10px;border-top:1px solid var(--line-3)}
@@ -75,7 +75,7 @@
 @media (max-width:480px){.px-scope .ha-kpis{grid-template-columns:1fr}}
 .px-scope .ha-kpi{border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:14px 16px;position:relative;overflow:hidden}
 .px-scope .ha-kpi .l{font-size:11px;color:var(--fg-3);display:flex;align-items:center;justify-content:space-between}
-.px-scope .ha-kpi .v{font-family:var(--ff-display);font-size:22px;font-weight:600;color:var(--ink);margin-top:6px;letter-spacing:-0.01em}
+.px-scope .ha-kpi .v{font-family:var(--ff-display);font-size:22px;font-weight:600;color:var(--ink);margin-top:6px;letter-spacing:0}
 .px-scope .ha-kpi .v small{font-size:12px;color:var(--fg-3);font-weight:500;margin-left:2px}
 .px-scope .ha-kpi .d{font-size:11px;margin-top:4px;color:var(--fg-3)}
 .px-scope .ha-kpi .d.up{color:#1f8a5e}

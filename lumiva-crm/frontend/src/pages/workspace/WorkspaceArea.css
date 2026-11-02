@@ -16,13 +16,13 @@
   /* Aligned to .lv-proj-table's --ff-mono (ProjectsListPage.css) — that variable is actually
      Poppins, not a monospace font; keeping the same value here is what makes table captions
      across Workspace and Projects read as one design system instead of two. */
-  --ws-ff-mono: 'Poppins', system-ui, -apple-system, sans-serif;
-  --ws-ff-head: 'Inter Tight', 'Poppins', system-ui, -apple-system, sans-serif;
+  --ws-ff-mono: var(--ff-mono-ui);
+  --ws-ff-head: var(--ff-heading);
 }
 
 /* page chrome shared with the mockup's cabinet.css — buttons, page head, toolbar, view tabs */
 .ws-page .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 13px; flex-wrap: wrap; }
-.ws-page .page-head h1 { font-family: var(--ws-ff-head); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); line-height: 1.15; margin: 0; }
+.ws-page .page-head h1 { font-family: var(--ws-ff-head); font-size:34px; font-weight: 600; letter-spacing:0; color: var(--ink); line-height: 1.15; margin: 0; }
 .ws-page .page-head .sub { font-size: 12.5px; color: var(--fg-3); margin-top: 4px; }
 .ws-page .page-head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
@@ -65,7 +65,7 @@
 /* header */
 .ws-page .ws-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 13px; flex-wrap: wrap; }
 .ws-page .ws-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ws-page .ws-head h1 { font-family: var(--ws-ff-head); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); line-height: 1.15; margin: 0; }
+.ws-page .ws-head h1 { font-family: var(--ws-ff-head); font-size:34px; font-weight: 600; letter-spacing:0; color: var(--ink); line-height: 1.15; margin: 0; }
 .ws-page .ws-head .desc { font-size: 12.5px; color: var(--fg-3); margin-top: 4px; max-width: 640px; }
 .ws-page .ws-people { display: flex; align-items: center; gap: 0; margin-left: auto; }
 .ws-page .ws-people .a { width: 26px; height: 26px; border-radius: 50%; background: var(--bg-soft); border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--line-2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; font-family: var(--ws-ff-head); color: var(--ink); margin-left: -6px; }
@@ -167,7 +167,7 @@
 .ws-scrim { position: fixed; inset: 0; background: rgba(20,20,20,0.28); z-index: 8500; display: flex; justify-content: flex-end; }
 .ws-drawer { width: min(560px,100%); background: #fff; border-left: 1px solid var(--line-2); display: flex; flex-direction: column; height: 100%; box-shadow: -8px 0 40px rgba(0,0,0,0.10); }
 .ws-drawer-head { padding: 16px 18px; border-bottom: 1px solid var(--line-2); display: flex; align-items: flex-start; gap: 12px; }
-.ws-drawer-head h2 { font-family: var(--ws-ff-head); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); margin: 0; }
+.ws-drawer-head h2 { font-family: var(--ws-ff-head); font-size: 16px; font-weight: 600; letter-spacing:0; color: var(--ink); margin: 0; }
 .ws-drawer-head .s { font-size: 12px; color: var(--fg-3); margin-top: 3px; }
 .ws-drawer-body { padding: 16px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
 .ws-drawer-foot { padding: 12px 18px; border-top: 1px solid var(--line-2); display: flex; align-items: center; gap: 10px; background: var(--bg-muted); }
@@ -247,7 +247,7 @@
 
 .ws-page .ws-sec { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; margin-bottom: 16px; }
 .ws-page .ws-sec-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--line-3); display: flex; align-items: flex-start; gap: 12px; }
-.ws-page .ws-sec-head h2 { font-family: var(--ws-ff-head); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); margin: 0; }
+.ws-page .ws-sec-head h2 { font-family: var(--ws-ff-head); font-size: 15px; font-weight: 600; letter-spacing:0; color: var(--ink); margin: 0; }
 .ws-page .ws-sec-head .s { font-size: 12px; color: var(--fg-3); margin-top: 3px; max-width: 620px; }
 .ws-page .ws-sec-head .sp { flex: 1; }
 .ws-page .ws-sec-body { padding: 16px; }
@@ -308,7 +308,7 @@
 .ws-page .ws-areacard:hover { border-color: var(--fg-3); box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
 .ws-page .ws-areacard .top { display: flex; align-items: center; gap: 11px; }
 .ws-page .ws-areacard .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ws-page .ws-areacard .nm { font-size: 14px; font-weight: 600; font-family: var(--ws-ff-head); letter-spacing: -0.01em; color: var(--ink); }
+.ws-page .ws-areacard .nm { font-size: 14px; font-weight: 600; font-family: var(--ws-ff-head); letter-spacing:0; color: var(--ink); }
 .ws-page .ws-areacard .sl { font-family: var(--ws-ff-mono); font-size: 10px; color: var(--fg-4); letter-spacing: 0.06em; margin-top: 2px; }
 .ws-page .ws-areacard .ds { font-size: 12px; color: var(--fg-3); line-height: 1.5; }
 .ws-page .ws-areacard .st { display: flex; gap: 16px; border-top: 1px solid var(--line-3); padding-top: 11px; }
@@ -393,7 +393,7 @@
 @media (max-width: 900px) { .ws-page .ws-kpi { grid-template-columns: repeat(2,1fr); } }
 .ws-page .ws-kpi .c { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; padding: 14px 16px; }
 .ws-page .ws-kpi .k { font-family: var(--ws-ff-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-4); }
-.ws-page .ws-kpi .v { font-family: var(--ws-ff-head); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); margin-top: 5px; }
+.ws-page .ws-kpi .v { font-family: var(--ws-ff-head); font-size: 22px; font-weight: 600; letter-spacing:0; color: var(--ink); margin-top: 5px; }
 .ws-page .ws-kpi .d { font-size: 11.5px; color: var(--fg-3); margin-top: 3px; }
 
 /* ---- bulk-selection bar (fixed overlay, not scoped to .ws-page) ---- */

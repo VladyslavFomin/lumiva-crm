@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { fetchProjects } from '../../api/projects';
 import { getLocale } from '../../i18n/utils';
 import type { Project, ProjectTask } from './projectTypes';
@@ -76,17 +77,12 @@ export const OverdueTasksPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="projectsOverdue" />
       <div className="space-y-4 md:space-y-6 pb-8">
-        <section className="flex flex-col gap-1">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-            {t('crm.projects.overdue.kicker')}
-          </div>
-          <h1 className="text-lg md:text-xl font-semibold text-lumiva-accent">
-            {t('crm.projects.overdue.title')}
-          </h1>
-          <p className="text-xs text-slate-600 max-w-2xl">
-            {t('crm.projects.overdue.subtitle')}
-          </p>
-        </section>
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.projects.overdue.kicker')}
+          title={t('crm.projects.overdue.title')}
+          subtitle={t('crm.projects.overdue.subtitle')}
+        />
 
         {error && (
           <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
@@ -94,7 +90,7 @@ export const OverdueTasksPage: React.FC = () => {
           </div>
         )}
 
-        <section data-tour="poverdue-card" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+        <section data-tour="poverdue-card" className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-lumiva-accent">
               {t('crm.projects.overdue.table.title')}

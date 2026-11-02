@@ -1,7 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=Roboto+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* Swiss design system — used by client-detail and other CCP pages */
-.cd-display { font-family: 'Inter Tight', Poppins, sans-serif; }
+/* Шрифт заголовков и крупных цифр всей CRM. У Barlow Condensed нет кириллицы —
+   русские буквы берутся из Roboto Condensed (ближайший по рисунку узкий гротеск). */
+:root {
+  --ff-heading: 'Barlow Condensed', 'Roboto Condensed', 'Inter Tight', sans-serif;
+  --ff-display: var(--ff-heading);
+  --ff-text: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-mono-ui: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Основной текст CRM — Inter (как в редизайненных модулях). :has — чтобы модалки/порталы вне .lv-crm
+   тоже были в Inter, а публичный сайт (без .lv-crm) остался на своём шрифте. Спецификация: md/design-system.md */
+body:has(.lv-crm) { font-family: var(--ff-text); }
+.cd-display { font-family: var(--ff-heading); letter-spacing: 0; }
+/* Заголовки внутри оболочки CRM (MainLayout .lv-crm) — тем же шрифтом; публичный сайт не затрагивается.
+   Специфичность .lv-crm h1 выше tracking-* утилит, поэтому отрицательный трекинг (не для узкого шрифта) снимается. */
+.lv-crm :is(h1, h2, h3) { font-family: var(--ff-heading); }
+.lv-crm :is(h1, h2) { letter-spacing: 0; }
 .cd-mono    { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 @tailwind base;
@@ -61,7 +76,7 @@ html.embed-public-iframe #root {
     @apply inline-flex items-center justify-center gap-1.5
            px-4 py-2 rounded-xl
            bg-lumiva-accent text-white
-           text-xs font-semibold uppercase tracking-wide
+           text-xs font-semibold
            shadow-btn-primary border border-lumiva-accent
            hover:bg-lumiva-accent-hover hover:-translate-y-px hover:shadow-card-md
            active:translate-y-0 active:scale-[0.97] active:shadow-btn
@@ -74,7 +89,7 @@ html.embed-public-iframe #root {
   }
 
   .btn-primary-lg {
-    @apply btn-primary px-6 py-3 text-sm tracking-wider;
+    @apply btn-primary px-6 py-3 text-sm;
   }
 
   /* ── Buttons — SECONDARY ────────────────────────────────── */
@@ -176,16 +191,18 @@ html.embed-public-iframe #root {
   }
 
   /* ── Page shell ─────────────────────────────────────────── */
+  /* Те же метрики, что у шапок редизайненных разделов (bk-hero / em-hero) и components/ui/PageHero */
   .page-header {
-    @apply flex items-center justify-between gap-4 mb-6;
+    @apply flex flex-wrap items-end justify-between gap-6 mb-4 pt-2.5 pb-[18px] border-b border-[#e7e7e7];
   }
 
   .page-title {
-    @apply text-xl font-semibold text-[#111827] tracking-tight;
+    @apply text-[34px] font-semibold leading-[1.05] text-[#222] tracking-normal;
+    font-family: var(--ff-heading);
   }
 
   .page-subtitle {
-    @apply text-sm text-text-secondary mt-0.5;
+    @apply text-[13px] leading-normal text-[#888] mt-1.5 max-w-[560px];
   }
 
   /* ── Section divider ────────────────────────────────────── */
@@ -488,7 +505,7 @@ select.bg-slate-950 {
         0 8px 24px -4px rgba(15, 23, 42, .12),
         0 20px 48px -12px rgba(15, 23, 42, .16);
       color: #111827;
-      font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+      font-family: var(--ff-text);
       font-size: 13px;
       font-weight: 400;
       letter-spacing: normal;

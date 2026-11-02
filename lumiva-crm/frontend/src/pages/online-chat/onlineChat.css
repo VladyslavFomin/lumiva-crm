@@ -1,6 +1,6 @@
 /* Онлайн-чат (редизайн 2026-10-01, макет claude.ai/design online-chat.html) */
 .oc{--ink:#16181c;--fg-1:#23262b;--fg-2:#555a62;--fg-3:#8a8f97;--fg-4:#b3b7bd;--line-2:#e4e5e8;--line-3:#eff0f2;--bg-muted:#f6f6f7;--bg-soft:#efeff1;
-  --ff-h:'Inter Tight','Inter',system-ui,sans-serif;--ff-mono:'JetBrains Mono',ui-monospace,monospace;
+  --ff-h: var(--ff-heading);--ff-mono:'JetBrains Mono',ui-monospace,monospace;
   --pos:#15693a;--pos-bg:#f1faf4;--warn:#9a5b0b;--warn-bg:#fdf8ee;--neg:#9a1f31;--neg-bg:#fbecef;--neg-bd:#f1ccd3;
   font-size:14px;color:var(--fg-1);display:flex;flex-direction:column;gap:14px}
 .oc button,.oc input,.oc textarea{font-family:inherit}
@@ -23,7 +23,7 @@
 .oc-btn.sm{height:26px;padding:0 10px;font-size:12px}
 
 .oc-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.oc-head h1{font-family:var(--ff-h);font-weight:600;font-size:32px;line-height:1;margin:8px 0;letter-spacing:-.015em;color:var(--ink)}
+.oc-head h1{font-family:var(--ff-h);font-weight:600;font-size:34px;line-height:1;margin:8px 0;letter-spacing:0;color:var(--ink)}
 .oc-head p{margin:0;color:var(--fg-2);font-size:13.5px;max-width:620px;text-wrap:pretty}
 .oc-stats{display:flex;border:1px solid var(--line-2);border-radius:10px;background:#fff;overflow:hidden}
 .oc-stats div{padding:8px 16px;border-right:1px solid var(--line-3);display:flex;flex-direction:column;gap:2px}
@@ -89,7 +89,7 @@
 .oc-conv-h{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
 .oc-conv-h .who{flex:1;min-width:180px;display:flex;align-items:center;gap:10px}
 .oc-conv-h .who .oc-ava{grid-row:auto}
-.oc-conv-h h2{font-family:var(--ff-h);font-weight:600;font-size:20px;line-height:1.1;color:var(--ink);margin:0;letter-spacing:-.01em}
+.oc-conv-h h2{font-family:var(--ff-h);font-weight:600;font-size:20px;line-height:1.1;color:var(--ink);margin:0;letter-spacing:0}
 .oc-conv-h .sub{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--fg-3);margin-top:2px;flex-wrap:wrap}
 .oc-conv-h .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .oc-msgs{flex:1;overflow-y:auto;padding:18px 20px;background:var(--bg-muted);display:flex;flex-direction:column;gap:4px}
@@ -126,7 +126,7 @@
 /* info panel */
 .oc-info{border-left:1px solid var(--line-2);overflow-y:auto;display:flex;flex-direction:column}
 .oc-sec{padding:14px 16px;border-bottom:1px solid var(--line-3);display:flex;flex-direction:column;gap:10px}
-.oc-sec h4{font-family:var(--ff-h);font-weight:600;font-size:15px;margin:0;color:var(--ink);letter-spacing:-.005em}
+.oc-sec h4{font-family:var(--ff-h);font-weight:600;font-size:15px;margin:0;color:var(--ink);letter-spacing:0}
 .oc-sec p{margin:0;font-size:12.5px;color:var(--fg-3)}
 .oc-kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 12px;font-size:12.5px;margin:0}
 .oc-kv dt{color:var(--fg-3)}

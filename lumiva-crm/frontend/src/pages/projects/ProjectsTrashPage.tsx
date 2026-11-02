@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import {
   emptyProjectsTrash,
   fetchProjects,
@@ -94,24 +95,21 @@ export const ProjectsTrashPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="projectsTrash" />
       <div className="space-y-4">
-        <div>
-          <h1 className="page-title">
-            {t('crm.projects.trash.title')}
-          </h1>
-          <div className="page-subtitle">
-            {t('crm.projects.trash.subtitle')}
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <button data-tour="ptrash-empty"
-            type="button"
-            onClick={() => void handleEmptyTrash()}
-            disabled={!projects.length || actionLoading}
-            className="btn-danger btn-secondary-sm disabled:opacity-50"
-          >
-            {t('crm.projects.trash.actions.emptyTrash')}
-          </button>
-        </div>
+        <PageHero
+          className="!mb-0"
+          title={t('crm.projects.trash.title')}
+          subtitle={t('crm.projects.trash.subtitle')}
+          actions={
+            <button data-tour="ptrash-empty"
+              type="button"
+              onClick={() => void handleEmptyTrash()}
+              disabled={!projects.length || actionLoading}
+              className="btn-danger"
+            >
+              {t('crm.projects.trash.actions.emptyTrash')}
+            </button>
+          }
+        />
 
         {error && (
           <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">

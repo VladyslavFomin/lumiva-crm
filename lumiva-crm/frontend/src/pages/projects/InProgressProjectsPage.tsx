@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { PageHero } from '../../components/ui';
 import { fetchProjects } from '../../api/projects';
 import { type Project } from './projectTypes';
 import { useTranslation } from 'react-i18next';
@@ -406,17 +407,12 @@ export const InProgressProjectsPage: React.FC = () => {
     <MainLayout>
       <PageHelpButton topic="projectsInProgress" />
       <div className="space-y-4 md:space-y-6 pb-8">
-        <section className="flex flex-col gap-1">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-            {t('crm.projects.inProgress.kicker')}
-          </div>
-          <h1 className="text-lg md:text-xl font-semibold text-lumiva-accent">
-            {t('crm.projects.inProgress.title')}
-          </h1>
-          <p className="text-xs text-slate-600 max-w-2xl">
-            {t('crm.projects.inProgress.subtitle')}
-          </p>
-        </section>
+        <PageHero
+          className="!mb-0"
+          kicker={t('crm.projects.inProgress.kicker')}
+          title={t('crm.projects.inProgress.title')}
+          subtitle={t('crm.projects.inProgress.subtitle')}
+        />
 
         {error && (
           <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
@@ -425,7 +421,7 @@ export const InProgressProjectsPage: React.FC = () => {
         )}
 
         <section data-tour="pinprog-kpis" className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
             <div className="text-[11px] text-slate-500 uppercase tracking-[0.18em]">
               {t('crm.projects.inProgress.kpis.count')}
             </div>
@@ -433,7 +429,7 @@ export const InProgressProjectsPage: React.FC = () => {
               {items.length.toLocaleString(locale)}
             </div>
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
             <div className="text-[11px] text-slate-500 uppercase tracking-[0.18em]">
               {t('crm.projects.inProgress.kpis.amount')}
             </div>
@@ -441,7 +437,7 @@ export const InProgressProjectsPage: React.FC = () => {
               {formatAmount(totalAmount)}
             </div>
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
             <div className="text-[11px] text-slate-500 uppercase tracking-[0.18em]">
               {t('crm.projects.inProgress.kpis.categories')}
             </div>
@@ -451,7 +447,7 @@ export const InProgressProjectsPage: React.FC = () => {
           </div>
         </section>
 
-        <section data-tour="pinprog-card" className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
+        <section data-tour="pinprog-card" className="rounded-[14px] border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-lumiva-accent">
               {t('crm.projects.inProgress.table.title')}
