@@ -145,7 +145,7 @@ export class MediaPublicService {
     const tenant = await this.tenants.findOne({ where: { id: link.tenantId }, select: ['id', 'name', 'logoUrl', 'uiLanguage'] });
     const brand = { name: tenant?.name ?? null, logoUrl: tenant?.logoUrl ?? null, lang: tenant?.uiLanguage ?? null };
     if (!this.passOk(link, req.headers['x-media-access'] as string)) {
-      return { needPassword: true, name: link.title || link.name, brand };
+      return { needPassword: true, name: link.title || link.name, brand, theme: link.theme || 'dark' };
     }
     const v = await this.visitor(link.tenantId, req.headers['x-media-visitor'] as string);
     // Повторное открытие той же вкладки/обновление страницы в течение 30 минут — не новый переход.
@@ -180,6 +180,7 @@ export class MediaPublicService {
         scope: link.scope,
         gate: link.gate,
         allowZip: link.allowZip,
+        theme: link.theme || 'dark',
         updatedAt,
       },
       hotels: hotels.map((h) => ({ id: h.id, name: h.name, city: h.city })),

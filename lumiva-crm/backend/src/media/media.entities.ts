@@ -74,6 +74,8 @@ export class MediaLink {
   @Column({ type: 'varchar', length: 5, nullable: true }) lang: string | null;
   @Column({ type: 'boolean', default: true }) gate: boolean;
   @Column({ type: 'boolean', default: true }) allowZip: boolean;
+  /** Тема публичной страницы: dark | light (посетитель может переключить у себя) */
+  @Column({ type: 'varchar', length: 8, default: 'dark' }) theme: 'dark' | 'light';
   @Column({ type: 'varchar', length: 100, nullable: true, select: false }) passwordHash: string | null;
   @Column({ type: 'timestamptz', nullable: true }) expiresAt: Date | null;
   @Column({ type: 'boolean', default: true }) enabled: boolean;

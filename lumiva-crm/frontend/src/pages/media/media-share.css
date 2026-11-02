@@ -230,3 +230,45 @@
 .msh .sh-lb-img.pdf .pfb img{max-width:none;max-height:none;object-fit:contain}
 .msh .sh-lb-img.pdf .pfb-th img{object-fit:cover}
 @media (max-width:640px){.msh .sh-lb-img.pdf .pfb{width:100vw;height:calc(100vh - 150px)}}
+
+/* ── Светлая тема медиакита (.msh.lt): тема ссылки из CRM или выбор посетителя ── */
+.msh .sh-theme{display:flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:1px solid var(--ln2);border-radius:50%;background:none;color:var(--tx2);transition:color .2s,background .2s,transform .3s var(--ease)}
+.msh .sh-theme:hover{color:var(--tx);background:rgba(127,127,127,.1)}
+.msh .sh-theme:active{transform:rotate(30deg) scale(.94)}
+.msh.lt{--bg:#f6f5f2;--bg2:#ffffff;--bg3:#efede9;--ln:#e6e3dd;--ln2:#d4d0c8;--tx:#141416;--tx2:#55555b;--tx3:#8a8a90}
+.msh.lt::before{background-image:radial-gradient(rgba(0,0,0,.07) 1px,transparent 1px)}
+.msh.lt a:hover{color:#000}
+.msh.lt button:focus-visible,.msh.lt a:focus-visible{outline-color:#3b6fd8}
+.msh.lt .sh-spot{background:radial-gradient(circle,rgba(120,150,220,.1),transparent 60%)}
+.msh.lt .sh-btn:not(.pri):not(.ghost){background:rgba(0,0,0,.02)}
+.msh.lt .sh-btn:not(.pri):not(.ghost):hover{background:rgba(0,0,0,.05);border-color:#bdb9b0}
+.msh.lt .sh-btn.pri{color:#fff}
+.msh.lt .sh-btn.pri:hover{background:#000;color:#fff}
+.msh.lt .sh-hd{background:rgba(246,245,242,.78);border-bottom-color:rgba(0,0,0,.06)}
+.msh.lt .sh-brand .m{background:conic-gradient(from 200deg,#141416,#8aa9d6,#141416)}
+.msh.lt .sh-brand img{filter:none}
+.msh.lt .sh-fold{box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.msh.lt .sh-fold::before{background:radial-gradient(400px circle at var(--mx) var(--my),rgba(0,0,0,.035),transparent 50%)}
+.msh.lt .sh-fold .card{box-shadow:0 12px 26px rgba(0,0,0,.16);border-color:rgba(0,0,0,.06)}
+.msh.lt .sh-fold .c1{filter:brightness(.92)}
+.msh.lt .sh-fold .c2{filter:brightness(.84)}
+.msh.lt .sh-fold:hover .go,.msh.lt .sh-pack .ok,.msh.lt .sh-f .ck input:checked+.b{color:#fff}
+.msh.lt .sh-art{background:linear-gradient(160deg,#ecebe7,#dfddd7)}
+.msh.lt .sh-art.k-pdf{background:linear-gradient(160deg,#ecebe7,#dcdad3)}
+.msh.lt .sh-tile{border-color:rgba(0,0,0,.06)}
+.msh.lt .sh-sub{box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.msh.lt .sh-tray{background:rgba(255,255,255,.92);box-shadow:0 20px 50px rgba(0,0,0,.14)}
+.msh.lt .sh-tray .st>div{border-color:#fff}
+.msh.lt .sh-ov{background:rgba(236,234,229,.62)}
+.msh.lt .sh-gate,.msh.lt .sh-card{box-shadow:0 30px 80px rgba(0,0,0,.14)}
+.msh.lt .sh-gate-fan{background:radial-gradient(60% 100% at 50% 100%,rgba(120,150,220,.12),transparent)}
+.msh.lt .sh-gate-fan .g{box-shadow:0 10px 24px rgba(0,0,0,.18);border-color:rgba(0,0,0,.08)}
+.msh.lt .sh-f input:not([type=checkbox]),.msh.lt .sh-f select,.msh.lt .sh-f textarea{background:#fff}
+.msh.lt .sh-f input::placeholder,.msh.lt .sh-f textarea::placeholder{color:#a5a5aa}
+.msh.lt .sh-f em,.msh.lt .sh-f .er,.msh.lt .sh-err{color:#b4232c}
+/* просмотр фото и PDF — тёмный в обеих темах */
+.msh.lt .sh-lb{--bg:#0c0c0d;--bg2:#141416;--bg3:#1c1c1f;--ln:#2a2a2e;--ln2:#3a3a3f;--tx:#f3f3f1;--tx2:#b4b4b8;--tx3:#7d7d83}
+.msh.lt .sh-lb .sh-btn:not(.pri):not(.ghost){background:rgba(255,255,255,.03)}
+.msh.lt .sh-lb .sh-btn:not(.pri):not(.ghost):hover{background:rgba(255,255,255,.08);border-color:#55555b}
+.msh.lt .sh-lb .sh-btn.pri,.msh.lt .sh-lb .sh-btn.pri:hover{background:#fff;color:#111}
+@media (max-width:520px){.msh .sh-hd{gap:10px}.msh .sh-hd-r{gap:8px}.msh .sh-theme{width:28px;height:28px}}

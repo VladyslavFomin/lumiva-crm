@@ -54,6 +54,7 @@ export interface LinkInput {
   lang?: string | null;
   gate?: boolean;
   allowZip?: boolean;
+  theme?: 'dark' | 'light';
   password?: string | null; // '' / null — снять пароль, undefined — не трогать
   expiresAt?: string | null;
   enabled?: boolean;
@@ -702,6 +703,7 @@ export class MediaService {
     if (b.lang !== undefined) l.lang = b.lang === 'ru' || b.lang === 'en' || b.lang === 'tr' ? b.lang : null;
     if (b.gate !== undefined) l.gate = !!b.gate;
     if (b.allowZip !== undefined) l.allowZip = !!b.allowZip;
+    if (b.theme !== undefined) l.theme = b.theme === 'light' ? 'light' : 'dark';
     if (b.enabled !== undefined) l.enabled = !!b.enabled;
     if (b.expiresAt !== undefined) {
       if (!b.expiresAt) l.expiresAt = null;
@@ -766,7 +768,7 @@ export class MediaService {
   private linkSelect(): (keyof MediaLink)[] {
     return [
       'id', 'tenantId', 'name', 'slug', 'scope', 'hotelIds', 'folderIds', 'fileIds', 'title', 'description', 'lang', 'gate',
-      'allowZip', 'passwordHash', 'expiresAt', 'enabled', 'assigneeStaffId', 'createdByUserId', 'createdAt', 'updatedAt',
+      'allowZip', 'theme', 'passwordHash', 'expiresAt', 'enabled', 'assigneeStaffId', 'createdByUserId', 'createdAt', 'updatedAt',
     ];
   }
 
@@ -816,6 +818,7 @@ export class MediaService {
         lang: l.lang,
         gate: l.gate,
         allowZip: l.allowZip,
+        theme: l.theme || 'dark',
         hasPassword: !!l.passwordHash,
         expiresAt: l.expiresAt,
         expired,

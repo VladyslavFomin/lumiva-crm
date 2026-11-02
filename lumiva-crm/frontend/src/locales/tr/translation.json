@@ -28704,7 +28704,11 @@
       "folderImported": "“{{name}}”: {{folders}} klasör oluşturuldu, {{n}} dosya yükleniyor",
       "uploadingN": "{{n}} dosya yükleniyor",
       "uploadErrors": "{{n}} hata — tekrar dene",
-      "skippedN": "Diğer biçimlerdeki {{n}} dosya atlandı (yalnızca fotoğraf, video ve PDF)"
+      "skippedN": "Diğer biçimlerdeki {{n}} dosya atlandı (yalnızca fotoğraf, video ve PDF)",
+      "pageTheme": "Sayfa teması",
+      "themeDark": "Koyu",
+      "themeLight": "Açık",
+      "themeHint": "Ziyaretçi, sayfa başlığındaki düğmeyle temayı kendisi için değiştirebilir."
     },
     "home": {
       "metrics": {
@@ -30337,7 +30341,9 @@
       "filesN_one": "{{count}} dosya",
       "filesN_other": "{{count}} dosya",
       "foldersN_one": "{{count}} klasör",
-      "foldersN_other": "{{count}} klasör"
+      "foldersN_other": "{{count}} klasör",
+      "themeLight": "Açık tema",
+      "themeDark": "Koyu tema"
     },
     "guestCare": {
       "title": "Nasıl yardımcı olabiliriz?",

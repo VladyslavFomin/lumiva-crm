@@ -28732,7 +28732,11 @@
       "folderImported": "“{{name}}”: {{folders}} folders created, {{n}} files uploading",
       "uploadingN": "Uploading {{n}} files",
       "uploadErrors": "{{n}} failed — retry",
-      "skippedN": "Skipped {{n}} files of other formats (photos, videos and PDF only)"
+      "skippedN": "Skipped {{n}} files of other formats (photos, videos and PDF only)",
+      "pageTheme": "Page theme",
+      "themeDark": "Dark",
+      "themeLight": "Light",
+      "themeHint": "Visitors can switch the theme for themselves with the button in the page header."
     },
     "home": {
       "metrics": {
@@ -30365,7 +30369,9 @@
       "filesN_one": "{{count}} file",
       "filesN_other": "{{count}} files",
       "foldersN_one": "{{count}} folder",
-      "foldersN_other": "{{count}} folders"
+      "foldersN_other": "{{count}} folders",
+      "themeLight": "Light theme",
+      "themeDark": "Dark theme"
     },
     "guestCare": {
       "title": "How can we help?",

@@ -59,6 +59,7 @@ export const MediaLinkModal: React.FC<{
   const [title, setTitle] = useState(edit?.title ?? '');
   const [description, setDescription] = useState(edit?.description ?? '');
   const [pageLang, setPageLang] = useState<string>(edit?.lang ?? '');
+  const [theme, setTheme] = useState<'dark' | 'light'>(edit?.theme ?? 'dark');
   const [gate, setGate] = useState(edit?.gate ?? true);
   const [zip, setZip] = useState(edit?.allowZip ?? true);
   const [passOn, setPassOn] = useState(edit?.hasPassword ?? false);
@@ -130,6 +131,7 @@ export const MediaLinkModal: React.FC<{
       title: title.trim() || null,
       description: description.trim() || null,
       lang: pageLang || null,
+      theme,
       gate,
       allowZip: zip,
       expiresAt: expiresAt(),
@@ -270,6 +272,18 @@ export const MediaLinkModal: React.FC<{
                   <option value="tr">Türkçe</option>
                 </select>
                 <div className="hint">{t('crm.media.langHint')}</div>
+              </div>
+              <div className="md-f">
+                <label>{t('crm.media.pageTheme')}</label>
+                <div className="md-themes" role="radiogroup" aria-label={t('crm.media.pageTheme')}>
+                  {(['dark', 'light'] as const).map((th) => (
+                    <button key={th} type="button" role="radio" aria-checked={theme === th} className={`md-theme ${th}${theme === th ? ' on' : ''}`} onClick={() => setTheme(th)}>
+                      <span className="pv" aria-hidden><i /><i /><i /><b /></span>
+                      <span className="tt">{t(th === 'dark' ? 'crm.media.themeDark' : 'crm.media.themeLight')}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="hint">{t('crm.media.themeHint')}</div>
               </div>
               <div className="md-f">
                 <label>{t('crm.media.pageDescription')}</label>

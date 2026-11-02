@@ -63,6 +63,7 @@ export interface MediaLink {
   lang: string | null;
   gate: boolean;
   allowZip: boolean;
+  theme?: 'dark' | 'light';
   hasPassword: boolean;
   expiresAt: string | null;
   expired: boolean;
@@ -89,6 +90,7 @@ export interface MediaLinkInput {
   lang?: string | null;
   gate?: boolean;
   allowZip?: boolean;
+  theme?: 'dark' | 'light';
   password?: string | null;
   expiresAt?: string | null;
   enabled?: boolean;
@@ -353,8 +355,9 @@ export interface MediaShareFile {
 export interface MediaSharePage {
   needPassword: boolean;
   name?: string;
+  theme?: 'dark' | 'light';
   brand: { name: string | null; logoUrl: string | null; lang: string | null };
-  link?: { name: string | null; description: string | null; lang: string | null; scope: MediaLinkScope; gate: boolean; allowZip: boolean; updatedAt: string | null };
+  link?: { name: string | null; description: string | null; lang: string | null; scope: MediaLinkScope; gate: boolean; allowZip: boolean; theme?: 'dark' | 'light'; updatedAt: string | null };
   hotels?: MediaHotel[];
   collections?: Array<{ id: string; name: string }>;
   folders?: Array<{ id: string; name: string; hotelId: string | null; collectionId?: string | null; parentId: string | null; createdAt: string }>;

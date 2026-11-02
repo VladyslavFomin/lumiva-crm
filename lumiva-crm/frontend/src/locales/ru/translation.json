@@ -30253,7 +30253,11 @@
       "folderImported": "«{{name}}»: создано папок — {{folders}}, загружается файлов — {{n}}",
       "uploadingN": "Загружается файлов: {{n}}",
       "uploadErrors": "Ошибок: {{n}} — повторить",
-      "skippedN": "Пропущено файлов другого формата: {{n}} (можно фото, видео и PDF)"
+      "skippedN": "Пропущено файлов другого формата: {{n}} (можно фото, видео и PDF)",
+      "pageTheme": "Тема страницы",
+      "themeDark": "Тёмная",
+      "themeLight": "Светлая",
+      "themeHint": "Посетитель может переключить тему у себя — кнопкой в шапке страницы."
     },
     "home": {
       "metrics": {
@@ -31500,7 +31504,9 @@
       "foldersN_one": "{{count}} папка",
       "foldersN_few": "{{count}} папки",
       "foldersN_many": "{{count}} папок",
-      "foldersN_other": "{{count}} папок"
+      "foldersN_other": "{{count}} папок",
+      "themeLight": "Светлая тема",
+      "themeDark": "Тёмная тема"
     },
     "guestCare": {
       "title": "Чем помочь?",

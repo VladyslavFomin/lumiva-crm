@@ -354,3 +354,18 @@
 .mf-scope .mf-lb:has(.pfb) .nav{display:none}
 .mf-scope .mf-lb:has(.pfb){padding:56px 24px 20px}
 @media (max-width:640px){.mf-scope .mf-lb:has(.pfb){padding:52px 4px 8px}}
+/* Тема публичной страницы в окне ссылки: две карточки с мини-превью */
+.mf-scope .md-themes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mf-scope .md-theme{display:flex;flex-direction:column;gap:7px;padding:7px;border:1px solid var(--line-2);border-radius:11px;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:border-color .15s,box-shadow .15s}
+.mf-scope .md-theme:hover{border-color:#bbb}
+.mf-scope .md-theme.on{border-color:#222;box-shadow:0 0 0 1px #222}
+.mf-scope .md-theme .pv{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;height:46px;padding:14px 8px 6px;border-radius:7px}
+.mf-scope .md-theme .pv i{border-radius:3px}
+.mf-scope .md-theme .pv b{position:absolute;left:8px;top:6px;width:38%;height:4px;border-radius:2px}
+.mf-scope .md-theme.dark .pv{background:#0c0c0d}
+.mf-scope .md-theme.dark .pv i{background:#26262a}
+.mf-scope .md-theme.dark .pv b{background:#f3f3f1}
+.mf-scope .md-theme.light .pv{background:#f6f5f2;box-shadow:inset 0 0 0 1px #e6e3dd}
+.mf-scope .md-theme.light .pv i{background:#fff;box-shadow:0 0 0 1px #e6e3dd}
+.mf-scope .md-theme.light .pv b{background:#141416}
+.mf-scope .md-theme .tt{font-size:12.5px;color:var(--ink);padding:0 2px 1px}

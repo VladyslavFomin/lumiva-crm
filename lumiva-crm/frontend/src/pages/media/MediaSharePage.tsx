@@ -25,6 +25,10 @@ const browserLang = (): L3 | null => {
   } catch { /* ignore */ }
   return null;
 };
+// тема: выбор посетителя (в его браузере) → тема ссылки из CRM → тёмная
+const THEME_KEY = 'lumiva-media-theme';
+type Theme = 'dark' | 'light';
+const savedTheme = (): Theme | null => { try { const v = localStorage.getItem(THEME_KEY); return v === 'dark' || v === 'light' ? v : null; } catch { return null; } };
 const savedLang = (): L3 | null => { try { return pickLang(localStorage.getItem(LANG_KEY)); } catch { return null; } };
 /** Нейтральная иконка вкладки (вместо иконки CRM), если у компании нет логотипа. */
 const NEUTRAL_ICON = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0c0c0d"/><circle cx="16" cy="16" r="7" fill="none" stroke="#f3f3f1" stroke-width="2.4"/></svg>');
@@ -388,11 +392,18 @@ export const MediaSharePage: React.FC = () => {
     return () => window.removeEventListener('pointermove', m);
   }, []);
 
+  const [myTheme, setMyTheme] = useState<Theme | null>(savedTheme);
+  const theme: Theme = myTheme || data?.link?.theme || data?.theme || 'dark';
+  const toggleTheme = () => {
+    const v: Theme = theme === 'dark' ? 'light' : 'dark';
+    setMyTheme(v);
+    try { localStorage.setItem(THEME_KEY, v); } catch { /* private mode */ }
+  };
   useEffect(() => {
     const prev = document.body.style.background;
-    document.body.style.background = '#0c0c0d';
+    document.body.style.background = theme === 'light' ? '#f6f5f2' : '#0c0c0d';
     return () => { document.body.style.background = prev; };
-  }, []);
+  }, [theme]);
 
   const unlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,7 +456,7 @@ export const MediaSharePage: React.FC = () => {
   };
 
   const frame = (body: React.ReactNode) => (
-    <div className="msh">
+    <div className={cx('msh', theme === 'light' && 'lt')}>
       <div className="sh">
         <div className="sh-spot" ref={spot} />
         <header className="sh-hd">
@@ -455,6 +466,11 @@ export const MediaSharePage: React.FC = () => {
             {singleHotel && brand?.name !== singleHotel.name && <><span className="sl">/</span><span className="h">{singleHotel.name}</span></>}
           </a>
           <div className="sh-hd-r">
+            <button type="button" className="sh-theme" onClick={toggleTheme} aria-label={t(theme === 'dark' ? 'publicPages.media.themeLight' : 'publicPages.media.themeDark')} title={t(theme === 'dark' ? 'publicPages.media.themeLight' : 'publicPages.media.themeDark')}>
+              {theme === 'dark'
+                ? <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+                : <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>}
+            </button>
             <div className="sh-lang" role="group" aria-label="Language">
               {(['ru', 'en', 'tr'] as L3[]).map((l) => (
                 <button key={l} type="button" className={cx(lang === l && 'on')} onClick={() => chooseLang(l)}>{l.toUpperCase()}</button>
