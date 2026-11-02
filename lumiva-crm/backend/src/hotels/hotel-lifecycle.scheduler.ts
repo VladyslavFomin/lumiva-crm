@@ -6,6 +6,7 @@ import { HotelRevenueService } from './hotel-revenue.service';
 import { HotelEInvoiceService } from './hotel-einvoice.service';
 import { HotelPaymentLinksService } from './hotel-payment-links.service';
 import { HotelGuestJourneyService } from './hotel-guest-journey.service';
+import { HotelLoyaltyService } from './hotel-loyalty.service';
 
 /** Жизненный цикл броней отеля: автоснятие просроченных опционов (PMS-024). */
 @Injectable()
@@ -21,10 +22,29 @@ export class HotelLifecycleScheduler {
     private readonly einvoice: HotelEInvoiceService,
     private readonly payLinks: HotelPaymentLinksService,
     private readonly journey: HotelGuestJourneyService,
+    private readonly loyalty: HotelLoyaltyService,
   ) {}
 
   private revenueBusy = false;
   private einvoiceBusy = false;
+
+  private loyaltyBusy = false;
+
+  /** Лояльность: выехавшие гости → баллы и уровень (раз на бронь); баллы «в ожидании» → доступны; сгорание */
+  @Cron('*/5 * * * *')
+  async loyaltyRun() {
+    if (this.loyaltyBusy) return;
+    this.loyaltyBusy = true;
+    try {
+      const n = await this.loyalty.processCheckouts();
+      if (n) this.log.log(`loyalty: ${n} stays`);
+      await this.loyalty.postPendingAndExpire();
+    } catch (e) {
+      this.log.warn(`loyalty: ${(e as Error).message}`);
+    } finally {
+      this.loyaltyBusy = false;
+    }
+  }
 
   private journeyBusy = false;
 

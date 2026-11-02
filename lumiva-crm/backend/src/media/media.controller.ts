@@ -77,6 +77,12 @@ export class MediaController {
     return this.media.renameFile(u.tenantId, id, String(b.name || ''), await this.acc(u));
   }
 
+  @Post('files/:id/thumb')
+  @UseInterceptors(FileInterceptor('thumb', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  async setThumb(@CurrentUser() u: CurrentUserPayload, @Param('id') id: string, @Body() b: Record<string, string>, @UploadedFile() thumb: any) {
+    return this.media.setPdfThumb(u.tenantId, id, thumb?.buffer, { width: Number(b.width), height: Number(b.height) }, await this.acc(u));
+  }
+
   @Post('files/move')
   async move(@CurrentUser() u: CurrentUserPayload, @Body() b: { ids?: string[]; folderId?: string }) {
     return this.media.moveFiles(u.tenantId, b.ids || [], String(b.folderId || ''), await this.acc(u));

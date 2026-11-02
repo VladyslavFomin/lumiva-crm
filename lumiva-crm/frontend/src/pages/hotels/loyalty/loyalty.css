@@ -1,0 +1,95 @@
+/* Лояльность (.ly-*): карточки программ с полосой уровней, редактор программы, участники, взаиморасчёты, карта в фолио */
+.px-scope .ly-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.px-scope .ly-programs{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px}
+.px-scope .ly-program{border:1px solid var(--line-2);border-radius:14px;background:#fff;padding:16px;display:flex;flex-direction:column;gap:12px}
+.px-scope .ly-program.off{opacity:.6}
+.px-scope .ly-program-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.px-scope .ly-program-top b{font-family:var(--ff-heading);font-size:17px;display:block}
+.px-scope .ly-program .btn{align-self:flex-start}
+.px-scope .ly-tiers{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
+.px-scope .ly-tiers>div{padding:10px 12px;border-right:1px solid var(--line-2);display:flex;flex-direction:column;gap:2px;position:relative;min-width:0}
+.px-scope .ly-tiers>div:last-child{border-right:0}
+.px-scope .ly-tiers>div:nth-child(2){background:#fafaf8}.px-scope .ly-tiers>div:nth-child(3){background:#f3f3f0}.px-scope .ly-tiers>div:nth-child(n+4){background:#ebebe7}
+.px-scope .ly-tiers b{font-size:13px}
+.px-scope .ly-tiers span,.px-scope .ly-tiers em{font-size:11.5px;color:var(--fg-2);font-style:normal}
+.px-scope .ly-tiers i{position:absolute;top:8px;right:10px;font-style:normal;font-family:var(--ff-mono-ui);font-size:11px;color:var(--fg-3)}
+.px-scope .ly-program-stats{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--fg-2)}
+.px-scope .ly-switch{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-2);cursor:pointer;white-space:nowrap}
+.px-scope .ly-editor{display:flex;flex-direction:column;gap:12px}
+.px-scope .ly-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.px-scope .ly-grid .wide{grid-column:span 3}
+.px-scope .ly-check{align-self:end;padding-bottom:8px}
+.px-scope .ly-sec{margin:16px 0 8px;font-family:var(--ff-mono-ui);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .ly-scope{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.px-scope .ly-scope button{text-align:left;border:1px solid var(--line-2);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:4px;font:inherit}
+.px-scope .ly-scope button.on{border-color:var(--ink,#222);box-shadow:inset 0 0 0 1px var(--ink,#222)}
+.px-scope .ly-scope button:disabled{opacity:.45;cursor:default}
+.px-scope .ly-scope b{font-size:13.5px}
+.px-scope .ly-scope span{font-size:12px;color:var(--fg-2);line-height:1.4}
+.px-scope .ly-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.px-scope .ly-chips button{border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.px-scope .ly-chips button.on{background:var(--ink,#222);border-color:var(--ink,#222);color:#fff}
+.px-scope .ly-chips em{font-style:normal;font-size:11px;opacity:.7}
+.px-scope .ly-tier-edit{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(5,minmax(0,.7fr)) minmax(0,2fr) 36px;gap:6px;align-items:center;margin-bottom:6px}
+.px-scope .ly-tier-edit.head{font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .ly-tier-edit input{height:34px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px;min-width:0;background:#fff}
+.px-scope .ly-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.px-scope .ly-row select{height:34px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px;background:#fff}
+.px-scope .ly-inline{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg-2)}
+.px-scope .ly-inline input,.px-scope .ly-inline select{height:32px;width:80px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px}
+.px-scope .ly-inline select{width:auto}
+.px-scope .ly-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;position:sticky;bottom:0;background:var(--bg,#fafaf9);padding:10px 0}
+.px-scope .ly-actions .ly-switch{margin-right:auto}
+.px-scope .ly-tier{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;background:var(--bg-muted)}
+.px-scope .ly-tier.t-1{background:#ece9df}.px-scope .ly-tier.t-2{background:#222;color:#fff}.px-scope .ly-tier.t-3{background:#5a4a1e;color:#fff}
+.px-scope .ly-vip{margin-left:6px;font-size:10px;padding:1px 6px;border-radius:999px;background:#fbf3e6;color:#7a4b0c}
+.px-scope .ly-drawer{width:min(520px,100vw)}
+.px-scope .ly-member-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line-2);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.px-scope .ly-member-top>div{padding:10px 12px;border-right:1px solid var(--line-2);display:flex;flex-direction:column;gap:2px}
+.px-scope .ly-member-top>div:last-child{border-right:0}
+.px-scope .ly-member-top span{font-family:var(--ff-mono-ui);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .ly-member-top b{font-family:var(--ff-heading);font-size:20px}
+.px-scope .ly-member-top em{font-style:normal;font-size:11.5px;color:var(--fg-2)}
+.px-scope .ly-benefits{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.px-scope .ly-benefits span{font-size:11.5px;padding:3px 8px;border-radius:999px;background:var(--bg-muted);color:var(--fg-2)}
+.px-scope .ly-adjust{display:grid;grid-template-columns:90px 140px minmax(0,1fr) auto;gap:6px}
+.px-scope .ly-adjust input,.px-scope .ly-adjust select{height:32px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px;min-width:0;background:#fff}
+.px-scope .ly-tx{display:flex;flex-direction:column}
+.px-scope .ly-tx-row{display:grid;grid-template-columns:80px minmax(0,1fr) auto;gap:8px;padding:7px 0;border-top:1px solid var(--line-2);font-size:12.5px;align-items:baseline;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;font-family:inherit;color:inherit}
+.px-scope .ly-tx-row.link{cursor:pointer}
+.px-scope .ly-tx-row span:first-child{color:var(--fg-3)}
+.px-scope .ly-tx-row em{font-style:normal;color:var(--fg-3)}
+.px-scope .ly-tx-row.neg b{color:#9a1f31}
+.px-scope .ly-tx-row.s-pending b{color:var(--fg-3)}
+.px-scope .ly-net.pos{color:#175c3d}.px-scope .ly-net.neg{color:#9a1f31}
+.px-scope .ly-flag{font-size:11px;padding:2px 8px;border-radius:999px;background:#fbf3e6;color:#7a4b0c;white-space:nowrap}
+.px-scope .ly-transfers{display:flex;flex-direction:column;gap:6px}
+.px-scope .ly-transfers>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border:1px solid var(--line-2);border-radius:10px;background:#fff;font-size:13px}
+.px-scope .ly-transfers>div.carried{opacity:.6}
+.px-scope .ly-transfers em{margin-left:auto;font-style:normal;font-weight:600}
+.px-scope .ly-transfers i{font-style:normal;font-size:11px;color:var(--fg-3)}
+/* карта участника в фолио */
+.px-scope .ly-card{margin-top:14px;padding:12px;border:1px solid var(--line-2);border-radius:12px;background:#fff}
+.px-scope .ly-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.px-scope .ly-card-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:8px}
+.px-scope .ly-card-stats>div{display:flex;flex-direction:column;gap:2px}
+.px-scope .ly-card-stats span{font-size:10.5px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.05em}
+.px-scope .ly-card-stats b{font-family:var(--ff-heading);font-size:18px}
+.px-scope .ly-card-stats em{font-style:normal;font-size:11.5px;color:var(--fg-2)}
+.px-scope .ly-card-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.px-scope .ly-redeem{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.px-scope .ly-redeem input{height:30px;width:120px;border:1px solid var(--line-2);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px}
+.px-scope .ly-redeem em{font-style:normal;font-size:12px;color:var(--fg-2)}
+.px-scope .ly-card-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}
+@media (max-width:900px){
+  .px-scope .ly-programs{grid-template-columns:minmax(0,1fr)}
+  .px-scope .ly-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .px-scope .ly-grid .wide{grid-column:1 / -1}
+  .px-scope .ly-scope{grid-template-columns:minmax(0,1fr)}
+  .px-scope .ly-tier-edit{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .px-scope .ly-tier-edit input:first-child,.px-scope .ly-tier-edit input:nth-child(7){grid-column:1 / -1}
+  .px-scope .ly-tier-edit.head{display:none}
+  .px-scope .ly-tiers{grid-auto-flow:row}
+  .px-scope .ly-tiers>div{border-right:0;border-bottom:1px solid var(--line-2)}
+  .px-scope .ly-adjust{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

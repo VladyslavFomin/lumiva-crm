@@ -1,11 +1,14 @@
 // src/pages/media/MediaSharePage.tsx — публичная страница медиа-ссылки (порт Claude Design media-share.html)
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import i18n, { ensureLanguageLoaded } from '../../i18n';
 import { ApiError, resolvePublicAssetUrl } from '../../api/client';
 import { mediaAccess, mediaPublic, mediaUrl, startBrowserDownload, type MediaFormField, type MediaShareFile, type MediaSharePage as PageData } from '../../api/media';
 import { MIC, cx, fmtBytes, fmtDate, fmtDur } from './mediaUi';
+import { pdfLabels } from '../../components/media/pdfLabels';
 import './media-share.css';
+
+const PdfFlipbook = lazy(() => import('../../components/media/PdfFlipbook'));
 
 const Ico: React.FC<{ d: React.ReactNode; s?: number; w?: number }> = ({ d, s = 16, w = 1.6 }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>
@@ -261,9 +264,9 @@ const Lightbox: React.FC<{ list: MediaShareFile[]; idx: number; setIdx: (i: numb
         </div>
       </div>
       {list.length > 1 && <button className="sh-lb-nav l" onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + list.length) % list.length); }}><Ico d={MIC.chevL} s={20} /></button>}
-      <div key={f.id} className={cx('sh-lb-img', !browserImage && f.kind === 'image' && 'ph')} onClick={(e) => e.stopPropagation()}>
+      <div key={f.id} className={cx('sh-lb-img', !browserImage && f.kind === 'image' && 'ph', f.kind === 'pdf' && view && 'pdf')} onClick={(e) => e.stopPropagation()}>
         {f.kind === 'video' ? <video src={view} poster={mediaUrl(f.thumbUrl) || undefined} controls autoPlay playsInline />
-          : f.kind === 'pdf' ? <iframe src={view} title={f.name} />
+          : f.kind === 'pdf' && view ? <Suspense fallback={null}><PdfFlipbook src={view} name={f.name} labels={pdfLabels(t)} /></Suspense>
           : browserImage ? <img src={view} alt={f.name} /> : <Art f={f} big />}
       </div>
       {list.length > 1 && <button className="sh-lb-nav r" onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % list.length); }}><Ico d={MIC.chevR} s={20} /></button>}
@@ -357,6 +360,27 @@ export const MediaSharePage: React.FC = () => {
     setFilter('all');
     if (cur && cur !== SELECTED && state === 'ok') void mediaPublic(slug, '/event', { type: 'open', folderId: cur }).catch(() => undefined);
   }, [cur, state, slug]);
+
+  // ?f=<id файла> — ссылка сразу на файл (например, PDF-каталог): открываем его папку и лайтбокс
+  // Ссылка из одного PDF («Ссылка на файл» в CRM) открывается сразу каталогом.
+  const pendingFile = useRef<string | null>(new URLSearchParams(window.location.search).get('f'));
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!autoOpened.current && state === 'ok' && data) {
+      autoOpened.current = true;
+      if (!pendingFile.current && !window.location.hash && !(data.folders || []).length && files.length === 1 && files[0].kind === 'pdf') pendingFile.current = files[0].id;
+    }
+    const id = pendingFile.current;
+    if (!id || state !== 'ok' || !files.length) return;
+    const f = files.find((x) => x.id === id);
+    if (!f) { pendingFile.current = null; return; }
+    const target = byId.has(f.folderId) ? f.folderId : SELECTED;
+    if (cur !== target) { openFolder(target); return; }
+    pendingFile.current = null;
+    const i = filesOf(target).findIndex((x) => x.id === id);
+    if (i >= 0) setLb(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, data, files, cur, byId, filesOf]);
 
   useEffect(() => {
     const m = (e: PointerEvent) => { if (spot.current) spot.current.style.transform = `translate(${e.clientX - 400}px, ${e.clientY - 400 + window.scrollY}px)`; };

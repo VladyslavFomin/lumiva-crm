@@ -100,6 +100,11 @@ export enum TriggerEvent {
   /** Гость ответил на опрос ({{score}} 1–5, {{comment}}); negative — оценка 3 и ниже */
   HOTEL_GUEST_FEEDBACK = 'hotel.guest_feedback',
   HOTEL_GUEST_FEEDBACK_NEGATIVE = 'hotel.guest_feedback_negative',
+  /** Лояльность: участник вступил / новый уровень / баллы зачислены / баллы скоро сгорят (токены: {{tier_name}}, {{points_balance}}, {{loyalty_link}}…) */
+  HOTEL_LOYALTY_JOINED = 'hotel.loyalty_joined',
+  HOTEL_LOYALTY_TIER_UP = 'hotel.loyalty_tier_up',
+  HOTEL_LOYALTY_POINTS_EARNED = 'hotel.loyalty_points_earned',
+  HOTEL_LOYALTY_POINTS_EXPIRING = 'hotel.loyalty_points_expiring',
 
   // Товары (Products)
   PRODUCT_PRICE_CHANGED = 'product.price_changed',

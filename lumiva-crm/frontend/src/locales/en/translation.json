@@ -11514,7 +11514,16 @@
           "tokenPaymentAmount": "Payment amount",
           "tokenScore": "Score (1–5)",
           "tokenScoreStars": "Score as stars",
-          "tokenComment": "Guest comment"
+          "tokenComment": "Guest comment",
+          "tokenProgramName": "Program",
+          "tokenMemberNumber": "Card number",
+          "tokenTierName": "Tier",
+          "tokenTierDiscount": "Tier discount, %",
+          "tokenPointsBalance": "Points balance",
+          "tokenPointsValue": "Points value",
+          "tokenLoyaltyLink": "Link: guest card",
+          "tokenPointsEarned": "Points earned",
+          "tokenExpireDate": "Expiry date"
         },
         "triggerGroups": {
           "contacts": "Contacts",
@@ -11594,7 +11603,11 @@
           "HOTEL_DEPOSIT_DUE": "Guest: deposit due in N days",
           "HOTEL_PAYMENT_RECEIVED": "Online booking payment received",
           "HOTEL_GUEST_FEEDBACK": "Guest answered the survey",
-          "HOTEL_GUEST_FEEDBACK_NEGATIVE": "Unhappy guest (score 3 or lower)"
+          "HOTEL_GUEST_FEEDBACK_NEGATIVE": "Unhappy guest (score 3 or lower)",
+          "HOTEL_LOYALTY_JOINED": "Loyalty: guest joined",
+          "HOTEL_LOYALTY_TIER_UP": "Loyalty: new tier",
+          "HOTEL_LOYALTY_POINTS_EARNED": "Loyalty: points credited",
+          "HOTEL_LOYALTY_POINTS_EXPIRING": "Loyalty: points expiring soon"
         },
         "report": {
           "type": "Report type",
@@ -19005,7 +19018,8 @@
         "groups": "Groups",
         "precheckin": "Online check-in",
         "revenue": "Price recommendations",
-        "pos": "Points of sale"
+        "pos": "Points of sale",
+        "loyalty": "Loyalty"
       },
       "status": {
         "active": "Active",
@@ -20084,7 +20098,8 @@
           "cash": "Cash",
           "bank_transfer": "Bank transfer",
           "other": "Other",
-          "online": "Online"
+          "online": "Online",
+          "points": "Points"
         },
         "modal": {
           "titleEdit": "Edit booking",
@@ -21985,7 +22000,29 @@
           "HOTEL_PAY_AMOUNT": "The amount must be greater than zero",
           "HOTEL_PAY_TOO_MUCH": "The amount exceeds the folio balance",
           "HOTEL_PAY_NOT_PENDING": "The request is already paid or closed",
-          "HOTEL_PAY_NO_EMAIL": "The booking has no guest email"
+          "HOTEL_PAY_NO_EMAIL": "The booking has no guest email",
+          "HOTEL_LOYALTY_OVERLAP": "These hotels are already in another active program",
+          "HOTEL_LOYALTY_NAME": "Name the program",
+          "HOTEL_LOYALTY_NO_HOTELS": "Select the program hotels",
+          "HOTEL_LOYALTY_NO_BRANDS": "Select the program brands",
+          "HOTEL_LOYALTY_CURRENCY": "The program currency is a 3-letter code",
+          "HOTEL_LOYALTY_CURRENCY_LOCKED": "The currency cannot change after the first credits",
+          "HOTEL_LOYALTY_TIER_NAME": "Every tier needs a name",
+          "HOTEL_LOYALTY_NOT_MEMBER": "The guest is not a member",
+          "HOTEL_LOYALTY_PARTNER": "Member discount applies to direct bookings only",
+          "HOTEL_LOYALTY_DISCOUNT_DONE": "The member discount is already in the folio",
+          "HOTEL_LOYALTY_NO_DISCOUNT": "The guest’s tier has no discount",
+          "HOTEL_LOYALTY_CLOSED": "The booking is closed",
+          "HOTEL_LOYALTY_POINTS": "Enter the number of points",
+          "HOTEL_LOYALTY_POINTS_OFF": "The program has no points",
+          "HOTEL_LOYALTY_BLOCKED": "The member is blocked",
+          "HOTEL_LOYALTY_BLACKOUT": "The hotel does not accept points on these dates",
+          "HOTEL_LOYALTY_BALANCE": "Not enough points",
+          "HOTEL_LOYALTY_MAX": "Above the program limit for this folio",
+          "HOTEL_LOYALTY_HOTEL_CAP": "The hotel has reached its monthly points cap",
+          "HOTEL_LOYALTY_REVERSED": "Already cancelled",
+          "HOTEL_LOYALTY_REASON": "Enter the reason",
+          "HOTEL_LOYALTY_DATES": "Invalid period"
         },
         "refund": {
           "folio": {
@@ -24129,6 +24166,215 @@
         "error": "Failed",
         "waText": "Hello {{name}}! Here is the link to pay for your booking ({{amount}}): {{url}}",
         "createdNotSent": "Link created but the email was not sent: {{error}}. Copy the link or send it via WhatsApp."
+      },
+      "loyalty": {
+        "kicker": "Regular guests · tiers · points",
+        "title": "Loyalty",
+        "subtitle": "Programs for one hotel, a brand chain or all hotels: tiers by nights and stays, points on check-out, member discount and paying with points at the desk, settlements between chain hotels.",
+        "kpi": {
+          "programs": "Programs",
+          "programsOf": "of {{count}}",
+          "members": "Members",
+          "points": "Points in accounts",
+          "pointsHint": "liability to guests",
+          "hotels": "Hotels in programs"
+        },
+        "tab": {
+          "programs": "Programs",
+          "members": "Members",
+          "settlement": "Settlements"
+        },
+        "off": "off",
+        "on": "on",
+        "noPrograms": "No programs yet",
+        "noProgramsHint": "Create a program: choose where it applies, the tiers and the points rules.",
+        "programsHint": "Each hotel belongs to exactly one active program — so it is clear where points are earned and spent.",
+        "newProgram": "New program",
+        "edit": "Edit",
+        "editTitle": "Loyalty program",
+        "scope": {
+          "hotels": "Hotels",
+          "brands": "Brands (chain)",
+          "account": "All hotels"
+        },
+        "scopeHint": {
+          "hotels": "Selected hotels — points are earned and spent only there",
+          "brands": "All hotels of the selected brands — a chain with one guest card",
+          "account": "All hotels in the account as one group program"
+        },
+        "scopeTitle": "Where it applies",
+        "hotelsCount_one": "{{count}} hotel",
+        "hotelsCount_other": "{{count}} hotels",
+        "noBrandsHint": "No brands yet — create them in the reviews module (Reviews → settings) and assign hotels.",
+        "oneProgramHint": "A hotel already in another active program is not included — remove it there first.",
+        "f": {
+          "name": "Program name",
+          "namePh": "e.g. Rack Club",
+          "currency": "Program currency"
+        },
+        "tiersTitle": "Tiers",
+        "tiersHint": "A tier is reached when any of its conditions is met for the period. A first tier without conditions is the starting tier for all members.",
+        "t": {
+          "name": "Tier",
+          "nights": "Nights",
+          "stays": "Stays",
+          "spend": "Spend, {{cur}}",
+          "discount": "Discount, %",
+          "mult": "Points ×",
+          "benefits": "Benefits",
+          "benefitsPh": "early check-in, upgrade…"
+        },
+        "addTier": "Add tier",
+        "tierPeriod": "Count over",
+        "period": {
+          "12m": "last 12 months",
+          "lifetime": "all time"
+        },
+        "tierRuleHint": "The tier is recalculated after every check-out. The tier discount is added to the folio with a button at the desk (direct bookings only).",
+        "tierNights": "{{count}} nights",
+        "tierStays": "{{count}} stays",
+        "tierStart": "starting",
+        "pointsShort": "points",
+        "pointsTitle": "Points",
+        "p": {
+          "earn": "Points per 1 {{cur}}",
+          "value": "Point value, {{cur}}",
+          "maxRedeem": "Points — up to % of folio",
+          "pending": "Pending, days",
+          "expiry": "Expire after inactivity, months",
+          "extras": "Also earn on extras / bar / restaurant",
+          "hint": "Guests get {{earn}} point(s) per 1 {{cur}}, a point is worth {{value}} {{cur}} — {{pct}}% back. 0 months — never expire."
+        },
+        "simpleTitle": "Simple mode without points",
+        "simpleOn": "Discount for returning guests",
+        "simpleFrom": "from stay #",
+        "simplePct": "discount, %",
+        "rulesTitle": "Enrollment and partners",
+        "enrollment": "Who becomes a member",
+        "enroll": {
+          "auto_consent": "All guests with marketing consent (KVKK) — after the first check-out",
+          "auto_all": "All guests after the first check-out",
+          "manual": "Manually only (at the desk or in the profile)"
+        },
+        "partnerEarn": "Earn points on agency / OTA bookings",
+        "partnerTier": "Agency / OTA nights count towards the tier",
+        "netTitle": "Chain: settlements and imbalance protection",
+        "netHint": "A hotel that issues points owes the program pool their value; a hotel that accepts points as payment is reimbursed a share. If guests earn in one hotel and spend in another, imbalance is limited by reimbursement below 100%, a monthly acceptance cap and blackout dates.",
+        "st": {
+          "reimburse": "Reimbursement to accepting hotel, %",
+          "minTransfer": "Min. transfer, {{cur}}",
+          "cap": "Monthly acceptance cap per hotel, {{cur}} (0 — none)",
+          "ratio": "Warn at imbalance ×"
+        },
+        "blackoutTitle": "Blackout: points not accepted",
+        "addBlackout": "Add dates",
+        "allHotels": "All hotels",
+        "blackoutHint": "For example, high season at the chain’s most popular hotel.",
+        "activeLabel": "Program on",
+        "saved": "Program saved",
+        "error": "Failed",
+        "stat": {
+          "members": "Members: {{count}}",
+          "earn": "{{n}} pt per 1 {{cur}} · 1 pt = {{value}} {{cur}}",
+          "flow": "90 days: +{{earned}} / −{{redeemed}} / expired {{expired}}",
+          "simple": "{{pct}}% off from stay #{{n}}"
+        },
+        "searchPh": "Name, email or card number",
+        "allTiers": "All tiers",
+        "membersTotal": "Members: {{count}}",
+        "noMembers": "No members",
+        "noMembersHint": "Guests join automatically after check-out (per program rules) or manually at the desk.",
+        "col": {
+          "number": "Card",
+          "guest": "Guest",
+          "tier": "Tier",
+          "points": "Points",
+          "pending": "Pending",
+          "lifetime": "Lifetime",
+          "activity": "Activity"
+        },
+        "statsLine": "{{period}}: {{stays}} stays, {{nights}} nights, {{spend}}",
+        "copyLink": "Guest card link",
+        "copied": "Link copied",
+        "openProfile": "Guest profile",
+        "block": "Block",
+        "unblock": "Unblock",
+        "blockBody": "The member cannot earn or spend points until unblocked.",
+        "noConsentHint": "No marketing consent — loyalty emails will not reach them if the automation has that condition.",
+        "adjustTitle": "Adjustment",
+        "adjustPointsPh": "± points",
+        "noHotel": "No hotel",
+        "adjustNotePh": "Reason (shown in history)",
+        "adjust": "Apply",
+        "adjusted": "Points adjusted",
+        "historyTitle": "Points history",
+        "noTx": "No movements",
+        "staysTitle": "Stays",
+        "noStays": "No stays yet",
+        "nightsN": "{{count}} nights",
+        "notForTier": "not counted for tier",
+        "pending": "pending",
+        "tx": {
+          "earn": "Earned",
+          "redeem": "Paid with points",
+          "expire": "Expired",
+          "adjust": "Adjustment",
+          "reverse": "Payment cancelled"
+        },
+        "settleRules": "Reimbursement {{pct}}% · transfers from {{min}}",
+        "pool": {
+          "issued": "Points issued",
+          "reimbursed": "Reimbursed to hotels",
+          "retained": "Kept in pool",
+          "retainedHint": "issued but not spent / expired",
+          "liability": "Liability",
+          "liabilityHint": "{{points}} points in guest accounts"
+        },
+        "s": {
+          "hotel": "Hotel",
+          "issued": "Issued",
+          "redeemed": "Accepted",
+          "reimbursed": "Reimbursement",
+          "net": "Net",
+          "receives": "receives",
+          "pays": "pays"
+        },
+        "pts": "{{n}} pts",
+        "imbalance": "Imbalance",
+        "imbalanceTitle": "Accepted {{ratio}}+ times more than issued",
+        "transfersTitle": "Who pays whom",
+        "noTransfers": "Nothing to transfer for the period.",
+        "carried": "below threshold — carried over",
+        "settleHint": "Amounts are in the program currency at the rate of the earning day. Transfers use the fewest pairs; the pool remainder is the program’s reserve for points guests will still spend.",
+        "card": {
+          "notMember": "The guest is not a member",
+          "noProfile": "The booking has no guest profile",
+          "enroll": "Enroll",
+          "enrolled": "Guest enrolled",
+          "tier": "Tier",
+          "points": "Points",
+          "pending": "+{{n}} pending",
+          "toNext": "to {{name}}: {{need}}",
+          "needNights": "{{n}} more nights",
+          "needStays": "{{n}} more stays",
+          "or": " or ",
+          "blocked": "Member is blocked",
+          "discount": "Member discount −{{pct}}%",
+          "discountApplied": "−{{pct}}% in folio",
+          "discountDone": "Member discount added to the folio",
+          "redeemPh": "points, up to {{max}}",
+          "redeem": "Pay with points",
+          "redeemed": "Paid with points",
+          "max": "all {{n}}",
+          "blackout": "The hotel does not accept points on these dates",
+          "paidWith": "Paid with {{n}} points",
+          "cancel": "Cancel",
+          "cancelTitle": "Cancel the points payment?",
+          "cancelBody": "The payment is removed from the folio and the points go back to the guest.",
+          "cancelled": "Points payment cancelled",
+          "error": "Failed"
+        },
+        "or": " or "
       }
     },
     "telephony": {
@@ -30300,6 +30546,33 @@
       "happyHint": "Glad you enjoyed it! Share your experience — it really helps the hotel:",
       "sorryHint": "We are sorry not everything was right. The hotel has your answer and will contact you.",
       "reviewOn": "Leave a review on {{platform}}"
+    },
+    "hotelLoyalty": {
+      "invalid": "Card not found",
+      "invalidHint": "Check the link in the hotel’s email.",
+      "hello": "Hello, {{name}}",
+      "member": "Member",
+      "points": "points",
+      "pending": "+{{n}} pending",
+      "discount": "{{pct}}% off your stay when booking direct",
+      "nextTier": "To {{name}}",
+      "needNights": "nights {{have}} of {{need}}",
+      "needStays": "stays {{have}} of {{need}}",
+      "or": "or",
+      "period": {
+        "12m": "over 12 months",
+        "lifetime": "all time"
+      },
+      "history": "History",
+      "tx": {
+        "earn": "Earned",
+        "redeem": "Paid with points",
+        "expire": "Expired",
+        "adjust": "Adjustment",
+        "reverse": "Points returned"
+      },
+      "pendingShort": "pending",
+      "foot": "Show your card number at reception to pay with points or get your discount."
     }
   },
   "lang": {
@@ -31057,5 +31330,27 @@
         "expired": "expired"
       }
     }
+  },
+  "pdfViewer": {
+    "book": "Book",
+    "scroll": "Scroll",
+    "prev": "Previous",
+    "next": "Next",
+    "thumbs": "Pages",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "loading": "Opening the document…",
+    "error": "Could not open the document",
+    "download": "Download",
+    "first": "First page",
+    "last": "Last page",
+    "pageShort": "p.",
+    "search": "Search text",
+    "searchPlaceholder": "Find in document…",
+    "nothingFound": "Nothing found",
+    "spread": "Two-page spread",
+    "singlePage": "Single page"
   }
 }

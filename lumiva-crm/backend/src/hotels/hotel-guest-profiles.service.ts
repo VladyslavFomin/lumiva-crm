@@ -1,3 +1,4 @@
+import { mergeLoyaltyMembers } from './hotel-loyalty-merge.util';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -555,6 +556,8 @@ export class HotelGuestProfilesService {
         const guests = (r.guests || []).map((g) => (g.profileId && ids.includes(g.profileId) ? { ...g, profileId: target.id } : g));
         await m.update(HotelReservation, { id: r.id, tenantId }, { guests } as any);
       }
+      // участие в программах лояльности — на основной профиль ДО удаления (иначе каскад сотрёт баллы)
+      await mergeLoyaltyMembers(m, tenantId, target.id, ids);
       await m.remove(sources);
       await m.save(target);
       return { id: target.id, merged: sources.length, reservations: withGuests.length };

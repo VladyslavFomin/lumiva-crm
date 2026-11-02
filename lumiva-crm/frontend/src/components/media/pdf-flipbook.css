@@ -1,0 +1,109 @@
+/* PDF-журнал (PdfFlipbook): тёмная сцена, книга с тенью, корешком и обрезом страниц — CRM-медиа и публичная /m/:slug */
+.pfb{--pfb-ln:rgba(255,255,255,.14);--pfb-tx:#f4f4f5;--pfb-tx2:rgba(244,244,245,.6);--pfb-tx3:rgba(244,244,245,.38);
+  position:relative;display:flex;flex-direction:column;width:min(96vw,1600px);height:min(86vh,1150px);color:var(--pfb-tx);
+  font-family:var(--ff-text,'Inter',system-ui,sans-serif);user-select:none}
+.pfb.fs{width:100vw;height:100vh;background:radial-gradient(120% 90% at 50% 40%,#1f1f22 0%,#0b0b0c 70%);padding:12px 14px}
+.pfb .mono{font-family:var(--ff-mono-ui,'JetBrains Mono',ui-monospace,monospace);font-size:12px;letter-spacing:.02em}
+.pfb button{font:inherit;color:inherit;cursor:pointer}
+.pfb button:disabled{opacity:.25;cursor:default}
+
+/* шапка: слева название и «стр. 2–3 / 68», справа режимы и инструменты */
+.pfb-bar{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px 12px}
+.pfb-title{display:flex;align-items:center;gap:10px;min-width:0}
+.pfb-title b{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.pfb-count{flex-shrink:0;padding:4px 10px;border-radius:7px;background:rgba(255,255,255,.08);border:1px solid var(--pfb-ln);
+  color:var(--pfb-tx2);font:12px var(--ff-mono-ui,'JetBrains Mono',ui-monospace,monospace);white-space:nowrap}
+.pfb-tools{display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
+.pfb-tools>button,.pfb-zoomer button{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;
+  border:1px solid var(--pfb-ln);border-radius:50%;background:rgba(255,255,255,.04);font-size:16px;transition:background .2s}
+.pfb-tools>button:hover:not(:disabled),.pfb-tools>button.on,.pfb-zoomer button:hover{background:rgba(255,255,255,.16)}
+.pfb-seg{display:inline-flex;padding:3px;margin-right:4px;border:1px solid var(--pfb-ln);border-radius:999px;background:rgba(255,255,255,.04)}
+.pfb-seg button{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:0;border-radius:999px;background:none;color:var(--pfb-tx2);font-size:13px;transition:background .2s,color .2s}
+.pfb-seg button.on{background:#fff;color:#111}
+.pfb-zoomer{display:inline-flex;align-items:center;gap:4px}
+.pfb-zoom{min-width:44px;text-align:center;color:var(--pfb-tx2)}
+
+/* поиск */
+.pfb-search{position:absolute;top:44px;right:4px;width:min(380px,calc(100vw - 32px));display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  padding:8px 12px;border:1px solid var(--pfb-ln);border-radius:12px;background:rgba(24,24,27,.97);box-shadow:0 20px 50px rgba(0,0,0,.5);
+  animation:pfbIn .18s ease-out;color:var(--pfb-tx2)}
+.pfb-search input{flex:1;min-width:0;height:30px;border:0;outline:0;background:none;color:var(--pfb-tx);font:14px var(--ff-text,'Inter',system-ui,sans-serif);user-select:text}
+.pfb-hits{flex-basis:100%;max-height:min(50vh,420px);overflow:auto;margin:4px -6px -2px;display:flex;flex-direction:column}
+.pfb-hit{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:7px 8px;border:0;border-radius:8px;background:none;text-align:left}
+.pfb-hit:hover{background:rgba(255,255,255,.08)}
+.pfb-hit .mono{color:var(--pfb-tx3);font-size:11px}
+.pfb-hit em{font-style:normal;font-size:13px;color:var(--pfb-tx);line-height:1.35}
+.pfb-hit mark{background:rgba(255,214,10,.3);color:#fff;border-radius:2px;padding:0 1px}
+.pfb-hit.none{color:var(--pfb-tx3);font-size:13px}
+@keyframes pfbIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+/* сцена книги */
+.pfb-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.pfb-host{position:relative;z-index:1;display:flex;align-items:center;justify-content:center}
+.pfb-page{background:#fff;overflow:hidden}
+.pfb-page img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.pfb-num{position:absolute;bottom:6px;right:8px;padding:1px 6px;border-radius:999px;background:rgba(0,0,0,.45);color:#fff;
+  font:11px var(--ff-mono-ui,ui-monospace,monospace);opacity:0;pointer-events:none;transition:opacity .2s}
+.pfb-page:hover .pfb-num,.pfb-sp:hover .pfb-num{opacity:1}
+
+/* тень под видимой частью книги и обрез — блок того же размера, что и книга, позади неё */
+.pfb-frame{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+.pfb-body{position:absolute;top:0;bottom:0;transition:left .3s,width .3s;
+  box-shadow:0 2px 4px rgba(0,0,0,.35),0 24px 60px -12px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.04)}
+.pfb-stack{position:absolute;top:2px;bottom:2px;transition:width .4s;
+  background:repeating-linear-gradient(to right,#f4f3f0 0 1px,#c9c6bf 1px 2px)}
+.pfb-stack.r{left:100%;border-radius:0 2px 2px 0;box-shadow:3px 4px 10px rgba(0,0,0,.45)}
+.pfb-stack.l{right:100%;border-radius:2px 0 0 2px;box-shadow:-3px 4px 10px rgba(0,0,0,.45)}
+
+/* корешок: тень у сгиба и лёгкий блик — только в развороте */
+.pfb.spread .pfb-page.--left::after,.pfb.spread .pfb-page.--right::after{content:'';position:absolute;inset:0;pointer-events:none}
+.pfb.spread .pfb-page.--left::after{background:linear-gradient(to left,rgba(0,0,0,.28) 0,rgba(0,0,0,.1) 2.5%,rgba(0,0,0,0) 9%),
+  linear-gradient(to right,rgba(0,0,0,.06),rgba(0,0,0,0) 3%)}
+.pfb.spread .pfb-page.--right::after{background:linear-gradient(to right,rgba(0,0,0,.3) 0,rgba(0,0,0,.12) 2%,rgba(255,255,255,.07) 5%,rgba(0,0,0,0) 12%),
+  linear-gradient(to left,rgba(0,0,0,.06),rgba(0,0,0,0) 3%)}
+
+/* тонкие стрелки по бокам и «в начало / в конец» в нижних углах */
+.pfb-arrow{position:absolute;top:50%;z-index:3;width:52px;height:96px;margin-top:-48px;padding:0;border:0;border-radius:12px;background:none;
+  color:var(--pfb-tx2);display:flex;align-items:center;justify-content:center;transition:color .2s,background .2s}
+.pfb-arrow svg{stroke-width:1.3}
+.pfb-arrow:hover:not(:disabled){color:#fff;background:rgba(255,255,255,.06)}
+.pfb-arrow.l{left:4px}
+.pfb-arrow.r{right:4px}
+.pfb-jump{position:absolute;bottom:4px;z-index:3;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:none;color:var(--pfb-tx3);
+  display:flex;align-items:center;justify-content:center;transition:color .2s,background .2s}
+.pfb-jump:hover:not(:disabled){color:#fff;background:rgba(255,255,255,.06)}
+.pfb-jump.l{left:14px}
+.pfb-jump.r{right:14px}
+.pfb-mpager{position:absolute;left:0;right:0;bottom:-6px;z-index:3;display:flex;justify-content:center;gap:14px;pointer-events:none}
+.pfb-mpager button{pointer-events:auto;width:40px;height:40px;padding:0;border:1px solid var(--pfb-ln);border-radius:50%;background:rgba(20,20,22,.7);display:flex;align-items:center;justify-content:center}
+
+/* лента */
+.pfb-scroll{position:absolute;inset:0;overflow:auto;display:flex;flex-direction:column;align-items:flex-start;gap:16px;padding:4px 0 24px;scroll-behavior:smooth;user-select:text}
+.pfb-sp{position:relative;flex-shrink:0;max-width:none;margin:0 auto;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.3),0 18px 44px -10px rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center}
+.pfb-sp img{display:block;width:100%;height:100%}
+
+/* миниатюры */
+.pfb-thumbs{display:flex;gap:8px;overflow-x:auto;padding:12px 4px 2px;flex-shrink:0}
+.pfb-th{position:relative;flex-shrink:0;height:86px;padding:0;border:0;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.08);opacity:.5;transition:opacity .2s,transform .2s}
+.pfb-th:hover{opacity:.85}
+.pfb-th.on{opacity:1;box-shadow:0 0 0 1.5px #fff;transform:translateY(-2px)}
+.pfb-th img{display:block;width:100%;height:100%;object-fit:cover}
+.pfb-th span{position:absolute;left:3px;bottom:3px;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff;font:10px var(--ff-mono-ui,ui-monospace,monospace)}
+
+.pfb-msg{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--pfb-tx2);font-size:14px;text-align:center}
+.pfb-msg b{color:var(--pfb-tx);font-weight:600}
+.pfb-btn{height:36px;padding:0 16px;border:0;border-radius:999px;background:#fff;color:#111 !important;font-size:13px}
+.pfb-spin{width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,127,127,.25);border-top-color:rgba(127,127,127,.8);animation:pfbSpin .8s linear infinite}
+.pfb-spin.sm{width:14px;height:14px}
+@keyframes pfbSpin{to{transform:rotate(360deg)}}
+
+@media (max-width:760px){
+  .pfb{width:100vw;height:calc(100vh - 120px)}
+  .pfb-bar{flex-wrap:wrap;justify-content:center;row-gap:8px}
+  .pfb-title{flex-basis:100%;justify-content:center}
+  .pfb-title b{display:none}
+  .pfb-seg button span{display:none}
+  .pfb-seg button{padding:0 10px}
+  .pfb-search{top:84px;left:50%;right:auto;transform:translateX(-50%);animation:none}
+}
+@media (prefers-reduced-motion:reduce){.pfb-scroll{scroll-behavior:auto}.pfb-body,.pfb-stack{transition:none}}

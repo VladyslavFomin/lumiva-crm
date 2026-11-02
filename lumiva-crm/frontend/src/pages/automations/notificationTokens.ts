@@ -65,6 +65,22 @@ const FEEDBACK_TOKENS: NotificationToken[] = [
   { token: 'crm_url', labelKey: 'tokenCrmUrl' },
 ];
 
+/** Лояльность (hotel-loyalty.service.ts → emit): участник, уровень, баллы, карта */
+const LOYALTY_TOKENS: NotificationToken[] = [
+  { token: 'guest_first_name', labelKey: 'tokenGuestFirstName' },
+  { token: 'guest_name', labelKey: 'tokenGuestName' },
+  { token: 'guest_email', labelKey: 'tokenGuestEmail' },
+  { token: 'guest_phone', labelKey: 'tokenGuestPhone' },
+  { token: 'program_name', labelKey: 'tokenProgramName' },
+  { token: 'member_number', labelKey: 'tokenMemberNumber' },
+  { token: 'tier_name', labelKey: 'tokenTierName' },
+  { token: 'tier_discount', labelKey: 'tokenTierDiscount' },
+  { token: 'points_balance', labelKey: 'tokenPointsBalance' },
+  { token: 'points_value', labelKey: 'tokenPointsValue' },
+  { token: 'currency', labelKey: 'tokenCurrency' },
+  { token: 'loyalty_link', labelKey: 'tokenLoyaltyLink' },
+];
+
 /** Отзывы отелей (hotel-reputation/reputation-events.service.ts → tokens). */
 const REVIEW_TOKENS: NotificationToken[] = [
   { token: 'hotel_name', labelKey: 'tokenHotelName' },
@@ -111,6 +127,10 @@ const TOKENS_BY_TRIGGER: Partial<Record<TriggerEvent, NotificationToken[]>> = {
   'hotel.payment_received': PAYMENT_TOKENS,
   'hotel.guest_feedback': FEEDBACK_TOKENS,
   'hotel.guest_feedback_negative': FEEDBACK_TOKENS,
+  'hotel.loyalty_joined': LOYALTY_TOKENS,
+  'hotel.loyalty_tier_up': LOYALTY_TOKENS,
+  'hotel.loyalty_points_earned': [...LOYALTY_TOKENS, { token: 'points_earned', labelKey: 'tokenPointsEarned' }, { token: 'booking_code', labelKey: 'tokenBookingCode' }],
+  'hotel.loyalty_points_expiring': [...LOYALTY_TOKENS, { token: 'expire_date', labelKey: 'tokenExpireDate' }],
   'review.created': REVIEW_TOKENS,
   'review.negative': REVIEW_TOKENS,
   'review.no_reply': [...REVIEW_TOKENS, { token: 'hours_without_reply', labelKey: 'tokenHoursWithoutReply' }],

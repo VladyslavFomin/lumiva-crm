@@ -2609,3 +2609,55 @@ export const installJourneyPresets = (lang: string, keys?: string[]) => api.post
 export const fetchJourneyPreview = (automationId: string) => api.get<GuestJourneyPreview>(`${GJ}/preview/${automationId}`);
 export const testJourney = (automationId: string, reservationId: string) => api.post<{ executionId: string; status: string; error: string | null }>(`${GJ}/test`, { automationId, reservationId });
 export const fetchJourneyReport = (days: number) => api.get<GuestJourneyReport>(`${GJ}/report`, { params: { days } });
+
+// ─── лояльность: программы (отели / бренды-сеть / весь аккаунт), участники, стойка, взаиморасчёты ───
+export interface LoyaltyTier { key: string; name: string; minNights?: number | null; minStays?: number | null; minSpend?: number | null; discountPct?: number; pointsMultiplier?: number; benefits?: string[] }
+export interface LoyaltySettings {
+  points: { enabled: boolean; earnPerUnit: number; includeExtras: boolean; pendingDays: number; expiryMonths: number; pointValue: number; maxRedeemPct: number };
+  tiers: LoyaltyTier[];
+  tierPeriod: '12m' | 'lifetime';
+  simpleDiscount: { enabled: boolean; fromStay: number; pct: number };
+  enrollment: 'auto_all' | 'auto_consent' | 'manual';
+  partnerEarnPoints: boolean;
+  partnerCountsForTier: boolean;
+  settlement: { reimbursePct: number; minTransfer: number; monthlyRedeemCap: number; imbalanceRatio: number };
+  blackout: Array<{ hotelId: string | null; from: string; to: string }>;
+}
+export interface LoyaltyProgram { id: string; name: string; scope: 'hotels' | 'brands' | 'account'; hotelIds: string[]; brandIds: string[]; currency: string; active: boolean; settings: LoyaltySettings; hotelsCovered: string[]; members: number; outstandingPoints: number; createdAt: string }
+export interface LoyaltyPrograms { programs: LoyaltyProgram[]; hotels: Array<{ id: string; name: string; brandId: string | null; currency: string }>; brands: Array<{ id: string; name: string }>; defaults: LoyaltySettings }
+export interface LoyaltyCard {
+  program: { id: string; name: string; currency: string; pointValue: number; pointsEnabled: boolean } | null;
+  profileId?: string | null; hotelCurrency?: string; canEnroll?: boolean; partner?: boolean; blackout?: boolean; maxRedeemPoints?: number; discountPct?: number; discountApplied?: boolean;
+  member?: { id: string; number: string; status: string; tier: { key: string; name: string; discountPct: number; benefits: string[] } | null; points: number; pendingPoints: number; pointsValueHotel: number; stats: { stays: number; nights: number; spend: number }; next: { name: string; minNights: number | null; minStays: number | null; minSpend: number | null } | null } | null;
+  redemptions?: Array<{ id: string; points: number; value: number; createdAt: string }>;
+}
+export interface LoyaltyMemberRow { id: string; number: string; tier: string | null; points: number; pendingPoints: number; lifetimePoints: number; status: string; programId: string; joinedAt: string; lastActivityAt: string | null; profileId: string; fullName: string; email: string | null; country: string | null; vip: boolean }
+export interface LoyaltyTx { id: string; type: 'earn' | 'redeem' | 'expire' | 'adjust' | 'reverse'; points: number; value: number; status: string; note: string | null; hotelName: string; createdAt: string; reservationId: string | null }
+export interface LoyaltyMemberDetail {
+  member: LoyaltyMemberRow & { tierSince: string | null }; program: { id: string; name: string; currency: string; tiers: LoyaltyTier[]; tierPeriod: string; pointValue: number } | null;
+  profile: { id: string; fullName: string; email: string | null; phone: string | null; country: string | null; vip: boolean; marketingConsent: boolean } | null;
+  stats: { stays: number; nights: number; spend: number } | null; link: string; tx: LoyaltyTx[];
+  stays: Array<{ id: string; hotelName: string; checkOut: string; nights: number; spend: number; points: number; countsForTier: boolean; reservationId: string }>;
+}
+export interface LoyaltySettlement {
+  program: { id: string; name: string; currency: string; reimbursePct: number; minTransfer: number; imbalanceRatio: number }; from: string; to: string;
+  hotels: Array<{ hotelId: string; hotelName: string; issuedPoints: number; issued: number; redeemedPoints: number; redeemedValue: number; reimbursed: number; net: number; imbalance: boolean; ratio: number | null }>;
+  transfers: Array<{ from: string; fromName: string; to: string; toName: string; amount: number }>;
+  carried: Array<{ from: string; fromName: string; to: string; toName: string; amount: number }>;
+  pool: { issued: number; reimbursed: number; retained: number }; liability: { points: number; pendingPoints: number; value: number };
+}
+const LY = '/hotels/loyalty';
+export const fetchLoyaltyPrograms = () => api.get<LoyaltyPrograms>(`${LY}/programs`);
+export const createLoyaltyProgram = (dto: Partial<LoyaltyProgram>) => api.post<LoyaltyProgram>(`${LY}/programs`, dto);
+export const updateLoyaltyProgram = (id: string, dto: Partial<LoyaltyProgram>) => api.patch<LoyaltyProgram>(`${LY}/programs/${id}`, dto);
+export const fetchLoyaltyOverview = (id: string, days = 90) => api.get<{ days: number; byTier: Array<{ key: string; name: string; members: number }>; earned: number; redeemed: number; expired: number; joined: number }>(`${LY}/programs/${id}/overview`, { params: { days } });
+export const fetchLoyaltySettlement = (id: string, from: string, to: string) => api.get<LoyaltySettlement>(`${LY}/programs/${id}/settlement`, { params: { from, to } });
+export const fetchLoyaltyMembers = (q: { programId?: string; search?: string; tier?: string; page?: number }) => api.get<{ total: number; page: number; items: LoyaltyMemberRow[] }>(`${LY}/members`, { params: q });
+export const fetchLoyaltyMember = (id: string) => api.get<LoyaltyMemberDetail>(`${LY}/members/${id}`);
+export const enrollLoyaltyMember = (programId: string, profileId: string) => api.post<LoyaltyMemberRow>(`${LY}/members`, { programId, profileId });
+export const adjustLoyaltyMember = (id: string, dto: { points: number; note: string; hotelId?: string | null }) => api.post(`${LY}/members/${id}/adjust`, dto);
+export const setLoyaltyMemberStatus = (id: string, status: 'active' | 'blocked') => api.post(`${LY}/members/${id}/status`, { status });
+export const fetchLoyaltyCard = (reservationId: string) => api.get<LoyaltyCard>(`${LY}/card/${reservationId}`);
+export const applyLoyaltyDiscount = (reservationId: string) => api.post(`${LY}/card/${reservationId}/discount`, {});
+export const redeemLoyaltyPoints = (reservationId: string, points: number) => api.post(`${LY}/card/${reservationId}/redeem`, { points });
+export const cancelLoyaltyRedeem = (txId: string) => api.post(`${LY}/tx/${txId}/cancel`, {});

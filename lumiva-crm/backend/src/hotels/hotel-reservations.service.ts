@@ -1450,8 +1450,8 @@ export class HotelReservationsService {
       const paidInFolio = (row.payments || []).filter((p) => (p.folio || 'guest') === folio).reduce((s, p) => s + toNum(p.amount), 0);
       if (-amount > paidInFolio + 0.009) throw new BadRequestException({ code: 'HOTEL_REFUND_TOO_BIG', message: 'Возврат больше, чем оплачено по этому счёту' });
     }
-    // онлайн-оплата (платёжная система) идёт мимо кассы — в кассовую смену не попадает
-    const shift = payment.method === 'online' ? null : await this.folio.openShiftOf(tenantId, row.hotelId);
+    // онлайн-оплата (платёжная система) и оплата баллами лояльности идут мимо кассы — в кассовую смену не попадают
+    const shift = payment.method === 'online' || payment.method === 'points' ? null : await this.folio.openShiftOf(tenantId, row.hotelId);
     const entry: HotelReservationPayment = {
       id: randomUUID(),
       date,

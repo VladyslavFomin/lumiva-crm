@@ -24,6 +24,7 @@ import { useTenantComponents } from '../../../hooks/useTenantComponents';
 import { EInvoiceModal } from './EInvoiceModal';
 import { EInvoiceDocs } from './EInvoiceDocs';
 import { PayLinks } from './PayLinks';
+import { LoyaltyCard } from './LoyaltyCard';
 
 const METHODS = ['cash', 'card', 'bank_transfer', 'other'];
 
@@ -46,6 +47,7 @@ export const FolioPanel: React.FC<{
   const { isEnabled } = useTenantComponents();
   const einvoiceOn = isEnabled('hotels_einvoice');
   const payLinksOn = isEnabled('hotels_pay_links');
+  const loyaltyOn = isEnabled('hotels_loyalty');
   const [einvoiceFolio, setEinvoiceFolio] = useState<HotelFolioKind | null>(null);
   const [docsKey, setDocsKey] = useState(0);
   const hasPartner = !!reservation.agencyId;
@@ -191,6 +193,7 @@ export const FolioPanel: React.FC<{
         {s.folios[pay.folio].balance > 0.009 && !pay.refund && <button type="button" className="lnk" onClick={() => setPay({ ...pay, amount: String(s.folios[pay.folio].balance) })}>{k('payBalance', { amount: m(s.folios[pay.folio].balance) })}</button>}
       </div>
 
+      {loyaltyOn && <LoyaltyCard reservationId={reservation.id} status={reservation.status} onChanged={done} />}
       {payLinksOn && reservation.status !== 'cancelled' && reservation.status !== 'no_show' && <PayLinks reservationId={reservation.id} folios={folios} guestName={reservation.guestName || ''} onPaid={done} />}
 
       <div className="htl-folio-acts">

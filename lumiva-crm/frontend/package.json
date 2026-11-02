@@ -34,6 +34,8 @@
     "i18next": "^24.0.0",
     "jsbarcode": "^3.12.3",
     "lottie-react": "^3.0.0",
+    "page-flip": "2.0.7",
+    "pdfjs-dist": "3.11.174",
     "prop-types": "^15.8.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",

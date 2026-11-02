@@ -83,3 +83,19 @@
 .fb .fb-label{text-align:center;font-size:13px;color:#777;margin-bottom:6px}
 .fb .fb-reviews{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .fb .fb-reviews .gr-btn{margin-top:0}
+/* карта участника лояльности (lp-*): тёмная карточка с уровнем и баллами, прогресс до следующего уровня */
+.lp .lp-card{background:#222;color:#fff;border-color:#222}
+.lp .lp-top{display:flex;justify-content:space-between;font-size:13px;color:#bbb}
+.lp .lp-no{font-style:normal;font-family:var(--ff-mono-ui, monospace);letter-spacing:.06em}
+.lp .lp-tier{font-family:var(--ff-heading, inherit);font-size:28px;font-weight:600;margin:10px 0 6px;letter-spacing:.02em}
+.lp .lp-points{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lp .lp-points b{font-size:34px;font-family:var(--ff-heading, inherit);font-weight:600}
+.lp .lp-points span{font-size:14px;color:#ddd}
+.lp .lp-points em{width:100%;font-style:normal;font-size:12px;color:#aaa}
+.lp .lp-benefits{margin:14px 0 0;padding:12px 0 0 18px;border-top:1px solid #444;font-size:13px;color:#ddd;display:flex;flex-direction:column;gap:4px}
+.lp .lp-next{display:flex;justify-content:space-between;font-size:14px}
+.lp .lp-bar{height:8px;border-radius:4px;background:#ececea;margin-top:8px;overflow:hidden}
+.lp .lp-bar i{display:block;height:100%;background:#222;border-radius:4px}
+.lp .lp-h{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:8px;padding:8px 0;border-top:1px solid #f0f0ee;font-size:13px}
+.lp .lp-h span:first-child{color:#999}
+.lp .lp-h b.neg{color:#9a1f31}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTenantComponents } from '../../hooks/useTenantComponents';
 
-type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'groups' | 'guests' | 'rack' | 'partners' | 'inventory' | 'guestRegister' | 'frontdesk' | 'housekeeping' | 'cashier' | 'nightAudit' | 'reports' | 'pricing' | 'calendar' | 'analytics' | 'reviews' | 'channels' | 'guestCare' | 'precheckin' | 'revenue' | 'pos';
+type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'groups' | 'guests' | 'rack' | 'partners' | 'inventory' | 'guestRegister' | 'frontdesk' | 'housekeeping' | 'cashier' | 'nightAudit' | 'reports' | 'pricing' | 'calendar' | 'analytics' | 'reviews' | 'channels' | 'guestCare' | 'precheckin' | 'revenue' | 'pos' | 'loyalty';
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   overview: (
@@ -30,6 +30,11 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
   pos: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <path d="M6 3h12v6H6z" /><path d="M4 9h16l-1 12H5z" /><path d="M9 14h6" />
+    </svg>
+  ),
+  loyalty: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8-4.3-4.1 5.9-.9z" />
     </svg>
   ),
   revenue: (
@@ -136,6 +141,7 @@ export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
     { key: 'reservations', label: t('crm.hotels.nav.reservations'), path: '/hotels/reservations', component: 'hotels_reservations' },
     { key: 'groups', label: t('crm.hotels.nav.groups'), path: '/hotels/groups', component: 'hotels_groups' },
     { key: 'guests', label: t('crm.hotels.nav.guests'), path: '/hotels/guests', component: 'hotels_guests' },
+    { key: 'loyalty', label: t('crm.hotels.nav.loyalty'), path: '/hotels/loyalty', component: 'hotels_loyalty' },
     { key: 'partners', label: t('crm.hotels.nav.partners'), path: '/hotels/partners', component: 'hotels_partners' },
     { key: 'inventory', label: t('crm.hotels.nav.inventory'), path: '/hotels/inventory', component: 'hotels_partners' },
     { key: 'rack', label: t('crm.hotels.nav.rack'), path: '/hotels/rack', component: 'hotels_rack' },

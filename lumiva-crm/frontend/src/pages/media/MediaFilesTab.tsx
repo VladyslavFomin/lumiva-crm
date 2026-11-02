@@ -1,5 +1,5 @@
 // src/pages/media/MediaFilesTab.tsx — вкладка «Файлы» (порт components/media-crm-files.jsx на реальные данные)
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   createMediaCollection,
@@ -14,6 +14,7 @@ import {
   moveMediaFiles,
   renameMediaCollection,
   renameMediaFile,
+  setMediaPdfThumb,
   startBrowserDownload,
   updateMediaFolder,
   uploadMediaFile,
@@ -24,7 +25,10 @@ import {
   type MediaPlace,
 } from '../../api/media';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+import { pdfLabels } from '../../components/media/pdfLabels';
 import { FolderGlyph, Ic, MIC, Thumb, cx, dims, fmtBytes, fmtDate, fmtDur } from './mediaUi';
+
+const PdfFlipbook = lazy(() => import('../../components/media/PdfFlipbook'));
 
 export interface ShareInit {
   folderIds: string[];
@@ -197,6 +201,28 @@ export const MediaFilesTab: React.FC<{
     const h = setTimeout(() => void loadFiles(cur, q), q ? 250 : 0);
     return () => clearTimeout(h);
   }, [cur, q, loadFiles]);
+
+  // старые PDF без обложки: рисуем первую страницу в браузере и сохраняем (по одному, не больше 8 за открытие папки)
+  const coverTried = useRef(new Set<string>());
+  useEffect(() => {
+    const todo = files.filter((f) => f.kind === 'pdf' && !f.thumbUrl && f.viewUrl && !coverTried.current.has(f.id)).slice(0, 8);
+    if (!todo.length) return;
+    todo.forEach((f) => coverTried.current.add(f.id));
+    void (async () => {
+      const { pdfCoverFromUrl } = await import('../../components/media/pdfRender');
+      for (const f of todo) {
+        if (!mountedRef.current) return;
+        try {
+          const c = await pdfCoverFromUrl(mediaUrl(f.viewUrl)!);
+          if (!c) continue;
+          const saved = await setMediaPdfThumb(f.id, c.thumb, c.width, c.height);
+          if (mountedRef.current) setFiles((fs) => fs.map((x) => (x.id === saved.id ? saved : x)));
+        } catch { /* битый/зашифрованный PDF или нет прав на запись — остаётся значок */ }
+      }
+    })();
+  }, [files]);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const go = (s: string, f: string | null) => { setScope(s); setCur(f); setQ(''); setNewF(null); };
   const err = (e: any) => showAlert(e?.message || String(e), { variant: 'error' });
@@ -922,7 +948,7 @@ export const MediaFilesTab: React.FC<{
         </div>
       )}
 
-      {lb !== null && lb >= 0 && files[lb] && <Lightbox files={files} idx={lb} setIdx={setLb} />}
+      {lb !== null && lb >= 0 && files[lb] && <Lightbox files={files} idx={lb} setIdx={setLb} onDownload={(f) => void download({ fileIds: [f.id] })} />}
 
       {menu && (
         <div className="mf-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()} role="menu">
@@ -1029,8 +1055,9 @@ const MoveDialog: React.FC<{
   );
 };
 
-const Lightbox: React.FC<{ files: MediaFile[]; idx: number; setIdx: (i: number | null) => void }> = ({ files, idx, setIdx }) => {
+const Lightbox: React.FC<{ files: MediaFile[]; idx: number; setIdx: (i: number | null) => void; onDownload: (f: MediaFile) => void }> = ({ files, idx, setIdx, onDownload }) => {
   const f = files[idx];
+  const { t } = useTranslation();
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIdx(null);
@@ -1047,7 +1074,11 @@ const Lightbox: React.FC<{ files: MediaFile[]; idx: number; setIdx: (i: number |
       <button type="button" className="md-ib x" onClick={() => setIdx(null)}><Ic d={MIC.x} size={14} /></button>
       {files.length > 1 && <button type="button" className="md-ib nav l" onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + files.length) % files.length); }}><Ic d={MIC.chevL} size={16} /></button>}
       <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-        {f.kind === 'video' ? <video key={f.id} src={src} controls autoPlay /> : f.kind === 'pdf' ? <iframe key={f.id} src={src} title={f.name} /> : <img key={f.id} src={src} alt={f.name} />}
+        {f.kind === 'video' ? <video key={f.id} src={src} controls autoPlay /> : f.kind === 'pdf' && src ? (
+          <Suspense fallback={<div className="pfb-lazy" />}>
+            <PdfFlipbook key={f.id} src={src} name={f.name} labels={pdfLabels(t)} onDownload={() => onDownload(f)} />
+          </Suspense>
+        ) : <img key={f.id} src={src} alt={f.name} />}
       </div>
       {files.length > 1 && <button type="button" className="md-ib nav r" onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % files.length); }}><Ic d={MIC.chevR} size={16} /></button>}
     </div>

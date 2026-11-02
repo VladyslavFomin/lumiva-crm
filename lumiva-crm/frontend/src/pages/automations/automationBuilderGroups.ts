@@ -120,6 +120,10 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
         { id: 'hotel.payment_received', label: getTriggerLabel('hotel.payment_received', t), icon: 'sale' },
         { id: 'hotel.guest_feedback', label: getTriggerLabel('hotel.guest_feedback', t), icon: 'user' },
         { id: 'hotel.guest_feedback_negative', label: getTriggerLabel('hotel.guest_feedback_negative', t), icon: 'bell' },
+        { id: 'hotel.loyalty_joined', label: getTriggerLabel('hotel.loyalty_joined', t), icon: 'user' },
+        { id: 'hotel.loyalty_tier_up', label: getTriggerLabel('hotel.loyalty_tier_up', t), icon: 'sale' },
+        { id: 'hotel.loyalty_points_earned', label: getTriggerLabel('hotel.loyalty_points_earned', t), icon: 'sale' },
+        { id: 'hotel.loyalty_points_expiring', label: getTriggerLabel('hotel.loyalty_points_expiring', t), icon: 'bell' },
       ],
     },
     {

@@ -121,7 +121,10 @@ import { HotelGuestJourneyService } from './hotel-guest-journey.service';
 import { HotelGuestJourneyController, HotelGuestFeedbackPublicController } from './hotel-guest-journey.controller';
 import { Automation } from '../automations/automation.entity';
 import { AutomationExecution } from '../automations/automation-execution.entity';
-import { HotelReviewSource } from '../hotel-reputation/reputation.entities';
+import { HotelBrand, HotelReviewSource } from '../hotel-reputation/reputation.entities';
+import { HotelLoyaltyMember, HotelLoyaltyProgram, HotelLoyaltyStay, HotelLoyaltyTx } from './hotel-loyalty.entities';
+import { HotelLoyaltyService } from './hotel-loyalty.service';
+import { HotelLoyaltyController, HotelLoyaltyPublicController } from './hotel-loyalty.controller';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelPrecheckinController, HotelPrecheckinPublicController } from './hotel-precheckin.controller';
 import { HotelChannelsService } from './hotel-channels.service';
@@ -158,6 +161,11 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
       Automation,
       AutomationExecution,
       HotelReviewSource,
+      HotelBrand,
+      HotelLoyaltyProgram,
+      HotelLoyaltyMember,
+      HotelLoyaltyTx,
+      HotelLoyaltyStay,
       HotelGuestRequest,
       Hotel,
       HotelRoomType,
@@ -225,6 +233,8 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelPaymentLinksPublicController,
     HotelGuestJourneyController,
     HotelGuestFeedbackPublicController,
+    HotelLoyaltyController,
+    HotelLoyaltyPublicController,
     HotelGuestCareController,
     HotelGuestCarePublicController,
     HotelHousekeepingController,
@@ -256,6 +266,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelEInvoiceService,
     HotelPaymentLinksService,
     HotelGuestJourneyService,
+    HotelLoyaltyService,
     HotelGuestCareService,
     HotelChannelsScheduler,
     HotelsService,

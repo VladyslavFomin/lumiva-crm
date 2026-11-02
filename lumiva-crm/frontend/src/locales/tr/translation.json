@@ -8759,7 +8759,16 @@
           "tokenPaymentAmount": "Ödeme tutarı",
           "tokenScore": "Puan (1–5)",
           "tokenScoreStars": "Yıldızlı puan",
-          "tokenComment": "Misafir yorumu"
+          "tokenComment": "Misafir yorumu",
+          "tokenProgramName": "Program",
+          "tokenMemberNumber": "Kart numarası",
+          "tokenTierName": "Seviye",
+          "tokenTierDiscount": "Seviye indirimi, %",
+          "tokenPointsBalance": "Puan bakiyesi",
+          "tokenPointsValue": "Puan değeri",
+          "tokenLoyaltyLink": "Bağlantı: misafir kartı",
+          "tokenPointsEarned": "Kazanılan puan",
+          "tokenExpireDate": "Silinme tarihi"
         },
         "triggerGroups": {
           "contacts": "Kişiler",
@@ -8839,7 +8848,11 @@
           "HOTEL_DEPOSIT_DUE": "Misafir: ön ödeme son günü N gün sonra",
           "HOTEL_PAYMENT_RECEIVED": "Online rezervasyon ödemesi alındı",
           "HOTEL_GUEST_FEEDBACK": "Misafir ankete yanıt verdi",
-          "HOTEL_GUEST_FEEDBACK_NEGATIVE": "Memnun olmayan misafir (puan 3 ve altı)"
+          "HOTEL_GUEST_FEEDBACK_NEGATIVE": "Memnun olmayan misafir (puan 3 ve altı)",
+          "HOTEL_LOYALTY_JOINED": "Sadakat: misafir katıldı",
+          "HOTEL_LOYALTY_TIER_UP": "Sadakat: yeni seviye",
+          "HOTEL_LOYALTY_POINTS_EARNED": "Sadakat: puan yüklendi",
+          "HOTEL_LOYALTY_POINTS_EXPIRING": "Sadakat: puanlar yakında silinecek"
         },
         "report": {
           "type": "Rapor türü",
@@ -18987,7 +19000,8 @@
         "groups": "Gruplar",
         "precheckin": "Online check-in",
         "revenue": "Fiyat önerileri",
-        "pos": "Satış noktaları"
+        "pos": "Satış noktaları",
+        "loyalty": "Sadakat"
       },
       "status": {
         "active": "Aktif",
@@ -20064,7 +20078,8 @@
           "cash": "Nakit",
           "bank_transfer": "Banka havalesi",
           "other": "Diğer",
-          "online": "Online"
+          "online": "Online",
+          "points": "Puan"
         },
         "modal": {
           "titleEdit": "Rezervasyonu düzenle",
@@ -21961,7 +21976,29 @@
           "HOTEL_PAY_AMOUNT": "Tutar sıfırdan büyük olmalı",
           "HOTEL_PAY_TOO_MUCH": "Tutar folyo bakiyesinden fazla",
           "HOTEL_PAY_NOT_PENDING": "Talep zaten ödendi veya kapandı",
-          "HOTEL_PAY_NO_EMAIL": "Rezervasyonda misafir e-postası yok"
+          "HOTEL_PAY_NO_EMAIL": "Rezervasyonda misafir e-postası yok",
+          "HOTEL_LOYALTY_OVERLAP": "Bu oteller zaten başka bir aktif programda",
+          "HOTEL_LOYALTY_NAME": "Programa ad verin",
+          "HOTEL_LOYALTY_NO_HOTELS": "Program otellerini seçin",
+          "HOTEL_LOYALTY_NO_BRANDS": "Program markalarını seçin",
+          "HOTEL_LOYALTY_CURRENCY": "Program para birimi 3 harfli koddur",
+          "HOTEL_LOYALTY_CURRENCY_LOCKED": "İlk puanlardan sonra para birimi değiştirilemez",
+          "HOTEL_LOYALTY_TIER_NAME": "Her seviyenin adı olmalı",
+          "HOTEL_LOYALTY_NOT_MEMBER": "Misafir üye değil",
+          "HOTEL_LOYALTY_PARTNER": "Üye indirimi yalnızca doğrudan rezervasyonlarda",
+          "HOTEL_LOYALTY_DISCOUNT_DONE": "Üye indirimi zaten folyoda",
+          "HOTEL_LOYALTY_NO_DISCOUNT": "Misafirin seviyesinde indirim yok",
+          "HOTEL_LOYALTY_CLOSED": "Rezervasyon kapalı",
+          "HOTEL_LOYALTY_POINTS": "Puan sayısını girin",
+          "HOTEL_LOYALTY_POINTS_OFF": "Programda puan yok",
+          "HOTEL_LOYALTY_BLOCKED": "Üye engelli",
+          "HOTEL_LOYALTY_BLACKOUT": "Otel bu tarihlerde puan kabul etmiyor",
+          "HOTEL_LOYALTY_BALANCE": "Yeterli puan yok",
+          "HOTEL_LOYALTY_MAX": "Bu folyo için program limitinin üzerinde",
+          "HOTEL_LOYALTY_HOTEL_CAP": "Otel aylık puan kabul limitine ulaştı",
+          "HOTEL_LOYALTY_REVERSED": "Zaten iptal edildi",
+          "HOTEL_LOYALTY_REASON": "Nedeni girin",
+          "HOTEL_LOYALTY_DATES": "Geçersiz dönem"
         },
         "refund": {
           "folio": {
@@ -24101,6 +24138,215 @@
         "error": "Başarısız",
         "waText": "Merhaba {{name}}! Rezervasyon ödeme bağlantınız ({{amount}}): {{url}}",
         "createdNotSent": "Bağlantı oluşturuldu ancak e-posta gönderilmedi: {{error}}. Bağlantıyı kopyalayın veya WhatsApp’tan gönderin."
+      },
+      "loyalty": {
+        "kicker": "Sadık misafirler · seviyeler · puanlar",
+        "title": "Sadakat",
+        "subtitle": "Tek otel, marka zinciri veya tüm oteller için programlar: gece ve konaklamaya göre seviyeler, çıkışta puan, üye indirimi ve resepsiyonda puanla ödeme, zincir otelleri arasında mahsuplaşma.",
+        "kpi": {
+          "programs": "Program",
+          "programsOf": "{{count}} içinden",
+          "members": "Üye",
+          "points": "Hesaplardaki puan",
+          "pointsHint": "misafirlere yükümlülük",
+          "hotels": "Programdaki otel"
+        },
+        "tab": {
+          "programs": "Programlar",
+          "members": "Üyeler",
+          "settlement": "Mahsuplaşma"
+        },
+        "off": "kapalı",
+        "on": "açık",
+        "noPrograms": "Henüz program yok",
+        "noProgramsHint": "Bir program oluşturun: nerede geçerli olduğunu, seviyeleri ve puan kurallarını seçin.",
+        "programsHint": "Her otel tam olarak bir aktif programdadır — puanların nerede kazanılıp harcandığı nettir.",
+        "newProgram": "Yeni program",
+        "edit": "Düzenle",
+        "editTitle": "Sadakat programı",
+        "scope": {
+          "hotels": "Oteller",
+          "brands": "Markalar (zincir)",
+          "account": "Tüm oteller"
+        },
+        "scopeHint": {
+          "hotels": "Seçili oteller — puanlar yalnızca orada kazanılır ve harcanır",
+          "brands": "Seçili markaların tüm otelleri — ortak misafir kartlı zincir",
+          "account": "Hesaptaki tüm oteller, tek grup programı"
+        },
+        "scopeTitle": "Nerede geçerli",
+        "hotelsCount_one": "{{count}} otel",
+        "hotelsCount_other": "{{count}} otel",
+        "noBrandsHint": "Henüz marka yok — yorum modülünde (Yorumlar → ayarlar) oluşturup otellere bağlayabilirsiniz.",
+        "oneProgramHint": "Başka bir aktif programdaki otel buraya eklenmez — önce oradan çıkarın.",
+        "f": {
+          "name": "Program adı",
+          "namePh": "ör. Rack Club",
+          "currency": "Program para birimi"
+        },
+        "tiersTitle": "Seviyeler",
+        "tiersHint": "Dönem içinde koşullardan herhangi biri sağlanınca seviye verilir. Koşulsuz ilk seviye tüm üyeler için başlangıç seviyesidir.",
+        "t": {
+          "name": "Seviye",
+          "nights": "Gece",
+          "stays": "Konaklama",
+          "spend": "Tutar, {{cur}}",
+          "discount": "İndirim, %",
+          "mult": "Puan ×",
+          "benefits": "Ayrıcalıklar",
+          "benefitsPh": "erken giriş, oda yükseltme…"
+        },
+        "addTier": "Seviye ekle",
+        "tierPeriod": "Dönem",
+        "period": {
+          "12m": "son 12 ay",
+          "lifetime": "tüm zamanlar"
+        },
+        "tierRuleHint": "Seviye her çıkıştan sonra yeniden hesaplanır. Seviye indirimi resepsiyonda bir düğmeyle folyoya eklenir (yalnızca doğrudan rezervasyonlar).",
+        "tierNights": "{{count}} gece",
+        "tierStays": "{{count}} konaklama",
+        "tierStart": "başlangıç",
+        "pointsShort": "puan",
+        "pointsTitle": "Puanlar",
+        "p": {
+          "earn": "1 {{cur}} başına puan",
+          "value": "Puan değeri, {{cur}}",
+          "maxRedeem": "Puanla — folyonun en fazla %",
+          "pending": "Beklemede, gün",
+          "expiry": "Hareketsizlikte silinir, ay",
+          "extras": "Ek hizmet / bar / restoran için de puan ver",
+          "hint": "Misafir 1 {{cur}} için {{earn}} puan alır, puan {{value}} {{cur}} değerinde — %{{pct}} geri dönüş. 0 ay — silinmez."
+        },
+        "simpleTitle": "Puansız basit mod",
+        "simpleOn": "Sadık misafire indirim",
+        "simpleFrom": "konaklama no. itibaren",
+        "simplePct": "indirim, %",
+        "rulesTitle": "Üyelik ve partnerler",
+        "enrollment": "Kim üye olur",
+        "enroll": {
+          "auto_consent": "İzni olan tüm misafirler (KVKK) — ilk çıkıştan sonra",
+          "auto_all": "İlk çıkıştan sonra tüm misafirler",
+          "manual": "Yalnızca elle (resepsiyonda veya profilde)"
+        },
+        "partnerEarn": "Acenta / OTA rezervasyonlarına puan ver",
+        "partnerTier": "Acenta / OTA geceleri seviyeye sayılır",
+        "netTitle": "Zincir: mahsuplaşma ve dengesizlik koruması",
+        "netHint": "Puan veren otel, değerini program havuzuna borçlanır; puanı ödeme olarak kabul eden otele havuz bir pay öder. Misafirler bir otelde kazanıp diğerinde harcarsa dengesizlik %100’ün altındaki iade, aylık kabul limiti ve kapalı tarihlerle sınırlanır.",
+        "st": {
+          "reimburse": "Kabul eden otele iade, %",
+          "minTransfer": "Min. transfer, {{cur}}",
+          "cap": "Otel başına aylık kabul limiti, {{cur}} (0 — yok)",
+          "ratio": "Dengesizlik uyarısı ×"
+        },
+        "blackoutTitle": "Kapalı tarihler: puan kabul edilmez",
+        "addBlackout": "Tarih ekle",
+        "allHotels": "Tüm oteller",
+        "blackoutHint": "Örneğin zincirin en popüler otelinde yüksek sezon.",
+        "activeLabel": "Program açık",
+        "saved": "Program kaydedildi",
+        "error": "Başarısız",
+        "stat": {
+          "members": "Üye: {{count}}",
+          "earn": "1 {{cur}} başına {{n}} puan · 1 puan = {{value}} {{cur}}",
+          "flow": "90 gün: +{{earned}} / −{{redeemed}} / silinen {{expired}}",
+          "simple": "{{n}}. konaklamadan itibaren %{{pct}} indirim"
+        },
+        "searchPh": "Ad, e-posta veya kart numarası",
+        "allTiers": "Tüm seviyeler",
+        "membersTotal": "Üye: {{count}}",
+        "noMembers": "Üye yok",
+        "noMembersHint": "Misafirler çıkıştan sonra (program kurallarına göre) kendiliğinden veya resepsiyonda elle katılır.",
+        "col": {
+          "number": "Kart",
+          "guest": "Misafir",
+          "tier": "Seviye",
+          "points": "Puan",
+          "pending": "Beklemede",
+          "lifetime": "Toplam",
+          "activity": "Son hareket"
+        },
+        "statsLine": "{{period}}: {{stays}} konaklama, {{nights}} gece, {{spend}}",
+        "copyLink": "Misafir kartı bağlantısı",
+        "copied": "Bağlantı kopyalandı",
+        "openProfile": "Misafir profili",
+        "block": "Engelle",
+        "unblock": "Engeli kaldır",
+        "blockBody": "Engel kalkana kadar üye puan kazanamaz ve harcayamaz.",
+        "noConsentHint": "İletişim izni yok — otomasyonda bu koşul varsa sadakat e-postaları gitmez.",
+        "adjustTitle": "Düzeltme",
+        "adjustPointsPh": "± puan",
+        "noHotel": "Otelsiz",
+        "adjustNotePh": "Neden (geçmişte görünür)",
+        "adjust": "Uygula",
+        "adjusted": "Puan düzeltildi",
+        "historyTitle": "Puan geçmişi",
+        "noTx": "Hareket yok",
+        "staysTitle": "Konaklamalar",
+        "noStays": "Henüz konaklama yok",
+        "nightsN": "{{count}} gece",
+        "notForTier": "seviyeye sayılmaz",
+        "pending": "beklemede",
+        "tx": {
+          "earn": "Kazanıldı",
+          "redeem": "Puanla ödeme",
+          "expire": "Silindi",
+          "adjust": "Düzeltme",
+          "reverse": "Ödeme iptali"
+        },
+        "settleRules": "İade %{{pct}} · transfer {{min}} üzeri",
+        "pool": {
+          "issued": "Verilen puan",
+          "reimbursed": "Otellere iade",
+          "retained": "Havuzda kalan",
+          "retainedHint": "verilen ama harcanmayan / silinen",
+          "liability": "Yükümlülük",
+          "liabilityHint": "misafir hesaplarında {{points}} puan"
+        },
+        "s": {
+          "hotel": "Otel",
+          "issued": "Verdi",
+          "redeemed": "Kabul etti",
+          "reimbursed": "İade",
+          "net": "Bakiye",
+          "receives": "alır",
+          "pays": "öder"
+        },
+        "pts": "{{n}} puan",
+        "imbalance": "Dengesizlik",
+        "imbalanceTitle": "Kabul edilen, verilenin {{ratio}}+ katı",
+        "transfersTitle": "Kim kime öder",
+        "noTransfers": "Bu dönem için transfer yok.",
+        "carried": "eşiğin altında — devreder",
+        "settleHint": "Tutarlar program para biriminde, kazanıldığı günün kuruyla. Transferler en az çiftle hesaplanır; havuz kalanı, misafirlerin daha harcayacağı puanlar için programın rezervidir.",
+        "card": {
+          "notMember": "Misafir program üyesi değil",
+          "noProfile": "Rezervasyonda misafir profili yok",
+          "enroll": "Üye yap",
+          "enrolled": "Misafir programa katıldı",
+          "tier": "Seviye",
+          "points": "Puan",
+          "pending": "+{{n}} beklemede",
+          "toNext": "{{name}} için: {{need}}",
+          "needNights": "{{n}} gece daha",
+          "needStays": "{{n}} konaklama daha",
+          "or": " veya ",
+          "blocked": "Üye engelli",
+          "discount": "Üye indirimi −%{{pct}}",
+          "discountApplied": "Folyoda −%{{pct}}",
+          "discountDone": "Üye indirimi folyoya eklendi",
+          "redeemPh": "puan, en fazla {{max}}",
+          "redeem": "Puanla öde",
+          "redeemed": "Puanla ödendi",
+          "max": "tümü {{n}}",
+          "blackout": "Otel bu tarihlerde puan kabul etmiyor",
+          "paidWith": "{{n}} puanla ödendi",
+          "cancel": "İptal et",
+          "cancelTitle": "Puanla ödeme iptal edilsin mi?",
+          "cancelBody": "Ödeme folyodan kalkar, puanlar misafire döner.",
+          "cancelled": "Puanla ödeme iptal edildi",
+          "error": "Başarısız"
+        },
+        "or": " veya "
       }
     },
     "telephony": {
@@ -30272,6 +30518,33 @@
       "happyHint": "Beğenmenize sevindik! Deneyiminizi paylaşın — otele çok yardımcı olur:",
       "sorryHint": "Her şeyin yolunda gitmediği için üzgünüz. Otel yanıtınızı aldı ve sizinle iletişime geçecek.",
       "reviewOn": "{{platform}}’da yorum bırak"
+    },
+    "hotelLoyalty": {
+      "invalid": "Kart bulunamadı",
+      "invalidHint": "Otelin e-postasındaki bağlantıyı kontrol edin.",
+      "hello": "Merhaba, {{name}}",
+      "member": "Üye",
+      "points": "puan",
+      "pending": "+{{n}} beklemede",
+      "discount": "Doğrudan rezervasyonda konaklamada %{{pct}} indirim",
+      "nextTier": "{{name}} seviyesine",
+      "needNights": "gece {{have}} / {{need}}",
+      "needStays": "konaklama {{have}} / {{need}}",
+      "or": "veya",
+      "period": {
+        "12m": "12 ay içinde",
+        "lifetime": "tüm zamanlar"
+      },
+      "history": "Geçmiş",
+      "tx": {
+        "earn": "Kazanıldı",
+        "redeem": "Puanla ödeme",
+        "expire": "Silindi",
+        "adjust": "Düzeltme",
+        "reverse": "Puan iadesi"
+      },
+      "pendingShort": "beklemede",
+      "foot": "Puanla ödemek veya indirim almak için resepsiyonda kart numaranızı gösterin."
     }
   },
   "lang": {
@@ -31021,5 +31294,27 @@
         "expired": "süresi geçti"
       }
     }
+  },
+  "pdfViewer": {
+    "book": "Kitap",
+    "scroll": "Akış",
+    "prev": "Geri",
+    "next": "İleri",
+    "thumbs": "Sayfalar",
+    "fullscreen": "Tam ekran",
+    "exitFullscreen": "Tam ekrandan çık",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "loading": "Belge açılıyor…",
+    "error": "Belge açılamadı",
+    "download": "İndir",
+    "first": "İlk sayfa",
+    "last": "Son sayfa",
+    "pageShort": "syf.",
+    "search": "Metinde ara",
+    "searchPlaceholder": "Belgede ara…",
+    "nothingFound": "Sonuç bulunamadı",
+    "spread": "Çift sayfa",
+    "singlePage": "Tek sayfa"
   }
 }

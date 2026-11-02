@@ -347,3 +347,10 @@
 .mf-scope .mf-upbar .bar{flex:1;max-width:320px;height:5px;border-radius:9px;background:var(--bg-soft);overflow:hidden}
 .mf-scope .mf-upbar .bar i{display:block;height:100%;background:var(--ink);border-radius:9px;transition:width .3s}
 .mf-scope .mf-upbar button{border:0;background:none;color:#a3283c;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
+/* PDF-журнал в лайтбоксе CRM: занимает всю область между стрелками файлов, страницы без скруглений/подложки картинок */
+.mf-scope .mf-lb .pfb{width:100%;height:100%}
+.mf-scope .mf-lb .pfb img{max-width:none;max-height:none;border-radius:0;background:none}
+.mf-scope .mf-lb .pfb-lazy{width:100%;height:100%}
+.mf-scope .mf-lb:has(.pfb) .nav{display:none}
+.mf-scope .mf-lb:has(.pfb){padding:56px 24px 20px}
+@media (max-width:640px){.mf-scope .mf-lb:has(.pfb){padding:52px 4px 8px}}

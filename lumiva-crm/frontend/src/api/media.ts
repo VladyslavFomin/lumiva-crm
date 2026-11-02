@@ -226,7 +226,7 @@ function xhr(method: string, path: string, body: FormData | string | null, onPro
   });
 }
 
-/** Миниатюра и размеры в браузере: у сервера нет sharp/ffmpeg. PDF — без превью. */
+/** Миниатюра и размеры в браузере: у сервера нет sharp/ffmpeg. У PDF превью — первая страница (pdf.js грузится отдельным чанком). */
 async function probe(file: File): Promise<{ thumb: Blob | null; width?: number; height?: number; durationSec?: number }> {
   const toThumb = (src: CanvasImageSource, w: number, h: number): Promise<Blob | null> => {
     const max = 640;
@@ -264,12 +264,26 @@ async function probe(file: File): Promise<{ thumb: Blob | null; width?: number; 
       const thumb = v.videoWidth ? await toThumb(v, v.videoWidth, v.videoHeight) : null;
       return { thumb, width: v.videoWidth || undefined, height: v.videoHeight || undefined, durationSec: dur };
     }
+    if ((file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) && file.size < 200 * 1024 * 1024) {
+      const { pdfCover } = await import('../components/media/pdfRender');
+      const c = await Promise.race([pdfCover(file), new Promise<null>((res) => setTimeout(() => res(null), 15000))]);
+      if (c) return { thumb: c.thumb, width: c.width, height: c.height };
+    }
   } catch {
-    /* браузер не умеет этот формат (HEIC, некоторые MOV) — без превью */
+    /* браузер не умеет этот формат (HEIC, некоторые MOV, битый PDF) — без превью */
   } finally {
     URL.revokeObjectURL(url);
   }
   return { thumb: null };
+}
+
+/** Обложка для старого PDF без превью (рисует браузер при первом просмотре в CRM) */
+export function setMediaPdfThumb(id: string, thumb: Blob, width?: number, height?: number): Promise<MediaFile> {
+  const fd = new FormData();
+  fd.append('thumb', thumb, 'thumb.jpg');
+  if (width) fd.append('width', String(width));
+  if (height) fd.append('height', String(height));
+  return xhr('POST', `/media/files/${id}/thumb`, fd);
 }
 
 export async function uploadMediaFile(

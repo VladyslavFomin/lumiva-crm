@@ -1586,6 +1586,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/hotels/precheckin')) return 'hotels_precheckin';
     if (p.startsWith('/hotels/cashier') || p.startsWith('/hotels/night-audit')) return 'hotels_cashier';
     if (p.startsWith('/hotels/pos')) return 'hotels_pos';
+    if (p.startsWith('/hotels/loyalty')) return 'hotels_loyalty';
     if (p.startsWith('/hotels/guest-register')) return 'hotels_guest_register';
     if (p.startsWith('/hotels/reports')) return 'hotels_analytics';
     if (p.startsWith('/hotels/revenue')) return 'hotels_revenue';

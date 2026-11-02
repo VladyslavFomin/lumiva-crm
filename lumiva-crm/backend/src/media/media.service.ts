@@ -445,6 +445,23 @@ export class MediaService {
     return this.fileDto(f);
   }
 
+  /** Обложка для PDF, загруженного до появления превью: браузер рисует первую страницу и присылает JPEG (один раз) */
+  async setPdfThumb(tenantId: string, id: string, thumb: Buffer | undefined, meta: { width?: number; height?: number }, acc: HotelAcc = null) {
+    const f = await this.files.findOne({ where: { tenantId, id } });
+    if (!f) throw new NotFoundException('Файл не найден');
+    await this.folderOr404(tenantId, f.folderId, acc);
+    if (f.kind !== 'pdf') throw new BadRequestException('Обложку можно задать только для PDF');
+    if (f.thumbPath) return this.fileDto(f);
+    const jpeg = !!thumb && thumb.length > 256 && thumb.length < 2 * 1024 * 1024 && thumb[0] === 0xff && thumb[1] === 0xd8 && thumb[thumb.length - 2] === 0xff && thumb[thumb.length - 1] === 0xd9;
+    if (!jpeg) throw new BadRequestException('Нужна картинка JPEG до 2 МБ');
+    f.thumbPath = `media/${tenantId}/${f.id}.thumb.jpg`;
+    await writeFile(joinUploadsAbsolute(f.thumbPath), thumb);
+    const w = Number(meta.width), h = Number(meta.height);
+    if (!f.width && w > 0 && h > 0 && w < 100000 && h < 100000) { f.width = Math.round(w); f.height = Math.round(h); }
+    await this.files.save(f);
+    return this.fileDto(f);
+  }
+
   async moveFiles(tenantId: string, ids: string[], folderId: string, acc: HotelAcc = null) {
     const target = await this.folderOr404(tenantId, folderId, acc);
     const list = await this.visibleFileIds(tenantId, ids, acc);
