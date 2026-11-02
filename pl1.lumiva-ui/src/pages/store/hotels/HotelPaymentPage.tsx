@@ -13,9 +13,6 @@ const HotelPaymentPage: React.FC = () => {
   const currency = searchParams.get("currency") || "";
   const email = searchParams.get("email") || "";
 
-  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
-  const [expiry, setExpiry] = useState("12/29");
-  const [cvc, setCvc] = useState("123");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -23,8 +20,9 @@ const HotelPaymentPage: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await payReservation(clientKey, reservationId);
-      navigate(`/store/${clientKey}/hotels/confirmation/${bookingCode}?email=${encodeURIComponent(email)}`);
+      // настоящая оплата: страница оплаты брони в CRM → платёжная система отеля
+      const r = await payReservation(clientKey, reservationId);
+      window.location.href = r.url;
     } catch (e) {
       setError(getApiErrorMessage(e));
     } finally {
@@ -41,21 +39,21 @@ const HotelPaymentPage: React.FC = () => {
             {total} {currency}
           </span>
         </div>
-        <p className="text-xs text-stone-500 mb-4">Тестовая оплата — данные карты нигде не сохраняются и не проверяются.</p>
+        <p className="text-xs text-stone-500 mb-4">Оплата картой на странице платёжной системы отеля. Без подключённой платёжной системы оплатить нельзя.</p>
         {error && <div className="rounded-xl border border-rose-300 bg-rose-50 text-rose-700 px-3 py-2 mb-3 text-sm">{error}</div>}
-        <div className="space-y-3">
-          <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="Номер карты" className="w-full rounded-xl border border-amber-300 px-3 py-2 text-sm font-mono" />
-          <div className="flex gap-3">
-            <input value={expiry} onChange={(e) => setExpiry(e.target.value)} placeholder="ММ/ГГ" className="w-1/2 rounded-xl border border-amber-300 px-3 py-2 text-sm font-mono" />
-            <input value={cvc} onChange={(e) => setCvc(e.target.value)} placeholder="CVC" className="w-1/2 rounded-xl border border-amber-300 px-3 py-2 text-sm font-mono" />
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate(`/store/${clientKey}/hotels/confirmation/${bookingCode}?email=${encodeURIComponent(email)}`)}
+          className="mb-3 text-xs text-stone-500 underline"
+        >
+          Оплачу позже
+        </button>
         <button
           onClick={submit}
           disabled={submitting}
           className="mt-4 w-full rounded-full bg-amber-500 text-white font-medium py-2.5 hover:bg-amber-600 transition-colors disabled:opacity-50"
         >
-          {submitting ? "Оплачиваем…" : `Оплатить ${total} ${currency}`}
+          {submitting ? "Переходим к оплате…" : `Перейти к оплате ${total} ${currency}`}
         </button>
       </div>
     </StoreLayout>

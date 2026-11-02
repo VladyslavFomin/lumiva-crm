@@ -111,6 +111,11 @@ import { HotelPosController } from './hotel-pos.controller';
 import { HotelEInvoice, HotelEInvoiceConnection } from './hotel-einvoice.entities';
 import { HotelEInvoiceService } from './hotel-einvoice.service';
 import { HotelEInvoiceController } from './hotel-einvoice.controller';
+import { HotelPaymentRequest } from './hotel-payment-request.entity';
+import { HotelPaymentLinksService } from './hotel-payment-links.service';
+import { HotelPaymentLinksController, HotelPaymentLinksPublicController } from './hotel-payment-links.controller';
+import { Payment } from '../payments/payment.entity';
+import { PaymentsModule } from '../payments/payments.module';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelPrecheckinController, HotelPrecheckinPublicController } from './hotel-precheckin.controller';
 import { HotelChannelsService } from './hotel-channels.service';
@@ -140,6 +145,8 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
       HotelPosCheck,
       HotelEInvoiceConnection,
       HotelEInvoice,
+      HotelPaymentRequest,
+      Payment,
       HotelGuestRequest,
       Hotel,
       HotelRoomType,
@@ -177,6 +184,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     forwardRef(() => AutomationsModule),
     AuditLogModule,
     MailModule,
+    PaymentsModule,
     TenantsModule,
     CurrencyModule,
   ],
@@ -202,6 +210,8 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelRevenueController,
     HotelPosController,
     HotelEInvoiceController,
+    HotelPaymentLinksController,
+    HotelPaymentLinksPublicController,
     HotelGuestCareController,
     HotelGuestCarePublicController,
     HotelHousekeepingController,
@@ -231,6 +241,7 @@ import { HotelGuestRequest } from './hotel-guest-care.entity';
     HotelRevenueService,
     HotelPosService,
     HotelEInvoiceService,
+    HotelPaymentLinksService,
     HotelGuestCareService,
     HotelChannelsScheduler,
     HotelsService,

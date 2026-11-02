@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { HotelsPublicStorefrontService } from './hotels-public-storefront.service';
 
 @Controller('public/hotels')
@@ -30,9 +31,11 @@ export class HotelsPublicStorefrontController {
     return this.service.createReservation(clientKey, dto);
   }
 
-  @Post(':clientKey/reservations/:id/test-payment')
-  testPayment(@Param('clientKey') clientKey: string, @Param('id') id: string) {
-    return this.service.testPayment(clientKey, id);
+  /** Онлайн-оплата брони с сайта: ссылка на страницу оплаты (предоплата по тарифу или вся сумма) */
+  @Post(':clientKey/reservations/:id/pay')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  pay(@Param('clientKey') clientKey: string, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.payLink(clientKey, id);
   }
 
   @Get(':clientKey/reservations/lookup')

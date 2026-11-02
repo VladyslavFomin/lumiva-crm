@@ -19951,7 +19951,8 @@
           "card": "Kart",
           "cash": "Nakit",
           "bank_transfer": "Banka havalesi",
-          "other": "Diğer"
+          "other": "Diğer",
+          "online": "Online"
         },
         "modal": {
           "titleEdit": "Rezervasyonu düzenle",
@@ -21841,7 +21842,14 @@
           "HOTEL_EINVOICE_CANCEL_EFATURA": "e-Fatura iptal edilemez — entegratör hesabında iade faturası kesin",
           "HOTEL_EINVOICE_CANCEL_LATE": "e-Arşiv yalnızca 7 gün içinde iptal edilebilir — sonrasında iade faturası",
           "HOTEL_EINVOICE_PROVIDER_UNKNOWN": "Entegratör desteklenmiyor",
-          "HOTEL_EXTRA_VAT": "KDV oranı %0–100 olmalı"
+          "HOTEL_EXTRA_VAT": "KDV oranı %0–100 olmalı",
+          "HOTEL_PAY_CLOSED": "Rezervasyon iptal edildi veya kapandı — ödeme istenemez",
+          "HOTEL_PAY_NO_PROVIDER": "Ödeme sistemi bağlı değil: Entegrasyonlar’dan iyzico, PayTR veya YooKassa bağlayın",
+          "HOTEL_PAY_CURRENCY": "Ödeme sistemi otelin para birimini kabul etmiyor",
+          "HOTEL_PAY_AMOUNT": "Tutar sıfırdan büyük olmalı",
+          "HOTEL_PAY_TOO_MUCH": "Tutar folyo bakiyesinden fazla",
+          "HOTEL_PAY_NOT_PENDING": "Talep zaten ödendi veya kapandı",
+          "HOTEL_PAY_NO_EMAIL": "Rezervasyonda misafir e-postası yok"
         },
         "refund": {
           "folio": {
@@ -23933,6 +23941,47 @@
         "lastOk": "{{at}} kontrol edildi",
         "extraVat": "KDV %",
         "extraVatDefault": "varsayılan"
+      },
+      "paylink": {
+        "title": "Online ödeme",
+        "deposit": "Ön ödeme {{amount}}, kalan {{left}}",
+        "due": "son {{date}}",
+        "request": "Ödeme iste",
+        "noProvider": "Ödeme sistemi bağlı değil — Entegrasyonlar’dan iyzico, PayTR veya YooKassa bağlayın",
+        "noCurrency": "Ödeme sistemi {{cur}} kabul etmiyor",
+        "kind": {
+          "deposit": "Ön ödeme",
+          "balance": "Kalan",
+          "custom": "Özel tutar"
+        },
+        "amount": "Tutar, {{cur}}",
+        "folio": "Folyo",
+        "days": "Geçerlilik, gün",
+        "sendEmail": "Misafire {{to}} adresine gönder",
+        "noEmail": "Rezervasyonda e-posta yok — bağlantıyı WhatsApp’tan gönderin veya kopyalayın",
+        "create": "Bağlantı oluştur",
+        "created": "Ödeme bağlantısı oluşturuldu",
+        "createdSent": "Bağlantı oluşturuldu ve {{to}} adresine gönderildi",
+        "copied": "Bağlantı kopyalandı",
+        "copy": "Bağlantıyı kopyala",
+        "email": "E-postayla gönder",
+        "sent": "{{to}} adresine gönderildi",
+        "cancel": "İptal et",
+        "cancelTitle": "Bağlantı iptal edilsin mi?",
+        "cancelBody": "Misafir bu bağlantıyla artık ödeme yapamaz. Zaten ödeme sayfasındaysa ve öderse, ödeme yine de kaydedilir.",
+        "status": {
+          "pending": "Ödeme bekleniyor",
+          "paid": "Ödendi",
+          "cancelled": "İptal edildi",
+          "expired": "Süresi doldu"
+        },
+        "paidAt": "{{at}} ödendi",
+        "sentTo": "{{to}} adresine gönderildi",
+        "opened": "Misafir bağlantıyı açtı",
+        "fromWebsite": "web sitesinden",
+        "error": "Başarısız",
+        "waText": "Merhaba {{name}}! Rezervasyon ödeme bağlantınız ({{amount}}): {{url}}",
+        "createdNotSent": "Bağlantı oluşturuldu ancak e-posta gönderilmedi: {{error}}. Bağlantıyı kopyalayın veya WhatsApp’tan gönderin."
       }
     },
     "telephony": {
@@ -30040,6 +30089,44 @@
         "HOTEL_PRECHECKIN_CLOSED": "Check-in kapalı",
         "HOTEL_UPSELL_DECIDED": "Otel bu siparişe zaten yanıt verdi",
         "FILE_TOO_LARGE": "Fotoğraf 8 MB’den büyük"
+      }
+    },
+    "hotelPay": {
+      "invalid": "Bağlantı bulunamadı",
+      "invalidHint": "E-postadaki bağlantıyı kontrol edin veya otelle iletişime geçin.",
+      "booking": "Rezervasyon {{code}}",
+      "arrival": "Giriş",
+      "departure": "Çıkış",
+      "room": "Oda",
+      "guests_one": "{{count}} misafir",
+      "guests_other": "{{count}} misafir",
+      "kind": {
+        "deposit": "Ön ödeme",
+        "balance": "Ödenecek tutar",
+        "custom": "Ödenecek tutar"
+      },
+      "validUntil": "Bağlantı {{date}} tarihine kadar geçerli",
+      "checking": "Ödemeniz kontrol ediliyor… Bir dakika kadar sürebilir.",
+      "failedTry": "Ödeme gerçekleşmedi. Tekrar deneyin veya başka bir kart kullanın.",
+      "name": "Makbuzdaki ad",
+      "email": "Makbuz için e-posta",
+      "phone": "Telefon",
+      "emailNeeded": "E-postanızı girin — makbuz oraya gönderilir",
+      "pay": "{{amount}} öde",
+      "redirecting": "Ödemeye yönlendiriliyor…",
+      "secure": "Kartla ödeme {{provider}} güvenli sayfasında. Otel kart bilgilerinizi görmez.",
+      "noProvider": "Online ödeme şu anda kullanılamıyor — lütfen otelle iletişime geçin.",
+      "paidTitle": "Ödendi",
+      "paidHint": "Teşekkürler! {{amount}} alındı, rezervasyonunuz onaylandı.",
+      "expiredTitle": "Bağlantının süresi doldu",
+      "cancelledTitle": "Bağlantı artık geçerli değil",
+      "closedHint": "Otelden yeni bir bağlantı isteyin.",
+      "foot": "{{hotel}} · Lumiva ile ödeme",
+      "errors": {
+        "HOTEL_PAY_NOT_PENDING": "Bağlantı artık geçerli değil",
+        "HOTEL_PAY_CLOSED": "Rezervasyon iptal edildi — ödeme gerekmiyor",
+        "HOTEL_PAY_EMAIL": "E-postanızı girin — makbuz oraya gönderilir",
+        "PAYMENT_NO_PROVIDER": "Online ödeme şu anda kullanılamıyor — lütfen otelle iletişime geçin"
       }
     }
   },

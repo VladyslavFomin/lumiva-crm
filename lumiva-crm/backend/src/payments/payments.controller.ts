@@ -112,6 +112,8 @@ export class PaymentsController {
     if (!token) return fail();
     try {
       const r = await this.svc.handleIyzicoCallback(token);
+      // оплата брони отеля — обратно на страницу запроса оплаты (она сама покажет итог)
+      if (r.returnUrl) return res.redirect(`${r.returnUrl}${r.returnUrl.includes('?') ? '&' : '?'}status=${r.status}`);
       return res.redirect(
         `${frontend}/pay/result?status=${r.status}${r.saleId ? `&sale=${r.saleId}` : ''}`,
       );

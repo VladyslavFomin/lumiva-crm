@@ -19971,7 +19971,8 @@
           "card": "Card",
           "cash": "Cash",
           "bank_transfer": "Bank transfer",
-          "other": "Other"
+          "other": "Other",
+          "online": "Online"
         },
         "modal": {
           "titleEdit": "Edit booking",
@@ -21865,7 +21866,14 @@
           "HOTEL_EINVOICE_CANCEL_EFATURA": "An e-Fatura cannot be cancelled — issue a return invoice (iade) in the provider account",
           "HOTEL_EINVOICE_CANCEL_LATE": "An e-Arşiv can be cancelled only within 7 days — after that, issue a return invoice",
           "HOTEL_EINVOICE_PROVIDER_UNKNOWN": "Provider not supported",
-          "HOTEL_EXTRA_VAT": "VAT rate must be 0–100 %"
+          "HOTEL_EXTRA_VAT": "VAT rate must be 0–100 %",
+          "HOTEL_PAY_CLOSED": "The booking is cancelled or closed — cannot request payment",
+          "HOTEL_PAY_NO_PROVIDER": "No payment provider connected: connect iyzico, PayTR or YooKassa in Integrations",
+          "HOTEL_PAY_CURRENCY": "The payment provider does not accept the hotel currency",
+          "HOTEL_PAY_AMOUNT": "The amount must be greater than zero",
+          "HOTEL_PAY_TOO_MUCH": "The amount exceeds the folio balance",
+          "HOTEL_PAY_NOT_PENDING": "The request is already paid or closed",
+          "HOTEL_PAY_NO_EMAIL": "The booking has no guest email"
         },
         "refund": {
           "folio": {
@@ -23961,6 +23969,47 @@
         "lastOk": "Checked {{at}}",
         "extraVat": "VAT %",
         "extraVatDefault": "default"
+      },
+      "paylink": {
+        "title": "Online payment",
+        "deposit": "Deposit {{amount}}, {{left}} left",
+        "due": "due {{date}}",
+        "request": "Request payment",
+        "noProvider": "No payment provider connected — connect iyzico, PayTR or YooKassa in Integrations",
+        "noCurrency": "The payment provider does not accept {{cur}}",
+        "kind": {
+          "deposit": "Deposit",
+          "balance": "Balance",
+          "custom": "Custom amount"
+        },
+        "amount": "Amount, {{cur}}",
+        "folio": "Folio",
+        "days": "Valid for, days",
+        "sendEmail": "Email it to the guest at {{to}}",
+        "noEmail": "No guest email — send the link via WhatsApp or copy it",
+        "create": "Create link",
+        "created": "Payment link created",
+        "createdSent": "Link created and sent to {{to}}",
+        "copied": "Link copied",
+        "copy": "Copy link",
+        "email": "Send by email",
+        "sent": "Sent to {{to}}",
+        "cancel": "Cancel",
+        "cancelTitle": "Cancel the link?",
+        "cancelBody": "The guest will no longer be able to pay with this link. If they are already on the payment page and pay, the payment is still recorded.",
+        "status": {
+          "pending": "Awaiting payment",
+          "paid": "Paid",
+          "cancelled": "Cancelled",
+          "expired": "Expired"
+        },
+        "paidAt": "Paid {{at}}",
+        "sentTo": "Sent to {{to}}",
+        "opened": "Guest opened the link",
+        "fromWebsite": "from website",
+        "error": "Failed",
+        "waText": "Hello {{name}}! Here is the link to pay for your booking ({{amount}}): {{url}}",
+        "createdNotSent": "Link created but the email was not sent: {{error}}. Copy the link or send it via WhatsApp."
       }
     },
     "telephony": {
@@ -30068,6 +30117,44 @@
         "HOTEL_PRECHECKIN_CLOSED": "Check-in is closed",
         "HOTEL_UPSELL_DECIDED": "The hotel has already answered this order",
         "FILE_TOO_LARGE": "The photo is larger than 8 MB"
+      }
+    },
+    "hotelPay": {
+      "invalid": "Link not found",
+      "invalidHint": "Check the link in the email or contact the hotel.",
+      "booking": "Booking {{code}}",
+      "arrival": "Arrival",
+      "departure": "Departure",
+      "room": "Room",
+      "guests_one": "{{count}} guest",
+      "guests_other": "{{count}} guests",
+      "kind": {
+        "deposit": "Deposit",
+        "balance": "Amount due",
+        "custom": "Amount due"
+      },
+      "validUntil": "Link valid until {{date}}",
+      "checking": "Checking your payment… This takes up to a minute.",
+      "failedTry": "The payment did not go through. Try again or use another card.",
+      "name": "Name on receipt",
+      "email": "Email for the receipt",
+      "phone": "Phone",
+      "emailNeeded": "Enter your email — the receipt is sent there",
+      "pay": "Pay {{amount}}",
+      "redirecting": "Redirecting to payment…",
+      "secure": "Card payment on {{provider}}’s secure page. The hotel never sees your card details.",
+      "noProvider": "Online payment is unavailable right now — please contact the hotel.",
+      "paidTitle": "Paid",
+      "paidHint": "Thank you! {{amount}} received, your booking is confirmed.",
+      "expiredTitle": "This link has expired",
+      "cancelledTitle": "This link is no longer valid",
+      "closedHint": "Ask the hotel to send a new link.",
+      "foot": "{{hotel}} · payments by Lumiva",
+      "errors": {
+        "HOTEL_PAY_NOT_PENDING": "This link is no longer valid",
+        "HOTEL_PAY_CLOSED": "The booking is cancelled — no payment needed",
+        "HOTEL_PAY_EMAIL": "Enter your email — the receipt is sent there",
+        "PAYMENT_NO_PROVIDER": "Online payment is unavailable right now — please contact the hotel"
       }
     }
   },

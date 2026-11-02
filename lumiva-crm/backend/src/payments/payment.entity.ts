@@ -9,7 +9,7 @@ import {
 
 export type PaymentProvider = 'iyzico' | 'paytr' | 'yookassa';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
-export type PaymentSource = 'sale_link' | 'storefront';
+export type PaymentSource = 'sale_link' | 'storefront' | 'hotel_payment';
 
 @Entity('payments')
 export class Payment {
@@ -36,6 +36,14 @@ export class Payment {
 
   @Column({ type: 'varchar', length: 24, name: 'source', default: 'sale_link' })
   source: PaymentSource;
+
+  /** запрос оплаты брони отеля (hotel_payment_requests) — для source 'hotel_payment' */
+  @Column({ type: 'uuid', name: 'hotelPaymentRequestId', nullable: true })
+  hotelPaymentRequestId: string | null;
+
+  /** куда вернуть покупателя после оплаты (иначе общая страница /pay/result) */
+  @Column({ type: 'text', name: 'returnUrl', nullable: true })
+  returnUrl: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   token: string | null;

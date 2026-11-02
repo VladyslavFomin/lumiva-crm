@@ -12,6 +12,7 @@ import { HotelAvailabilityService } from './hotel-availability.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
 import { HotelReservationsService } from './hotel-reservations.service';
+import { HotelPaymentLinksService } from './hotel-payment-links.service';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime();
@@ -40,6 +41,7 @@ export class HotelsPublicStorefrontService {
     private readonly roomTypesService: HotelRoomTypesService,
     private readonly gallery: HotelsGalleryService,
     private readonly reservations: HotelReservationsService,
+    private readonly payLinks: HotelPaymentLinksService,
     private readonly ratePlans: HotelRatePlansService,
   ) {}
 
@@ -253,16 +255,14 @@ export class HotelsPublicStorefrontService {
     return { id: reservation.id, bookingCode: reservation.bookingCode, total: reservation.total, currency: hotel?.currency ?? 'USD' };
   }
 
-  async testPayment(clientKey: string, reservationId: string) {
+  /**
+   * Раньше здесь была «тестовая оплата» без проверки — любой, кто знал id брони, мог отметить её оплаченной.
+   * Теперь — настоящий запрос оплаты через подключённую платёжную систему (HotelPaymentLinksService).
+   */
+  async payLink(clientKey: string, reservationId: string) {
     const tenantId = await this.resolveTenantId(clientKey);
-    const reservation = await this.reservations.get(tenantId, reservationId);
-    const updated = await this.reservations.addPayment(
-      tenantId,
-      reservationId,
-      { date: new Date().toISOString().slice(0, 10), amount: reservation.total, method: 'card', note: 'Test payment (public storefront)' },
-      null,
-    );
-    return { id: updated.id, bookingCode: updated.bookingCode, paidStatus: updated.paidStatus, total: updated.total };
+    const q = await this.payLinks.forWebsite(tenantId, reservationId);
+    return { url: q.url, amount: q.amount, currency: q.currency, kind: q.kind };
   }
 
   async lookupReservation(clientKey: string, code: string, email: string) {

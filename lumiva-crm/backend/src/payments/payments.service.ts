@@ -186,6 +186,8 @@ export class PaymentsService {
     basketItems: { id: string; name: string; category1: string; price: string }[];
     buyer: BuyerInput;
     locale?: 'tr' | 'en';
+    hotelPaymentRequestId?: string | null;
+    returnUrl?: string | null;
   }): Promise<PaymentDto> {
     if (params.amount <= 0) {
       throw new BadRequestException('Сумма к оплате должна быть больше нуля');
@@ -199,6 +201,10 @@ export class PaymentsService {
         { tenantId: params.tenantId, saleId: params.saleId, status: 'pending' } as any,
         { status: 'cancelled' },
       );
+    }
+    if (params.hotelPaymentRequestId) {
+      // новая сессия по тому же запросу оплаты брони — прежние незавершённые закрываем
+      await this.repo.update({ tenantId: params.tenantId, hotelPaymentRequestId: params.hotelPaymentRequestId, status: 'pending' } as any, { status: 'cancelled' });
     }
     const currency = this.validateCurrency(params.provider, params.currency);
 
@@ -220,6 +226,8 @@ export class PaymentsService {
     basketItems: { id: string; name: string; category1: string; price: string }[];
     buyer: BuyerInput;
     locale?: 'tr' | 'en';
+    hotelPaymentRequestId?: string | null;
+    returnUrl?: string | null;
   }): Promise<PaymentDto> {
     const creds = await this.getIyzicoCredentials(params.tenantId);
     const conversationId = randomUUID();
@@ -265,6 +273,8 @@ export class PaymentsService {
       currency: params.currency,
       saleId: params.saleId,
       source: params.source,
+      hotelPaymentRequestId: params.hotelPaymentRequestId ?? null,
+      returnUrl: params.returnUrl ?? null,
       token: result.token || null,
       conversationId,
       paymentPageUrl: result.paymentPageUrl || null,
@@ -282,6 +292,8 @@ export class PaymentsService {
     currency: 'TRY' | 'EUR' | 'USD' | 'GBP';
     basketItems: { id: string; name: string; category1: string; price: string }[];
     buyer: BuyerInput;
+    hotelPaymentRequestId?: string | null;
+    returnUrl?: string | null;
   }): Promise<PaymentDto> {
     const creds = await this.getPaytrCredentials(params.tenantId);
     const merchantOid = randomBytes(16).toString('hex');
@@ -302,8 +314,8 @@ export class PaymentsService {
         userAddress: params.buyer.address,
         userPhone: params.buyer.phone || '00000000000',
         basket: params.basketItems.map((i) => ({ name: i.name, price: i.price, qty: 1 })),
-        okUrl: `${frontend}/pay/result?status=paid`,
-        failUrl: `${frontend}/pay/result?status=failed`,
+        okUrl: params.returnUrl ? `${params.returnUrl}${params.returnUrl.includes('?') ? '&' : '?'}status=paid` : `${frontend}/pay/result?status=paid`,
+        failUrl: params.returnUrl ? `${params.returnUrl}${params.returnUrl.includes('?') ? '&' : '?'}status=failed` : `${frontend}/pay/result?status=failed`,
       });
     } catch (e) {
       throw new BadRequestException(e instanceof Error ? e.message : 'PayTR: не удалось создать сессию оплаты');
@@ -320,6 +332,8 @@ export class PaymentsService {
       currency: params.currency,
       saleId: params.saleId,
       source: params.source,
+      hotelPaymentRequestId: params.hotelPaymentRequestId ?? null,
+      returnUrl: params.returnUrl ?? null,
       token: result.token,
       conversationId: merchantOid,
       paymentPageUrl: this.paytr.paymentPageUrl(result.token),
@@ -337,6 +351,8 @@ export class PaymentsService {
     currency: string;
     basketItems: { id: string; name: string; category1: string; price: string }[];
     buyer: BuyerInput;
+    hotelPaymentRequestId?: string | null;
+    returnUrl?: string | null;
   }): Promise<PaymentDto> {
     const creds = await this.getYookassaCredentials(params.tenantId);
     const frontend = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
@@ -350,7 +366,7 @@ export class PaymentsService {
         amount: params.amount,
         currency: params.currency,
         description: params.basketItems.map((i) => i.name).join(', ') || 'Оплата заказа',
-        returnUrl: `${frontend}/pay/result?status=paid`,
+        returnUrl: params.returnUrl ? `${params.returnUrl}${params.returnUrl.includes('?') ? '&' : '?'}status=paid` : `${frontend}/pay/result?status=paid`,
         metadata: params.saleId ? { saleId: params.saleId } : undefined,
       });
     } catch (e) {
@@ -365,6 +381,8 @@ export class PaymentsService {
       currency: params.currency,
       saleId: params.saleId,
       source: params.source,
+      hotelPaymentRequestId: params.hotelPaymentRequestId ?? null,
+      returnUrl: params.returnUrl ?? null,
       token: result.id,
       conversationId: result.id,
       paymentPageUrl: result.confirmation?.confirmation_url || null,
@@ -437,6 +455,61 @@ export class PaymentsService {
       basketItems: params.basketItems,
       buyer: params.buyer,
     });
+  }
+
+  /**
+   * Оплата брони отеля по запросу оплаты (hotel_payment_requests): сумма и валюта — из запроса,
+   * покупатель возвращается на страницу запроса (returnUrl).
+   */
+  async createHotelCheckout(params: {
+    tenantId: string;
+    hotelPaymentRequestId: string;
+    amount: number;
+    currency: string;
+    description: string;
+    buyer: BuyerInput;
+    returnUrl: string;
+    locale?: 'tr' | 'en';
+  }): Promise<PaymentDto> {
+    const provider = await this.findEnabledProvider(params.tenantId);
+    if (!provider) throw new BadRequestException({ code: 'PAYMENT_NO_PROVIDER', message: 'Платёжная система не подключена' });
+    return this.initCheckout({
+      tenantId: params.tenantId,
+      provider,
+      source: 'hotel_payment',
+      saleId: null,
+      amount: params.amount,
+      currency: params.currency,
+      basketItems: [{ id: params.hotelPaymentRequestId, name: params.description.slice(0, 120), category1: 'Accommodation', price: params.amount.toFixed(2) }],
+      buyer: params.buyer,
+      locale: params.locale,
+      hotelPaymentRequestId: params.hotelPaymentRequestId,
+      returnUrl: params.returnUrl,
+    });
+  }
+
+  /** Какие валюты принимает подключённый провайдер (для запроса оплаты брони — проверка заранее) */
+  async enabledProviderInfo(tenantId: string): Promise<{ provider: PaymentProvider; currencies: string[] } | null> {
+    const provider = await this.findEnabledProvider(tenantId);
+    return provider ? { provider, currencies: [...CURRENCIES_BY_PROVIDER[provider]] } : null;
+  }
+
+  private readonly paidHooks: Array<(p: Payment) => Promise<void>> = [];
+
+  /** Другие модули (отели) узнают об оплате без циклической зависимости: регистрируют обработчик */
+  onPaid(fn: (p: Payment) => Promise<void>) {
+    this.paidHooks.push(fn);
+  }
+
+  private async runPaidHooks(p: Payment) {
+    for (const fn of this.paidHooks) {
+      try {
+        await fn(p);
+      } catch (e) {
+        // обработчик сам досчитает по своей сверке; здесь только не роняем ответ провайдеру
+        this.log.warn(`paid hook ${p.id}: ${(e as Error).message}`);
+      }
+    }
   }
 
   /** Есть ли у тенанта хотя бы один включённый провайдер оплаты. */
@@ -593,11 +666,11 @@ export class PaymentsService {
    */
   async handleIyzicoCallback(
     token: string,
-  ): Promise<{ status: 'paid' | 'failed'; saleId: string | null; tenantId: string }> {
+  ): Promise<{ status: 'paid' | 'failed'; saleId: string | null; tenantId: string; returnUrl: string | null }> {
     const payment = await this.repo.findOne({ where: { token, provider: 'iyzico' } as any });
     if (!payment) throw new NotFoundException('Платёж не найден');
     const status = await this.settleIyzicoPayment(payment, false);
-    return { status: status === 'paid' ? 'paid' : 'failed', saleId: payment.saleId, tenantId: payment.tenantId };
+    return { status: status === 'paid' ? 'paid' : 'failed', saleId: payment.saleId, tenantId: payment.tenantId, returnUrl: payment.returnUrl };
   }
 
   /**
@@ -642,6 +715,7 @@ export class PaymentsService {
       await em.save(Payment, payment);
       await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
     });
+    if (paid) await this.runPaidHooks(payment);
     return paid ? 'paid' : 'failed';
   }
 
@@ -711,6 +785,7 @@ export class PaymentsService {
       await em.save(Payment, payment);
       await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
     });
+    if (paid) await this.runPaidHooks(payment);
 
     return { ok: true };
   }
@@ -748,6 +823,7 @@ export class PaymentsService {
       await em.save(Payment, payment);
       await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
     });
+    if (paid) await this.runPaidHooks(payment);
 
     return { ok: true };
   }

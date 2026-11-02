@@ -23,12 +23,13 @@ import { DateInput } from '../../../components/ui/DateInput';
 import { useTenantComponents } from '../../../hooks/useTenantComponents';
 import { EInvoiceModal } from './EInvoiceModal';
 import { EInvoiceDocs } from './EInvoiceDocs';
+import { PayLinks } from './PayLinks';
 
 const METHODS = ['cash', 'card', 'bank_transfer', 'other'];
 
 /** Фолио брони (PMS-080…086): два счёта, начисления со сторно, платежи и возвраты, PDF и письмо гостю */
 export const FolioPanel: React.FC<{
-  reservation: { id: string; hotelId: string; agencyId: string | null; guestEmail?: string | null; status: string };
+  reservation: { id: string; hotelId: string; agencyId: string | null; guestEmail?: string | null; guestName?: string | null; status: string };
   currency?: string | null;
   onChanged?: () => void;
 }> = ({ reservation, currency, onChanged }) => {
@@ -44,6 +45,7 @@ export const FolioPanel: React.FC<{
   const [pay, setPay] = useState({ amount: '', method: 'card', note: '', folio: 'guest' as HotelFolioKind, refund: false });
   const { isEnabled } = useTenantComponents();
   const einvoiceOn = isEnabled('hotels_einvoice');
+  const payLinksOn = isEnabled('hotels_pay_links');
   const [einvoiceFolio, setEinvoiceFolio] = useState<HotelFolioKind | null>(null);
   const [docsKey, setDocsKey] = useState(0);
   const hasPartner = !!reservation.agencyId;
@@ -188,6 +190,8 @@ export const FolioPanel: React.FC<{
         <button className="btn btn-sm btn-primary" disabled={busy || !Number(pay.amount)} onClick={addPay}>{pay.refund ? k('addRefund') : k('addPayment')}</button>
         {s.folios[pay.folio].balance > 0.009 && !pay.refund && <button type="button" className="lnk" onClick={() => setPay({ ...pay, amount: String(s.folios[pay.folio].balance) })}>{k('payBalance', { amount: m(s.folios[pay.folio].balance) })}</button>}
       </div>
+
+      {payLinksOn && reservation.status !== 'cancelled' && reservation.status !== 'no_show' && <PayLinks reservationId={reservation.id} folios={folios} guestName={reservation.guestName || ''} onPaid={done} />}
 
       <div className="htl-folio-acts">
         {folios.map((f) => (

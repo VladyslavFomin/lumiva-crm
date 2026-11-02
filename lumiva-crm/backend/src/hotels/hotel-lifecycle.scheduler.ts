@@ -5,6 +5,7 @@ import { HotelNightAuditService } from './hotel-night-audit.service';
 import { HotelPrecheckinService } from './hotel-precheckin.service';
 import { HotelRevenueService } from './hotel-revenue.service';
 import { HotelEInvoiceService } from './hotel-einvoice.service';
+import { HotelPaymentLinksService } from './hotel-payment-links.service';
 
 /** Жизненный цикл броней отеля: автоснятие просроченных опционов (PMS-024). */
 @Injectable()
@@ -19,10 +20,27 @@ export class HotelLifecycleScheduler {
     private readonly precheckin: HotelPrecheckinService,
     private readonly revenue: HotelRevenueService,
     private readonly einvoice: HotelEInvoiceService,
+    private readonly payLinks: HotelPaymentLinksService,
   ) {}
 
   private revenueBusy = false;
   private einvoiceBusy = false;
+
+  private payLinksBusy = false;
+
+  /** Онлайн-оплата брони: оплаченные платежи, чей хук не дошёл, и просроченные ссылки — раз в 2 минуты */
+  @Cron('*/2 * * * *')
+  async paymentLinksReconcile() {
+    if (this.payLinksBusy) return;
+    this.payLinksBusy = true;
+    try {
+      await this.payLinks.reconcile();
+    } catch (e) {
+      this.log.warn(`payment links reconcile: ${(e as Error).message}`);
+    } finally {
+      this.payLinksBusy = false;
+    }
+  }
 
   /** e-Fatura: документы в формировании у интегратора — опрос раз в минуту */
   @Cron('* * * * *')

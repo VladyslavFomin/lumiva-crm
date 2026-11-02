@@ -2577,3 +2577,20 @@ export const eInvoiceLineTotals = (l: Pick<HotelEInvoiceLine, 'quantity' | 'unit
   const vat = r2(((net + acc) * (l.vatPct || 0)) / 100);
   return { net, acc, vat, gross: r2(net + acc + vat) };
 };
+
+// ─── онлайн-оплата брони: запрос оплаты с постоянной ссылкой /hp/:token ───
+export type HotelPayRequestStatus = 'pending' | 'paid' | 'cancelled' | 'expired';
+export interface HotelPayRequest {
+  id: string; reservationId: string; folio: HotelFolioKind; kind: 'deposit' | 'balance' | 'custom'; amount: number; currency: string; status: HotelPayRequestStatus;
+  expiresAt: string | null; note: string | null; paidAt: string | null; openedAt: string | null; sentAt: string | null; sentTo: string | null; origin: 'staff' | 'website'; createdAt: string; url: string;
+}
+export interface HotelPaySuggest {
+  currency: string; depositAmount: number; depositDueDate: string | null; depositLeft: number; balance: Record<HotelFolioKind, number>;
+  provider: 'iyzico' | 'paytr' | 'yookassa' | null; currencySupported: boolean; guestEmail: string | null; guestPhone: string | null;
+}
+const PR = '/hotels/payment-requests';
+export const fetchPayRequests = (reservationId: string) => api.get<HotelPayRequest[]>(PR, { params: { reservationId } });
+export const fetchPaySuggest = (reservationId: string) => api.get<HotelPaySuggest>(`${PR}/suggest/${reservationId}`);
+export const createPayRequest = (dto: { reservationId: string; amount: number; folio: HotelFolioKind; kind: 'deposit' | 'balance' | 'custom'; expiresInDays: number; sendEmail?: boolean; note?: string }) => api.post<HotelPayRequest & { sendError?: { code: string; message: string } | null }>(PR, dto);
+export const sendPayRequest = (id: string) => api.post<{ ok: boolean; sentTo: string }>(`${PR}/${id}/send`, {});
+export const cancelPayRequest = (id: string) => api.post<HotelPayRequest>(`${PR}/${id}/cancel`, {});

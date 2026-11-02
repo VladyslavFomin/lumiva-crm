@@ -90,8 +90,9 @@ export async function createReservation(
   return data;
 }
 
-export async function payReservation(clientKey: string, reservationId: string) {
-  const { data } = await publicClient.post(`/public/hotels/${clientKey}/reservations/${reservationId}/test-payment`);
+/** Ссылка на оплату брони через платёжную систему отеля (iyzico / PayTR / ЮKassa) — страница /hp/:token CRM */
+export async function payReservation(clientKey: string, reservationId: string): Promise<{ url: string; amount: number; currency: string; kind: string }> {
+  const { data } = await publicClient.post(`/public/hotels/${clientKey}/reservations/${reservationId}/pay`);
   return data;
 }
 

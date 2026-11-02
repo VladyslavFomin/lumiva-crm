@@ -68,3 +68,10 @@
 .pc-st.s-declined{background:#f3f3f1;color:#777}
 .pc-x{border:0;background:none;color:#9a1f31;font-size:12px;cursor:pointer;font-family:inherit}
 @media (max-width:420px){.pc .pc-stay{grid-template-columns:1fr 1fr}.pc-row{grid-template-columns:1fr}}
+/* оплата брони по ссылке (hp-*): сумма крупно, кнопка оплаты, платёжная система */
+.hp .hp-amount{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0 10px;text-align:center}
+.hp .hp-amount span{font-size:12px;color:#777;text-transform:uppercase;letter-spacing:.04em}
+.hp .hp-amount b{font-family:var(--ff-heading, inherit);font-size:34px;font-weight:600;line-height:1.1}
+.hp .hp-amount em{font-style:normal;font-size:12px;color:#999}
+.hp .hp-note{margin:6px 0;padding:10px 12px;border-radius:10px;background:#eef0f6;color:#3b4766;font-size:13px}
+.hp .hp-secure{margin:10px 0 0;font-size:12px;color:#999;text-align:center}

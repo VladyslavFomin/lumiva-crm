@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import axios from 'axios';
 
-const GET_TOKEN_URL = 'https://www.paytr.com/odeme/api/get-token';
+// PAYTR_BASE_URL — только для тестового стенда (имитация PayTR); в работе не задаётся
+const PAYTR_BASE = () => (process.env.PAYTR_BASE_URL || 'https://www.paytr.com').replace(/\/+$/, '');
 
 export type PaytrCredentials = {
   merchantId: string;
@@ -120,7 +121,7 @@ export class PaytrApiService {
       lang: params.lang || 'tr',
     });
 
-    const res = await axios.post(GET_TOKEN_URL, form.toString(), {
+    const res = await axios.post(`${PAYTR_BASE()}/odeme/api/get-token`, form.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       timeout: 20000,
       validateStatus: () => true,
@@ -132,7 +133,7 @@ export class PaytrApiService {
   }
 
   paymentPageUrl(token: string): string {
-    return `https://www.paytr.com/odeme/guvenli/${token}`;
+    return `${PAYTR_BASE()}/odeme/guvenli/${token}`;
   }
 
   /** Проверка credentials: создаёт короткоживущий (неиспользуемый) токен сессии — оплата не проходит, деньги не двигаются. */

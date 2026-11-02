@@ -14,21 +14,21 @@ const L: Record<FolioPdfLang, Record<string, string>> = {
     arrival: 'Заезд', departure: 'Выезд', nights: 'Ночей', code: 'Бронь', stay: 'Проживание', cancelFee: 'Штраф за отмену', noShowFee: 'Штраф за незаезд',
     discount: 'Скидка', exTax: 'Стоимость без налогов', accTax: 'Налог на проживание', vat: 'НДС', charges: 'Начисления', total: 'Итого', payments: 'Платежи',
     refund: 'возврат', due: 'К оплате', overpaid: 'Переплата', void: 'сторно', early_checkin: 'Ранний заезд', late_checkout: 'Поздний выезд',
-    cash: 'Наличные', card: 'Карта', bank_transfer: 'Перевод', other: 'Другое', partner: 'Партнёр',
+    cash: 'Наличные', card: 'Карта', bank_transfer: 'Перевод', other: 'Другое', online: 'Онлайн', partner: 'Партнёр',
   },
   en: {
     hotel: 'Hotel', title: 'Reservation invoice', guestFolio: 'Guest folio', partnerFolio: 'Partner folio', guest: 'Guest', phone: 'Phone', roomType: 'Room type',
     arrival: 'Arrival', departure: 'Departure', nights: 'Nights', code: 'Booking', stay: 'Accommodation', cancelFee: 'Cancellation fee', noShowFee: 'No-show fee',
     discount: 'Discount', exTax: 'Amount excl. taxes', accTax: 'Accommodation tax', vat: 'VAT', charges: 'Charges', total: 'Total', payments: 'Payments',
     refund: 'refund', due: 'Balance due', overpaid: 'Overpaid', void: 'void', early_checkin: 'Early check-in', late_checkout: 'Late check-out',
-    cash: 'Cash', card: 'Card', bank_transfer: 'Bank transfer', other: 'Other', partner: 'Partner',
+    cash: 'Cash', card: 'Card', bank_transfer: 'Bank transfer', other: 'Other', online: 'Online', partner: 'Partner',
   },
   tr: {
     hotel: 'Otel', title: 'Rezervasyon faturası', guestFolio: 'Misafir folyosu', partnerFolio: 'Partner folyosu', guest: 'Misafir', phone: 'Telefon', roomType: 'Oda tipi',
     arrival: 'Giriş', departure: 'Çıkış', nights: 'Gece', code: 'Rezervasyon', stay: 'Konaklama', cancelFee: 'İptal cezası', noShowFee: 'No-show cezası',
     discount: 'İndirim', exTax: 'Vergiler hariç tutar', accTax: 'Konaklama vergisi', vat: 'KDV', charges: 'Masraflar', total: 'Toplam', payments: 'Ödemeler',
     refund: 'iade', due: 'Ödenecek tutar', overpaid: 'Fazla ödeme', void: 'iptal', early_checkin: 'Erken giriş', late_checkout: 'Geç çıkış',
-    cash: 'Nakit', card: 'Kart', bank_transfer: 'Havale', other: 'Diğer', partner: 'Partner',
+    cash: 'Nakit', card: 'Kart', bank_transfer: 'Havale', other: 'Diğer', online: 'Online', partner: 'Partner',
   },
 };
 

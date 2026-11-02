@@ -1333,3 +1333,19 @@
   .px-scope .ei-grid,.px-scope .ei-setup{grid-template-columns:minmax(0,1fr)}
   .px-scope .bk-modal .ei-f.wide{grid-column:auto}
 }
+
+/* онлайн-оплата в фолио (.pl-*): ссылки на оплату брони, статус, действия */
+.px-scope .pl-box{margin-top:14px;padding:12px;border:1px solid var(--line-2);border-radius:12px;background:#fff}
+.px-scope .pl-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.px-scope .pl-form{margin-top:10px;padding:10px;border-radius:10px;background:var(--bg-muted);display:flex;flex-direction:column;gap:10px}
+.px-scope .pl-row{display:flex;gap:10px;flex-wrap:wrap}
+.px-scope .pl-row label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--fg-2);min-width:120px;flex:1}
+.px-scope .pl-row input,.px-scope .pl-row select{height:34px;border:1px solid var(--line-2);border-radius:9px;padding:0 10px;font:inherit;font-size:13px;background:#fff}
+.px-scope .pl-acts{display:flex;justify-content:flex-end;gap:6px}
+.px-scope .pl-ln{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line-2);margin-top:8px}
+.px-scope .pl-main{display:flex;flex-direction:column;gap:1px;min-width:0}
+.px-scope .pl-when{grid-column:1 / -1}
+.px-scope .pl-btns{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap}
+.px-scope .pl-st.s-pending{background:#eef0f6;color:#3b4766}
+.px-scope .pl-st.s-paid{background:#e6f4ec;color:#175c3d}
+.px-scope .pl-st.s-expired{background:var(--bg-muted);color:var(--fg-3)}

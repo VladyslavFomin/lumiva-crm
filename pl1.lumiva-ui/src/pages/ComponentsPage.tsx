@@ -206,6 +206,8 @@ const COMPONENTS: ComponentDef[] = [
       { key: "hotels_cashier", name: "Касса и ночной аудит" },
       { key: "hotels_pos", name: "Точки продаж (ресторан, бар, SPA)" },
       { key: "hotels_einvoice", name: "e-Fatura / e-Arşiv" },
+      { key: "hotels_pay_links", name: "Онлайн-оплата брони (ссылки)" },
+      { key: "hotels_pay_links", name: "Онлайн-оплата брони (ссылки)" },
       { key: "hotels_einvoice", name: "e-Fatura / e-Arşiv" },
       { key: "hotels_guest_register", name: "Журнал гостей (KBS / МВД)" },
       { key: "hotels_pricing", name: "Цены" },
