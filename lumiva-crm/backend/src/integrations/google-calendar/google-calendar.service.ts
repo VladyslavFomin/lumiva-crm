@@ -72,6 +72,11 @@ export class GoogleCalendarService {
       validateStatus: () => true,
     });
     if (res.status !== 200) {
+      if (res.data?.error === 'invalid_grant') {
+        // пользователь отозвал доступ, сменил пароль, или OAuth-приложение Google в режиме «Testing»
+        // (там refresh token живёт 7 дней)
+        throw new Error('Google Calendar: Google отозвал доступ — нажмите «Переподключить Google» в «Интеграциях».');
+      }
       const detail =
         typeof res.data === 'object' && res.data !== null
           ? JSON.stringify(res.data)

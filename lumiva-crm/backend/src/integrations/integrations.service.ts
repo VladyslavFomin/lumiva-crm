@@ -1258,16 +1258,18 @@ export class IntegrationsService {
     try {
       let result: SyncResult;
       if (entity.kind === 'third_party_link' && entity.configJson) {
+        // catch только вокруг JSON.parse: раньше он же глотал ошибки синка календаря
+        // (отозванный доступ Google и т.п.), и сломанный календарь отчитывался «ok»
+        let catalogId: string | undefined;
         try {
-          const parsed = JSON.parse(entity.configJson) as { catalogId?: string };
-          if (parsed?.catalogId === 'google_calendar') {
-            result = await this.syncGoogleCalendarWithLeads(tenantId, entity);
-          } else {
-            result = await adapter.syncSales(entity, syncContext);
-          }
+          catalogId = (JSON.parse(entity.configJson) as { catalogId?: string })?.catalogId;
         } catch {
-          result = await adapter.syncSales(entity, syncContext);
+          catalogId = undefined;
         }
+        result =
+          catalogId === 'google_calendar'
+            ? await this.syncGoogleCalendarWithLeads(tenantId, entity)
+            : await adapter.syncSales(entity, syncContext);
       } else {
         result = await adapter.syncSales(entity, syncContext);
       }

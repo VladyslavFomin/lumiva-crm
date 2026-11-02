@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import type { IntegrationConnectionDto } from '../../api/integrations';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
 import { integrationCatalogName } from '../../pages/automations/integrationsCatalog';
+import { IntegrationHealthPill } from './IntegrationHealthBadge';
 
 export type IntegrationConnectionCardProps = {
   connection: IntegrationConnectionDto;
@@ -115,7 +116,7 @@ export const IntegrationConnectionCard: React.FC<
   })();
 
   return (
-    <div className={`${surfaceClass} ${cardClassName}`.trim()}>
+    <div id={`integration-connection-${c.id}`} className={`${surfaceClass} ${cardClassName}`.trim()}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 gap-2">
           {(c.kind === 'third_party_link' && c.linkCatalogId) || c.kind === 'woocommerce' || c.kind === 'shopify' ? (
@@ -305,10 +306,16 @@ export const IntegrationConnectionCard: React.FC<
         </>
       )}
 
-      <p className="mt-2 text-[10px] text-slate-500">
-        {lastSyncLabel}:{' '}
-        {c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : neverLabel}
-        {showLastSyncStatus && c.lastSyncStatus ? ` · ${c.lastSyncStatus}` : ''}
+      <p className="mt-2 text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+        <span>
+          {lastSyncLabel}:{' '}
+          {c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : neverLabel}
+        </span>
+        {showLastSyncStatus && c.isEnabled && (
+          <IntegrationHealthPill
+            status={c.lastSyncStatus === 'error' ? 'error' : c.lastSyncStatus === 'ok' ? 'ok' : 'never'}
+          />
+        )}
       </p>
 
       {showSalesIntegrationsLink &&

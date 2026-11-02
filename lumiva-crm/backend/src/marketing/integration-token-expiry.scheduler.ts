@@ -6,9 +6,7 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SmmIntegration } from '../smm/smm-integration.entity';
 import { SmmProfile } from '../smm/smm-profile.entity';
-import { StaffUser } from '../staff/staff-user.entity';
-import { Tenant } from '../tenants/tenant.entity';
-import { User } from '../users/user.entity';
+import { IntegrationOwnerNotifier } from './integration-owner-notifier.service';
 import { MarketingIntegration } from './marketing-integration.entity';
 import { MarketingOauthToken } from './marketing-oauth-token.entity';
 
@@ -49,11 +47,9 @@ export class IntegrationTokenExpiryScheduler {
     @InjectRepository(MarketingIntegration) private readonly integrations: Repository<MarketingIntegration>,
     @InjectRepository(SmmIntegration) private readonly smmIntegrations: Repository<SmmIntegration>,
     @InjectRepository(SmmProfile) private readonly smmProfiles: Repository<SmmProfile>,
-    @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
-    @InjectRepository(StaffUser) private readonly staff: Repository<StaffUser>,
-    @InjectRepository(User) private readonly users: Repository<User>,
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
+    private readonly ownerNotifier: IntegrationOwnerNotifier,
   ) {}
 
   private stageFor(expiresAt: Date, now: number): { stage: Stage; daysLeft: number } | null {
@@ -108,11 +104,9 @@ export class IntegrationTokenExpiryScheduler {
     path: string,
   ): Promise<void> {
     try {
-      const tenant = await this.tenants.findOne({ where: { id: tenantId } });
-      if (!tenant) return;
-      const l = (tenant.uiLanguage || 'ru').slice(0, 2);
-      const lang: Lang = l === 'en' || l === 'tr' ? l : 'ru';
-      const host = tenant.customDomainStatus === 'active' && tenant.customDomain ? tenant.customDomain : 'crm.lumiva.agency';
+      const owner = await this.ownerNotifier.resolve(tenantId);
+      if (!owner) return;
+      const { tenant, lang } = owner;
       const dateLabel = expiresAt.toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'tr' ? 'tr-TR' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
       if (tenant.ownerEmail) {
@@ -125,18 +119,14 @@ export class IntegrationTokenExpiryScheduler {
             kind: due.stage,
             dateLabel,
             daysLeft: due.daysLeft,
-            url: `https://${host}/app${path}`,
+            url: `${owner.appUrl}${path}`,
           })
           .catch((e) => this.log.error(`Token expiry email failed for ${tenantId}: ${(e as Error)?.message}`));
       }
 
-      const owners = await this.staff.find({ where: { tenantId, role: 'owner' } });
-      const emails = new Set(owners.map((o) => o.email?.trim().toLowerCase()).filter((e): e is string => !!e));
-      if (emails.size) {
-        const users = await this.users.find({ where: { tenantId } });
-        const ids = users.filter((u) => emails.has(u.email?.trim().toLowerCase())).map((u) => u.id);
+      if (owner.ownerUserIds.length) {
         const c = COPY[lang][due.stage];
-        await this.notifications.create(tenantId, ids, c.title, c.body(what, dateLabel, due.daysLeft), {
+        await this.notifications.create(tenantId, owner.ownerUserIds, c.title, c.body(what, dateLabel, due.daysLeft), {
           type: 'integration.token_expiry',
           stage: due.stage,
           link: path,

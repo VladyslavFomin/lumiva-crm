@@ -306,4 +306,54 @@ export class MailService {
     });
     await this.sendMail({ to, subject: l.subject, html });
   }
+
+  /** Системное письмо владельцу: подключения перестали синхронизироваться (IntegrationHealthService). */
+  async sendIntegrationFailureEmail(params: {
+    to: string;
+    uiLanguage?: string | null;
+    items: { name: string; error: string | null }[];
+    url: string;
+  }) {
+    const { to, items, url } = params;
+    const lang = (params.uiLanguage || 'ru').slice(0, 2);
+    const n = items.length;
+    const copy = {
+      ru: {
+        subject: n === 1 ? `Подключение «${items[0].name}» не работает — Lumiva CRM` : `Не работают подключения (${n}) — Lumiva CRM`,
+        headline: 'Подключение не работает',
+        intro: 'Последняя синхронизация завершилась ошибкой, поэтому данные в CRM больше не обновляются:',
+        outro: 'Откройте «Интеграции», чтобы увидеть подробности и переподключить аккаунт.',
+        cta: 'Открыть интеграции',
+      },
+      en: {
+        subject: n === 1 ? `Connection “${items[0].name}” is not working — Lumiva CRM` : `${n} connections are not working — Lumiva CRM`,
+        headline: 'A connection is not working',
+        intro: 'The last sync ended with an error, so data in the CRM is no longer updating:',
+        outro: 'Open Integrations to see the details and reconnect the account.',
+        cta: 'Open integrations',
+      },
+      tr: {
+        subject: n === 1 ? `“${items[0].name}” bağlantısı çalışmıyor — Lumiva CRM` : `${n} bağlantı çalışmıyor — Lumiva CRM`,
+        headline: 'Bir bağlantı çalışmıyor',
+        intro: 'Son senkronizasyon hatayla bitti, bu yüzden CRM’deki veriler artık güncellenmiyor:',
+        outro: 'Ayrıntıları görmek ve hesabı yeniden bağlamak için Entegrasyonlar’ı açın.',
+        cta: 'Entegrasyonları aç',
+      },
+    } as const;
+    const l = copy[(lang === 'en' || lang === 'tr' ? lang : 'ru') as 'ru' | 'en' | 'tr'];
+    const list = items
+      .map(
+        (i) =>
+          `<li style="margin:0 0 6px;"><strong>${escapeMailHtml(i.name)}</strong>${
+            i.error ? `<br/><span style="color:#888;font-size:13px;">${escapeMailHtml(i.error.slice(0, 300))}</span>` : ''
+          }</li>`,
+      )
+      .join('');
+    const html = renderMailShell({
+      headline: l.headline,
+      bodyHtml: `<p style="margin:0 0 12px;">${l.intro}</p><ul style="margin:0 0 12px;padding-left:18px;">${list}</ul><p style="margin:0;">${l.outro}</p>`,
+      cta: { label: l.cta, href: url },
+    });
+    await this.sendMail({ to, subject: l.subject, html });
+  }
 }

@@ -7,6 +7,7 @@ import {
   fetchGoogleAdsManagedCustomers,
   fetchMarketingIntegrationSetupHints,
   fetchMarketingIntegrations,
+  marketingRowHealth,
   startGa4MarketingOAuth,
   startGoogleAdsMarketingOAuth,
   startMetaAdsOAuth,
@@ -17,6 +18,7 @@ import {
 } from '../../api/marketing';
 import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
 import { MetaAdsConnectDialog, MetaTokenBadge } from './MetaAdsConnectDialog';
+import { IntegrationHealthDetails, IntegrationHealthPill } from '../../components/integrations/IntegrationHealthBadge';
 import {
   marketingCard,
   marketingH1,
@@ -581,6 +583,9 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : t('crm.marketingIntegrations.errors.sync');
       setError(msg);
+      // ошибка уже записана в интеграцию — показываем её на карточке
+      void refreshList();
+      onMarketingDataChanged?.();
     } finally {
       setSyncingId(null);
     }
@@ -885,7 +890,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
               const isSyncing = syncingId === row.id;
               const isDeleting = deletingId === row.id;
               return (
-                <div key={row.id} className="border border-[#e7e7e7] rounded-[14px] bg-white overflow-hidden">
+                <div key={row.id} id={`integration-marketing-${row.id}`} className="border border-[#e7e7e7] rounded-[14px] bg-white overflow-hidden">
                   <div className="flex items-center gap-3.5 px-[18px] py-4">
                     {/* brand accent bar */}
                     <div className="w-[3px] self-stretch rounded-[2px] shrink-0 -my-4 -ml-[18px] mr-0.5" style={{ background: brand }} />
@@ -897,10 +902,14 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-[15px] text-[#222] tracking-tight truncate">{row.name}</span>
-                        <span className={`inline-flex items-center gap-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] px-2 py-[3px] rounded-full border ${row.isActive ? 'text-[#1f8a5e] border-[#c5e3d2] bg-[#eaf4ee]' : 'text-[#888] border-[#e7e7e7] bg-[#fafafa]'}`}>
-                          <span className="w-[5px] h-[5px] rounded-full bg-current" />
-                          {row.isActive ? 'Synced' : 'Inactive'}
-                        </span>
+                        {row.isActive ? (
+                          <IntegrationHealthPill status={marketingRowHealth(row)} />
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] px-2 py-[3px] rounded-full border text-[#888] border-[#e7e7e7] bg-[#fafafa]">
+                            <span className="w-[5px] h-[5px] rounded-full bg-current" />
+                            {t('crm.integrationHealth.status.inactive')}
+                          </span>
+                        )}
                       </div>
                       <div className="font-mono text-[11px] text-[#888] mt-[3px] flex items-center gap-1.5 flex-wrap">
                         <span>{pm?.ds ?? row.provider}</span>
@@ -910,6 +919,15 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                           <><span className="opacity-30">·</span><span>MCC managed</span></>
                         )}
                       </div>
+                      {row.isActive && (
+                        <IntegrationHealthDetails
+                          status={marketingRowHealth(row)}
+                          lastSyncAt={row.lastSyncAt}
+                          lastError={row.lastError}
+                          rows={row.lastSyncRows}
+                          since={row.failingSince}
+                        />
+                      )}
                     </div>
                     {/* controls */}
                     <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
@@ -1661,6 +1679,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
             {list.map((row) => (
               <div
                 key={row.id}
+                id={`integration-marketing-${row.id}`}
                 className={`${marketingCard} flex flex-wrap items-stretch gap-0 p-0 overflow-hidden shadow-[0_10px_36px_rgba(34,34,34,0.07)] hover:shadow-[0_14px_44px_rgba(34,34,34,0.09)] transition-shadow`}
               >
                 <div className="w-1 shrink-0 bg-[#222222]" aria-hidden />
@@ -1673,6 +1692,18 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                       ? t('crm.marketingIntegrations.status.enabled')
                       : t('crm.marketingIntegrations.status.disabled')}
                   </div>
+                  {row.isActive && (
+                    <div className="mt-1.5">
+                      <IntegrationHealthPill status={marketingRowHealth(row)} />
+                      <IntegrationHealthDetails
+                        status={marketingRowHealth(row)}
+                        lastSyncAt={row.lastSyncAt}
+                        lastError={row.lastError}
+                        rows={row.lastSyncRows}
+                        since={row.failingSince}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-end justify-end gap-2 sm:gap-3 py-3 pr-4 pl-2 border-t sm:border-t-0 sm:border-l border-[#222222]/10 bg-slate-50/40">
                   <label className="flex min-w-[88px] max-w-[140px] flex-col gap-1">

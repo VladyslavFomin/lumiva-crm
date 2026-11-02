@@ -55,6 +55,10 @@ export class IntegrationConnection {
   @Column({ type: 'text', nullable: true })
   lastError: string | null;
 
+  // Владельцу уже сообщили о текущей ошибке (сбрасывается, когда статус снова "ok")
+  @Column({ type: 'timestamptz', nullable: true })
+  healthNotifiedAt: Date | null;
+
   // Минимальная статистика по продажам, чтобы быстро показывать в UI
   @Column({ type: 'int', default: 0 })
   totalSalesCount: number;

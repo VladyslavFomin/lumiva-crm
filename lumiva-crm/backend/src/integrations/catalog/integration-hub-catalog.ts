@@ -454,6 +454,20 @@ export const INTEGRATION_HUB_CATALOG: IntegrationHubCatalogEntry[] = [
     },
   },
   {
+    id: 'instagram',
+    lifecycle: 'beta',
+    modules: ['leads'],
+    capabilities: {
+      outboundAutomationActions: false,
+      inboundWebhook: true,
+      oauthPlatformSupported: false,
+      salesImport: false,
+      workspaceTableSync: false,
+      calendarSync: false,
+      leadCapture: true,
+    },
+  },
+  {
     id: 'telegram',
     lifecycle: 'live',
     modules: ['leads', 'automations'],

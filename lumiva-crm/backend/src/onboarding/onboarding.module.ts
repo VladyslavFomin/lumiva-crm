@@ -12,15 +12,17 @@ import { StaffUser } from '../staff/staff-user.entity';
 import { Project } from '../projects/project.entity';
 import { OnboardingSampleRecord } from './onboarding-sample-record.entity';
 import { OnboardingService } from './onboarding.service';
+import { OnboardingAiService } from './onboarding-ai.service';
+import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { OnboardingController } from './onboarding.controller';
 import { ProjectTablesModule } from '../project-tables/project-tables.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tenant, Company, Contact, Lead, Product, Sale, SalesChannel, StaffUser, Project, OnboardingSampleRecord]),
+    TypeOrmModule.forFeature([Tenant, Company, Contact, Lead, Product, Sale, SalesChannel, StaffUser, Project, OnboardingSampleRecord, IntegrationConnection]),
     ProjectTablesModule,
   ],
-  providers: [OnboardingService],
+  providers: [OnboardingService, OnboardingAiService],
   controllers: [OnboardingController],
 })
 export class OnboardingModule {}

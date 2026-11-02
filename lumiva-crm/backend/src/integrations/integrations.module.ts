@@ -1,3 +1,4 @@
+import { GoogleCalendarSyncScheduler } from './google-calendar/google-calendar-sync.scheduler';
 // src/integrations/integrations.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -77,6 +78,7 @@ import { LeadsModule } from '../leads/leads.module';
   ],
   providers: [
     IntegrationsService,
+    GoogleCalendarSyncScheduler,
     IntegrationRegistryService,
     SlackWebhookService,
     TeamsWebhookService,

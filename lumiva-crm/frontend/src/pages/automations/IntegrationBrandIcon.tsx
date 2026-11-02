@@ -26,6 +26,7 @@ const CATALOG_TO_SLUG: Record<string, string> = {
   webhooks: 'postman',
   email: 'gmail',
   telegram: 'telegram',
+  instagram: 'instagram',
   woocommerce: 'woocommerce',
   shopify: 'shopify',
   sms: 'twilio',

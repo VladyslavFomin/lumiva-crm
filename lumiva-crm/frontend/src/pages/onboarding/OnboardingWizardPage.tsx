@@ -8,10 +8,11 @@ import {
 } from '../../api/onboarding';
 import { getSession } from '../../auth/session';
 import { LottieIcon } from '../../components/LottieIcon';
+import { OnboardingAiStep } from './OnboardingAiStep';
 
-type Step = 'welcome' | 'team' | 'sample' | 'done';
+type Step = 'welcome' | 'ai' | 'team' | 'sample' | 'done';
 
-const STEP_ORDER: Step[] = ['welcome', 'team', 'sample', 'done'];
+const STEP_ORDER: Step[] = ['welcome', 'ai', 'team', 'sample', 'done'];
 
 /**
  * Renders as an overlay on top of the real CRM (the dashboard/whatever page the user landed
@@ -111,6 +112,8 @@ export const OnboardingWizardPage: React.FC<{ onComplete: () => void }> = ({ onC
               </button>
             </>
           )}
+
+          {step === 'ai' && <OnboardingAiStep onNext={goNext} />}
 
           {step === 'team' && (
             <>

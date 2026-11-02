@@ -42,6 +42,7 @@ import { SapConnectModal } from '../../components/integrations/SapConnectModal';
 import { JiraConnectModal } from '../../components/integrations/JiraConnectModal';
 import { IyzicoConnectModal } from '../../components/integrations/IyzicoConnectModal';
 import { PaytrConnectModal } from '../../components/integrations/PaytrConnectModal';
+import { IntegrationHealthBanner } from '../../components/integrations/IntegrationHealthBanner';
 import { YookassaConnectModal } from '../../components/integrations/YookassaConnectModal';
 import {
   MarketingIntegrationsPanel,
@@ -77,6 +78,7 @@ const CATALOG_BRAND_COLORS: Record<string, string> = {
   google_sheets: '#34A853',
   google_calendar: '#1A73E8',
   telegram: '#26A5E4',
+  instagram: '#E1306C',
   whatsapp: '#25D366',
   make: '#6D00CC',
   zapier: '#FF4A00',
@@ -253,6 +255,7 @@ export const IntegrationsHubPage: React.FC = () => {
   const [marketingPanelRefreshSignal, setMarketingPanelRefreshSignal] = useState(0);
   const [openMetaAdsSignal, setOpenMetaAdsSignal] = useState(0);
 
+  const [healthKey, setHealthKey] = useState(0);
   const load = useCallback(async (opts?: { quiet?: boolean }) => {
     const quiet = Boolean(opts?.quiet);
     if (!quiet) {
@@ -276,6 +279,7 @@ export const IntegrationsHubPage: React.FC = () => {
       }
     } finally {
       if (!quiet) setLoading(false);
+      setHealthKey((k) => k + 1);
     }
   }, [t]);
 
@@ -622,7 +626,9 @@ export const IntegrationsHubPage: React.FC = () => {
           ? { label: t('crm.integrationsHub.emailManagedLink'), to: '/app/email' }
           : entry.id === 'telegram'
             ? { label: t('crm.integrationsHub.telegramManagedLink'), to: '/app/telegram' }
-            : null;
+            : entry.id === 'instagram'
+              ? { label: t('crm.integrationsHub.instagramManagedLink'), to: '/app/instagram' }
+              : null;
 
     const lcClass = entry.lifecycle === 'live'
       ? 'text-[#1f8a5e] border-[#c5e3d2] bg-[#eaf4ee]'
@@ -738,6 +744,14 @@ export const IntegrationsHubPage: React.FC = () => {
                 {managedElsewhere.label}
               </Link>
             ) : null}
+            {entry.id === 'amocrm' || entry.id === 'bitrix' ? (
+              <Link
+                to={`/migration?source=${entry.id === 'amocrm' ? 'amocrm' : 'bitrix24'}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#e7e7e7] bg-white text-[#222] text-[12px] font-medium rounded-lg transition hover:border-[#222]"
+              >
+                {t('crm.migration.hubLink')}
+              </Link>
+            ) : null}
             {marketingProvider ? (
               <>
                 <button
@@ -836,6 +850,8 @@ export const IntegrationsHubPage: React.FC = () => {
             </Link>
           </div>
         </div>
+
+        <IntegrationHealthBanner reloadKey={healthKey} onOpenTab={setTab} />
 
         {/* ── MODULE TABS (underline style) ── */}
         <div className="flex border-b border-[#e7e7e7] mb-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
