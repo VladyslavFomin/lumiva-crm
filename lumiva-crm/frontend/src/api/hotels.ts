@@ -434,6 +434,8 @@ export interface HotelReservation {
   paymentCollect?: 'property' | 'ota' | null;
   channelPaymentType?: string | null;
   otaCode?: string | null;
+  /** ваучер — номер заявки у партнёра (ТО / OTA) */
+  voucherNo?: string | null;
   channelBookingId?: string | null;
   guestName: string;
   guestEmail: string | null;
@@ -1486,6 +1488,7 @@ export interface HotelRackReservation {
   roomTypeId: string;
   roomUnitId: string | null;
   agencyId: string | null;
+  voucherNo?: string | null;
   guestName: string;
   guestPhone: string | null;
   guestEmail: string | null;

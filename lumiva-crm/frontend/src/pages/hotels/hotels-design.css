@@ -1354,3 +1354,7 @@
 .px-scope .pc-auto{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--line-2);border-radius:12px;background:var(--bg-muted)}
 .px-scope .pc-auto>div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .px-scope .pc-auto b{font-size:13px;font-weight:600}
+/* быстрое добавление партнёра — поверх формы брони (в т.ч. открытой из шахматки) */
+.px-scope .bk-modal-back.qp-back{z-index:90}
+.px-scope .bk-modal.qp-dialog{z-index:91}
+.px-scope .htl-voucher{margin-top:3px;font-family:var(--ff-mono-ui);font-size:10.5px;color:var(--fg-3);white-space:nowrap}

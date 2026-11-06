@@ -79,6 +79,8 @@ export class MediaLink {
   @Column({ type: 'varchar', length: 100, nullable: true, select: false }) passwordHash: string | null;
   @Column({ type: 'timestamptz', nullable: true }) expiresAt: Date | null;
   @Column({ type: 'boolean', default: true }) enabled: boolean;
+  /** Автодобавление новых папок: верхние папки отелей/разделов ссылки, созданные позже этой отметки, сами попадают в ссылку. null — выключено. */
+  @Column({ type: 'timestamptz', nullable: true }) autoSince: Date | null;
   /** Переопределяет ответственного из настроек формы. */
   @Column({ type: 'uuid', nullable: true }) assigneeStaffId: string | null;
   @Column({ type: 'uuid', nullable: true }) createdByUserId: string | null;

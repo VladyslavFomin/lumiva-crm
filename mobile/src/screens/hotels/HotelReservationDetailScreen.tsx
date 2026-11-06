@@ -94,6 +94,7 @@ export const HotelReservationDetailScreen: React.FC<Props> = ({ route, navigatio
     reservation.otaName && { label: 'Канал', value: [reservation.otaName, reservation.otaCode].filter(Boolean).join(' · '), icon: 'globe-outline' as const, iconColor: colors.info },
     reservation.paymentCollect && { label: 'Кто берёт оплату', value: reservation.paymentCollect === 'ota' ? `${reservation.otaName || 'OTA'} — проживание в счёт партнёра` : 'Отель — гость платит на месте', icon: 'card-outline' as const, iconColor: colors.fg3 },
     reservation.agencyId && { label: 'Агентство', value: agencyName || `#${reservation.agencyId.slice(0, 8)}`, icon: 'briefcase-outline' as const, iconColor: colors.fg3 },
+    reservation.voucherNo && { label: 'Ваучер', value: reservation.voucherNo, icon: 'document-text-outline' as const, iconColor: colors.fg3 },
     reservation.market && { label: 'Рынок', value: reservation.market, icon: 'globe-outline' as const, iconColor: colors.warning },
     (reservation.earlyCheckIn || reservation.lateCheckOut) && {
       label: 'Особые условия',

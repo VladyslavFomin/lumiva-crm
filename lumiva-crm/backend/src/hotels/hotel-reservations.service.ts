@@ -79,6 +79,13 @@ export interface HotelReservationFilters {
   blockId?: string;
   guestCountry?: string;
   source?: string;
+  voucherNo?: string;
+}
+
+/** Ваучер: без пробелов по краям, пустое → null */
+function normalizeVoucher(v: unknown): string | null {
+  const s = String(v ?? '').trim().slice(0, 120);
+  return s || null;
 }
 
 function toNum(v: string | number | null | undefined): number {
@@ -127,6 +134,8 @@ export interface HotelReservationInput {
   notes?: string | null;
   guests?: HotelReservationGuest[];
   bookingCode?: string | null;
+  /** номер заявки у партнёра (ваучер ТО / номер брони OTA) */
+  voucherNo?: string | null;
   guestCountry?: string | null;
   saleCountry?: string | null;
   marketId?: string | null;
@@ -161,7 +170,7 @@ const PRICE_FIELDS = ['costPerNight', 'ppPerNight', 'grossPerNight', 'discountPc
 /** Поля, изменения которых пишутся в историю брони (PMS-028) — поле, было, стало */
 const HISTORY_FIELDS = [
   'hotelId', 'roomTypeId', 'roomUnitId', 'occupancyTypeId', 'agencyId', 'contractId', 'blockId',
-  'guestName', 'guestEmail', 'guestPhone', 'pax', 'children', 'checkIn', 'checkOut', 'status', 'paidStatus',
+  'voucherNo', 'guestName', 'guestEmail', 'guestPhone', 'pax', 'children', 'checkIn', 'checkOut', 'status', 'paidStatus',
   'boardType', 'market', 'guestCountry', 'saleCountry', 'costPerNight', 'ppPerNight', 'grossPerNight',
   'discountPct', 'commissionPct', 'total', 'depositAmount', 'depositDueDate', 'ratePlanId', 'promotionsOff', 'earlyCheckIn', 'lateCheckOut', 'notes',
   'optionUntil', 'isComplimentary', 'compReason', 'compNote', 'cancelReason', 'cancelNote', 'cancellationFee', 'priceMode',
@@ -523,8 +532,9 @@ export class HotelReservationsService {
     if (filters.blockId) qb.andWhere('r.blockId = :blockId', { blockId: filters.blockId });
     if (filters.guestCountry) qb.andWhere('r.guestCountry = :gc', { gc: String(filters.guestCountry).toUpperCase() });
     if (filters.source) qb.andWhere('r.source = :source', { source: filters.source });
+    if (filters.voucherNo) qb.andWhere('r.voucherNo = :voucherNo', { voucherNo: normalizeVoucher(filters.voucherNo) });
     if (filters.search) {
-      qb.andWhere('(r.guestName ILIKE :search OR r.bookingCode ILIKE :search OR r.guestEmail ILIKE :search OR r.guestPhone ILIKE :search)', { search: `%${filters.search}%` });
+      qb.andWhere('(r.guestName ILIKE :search OR r.bookingCode ILIKE :search OR r.voucherNo ILIKE :search OR r.otaCode ILIKE :search OR r.guestEmail ILIKE :search OR r.guestPhone ILIKE :search)', { search: `%${filters.search}%` });
     }
     qb.orderBy('r.createdAt', 'DESC');
     return qb.getMany();
@@ -592,6 +602,7 @@ export class HotelReservationsService {
       notes: dto.notes ?? null,
       guests: dto.guests ?? [],
       bookingCode: dto.bookingCode ?? null,
+      voucherNo: normalizeVoucher(dto.voucherNo) ?? normalizeVoucher(dto.otaCode),
       guestCountry: dto.guestCountry ?? null,
       saleCountry: dto.saleCountry ?? null,
       marketId: dto.marketId ?? null,
@@ -730,6 +741,7 @@ export class HotelReservationsService {
       if (normalized[key] !== undefined) normalized[key] = normalizeNumericInput(normalized[key]);
     }
     if (normalized.depositAmount !== undefined) normalized.depositAmount = normalizeNumericInput(normalized.depositAmount);
+    if (normalized.voucherNo !== undefined) normalized.voucherNo = normalizeVoucher(normalized.voucherNo);
     if (normalized.children !== undefined) normalized.children = Math.max(0, Math.round(toNum(normalized.children)));
     delete normalized.commissionPct;
     // смена партнёра/отеля/дат без явного контракта — контракт подбирается заново

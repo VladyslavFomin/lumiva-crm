@@ -90,6 +90,7 @@ export class MediaPublicService {
 
   /** Всё, что видит клиент: выбранные папки с подпапками + отдельные файлы. */
   private async context(link: MediaLink): Promise<LinkContext> {
+    await this.media.syncAutoLinks(link.tenantId, link);
     const folderIds = await this.media.subtreeIds(link.tenantId, link.folderIds || []);
     const [folders, inFolders, loose]: [MediaFolder[], MediaFile[], MediaFile[]] = await Promise.all([
       folderIds.length ? this.folders.find({ where: { tenantId: link.tenantId, id: In(folderIds) }, order: { name: 'ASC' } }) : [],

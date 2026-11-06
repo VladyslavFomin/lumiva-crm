@@ -2,7 +2,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
-import { In, IsNull, LessThan, Repository } from 'typeorm';
+import { In, IsNull, LessThan, MoreThan, Not, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { createWriteStream } from 'fs';
 import { copyFile, mkdir, rename, stat, unlink, writeFile } from 'fs/promises';
@@ -59,6 +59,7 @@ export interface LinkInput {
   expiresAt?: string | null;
   enabled?: boolean;
   assigneeStaffId?: string | null;
+  autoFolders?: boolean;
 }
 
 export type StatsPeriod = '7' | '30' | '90' | 'all';
@@ -713,6 +714,8 @@ export class MediaService {
         l.expiresAt = d;
       }
     }
+    // при каждом сохранении отметка сдвигается: снятые вручную папки обратно не добавятся
+    if (b.autoFolders !== undefined) l.autoSince = b.autoFolders ? new Date() : null;
     if (b.assigneeStaffId !== undefined) l.assigneeStaffId = b.assigneeStaffId && uuidRe.test(b.assigneeStaffId) ? b.assigneeStaffId : null;
     if (b.password !== undefined) {
       const p = b.password ? String(b.password) : '';
@@ -740,6 +743,7 @@ export class MediaService {
   async createLink(tenantId: string, userId: string | null, b: LinkInput, acc: HotelAcc = null) {
     const l = this.links.create({ tenantId, createdByUserId: userId, folderIds: [], fileIds: [], hotelIds: [], scope: 'hotel', slug: '' });
     if (!b.name) b.name = 'Медиакит';
+    if (b.autoFolders === undefined) b.autoFolders = true;
     await this.applyLinkInput(tenantId, l, b, acc);
     if (!l.slug) l.slug = await this.uniqueSlug(l.name);
     const saved = await this.links.save(l);
@@ -768,11 +772,43 @@ export class MediaService {
   private linkSelect(): (keyof MediaLink)[] {
     return [
       'id', 'tenantId', 'name', 'slug', 'scope', 'hotelIds', 'folderIds', 'fileIds', 'title', 'description', 'lang', 'gate',
-      'allowZip', 'theme', 'passwordHash', 'expiresAt', 'enabled', 'assigneeStaffId', 'createdByUserId', 'createdAt', 'updatedAt',
+      'allowZip', 'theme', 'passwordHash', 'expiresAt', 'enabled', 'autoSince', 'assigneeStaffId', 'createdByUserId', 'createdAt', 'updatedAt',
     ];
   }
 
+  /**
+   * Ссылки с автодобавлением: новая папка верхнего уровня в отеле/разделе, который уже есть в ссылке,
+   * сама попадает в неё. Ссылки только из вложенных папок или отдельных файлов не расширяются.
+   */
+  async syncAutoLinks(tenantId: string, only?: MediaLink): Promise<void> {
+    const links = only
+      ? (only.autoSince ? [only] : [])
+      : await this.links.find({ where: { tenantId, autoSince: Not(IsNull()) }, select: ['id', 'hotelIds', 'folderIds', 'autoSince'] });
+    if (!links.length) return;
+    const since = new Date(Math.min(...links.map((l) => new Date(l.autoSince!).getTime())));
+    const fresh = await this.folders.find({ where: { tenantId, parentId: IsNull(), createdAt: MoreThan(since) }, select: ['id', 'hotelId', 'collectionId', 'createdAt'] });
+    if (!fresh.length) return;
+    const ownIds = [...new Set(links.flatMap((l) => l.folderIds || []))];
+    const own = ownIds.length ? await this.folders.find({ where: { tenantId, id: In(ownIds) }, select: ['id', 'hotelId', 'collectionId', 'parentId'] }) : [];
+    const byId = new Map(own.map((f) => [f.id, f]));
+    for (const l of links) {
+      const tops = (l.folderIds || []).map((id) => byId.get(id)).filter((f): f is MediaFolder => !!f && !f.parentId);
+      if (!tops.length) continue;
+      const hotels = new Set([...(l.hotelIds || []), ...tops.map((f) => f.hotelId).filter((h): h is string => !!h)]);
+      const colls = new Set(tops.map((f) => f.collectionId).filter((c): c is string => !!c));
+      const none = tops.some((f) => !f.hotelId && !f.collectionId);
+      const add = fresh.filter((f) =>
+        f.createdAt > new Date(l.autoSince!) && !l.folderIds.includes(f.id) &&
+        ((!!f.hotelId && hotels.has(f.hotelId)) || (!!f.collectionId && colls.has(f.collectionId)) || (!f.hotelId && !f.collectionId && none)));
+      if (!add.length) continue;
+      l.folderIds = [...l.folderIds, ...add.map((f) => f.id)];
+      l.hotelIds = [...new Set([...(l.hotelIds || []), ...add.map((f) => f.hotelId).filter((h): h is string => !!h)])];
+      await this.links.update({ id: l.id }, { folderIds: l.folderIds, hotelIds: l.hotelIds });
+    }
+  }
+
   async listLinks(tenantId: string, acc: HotelAcc = null) {
+    await this.syncAutoLinks(tenantId);
     const [allRows, agg, spark, base] = await Promise.all([
       this.links.find({ where: { tenantId }, select: this.linkSelect(), order: { createdAt: 'DESC' } }),
       this.events.query(
@@ -823,6 +859,7 @@ export class MediaService {
         expiresAt: l.expiresAt,
         expired,
         enabled: l.enabled,
+        autoFolders: !!l.autoSince,
         assigneeStaffId: l.assigneeStaffId,
         createdAt: l.createdAt,
         views: st?.views ?? 0,

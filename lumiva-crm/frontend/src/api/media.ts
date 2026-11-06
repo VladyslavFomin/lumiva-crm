@@ -64,6 +64,7 @@ export interface MediaLink {
   gate: boolean;
   allowZip: boolean;
   theme?: 'dark' | 'light';
+  autoFolders?: boolean;
   hasPassword: boolean;
   expiresAt: string | null;
   expired: boolean;
@@ -91,6 +92,7 @@ export interface MediaLinkInput {
   gate?: boolean;
   allowZip?: boolean;
   theme?: 'dark' | 'light';
+  autoFolders?: boolean;
   password?: string | null;
   expiresAt?: string | null;
   enabled?: boolean;

@@ -59,6 +59,7 @@ export class HotelReservationsController {
     @Query('blockId') blockId?: string,
     @Query('guestCountry') guestCountry?: string,
     @Query('source') source?: string,
+    @Query('voucherNo') voucherNo?: string,
   ) {
     return this.reservations.list(user.tenantId, {
       hotelId,
@@ -71,6 +72,7 @@ export class HotelReservationsController {
       blockId,
       guestCountry,
       source,
+      voucherNo,
     });
   }
 

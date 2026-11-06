@@ -198,6 +198,10 @@ export class HotelReservation {
   @Column({ type: 'varchar', length: 120, nullable: true })
   otaCode: string | null;
 
+  /** Ваучер — номер заявки у партнёра (ТО, OTA); у броней из канала = otaCode */
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  voucherNo: string | null;
+
   /** Кто берёт оплату по брони из канала: property — отель (гость платит на месте / картой отелю), ota — OTA (Expedia Collect, Booking Payments) */
   @Column({ type: 'varchar', length: 12, nullable: true })
   paymentCollect: 'property' | 'ota' | null;

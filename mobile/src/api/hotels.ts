@@ -164,6 +164,8 @@ export interface HotelReservation {
   /** бронь из канала продаж (Booking.com, Expedia…) */
   otaName?: string | null;
   otaCode?: string | null;
+  /** ваучер — номер заявки у партнёра (ТО / OTA) */
+  voucherNo?: string | null;
   paymentCollect?: 'property' | 'ota' | null;
   createdAt: string;
   updatedAt: string;

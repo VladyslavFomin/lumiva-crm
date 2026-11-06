@@ -29,6 +29,12 @@ const browserLang = (): L3 | null => {
 const THEME_KEY = 'lumiva-media-theme';
 type Theme = 'dark' | 'light';
 const savedTheme = (): Theme | null => { try { const v = localStorage.getItem(THEME_KEY); return v === 'dark' || v === 'light' ? v : null; } catch { return null; } };
+// вид папок (плитка/список) и свёрнутые разделы — в браузере посетителя
+const VIEW_KEY = 'lumiva-media-view';
+type View = 'tiles' | 'list';
+const savedView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'tiles'; } catch { return 'tiles'; } };
+const foldKey = (slug: string) => `lumiva-media-fold:${slug}`;
+const savedFold = (slug: string): Set<string> => { try { const v = JSON.parse(localStorage.getItem(foldKey(slug)) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch { return new Set(); } };
 const savedLang = (): L3 | null => { try { return pickLang(localStorage.getItem(LANG_KEY)); } catch { return null; } };
 /** Нейтральная иконка вкладки (вместо иконки CRM), если у компании нет логотипа. */
 const NEUTRAL_ICON = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0c0c0d"/><circle cx="16" cy="16" r="7" fill="none" stroke="#f3f3f1" stroke-width="2.4"/></svg>');
@@ -86,6 +92,45 @@ const FolderCard: React.FC<{ f: Folder; i: number; files: MediaShareFile[]; coun
         <div className="mt mono">{t('publicPages.media.filesN', { count })}{f.createdAt ? ` · ${fmtDate(f.createdAt, lang)}` : ''}</div>
       </div>
       <span className="go"><Ico d={MIC.chevR} s={14} /></span>
+    </div>
+  );
+};
+
+const FolderRow: React.FC<{ f: Folder; i: number; files: MediaShareFile[]; count: number; onOpen: () => void; lang: string; t: (k: string, o?: any) => string }> = ({ f, i, files, count, onOpen, lang, t }) => (
+  <div className="sh-sub sh-row rv" style={{ transitionDelay: `${Math.min(i, 10) * 30}ms` }} onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}>
+    <div className="th">{files.length ? files.slice(0, 3).map((p) => <div key={p.id}><Art f={p} /></div>) : <span className="em"><Ico d={MIC.folder} s={18} /></span>}</div>
+    <span className="no mono dim">{String(i + 1).padStart(2, '0')}</span>
+    <div><div className="nm">{f.id === SELECTED ? f.name : stripNo(f.name)}</div><div className="mono dim">{t('publicPages.media.filesN', { count })}{f.createdAt ? ` · ${fmtDate(f.createdAt, lang)}` : ''}</div></div>
+    <Ico d={MIC.chevR} s={14} />
+  </div>
+);
+
+/** «Перейти к…» — список отелей/разделов (своё меню вместо системного select) */
+const JumpMenu: React.FC<{ label: string; items: Array<{ id: string; label: string; n: number }>; onPick: (id: string) => void }> = ({ label, items, onPick }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('pointerdown', down);
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('pointerdown', down); window.removeEventListener('keydown', key); };
+  }, [open]);
+  return (
+    <div className="sh-jump" ref={ref}>
+      <button type="button" className="sh-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu">
+        {label}<span className={cx('cv', open && 'on')}><Ico d={MIC.down} s={13} /></span>
+      </button>
+      {open && (
+        <div className="sh-menu" role="menu">
+          {items.map((it) => (
+            <button key={it.id} type="button" role="menuitem" onClick={() => { setOpen(false); onPick(it.id); }}>
+              <span>{it.label}</span><span className="mono dim">{it.n}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -309,6 +354,11 @@ export const MediaSharePage: React.FC = () => {
   const [me, setMe] = useState<string | null>(null);
   const [needForm, setNeedForm] = useState(true);
   const spot = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<View>(savedView);
+  const chooseView = (v: View) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* private mode */ } };
+  const [folded, setFolded] = useState<Set<string>>(() => savedFold(slug));
+  const saveFold = (n: Set<string>) => { setFolded(n); try { localStorage.setItem(foldKey(slug), JSON.stringify([...n])); } catch { /* private mode */ } };
+  const toggleFold = (id: string) => { const n = new Set(folded); if (n.has(id)) n.delete(id); else n.add(id); saveFold(n); };
 
   const load = useCallback(async () => {
     try {
@@ -549,6 +599,12 @@ export const MediaSharePage: React.FC = () => {
     { id: 'none', label: brand?.name || t('publicPages.media.other'), city: null, list: tops.filter((f) => !f.hotelId && !f.collectionId && f.id !== SELECTED) },
   ].filter((g) => g.list.length);
   const groups = rawGroups.filter((g) => g.id !== SELECTED).length > 1 ? rawGroups : [{ id: 'all', label: null, city: null, list: tops }];
+  const multi = groups.length > 1;
+  const allFolded = multi && groups.every((g) => folded.has(g.id));
+  const jumpTo = (id: string) => {
+    if (folded.has(id)) { const nx = new Set(folded); nx.delete(id); saveFold(nx); }
+    requestAnimationFrame(() => { const el = document.getElementById(`sh-g-${id}`); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 20, behavior: 'smooth' }); });
+  };
   let n = 0;
 
   return frame(
@@ -572,18 +628,50 @@ export const MediaSharePage: React.FC = () => {
               <div className="tr">{[...strip, ...strip].map((f, i) => <div key={i} className={cx('it', tall(f) && 'tall')} onClick={() => openFolder(f.folderId)}><Art f={f} /></div>)}</div>
             </div>
           )}
-          {groups.map((g) => (
-            <section key={g.id} className="sh-sec">
-              <div className="sh-sec-h rv">
+          {tops.length > 0 && (
+            <div className="sh-bar">
+              {multi && (
+                <JumpMenu label={t('publicPages.media.jumpTo')} items={groups.map((g) => ({ id: g.id, label: g.label || t('publicPages.media.selectedFiles'), n: g.list.length }))} onPick={jumpTo} />
+              )}
+              {multi && (
+                <button className="sh-btn" onClick={() => saveFold(allFolded ? new Set() : new Set(groups.map((g) => g.id)))}>
+                  <Ico d={allFolded ? MIC.down : MIC.up} s={14} />{t(allFolded ? 'publicPages.media.expandAll' : 'publicPages.media.collapseAll')}
+                </button>
+              )}
+              <div className="sh-seg">
+                <button className={cx(view === 'tiles' && 'on')} onClick={() => chooseView('tiles')} aria-label={t('publicPages.media.viewTiles')} title={t('publicPages.media.viewTiles')}><Ico d={MIC.grid} s={14} /></button>
+                <button className={cx(view === 'list' && 'on')} onClick={() => chooseView('list')} aria-label={t('publicPages.media.viewList')} title={t('publicPages.media.viewList')}><Ico d={MIC.list} s={14} /></button>
+              </div>
+            </div>
+          )}
+          {groups.map((g) => {
+            const shut = multi && folded.has(g.id);
+            const head = (
+              <>
+                {multi && <span className="tg"><Ico d={MIC.chevR} s={16} /></span>}
                 <h2>{g.label || t('publicPages.media.folders')}</h2>
                 {g.city && <span className="city">{g.city}</span>}
                 <span className="mono dim">{g.list.length}</span>
-              </div>
-              <div className="sh-folders">
-                {g.list.map((f) => { const i = n++; const df = deepFiles(f.id); return <FolderCard key={f.id} f={f} i={i} files={df} count={df.length} onOpen={() => openFolder(f.id)} lang={lang} t={t} />; })}
-              </div>
-            </section>
-          ))}
+              </>
+            );
+            return (
+              <section key={g.id} id={`sh-g-${g.id}`} className={cx('sh-sec', shut && 'shut')}>
+                {multi
+                  ? <button type="button" className="sh-sec-h fold" onClick={() => toggleFold(g.id)} aria-expanded={!shut}>{head}</button>
+                  : <div className="sh-sec-h rv">{head}</div>}
+                {shut ? null : (
+                  <div className={cx('sh-folders', view === 'list' && 'list')}>
+                    {g.list.map((f) => {
+                      const i = n++;
+                      const df = deepFiles(f.id);
+                      const P = view === 'list' ? FolderRow : FolderCard;
+                      return <P key={f.id} f={f} i={i} files={df} count={df.length} onOpen={() => openFolder(f.id)} lang={lang} t={t} />;
+                    })}
+                  </div>
+                )}
+              </section>
+            );
+          })}
           {tops.length === 0 && <div className="sh-empty">{t('publicPages.media.empty')}</div>}
         </main>
       ) : (

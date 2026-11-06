@@ -62,6 +62,7 @@ export const MediaLinkModal: React.FC<{
   const [theme, setTheme] = useState<'dark' | 'light'>(edit?.theme ?? 'dark');
   const [gate, setGate] = useState(edit?.gate ?? true);
   const [zip, setZip] = useState(edit?.allowZip ?? true);
+  const [auto, setAuto] = useState(edit?.autoFolders ?? true);
   const [passOn, setPassOn] = useState(edit?.hasPassword ?? false);
   const [password, setPassword] = useState('');
   const [exp, setExp] = useState<Exp>(edit?.expiresAt ? 'date' : 'none');
@@ -134,6 +135,7 @@ export const MediaLinkModal: React.FC<{
       theme,
       gate,
       allowZip: zip,
+      autoFolders: auto,
       expiresAt: expiresAt(),
       ...(passOn ? (password ? { password } : {}) : { password: null }),
       ...(slug && slug !== edit?.slug ? { slug } : {}),
@@ -293,6 +295,7 @@ export const MediaLinkModal: React.FC<{
               <div className="mf-tgs">
                 <Tg on={gate} set={setGate} tt={t('crm.media.tgGate')} d={t('crm.media.tgGateD')} />
                 <Tg on={zip} set={setZip} tt={t('crm.media.tgZip')} d={t('crm.media.tgZipD')} />
+                <Tg on={auto} set={setAuto} tt={t('crm.media.tgAuto')} d={t('crm.media.tgAutoD')} />
                 <Tg on={passOn} set={setPassOn} tt={t('crm.media.tgPass')} d={edit?.hasPassword ? t('crm.media.tgPassSet') : t('crm.media.tgPassD')}>
                   {passOn && (
                     <input

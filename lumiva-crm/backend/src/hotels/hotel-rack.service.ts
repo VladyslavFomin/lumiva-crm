@@ -87,6 +87,7 @@ export class HotelRackService {
         roomTypeId: r.roomTypeId,
         roomUnitId: r.roomUnitId,
         agencyId: r.agencyId,
+        voucherNo: r.voucherNo,
         guestName: r.guestName,
         guestPhone: r.guestPhone,
         guestEmail: r.guestEmail,
