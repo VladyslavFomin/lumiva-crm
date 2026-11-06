@@ -74,12 +74,13 @@ export const PublicFooter: React.FC = () => {
           </Link>
           <p>{FT.tagline}</p>
           <div className="lhh-ft-ct">
-            <a href="mailto:hello@lumiva.agency">hello@lumiva.agency</a>
-            <a href="https://t.me/lumiva_crm" target="_blank" rel="noopener noreferrer">
+            <a href="mailto:info@lumiva.agency">info@lumiva.agency</a>
+            <a href="tel:+905075782039">+90 507 578 20 39</a>
+            <a href="https://t.me/lumivaagency_bot" target="_blank" rel="noopener noreferrer">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
                 <path d="M21 4L3 11l6 2 2 6 3-4 5 4z" />
               </svg>
-              @lumiva_crm
+              @lumivaagency_bot
             </a>
           </div>
         </div>

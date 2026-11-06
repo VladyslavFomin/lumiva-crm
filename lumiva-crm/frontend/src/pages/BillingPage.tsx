@@ -637,8 +637,8 @@ export const BillingPage: React.FC<{
           <footer className="rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-xs text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span>{text.footer}</span>
-              <a href="mailto:support@lumiva.agency" className="font-semibold text-slate-700">
-                support@lumiva.agency
+              <a href="mailto:info@lumiva.agency" className="font-semibold text-slate-700">
+                info@lumiva.agency
               </a>
             </div>
           </footer>

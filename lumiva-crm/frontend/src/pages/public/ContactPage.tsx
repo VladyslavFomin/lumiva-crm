@@ -200,17 +200,27 @@ function Side({ tx }: { tx: ContactText }) {
       </div>
       <div className="ct-card lh-rv">
         <h4>{tx.waysT}</h4>
-        <a className="ct-way" href="mailto:hello@lumiva.agency">
+        <a className="ct-way" href="tel:+905075782039">
+          <span>
+            <Icon name="phone" size={16} />
+          </span>
+          <div>
+            <b>Phone</b>
+            <em>+90 507 578 20 39</em>
+          </div>
+          <Icon name="arrow" size={13} />
+        </a>
+        <a className="ct-way" href="mailto:info@lumiva.agency">
           <span>
             <Icon name="mail" size={16} />
           </span>
           <div>
             <b>Email</b>
-            <em>hello@lumiva.agency</em>
+            <em>info@lumiva.agency</em>
           </div>
           <Icon name="arrow" size={13} />
         </a>
-        <a className="ct-way" href="https://t.me/lumiva_crm" target="_blank" rel="noopener noreferrer">
+        <a className="ct-way" href="https://t.me/lumivaagency_bot" target="_blank" rel="noopener noreferrer">
           <span className="tg">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
               <path d="M21 4L3 11l6 2 2 6 3-4 5 4z" />
@@ -218,7 +228,7 @@ function Side({ tx }: { tx: ContactText }) {
           </span>
           <div>
             <b>Telegram</b>
-            <em>@lumiva_crm</em>
+            <em>@lumivaagency_bot</em>
           </div>
           <Icon name="arrow" size={13} />
         </a>

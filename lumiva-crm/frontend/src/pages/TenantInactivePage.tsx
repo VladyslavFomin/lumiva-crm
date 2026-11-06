@@ -99,7 +99,7 @@ export const TenantInactivePage: React.FC = () => {
 
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-2">
               <div className="text-sm text-slate-600">
-                {t('crm.inactive.contact.text', { email: 'support@lumiva.agency' })}
+                {t('crm.inactive.contact.text', { email: 'info@lumiva.agency' })}
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <a
@@ -110,7 +110,7 @@ export const TenantInactivePage: React.FC = () => {
                 </a>
                 <a
                   className="btn-primary"
-                  href={`mailto:support@lumiva.agency?subject=${supportSubject}`}
+                  href={`mailto:info@lumiva.agency?subject=${supportSubject}`}
                 >
                   {t('crm.inactive.contact.write')}
                 </a>

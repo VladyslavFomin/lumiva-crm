@@ -75,7 +75,7 @@ const ru: ContactText = {
   okT: 'Заявка отправлена',
   okD: (n, e) => `Спасибо${n ? ', ' + n : ''}! Заявка уже у команды — ответим на ${e || 'вашу почту'} в течение рабочего дня.`,
   again: 'Отправить ещё одну',
-  err: 'Не получилось отправить заявку. Попробуйте ещё раз или напишите на hello@lumiva.agency.',
+  err: 'Не получилось отправить заявку. Попробуйте ещё раз или напишите на info@lumiva.agency.',
   benT: 'Что вы получите',
   ben: [
     'Демо на ваших сценариях, а не общая презентация',
@@ -165,7 +165,7 @@ const en: ContactText = {
   okT: 'Request sent',
   okD: (n, e) => `Thank you${n ? ', ' + n : ''}! The team already has your request — we’ll reply to ${e || 'your email'} within one business day.`,
   again: 'Send another one',
-  err: 'We couldn’t send the request. Please try again or write to hello@lumiva.agency.',
+  err: 'We couldn’t send the request. Please try again or write to info@lumiva.agency.',
   benT: 'What you get',
   ben: [
     'A demo built around your scenarios, not a generic deck',
@@ -255,7 +255,7 @@ const tr: ContactText = {
   okT: 'Talep gönderildi',
   okD: (n, e) => `Teşekkürler${n ? ', ' + n : ''}! Talebiniz ekibe ulaştı — ${e || 'e-posta adresinize'} bir iş günü içinde yanıt vereceğiz.`,
   again: 'Bir tane daha gönder',
-  err: 'Talep gönderilemedi. Lütfen tekrar deneyin veya hello@lumiva.agency adresine yazın.',
+  err: 'Talep gönderilemedi. Lütfen tekrar deneyin veya info@lumiva.agency adresine yazın.',
   benT: 'Neler alırsınız',
   ben: [
     'Genel bir sunum değil, sizin senaryolarınıza göre demo',

@@ -626,7 +626,7 @@ const LandingPage: React.FC = () => {
               </h2>
               <p className="text-sm text-neutral-600 max-w-md">{t("landing.form.sub")}</p>
               <div className="flex items-center gap-4 text-[12px] text-neutral-500">
-                <a href="mailto:hello@lumiva.agency" className="hover:text-black">hello@lumiva.agency</a><span>{t("landing.v4.formContactNote")}</span>
+                <a href="mailto:info@lumiva.agency" className="hover:text-black">info@lumiva.agency</a><span>{t("landing.v4.formContactNote")}</span>
               </div>
             </div>
 
