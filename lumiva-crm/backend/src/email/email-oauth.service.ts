@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   Logger,
@@ -20,6 +21,16 @@ const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
   'openid',
 ].join(' ');
+
+export interface GmailSendAsAddress {
+  sendAsEmail: string;
+  displayName: string;
+  isPrimary: boolean;
+  isDefault: boolean;
+  treatAsAlias: boolean;
+  verificationStatus: string | null;
+  canSend: boolean;
+}
 
 const OUTLOOK_SCOPES = [
   'offline_access',
@@ -154,6 +165,18 @@ export class EmailOAuthService {
       expiresAt,
       userId: decoded.userId,
     });
+    const account = await this.accountRepo.findOne({
+      where: { tenantId: decoded.tenantId, email },
+    });
+    if (account) {
+      try {
+        await this.syncGmailSendAs(account);
+      } catch (error: any) {
+        this.log.warn(
+          `Gmail Send As sync after OAuth failed for account ${account.id}: ${error?.message || error}`,
+        );
+      }
+    }
     const path = decoded.redirect.startsWith('/')
       ? decoded.redirect
       : `/${decoded.redirect || 'app/email'}`;
@@ -321,6 +344,90 @@ export class EmailOAuthService {
       return this.refreshMicrosoft(account);
     }
     throw new BadRequestException('Unknown oauth provider');
+  }
+
+  async syncGmailSendAs(account: EmailAccount): Promise<{
+    addresses: GmailSendAsAddress[];
+    syncedAt: string;
+  }> {
+    if (account.oauthProvider !== 'gmail' || !account.oauthRefreshToken) {
+      throw new BadRequestException('This account is not connected to Gmail');
+    }
+
+    try {
+      const token = await this.ensureAccessToken(account);
+      const response = await axios.get<{
+        sendAs?: Array<{
+          sendAsEmail?: string;
+          displayName?: string;
+          isPrimary?: boolean;
+          isDefault?: boolean;
+          treatAsAlias?: boolean;
+          verificationStatus?: string;
+        }>;
+      }>(
+        'https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs',
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!Array.isArray(response.data.sendAs)) {
+        throw new BadGatewayException('Gmail returned an invalid Send As list');
+      }
+
+      const addresses = response.data.sendAs
+        .filter((entry) => typeof entry.sendAsEmail === 'string' && entry.sendAsEmail.trim())
+        .map((entry) => {
+          const verificationStatus = entry.verificationStatus || null;
+          const isPrimary = entry.isPrimary === true;
+          return {
+            sendAsEmail: entry.sendAsEmail!.trim(),
+            displayName: entry.displayName || '',
+            isPrimary,
+            isDefault: entry.isDefault === true,
+            treatAsAlias: entry.treatAsAlias === true,
+            verificationStatus,
+            canSend: isPrimary || verificationStatus === 'accepted',
+          };
+        });
+      const syncedAt = new Date().toISOString();
+      const meta =
+        account.meta && typeof account.meta === 'object' && !Array.isArray(account.meta)
+          ? { ...account.meta }
+          : {};
+      meta.gmailSendAs = { addresses, syncedAt, error: null };
+      account.meta = meta;
+      await this.accountRepo.save(account);
+      return { addresses, syncedAt };
+    } catch (error: any) {
+      const meta =
+        account.meta && typeof account.meta === 'object' && !Array.isArray(account.meta)
+          ? { ...account.meta }
+          : {};
+      const previous =
+        meta.gmailSendAs && typeof meta.gmailSendAs === 'object'
+          ? meta.gmailSendAs
+          : {};
+      const message = this.googleApiErrorMessage(error);
+      meta.gmailSendAs = { ...previous, error: message };
+      account.meta = meta;
+      await this.accountRepo.save(account);
+      if (error instanceof BadRequestException || error instanceof BadGatewayException) {
+        throw error;
+      }
+      throw new BadGatewayException(`Gmail Send As synchronization failed: ${message}`);
+    }
+  }
+
+  private googleApiErrorMessage(error: any): string {
+    const data = error?.response?.data;
+    const nestedError =
+      data?.error && typeof data.error === 'object' ? data.error.message : undefined;
+    return String(
+      nestedError ||
+        data?.error_description ||
+        (typeof data?.error === 'string' ? data.error : '') ||
+        error?.message ||
+        'Google API request failed',
+    );
   }
 
   private async refreshGoogle(account: EmailAccount): Promise<string> {

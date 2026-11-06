@@ -8,6 +8,7 @@ import { LeadsService } from '../leads/leads.service';
 import { EntityType, NoteType } from '../notes/dto/create-note.dto';
 import { NotesService } from '../notes/notes.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { Tenant } from '../tenants/tenant.entity';
 import { InstagramAccount, InstagramAccountSettings } from './instagram-account.entity';
 import { InstagramContact } from './instagram-contact.entity';
 import { InstagramAttachment, InstagramMessage } from './instagram-message.entity';
@@ -26,6 +27,15 @@ const STATE_TTL_MS = 30 * 60e3;
 const DM_WINDOW_MS = 24 * 3600e3;
 const PRIVATE_REPLY_WINDOW_MS = 7 * 864e5;
 const APP_PATH = '/app/instagram';
+const DEFAULT_RETURN_ORIGIN = 'https://crm.lumiva.agency';
+const CUSTOM_DOMAIN_PATTERN =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+type InstagramOAuthState = {
+  tenantId: string;
+  ts: number;
+  returnOrigin: string;
+};
 
 type Inbound = {
   kind: 'dm' | 'comment';
@@ -53,6 +63,7 @@ export class InstagramCrmService {
     @InjectRepository(InstagramContact) private readonly contacts: Repository<InstagramContact>,
     @InjectRepository(InstagramMessage) private readonly messages: Repository<InstagramMessage>,
     @InjectRepository(Lead) private readonly leadRepo: Repository<Lead>,
+    @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
     private readonly graph: InstagramGraphService,
     private readonly platformSettings: PlatformSettingsService,
     private readonly leadsService: LeadsService,
@@ -69,10 +80,41 @@ export class InstagramCrmService {
     return createHmac('sha256', process.env.JWT_SECRET!).update(raw).digest('base64url');
   }
 
+  private tenantReturnOrigin(
+    tenant: Pick<Tenant, 'customDomain' | 'customDomainStatus'>,
+  ): string {
+    const domain = tenant.customDomain?.trim().toLowerCase();
+    if (
+      tenant.customDomainStatus !== 'active' ||
+      !domain ||
+      !CUSTOM_DOMAIN_PATTERN.test(domain)
+    ) {
+      return DEFAULT_RETURN_ORIGIN;
+    }
+    return `https://${domain}`;
+  }
+
+  private resultRedirect(origin: string, result: string): string {
+    const url = new URL(APP_PATH, origin);
+    url.searchParams.set('ig', result);
+    return url.toString();
+  }
+
   async getAuthUrl(tenantId: string): Promise<{ url: string }> {
     const { appId } = await this.platformSettings.getMetaOAuthConfig();
     if (!appId) throw new BadRequestException('Meta-приложение платформы не настроено');
-    const raw = Buffer.from(JSON.stringify({ tenantId, ts: Date.now() })).toString('base64url');
+    const tenant = await this.tenants.findOne({
+      where: { id: tenantId },
+      select: ['id', 'customDomain', 'customDomainStatus'],
+    });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    const raw = Buffer.from(
+      JSON.stringify({
+        tenantId,
+        ts: Date.now(),
+        returnOrigin: this.tenantReturnOrigin(tenant),
+      } satisfies InstagramOAuthState),
+    ).toString('base64url');
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: this.redirectUri(),
@@ -80,31 +122,78 @@ export class InstagramCrmService {
       state: `${raw}.${this.sign(raw)}`,
       scope: OAUTH_SCOPES.join(','),
     });
-    return { url: `https://www.facebook.com/v23.0/dialog/oauth?${params.toString()}` };
+    return {
+      url: `https://www.facebook.com/v23.0/dialog/oauth?${params.toString()}`,
+    };
   }
 
-  private verifyState(state?: string): string | null {
+  private verifyState(state?: string): InstagramOAuthState | null {
     const [raw, sig] = String(state || '').split('.');
     if (!raw || !sig) return null;
     const expected = Buffer.from(this.sign(raw));
     const got = Buffer.from(sig);
     if (expected.length !== got.length || !timingSafeEqual(expected, got)) return null;
     try {
-      const p = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as { tenantId?: string; ts?: number };
-      if (!p.tenantId || !p.ts || Date.now() - p.ts > STATE_TTL_MS) return null;
-      return p.tenantId;
+      const p = JSON.parse(
+        Buffer.from(raw, 'base64url').toString('utf8'),
+      ) as Partial<InstagramOAuthState>;
+      if (
+        typeof p.tenantId !== 'string' ||
+        !p.tenantId ||
+        typeof p.ts !== 'number' ||
+        !Number.isFinite(p.ts) ||
+        Date.now() - p.ts > STATE_TTL_MS ||
+        p.ts > Date.now() ||
+        typeof p.returnOrigin !== 'string'
+      ) {
+        return null;
+      }
+      const parsedOrigin = new URL(p.returnOrigin);
+      if (
+        parsedOrigin.protocol !== 'https:' ||
+        parsedOrigin.origin !== p.returnOrigin ||
+        (p.returnOrigin !== DEFAULT_RETURN_ORIGIN &&
+          (parsedOrigin.port !== '' || !CUSTOM_DOMAIN_PATTERN.test(parsedOrigin.hostname)))
+      ) {
+        return null;
+      }
+      return {
+        tenantId: p.tenantId,
+        ts: p.ts,
+        returnOrigin: p.returnOrigin,
+      };
     } catch {
       return null;
     }
   }
 
-  /** Возвращает путь, куда отправить браузер: /app/instagram?ig=<результат>. */
-  async handleOAuthCallback(code?: string, state?: string, error?: string): Promise<string> {
-    const tenantId = this.verifyState(state);
-    if (!tenantId) return `${APP_PATH}?ig=invalid_state`;
-    if (error || !code) return `${APP_PATH}?ig=denied`;
+  private async callbackReturnOrigin(
+    state: InstagramOAuthState,
+  ): Promise<string> {
+    const tenant = await this.tenants.findOne({
+      where: { id: state.tenantId },
+      select: ['id', 'customDomain', 'customDomainStatus'],
+    });
+    if (!tenant) return DEFAULT_RETURN_ORIGIN;
+    const currentOrigin = this.tenantReturnOrigin(tenant);
+    return currentOrigin === state.returnOrigin
+      ? currentOrigin
+      : DEFAULT_RETURN_ORIGIN;
+  }
+
+  async handleOAuthCallback(
+    code?: string,
+    state?: string,
+    error?: string,
+  ): Promise<string> {
+    const oauthState = this.verifyState(state);
+    if (!oauthState) return this.resultRedirect(DEFAULT_RETURN_ORIGIN, 'invalid_state');
+    const tenantId = oauthState.tenantId;
+    const returnOrigin = await this.callbackReturnOrigin(oauthState);
+    const redirect = (result: string) => this.resultRedirect(returnOrigin, result);
+    if (error || !code) return redirect('denied');
     const { appId, appSecret } = await this.platformSettings.getMetaOAuthConfig();
-    if (!appId || !appSecret) return `${APP_PATH}?ig=missing_oauth`;
+    if (!appId || !appSecret) return redirect('missing_oauth');
 
     let pages;
     try {
@@ -112,9 +201,9 @@ export class InstagramCrmService {
       pages = await this.graph.listPagesWithInstagram(userToken);
     } catch (e) {
       this.log.warn(`Instagram OAuth failed for tenant ${tenantId}: ${(e as Error).message}`);
-      return `${APP_PATH}?ig=oauth_error`;
+      return redirect('oauth_error');
     }
-    if (!pages.length) return `${APP_PATH}?ig=no_accounts`;
+    if (!pages.length) return redirect('no_accounts');
 
     let connected = 0;
     for (const p of pages) {
@@ -137,7 +226,7 @@ export class InstagramCrmService {
       await this.accounts.save(acc);
       if (acc.status === 'active') connected++;
     }
-    return `${APP_PATH}?ig=${connected ? 'connected' : 'subscribe_error'}`;
+    return redirect(connected ? 'connected' : 'subscribe_error');
   }
 
   // ───────────────────────── Аккаунты ─────────────────────────

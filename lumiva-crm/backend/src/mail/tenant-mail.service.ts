@@ -26,6 +26,8 @@ export type TenantMailResult =
 export type TenantSenderStatus = {
   /** Ящик, с которого уйдут письма, или null. */
   account: { id: string; email: string; name: string | null; personal: boolean; provider: string } | null;
+  selectedAccountId: string | null;
+  senderEmail: string | null;
   /** ok — есть; none — почта не подключена; choose — общих ящиков несколько, нужно выбрать; personal_only — подключены только личные ящики сотрудников. */
   reason: 'ok' | 'none' | 'choose' | 'personal_only';
 };
@@ -55,22 +57,73 @@ export class TenantMailService {
     const list = await this.accounts.find({ where: { tenantId }, order: { createdAt: 'ASC' } });
     const brief = (a: EmailAccount) => ({ id: a.id, email: a.email, name: a.name, personal: !!a.userId, provider: a.oauthProvider || 'smtp' });
     const chosen = list.find((a) => a.useForNotifications && canSend(a));
-    if (chosen) return { account: brief(chosen), reason: 'ok' };
+    if (chosen) {
+      return {
+        account: brief(chosen),
+        selectedAccountId: chosen.id,
+        senderEmail: chosen.meta?.notificationFromEmail || chosen.email,
+        reason: 'ok',
+      };
+    }
     const shared = list.filter((a) => !a.userId && canSend(a) && a.status !== 'inactive');
-    if (shared.length === 1) return { account: brief(shared[0]), reason: 'ok' };
-    if (shared.length > 1) return { account: null, reason: 'choose' };
-    return { account: null, reason: list.some((a) => canSend(a)) ? 'personal_only' : 'none' };
+    if (shared.length === 1) {
+      return {
+        account: brief(shared[0]),
+        selectedAccountId: null,
+        senderEmail: shared[0].email,
+        reason: 'ok',
+      };
+    }
+    if (shared.length > 1) {
+      return { account: null, selectedAccountId: null, senderEmail: null, reason: 'choose' };
+    }
+    return {
+      account: null,
+      selectedAccountId: null,
+      senderEmail: null,
+      reason: list.some((a) => canSend(a)) ? 'personal_only' : 'none',
+    };
   }
 
-  /** Выбрать ящик для уведомлений (null — снять выбор, работает правило «единственный общий»). */
-  async choose(tenantId: string, accountId: string | null) {
+  /** Выбрать ящик и, для Gmail, адрес отправителя для уведомлений. */
+  async choose(tenantId: string, accountId: string | null, senderEmail?: string | null) {
+    let account: EmailAccount | null = null;
     if (accountId) {
-      const a = await this.accounts.findOne({ where: { id: accountId, tenantId } });
-      if (!a) throw new BadRequestException('Email account not found');
-      if (!canSend(a)) throw new BadRequestException('This mailbox cannot send: set up SMTP or connect it via Gmail / Microsoft');
+      account = await this.accounts.findOne({ where: { id: accountId, tenantId } });
+      if (!account) throw new BadRequestException('Email account not found');
+      if (!canSend(account)) throw new BadRequestException('This mailbox cannot send: set up SMTP or connect it via Gmail / Microsoft');
+    } else if (senderEmail) {
+      throw new BadRequestException('Choose a mailbox before selecting its sender address');
     }
+
+    let selectedSenderEmail: string | null = null;
+    if (senderEmail && account) {
+      if (account.oauthProvider !== 'gmail' || !account.oauthRefreshToken) {
+        throw new BadRequestException('Additional sender addresses are only available for connected Gmail accounts');
+      }
+      const requestedEmail = senderEmail.trim().toLowerCase();
+      const { addresses } = await this.oauth.syncGmailSendAs(account);
+      const selectedSender = addresses.find(
+        (address) => address.canSend && address.sendAsEmail.toLowerCase() === requestedEmail,
+      );
+      if (!selectedSender) {
+        throw new BadRequestException('The selected Gmail sender is not verified or is no longer available');
+      }
+      selectedSenderEmail = selectedSender.sendAsEmail;
+    }
+
     await this.accounts.update({ tenantId, useForNotifications: true }, { useForNotifications: false });
-    if (accountId) await this.accounts.update({ id: accountId, tenantId }, { useForNotifications: true });
+    if (account) {
+      const meta =
+        account.meta && typeof account.meta === 'object' && !Array.isArray(account.meta)
+          ? { ...account.meta }
+          : {};
+      if (selectedSenderEmail) meta.notificationFromEmail = selectedSenderEmail;
+      else delete meta.notificationFromEmail;
+      account.meta = meta;
+      account.useForNotifications = true;
+      await this.accounts.save(account);
+    }
     return this.status(tenantId);
   }
 
@@ -85,8 +138,10 @@ export class TenantMailService {
       return { ok: false, code: 'NO_MAILBOX', error: `Email is not connected (${st.reason})` };
     }
     try {
-      await this.deliver(account, to, msg);
-      return { ok: true, via: 'tenant', from: account.email };
+      const sender = await this.notificationSender(account);
+      const senderEmail = sender?.email || account.email;
+      await this.deliver(account, to, msg, sender);
+      return { ok: true, via: 'tenant', from: senderEmail };
     } catch (e: any) {
       const error = String(e?.response?.data?.error?.message || e?.response?.data?.error || e?.message || e).slice(0, 500);
       this.log.warn(`tenant mail ${tenantId} via ${account.email} failed: ${error}`);
@@ -132,18 +187,52 @@ export class TenantMailService {
     }));
   }
 
-  private fromOf(a: EmailAccount) {
-    return a.name ? `${a.name.replace(/"/g, '')} <${a.email}>` : a.email;
+  private async notificationSender(a: EmailAccount): Promise<{ email: string; displayName: string } | null> {
+    if (a.oauthProvider !== 'gmail' || !a.oauthRefreshToken) return null;
+    const { addresses } = await this.oauth.syncGmailSendAs(a);
+    const requestedEmail = String(a.meta?.notificationFromEmail || '').trim().toLowerCase();
+    const sender =
+      addresses.find((address) => address.canSend && address.sendAsEmail.toLowerCase() === requestedEmail) ||
+      (!requestedEmail ? addresses.find((address) => address.isPrimary && address.canSend) : undefined);
+    if (!sender) {
+      throw new Error(
+        requestedEmail
+          ? 'The configured Gmail sender is no longer verified or available'
+          : 'No verified Gmail sender address is available',
+      );
+    }
+    return {
+      email: sender.sendAsEmail,
+      displayName: sender.displayName || addresses.find((address) => address.isPrimary)?.displayName || a.name || '',
+    };
   }
 
-  private async deliver(a: EmailAccount, to: string[], msg: TenantMailMessage) {
+  private fromOf(a: EmailAccount, senderEmail = a.email, senderName = a.name) {
+    return senderName ? `${senderName.replace(/"/g, '')} <${senderEmail}>` : senderEmail;
+  }
+
+  private async deliver(
+    a: EmailAccount,
+    to: string[],
+    msg: TenantMailMessage,
+    sender: { email: string; displayName: string } | null,
+  ) {
     const attachments = this.attachmentsOf(msg);
     if (a.oauthProvider === 'gmail' && a.oauthRefreshToken) {
       const token = await this.oauth.ensureAccessToken(a);
+      if (!sender) throw new Error('No verified Gmail sender address is available');
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const MailComposer = require('nodemailer/lib/mail-composer');
       const mime: Buffer = await new Promise((resolve, reject) =>
-        new MailComposer({ from: this.fromOf(a), to, replyTo: msg.replyTo, subject: msg.subject, text: msg.text, html: msg.html, attachments })
+        new MailComposer({
+          from: this.fromOf(a, sender.email, sender.displayName),
+          to,
+          replyTo: msg.replyTo,
+          subject: msg.subject,
+          text: msg.text,
+          html: msg.html,
+          attachments,
+        })
           .compile()
           .build((err: Error | null, out: Buffer) => (err ? reject(err) : resolve(out))),
       );

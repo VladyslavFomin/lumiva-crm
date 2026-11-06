@@ -88,7 +88,30 @@ function parseEmailAddress(raw: string): { email: string; name: string | null } 
 function parseAddressList(raw: string | undefined): string[] {
   if (!raw) return [];
   const out: string[] = [];
-  for (const part of raw.split(',')) {
+  const parts: string[] = [];
+  let start = 0;
+  let angleDepth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\' && quoted) {
+      escaped = true;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (!quoted && char === '<') {
+      angleDepth += 1;
+    } else if (!quoted && char === '>') {
+      angleDepth = Math.max(0, angleDepth - 1);
+    } else if (!quoted && angleDepth === 0 && char === ',') {
+      parts.push(raw.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(raw.slice(start));
+  for (const part of parts) {
     const { email } = parseEmailAddress(part);
     if (email) out.push(email);
   }
@@ -842,14 +865,23 @@ export class EmailSyncService {
         },
       );
       const headers = full.data.payload?.headers || [];
+      const getAllH = (n: string) =>
+        headers
+          .filter(
+            (h: any) => String(h.name || '').toLowerCase() === n.toLowerCase(),
+          )
+          .map((h: any) => String(h.value || '').trim())
+          .filter(Boolean)
+          .join(', ');
       const getH = (n: string) =>
         headers.find(
           (h: any) => String(h.name || '').toLowerCase() === n.toLowerCase(),
         )?.value || '';
       const fromRaw = getH('From');
       const { email: fromAddr, name: fromName } = parseEmailAddress(fromRaw);
-      const toRaw = getH('To');
-      const ccRaw = getH('Cc');
+      const toRaw = getAllH('To');
+      const ccRaw = getAllH('Cc');
+      const bccRaw = getAllH('Bcc');
       const subject = getH('Subject') || null;
       const dateHdr = getH('Date');
       const date = dateHdr ? new Date(dateHdr) : new Date();
@@ -875,8 +907,13 @@ export class EmailSyncService {
         continue;
       }
       const selfEmail = account.email.trim().toLowerCase();
-      const direction =
-        fromAddr === selfEmail ? 'outgoing' : 'incoming';
+      const selfAddresses = new Set([
+        selfEmail,
+        ...((account.meta?.gmailSendAs?.addresses || []) as Array<{
+          sendAsEmail?: string;
+        }>).map((address) => String(address.sendAsEmail || '').toLowerCase()),
+      ]);
+      const direction = selfAddresses.has(fromAddr) ? 'outgoing' : 'incoming';
       let leadId: string | null = null;
       if (direction === 'incoming') {
         leadId = await this.resolveLeadForIncomingFixed(
@@ -897,7 +934,7 @@ export class EmailSyncService {
         fromName,
         to: parseAddressList(toRaw),
         cc: parseAddressList(ccRaw),
-        bcc: [],
+        bcc: parseAddressList(bccRaw),
         subject,
         textBody: acc.text || null,
         htmlBody: acc.html || null,
@@ -909,9 +946,19 @@ export class EmailSyncService {
         date: Number.isNaN(date.getTime()) ? new Date() : date,
         isRead: full.data.labelIds?.includes('UNREAD') === false,
         labels: full.data.labelIds || [],
-        headers: Object.fromEntries(
-          headers.map((h: any) => [h.name, h.value]),
-        ),
+        headers: headers.reduce((all: Record<string, string | string[]>, h: any) => {
+          const name = String(h.name || '');
+          const value = String(h.value || '');
+          if (!name) return all;
+          if (all[name] === undefined) {
+            all[name] = value;
+          } else if (Array.isArray(all[name])) {
+            (all[name] as string[]).push(value);
+          } else {
+            all[name] = [all[name] as string, value];
+          }
+          return all;
+        }, {}),
         meta: {
           provider: 'gmail',
           gmailId: gid,

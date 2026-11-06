@@ -17,6 +17,10 @@ export class SendEmailDto {
   to: string[]; // Получатели
 
   @IsOptional()
+  @IsEmail()
+  fromEmail?: string;
+
+  @IsOptional()
   @IsEmail({}, { each: true })
   @IsArray()
   cc?: string[];
@@ -68,5 +72,4 @@ export class SendEmailDto {
     contentBase64?: string;
   }>;
 }
-
 

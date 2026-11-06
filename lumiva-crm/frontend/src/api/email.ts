@@ -1,6 +1,16 @@
 // src/api/email.ts
 import { api } from './client';
 
+export interface GmailSendAsAddress {
+  sendAsEmail: string;
+  displayName: string;
+  isPrimary: boolean;
+  isDefault: boolean;
+  treatAsAlias: boolean;
+  verificationStatus: string | null;
+  canSend: boolean;
+}
+
 export interface EmailAccount {
   /** Личный ящик сотрудника (null — общий ящик компании). */
   userId?: string | null;
@@ -31,6 +41,11 @@ export interface EmailAccount {
     leadIngestion?: { autoCreateFromUnknown?: boolean; skipDomains?: string[] };
     signatureHtml?: string | null;
     signatureText?: string | null;
+    gmailSendAs?: {
+      addresses: GmailSendAsAddress[];
+      syncedAt?: string;
+      error?: string | null;
+    };
     [key: string]: unknown;
   } | null;
   createdAt: string;
@@ -124,6 +139,7 @@ export interface CreateEmailAccountDto {
 export interface SendEmailDto {
   accountId: string;
   to: string[];
+  fromEmail?: string;
   cc?: string[];
   bcc?: string[];
   subject?: string;
@@ -297,6 +313,15 @@ export async function syncEmailMailboxNow(
   return api.post<{ imported: number; scanned?: number }>(path, {}, {
     skipUnauthorizedRedirect: true,
   });
+}
+
+export async function syncGmailSendAsAddresses(
+  accountId: string,
+): Promise<{ addresses: GmailSendAsAddress[]; syncedAt: string }> {
+  return api.post<{ addresses: GmailSendAsAddress[]; syncedAt: string }>(
+    `/email/oauth/accounts/${accountId}/send-as/sync`,
+    {},
+  );
 }
 
 export async function importEmailCalendarInvite(messageId: string): Promise<EmailMessage> {

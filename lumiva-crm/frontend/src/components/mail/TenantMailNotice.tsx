@@ -20,16 +20,21 @@ export function useNotificationSender() {
  * Письма уходят с почты компании, а не с адреса платформы. Почта не подключена (или не выбран ящик) —
  * предупреждение «письма не отправляются» со ссылкой на настройку; подключена — тихая строка «с адреса …».
  */
-export const TenantMailNotice: React.FC<{ showOk?: boolean; style?: React.CSSProperties }> = ({ showOk = true, style }) => {
+export const TenantMailNotice: React.FC<{
+  showOk?: boolean;
+  style?: React.CSSProperties;
+  status?: NotificationSender | null;
+}> = ({ showOk = true, style, status }) => {
   const { t } = useTranslation();
-  const st = useNotificationSender();
+  const fetchedStatus = useNotificationSender();
+  const st = status === undefined ? fetchedStatus : status;
   if (!st) return null;
   const box: React.CSSProperties = { fontSize: 12.5, lineHeight: 1.5, padding: '9px 12px', borderRadius: 10, ...style };
   if (st.account) {
     if (!showOk) return null;
     return (
       <div style={{ ...box, background: 'var(--bg-muted, #f4f5f7)', color: 'var(--fg-3, #6b7280)' }}>
-        {t('crm.tenantMail.okLine', { email: st.account.email })}{' '}
+        {t('crm.tenantMail.okLine', { email: st.senderEmail || st.account.email })}{' '}
         <Link to="/email" style={{ color: 'inherit', textDecoration: 'underline' }}>{t('crm.tenantMail.change')}</Link>
       </div>
     );

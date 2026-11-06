@@ -5,6 +5,7 @@ import { LeadsModule } from '../leads/leads.module';
 import { NotesModule } from '../notes/notes.module';
 import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { Tenant } from '../tenants/tenant.entity';
 import { InstagramAccount } from './instagram-account.entity';
 import { InstagramContact } from './instagram-contact.entity';
 import { InstagramMessage } from './instagram-message.entity';
@@ -15,7 +16,13 @@ import { InstagramWebhookController } from './instagram-webhook.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([InstagramAccount, InstagramContact, InstagramMessage, Lead]),
+    TypeOrmModule.forFeature([
+      InstagramAccount,
+      InstagramContact,
+      InstagramMessage,
+      Lead,
+      Tenant,
+    ]),
     PlatformSettingsModule,
     forwardRef(() => LeadsModule),
     forwardRef(() => NotesModule),

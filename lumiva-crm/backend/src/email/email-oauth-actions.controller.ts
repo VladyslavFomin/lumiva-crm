@@ -76,6 +76,21 @@ export class EmailOAuthActionsController {
     return this.sync.syncAccount(accountId);
   }
 
+  @Post('accounts/:accountId/send-as/sync')
+  @RequirePermission('email', 'write')
+  async syncGmailSendAs(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('accountId', new ParseUUIDPipe()) accountId: string,
+  ) {
+    const account = await this.emailService.requireAccountEntity(
+      user.tenantId,
+      accountId,
+      this.uid(user),
+      (user as any).role,
+    );
+    return this.oauth.syncGmailSendAs(account);
+  }
+
   @Patch('accounts/:accountId/ingestion')
   @RequirePermission('email', 'write')
   async patchIngestion(

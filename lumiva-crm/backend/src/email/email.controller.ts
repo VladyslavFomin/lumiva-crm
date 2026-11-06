@@ -61,11 +61,18 @@ export class EmailController {
   /** Выбрать ящик для уведомлений (только владелец/админ: письма уходят от имени компании). */
   @Put('notification-sender')
   @RequirePermission('email', 'write')
-  chooseNotificationSender(@CurrentUser() user: CurrentUserPayload, @Body() body: { accountId?: string | null }) {
+  chooseNotificationSender(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { accountId?: string | null; senderEmail?: string | null },
+  ) {
     if (!['owner', 'admin'].includes(String(user.role || '').toLowerCase())) {
       throw new ForbiddenException('Only the owner or an admin can choose the mailbox for CRM notifications');
     }
-    return this.tenantMail.choose(user.tenantId, body?.accountId || null);
+    return this.tenantMail.choose(
+      user.tenantId,
+      body?.accountId || null,
+      body?.senderEmail || null,
+    );
   }
 
   private parseBooleanQuery(value: string | undefined): boolean | undefined {

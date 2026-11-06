@@ -56,6 +56,18 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const selectedAccount = accounts.find((account) => account.id === accountId);
+  const sendAsAddresses =
+    selectedAccount?.oauthProvider === 'gmail'
+      ? selectedAccount.meta?.gmailSendAs?.error
+        ? []
+        : selectedAccount.meta?.gmailSendAs?.addresses?.filter((address) => address.canSend) || []
+      : [];
+  const defaultFromEmail =
+    sendAsAddresses.find((address) => address.isDefault)?.sendAsEmail ||
+    sendAsAddresses.find((address) => address.isPrimary)?.sendAsEmail ||
+    '';
+  const [fromEmail, setFromEmail] = useState('');
   const [pos, setPos] = useState({ x: 48, y: 48 });
   const prevOpenRef = useRef(false);
   const dragRef = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
@@ -71,6 +83,10 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
     setFiles([]);
     setErr(null);
   }, [open, initialTo, initialSubject, initialHtml, resetKey]);
+
+  useEffect(() => {
+    if (open) setFromEmail(defaultFromEmail);
+  }, [open, accountId, defaultFromEmail, resetKey]);
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
@@ -128,6 +144,10 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
       setErr(t('crm.email.inbox.pickAccount'));
       return;
     }
+    if (selectedAccount?.oauthProvider === 'gmail' && !fromEmail) {
+      setErr(t('crm.email.inbox.fromUnavailable'));
+      return;
+    }
     const recipients = parseTo(to);
     if (!recipients.length) {
       setErr(t('crm.email.inbox.toRequired'));
@@ -148,6 +168,7 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
       await sendEmail({
         accountId,
         to: recipients,
+        fromEmail: selectedAccount?.oauthProvider === 'gmail' ? fromEmail : undefined,
         subject: subject.trim() || undefined,
         htmlBody: htmlBody.replace(/<p><\/p>/g, '').trim() ? htmlBody : undefined,
         textBody: plainBody.trim() || undefined,
@@ -248,6 +269,34 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
               />
             </div>
           </div>
+
+          {selectedAccount?.oauthProvider === 'gmail' ? (
+            <div>
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                {t('crm.email.inbox.from')}
+              </label>
+              <select
+                value={fromEmail}
+                onChange={(e) => setFromEmail(e.target.value)}
+                disabled={sendAsAddresses.length === 0}
+                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-900 shadow-sm disabled:bg-slate-100"
+              >
+                {sendAsAddresses.map((address) => (
+                  <option key={address.sendAsEmail} value={address.sendAsEmail}>
+                    {address.displayName
+                      ? `${address.displayName} <${address.sendAsEmail}>`
+                      : address.sendAsEmail}
+                    {address.isPrimary ? ` · ${t('crm.email.accounts.sendAs.primary')}` : ''}
+                  </option>
+                ))}
+              </select>
+              {sendAsAddresses.length === 0 ? (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {t('crm.email.inbox.fromUnavailable')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div>
             <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500">

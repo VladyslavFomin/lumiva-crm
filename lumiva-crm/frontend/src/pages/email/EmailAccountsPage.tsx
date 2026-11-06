@@ -17,7 +17,9 @@ import {
   patchEmailAccountSignature,
   updateEmailAccount,
   fetchEmailMessages,
+  syncGmailSendAsAddresses,
   type EmailAccount,
+  type GmailSendAsAddress,
   type EmailMessage,
 } from '../../api/email';
 import { useAlertModal } from '../../contexts/AlertModalContext';
@@ -82,10 +84,44 @@ function ConnectionTab({
   const { t } = useTranslation();
   const oauth = account.oauthProvider === 'gmail' || account.oauthProvider === 'outlook';
   const [name, setName] = useState(account.name || '');
+  const [sendAsState, setSendAsState] = useState(account.meta?.gmailSendAs);
+  const [syncingSendAs, setSyncingSendAs] = useState(false);
+  const [sendAsSyncSuccess, setSendAsSyncSuccess] = useState(false);
+  const [sendAsSyncError, setSendAsSyncError] = useState(
+    account.meta?.gmailSendAs?.error || '',
+  );
 
   useEffect(() => {
     setName(account.name || '');
   }, [account.id, account.name]);
+
+  useEffect(() => {
+    setSendAsState(account.meta?.gmailSendAs);
+    setSendAsSyncError(account.meta?.gmailSendAs?.error || '');
+    setSendAsSyncSuccess(false);
+  }, [account.id, account.meta?.gmailSendAs]);
+
+  const syncSendAs = async () => {
+    setSyncingSendAs(true);
+    setSendAsSyncError('');
+    setSendAsSyncSuccess(false);
+    try {
+      const result = await syncGmailSendAsAddresses(account.id);
+      setSendAsState({ ...result, error: null });
+      setSendAsSyncSuccess(true);
+    } catch (error: unknown) {
+      setSendAsSyncError(
+        error instanceof Error
+          ? error.message
+          : t('crm.email.accounts.sendAs.syncError'),
+      );
+    } finally {
+      setSyncingSendAs(false);
+    }
+  };
+
+  const sendAsAddresses: GmailSendAsAddress[] = sendAsState?.addresses || [];
+  const additionalSendAsAddresses = sendAsAddresses.filter((address) => !address.isPrimary);
 
   return (
     <div className="em-panel-b">
@@ -142,6 +178,82 @@ function ConnectionTab({
               {t('crm.email.accounts.connection.editServerLink')}
             </Link>
           </div>
+        </div>
+      )}
+
+      {account.oauthProvider === 'gmail' && (
+        <div className="em-fs">
+          <div className="em-fs-t">
+            <Ic d={EM_ICON.mail} size={14} />
+            {t('crm.email.accounts.sendAs.title')}
+            <span className="em-info-sp" />
+            <button
+              type="button"
+              className="em-btn sm"
+              disabled={syncingSendAs}
+              onClick={() => void syncSendAs()}
+            >
+              <Ic d={EM_ICON.refresh} size={12} />
+              {syncingSendAs
+                ? t('crm.email.accounts.sendAs.syncing')
+                : t('crm.email.accounts.sendAs.sync')}
+            </button>
+          </div>
+          <p className="em-send-as-hint">
+            {t('crm.email.accounts.sendAs.permissionHint')}
+          </p>
+          {sendAsSyncError && (
+            <div className="em-err" role="alert">
+              <Ic d={EM_ICON.warn} size={15} />
+              <div className="b">
+                <div className="t">{t('crm.email.accounts.sendAs.syncError')}</div>
+                <code>{sendAsSyncError}</code>
+              </div>
+            </div>
+          )}
+          {sendAsSyncSuccess && (
+            <div className="em-send-as-success" role="status">
+              {t('crm.email.accounts.sendAs.syncSuccess')}
+            </div>
+          )}
+          {!sendAsSyncError && !additionalSendAsAddresses.length && sendAsState?.syncedAt && (
+            <p className="em-send-as-hint">{t('crm.email.accounts.sendAs.noAdditional')}</p>
+          )}
+          {!sendAsSyncError && !sendAsState?.syncedAt && (
+            <p className="em-send-as-hint">{t('crm.email.accounts.sendAs.notSynced')}</p>
+          )}
+          {sendAsAddresses.map((address) => (
+            <div className="em-send-as-row" key={address.sendAsEmail}>
+              <div className="em-send-as-email">
+                <b>{address.sendAsEmail}</b>
+                {address.displayName && <span>{address.displayName}</span>}
+              </div>
+              <div className="em-send-as-tags">
+                <span className={cx('em-pill', address.canSend ? 'ok' : 'idle')}>
+                  <i />
+                  {address.isPrimary
+                    ? t('crm.email.accounts.sendAs.available')
+                    : address.canSend
+                    ? t('crm.email.accounts.sendAs.verified')
+                    : address.verificationStatus === 'pending'
+                      ? t('crm.email.accounts.sendAs.pending')
+                      : t('crm.email.accounts.sendAs.unverified')}
+                </span>
+                <span className="em-chan">
+                  {address.isPrimary
+                    ? t('crm.email.accounts.sendAs.primary')
+                    : t('crm.email.accounts.sendAs.additional')}
+                </span>
+              </div>
+            </div>
+          ))}
+          {sendAsState?.syncedAt && (
+            <div className="em-send-as-hint">
+              {t('crm.email.accounts.sendAs.lastSync', {
+                date: fmtDate(sendAsState.syncedAt),
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -557,7 +669,12 @@ const NotificationSenderPanel: React.FC<{ accounts: EmailAccount[] }> = ({ accou
     fetchNotificationSender(true).then(setSt).catch(() => setSt(null));
   }, [accounts]);
   if (!st) return null;
-  const chosen = accounts.find((a) => a.useForNotifications)?.id || '';
+  const chosen = st.selectedAccountId || '';
+  const notificationAccount = accounts.find((a) => a.id === (chosen || st.account?.id));
+  const sendAsAddresses = notificationAccount?.oauthProvider === 'gmail'
+    ? notificationAccount.meta?.gmailSendAs?.addresses?.filter((address) => address.canSend) || []
+    : [];
+  const selectedSenderEmail = st.senderEmail || notificationAccount?.email || '';
   return (
     <div className="em-panel" style={{ padding: '14px 16px', marginBottom: 14 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
@@ -587,7 +704,37 @@ const NotificationSenderPanel: React.FC<{ accounts: EmailAccount[] }> = ({ accou
           ))}
         </select>
       </div>
-      <div style={{ marginTop: 10 }}><TenantMailNotice /></div>
+      {notificationAccount?.oauthProvider === 'gmail' && sendAsAddresses.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
+          <label htmlFor="crm-notification-sender-address" style={{ fontSize: 12.5, color: 'var(--fg-3, #6b7280)' }}>
+            {t('crm.tenantMail.senderAddress')}
+          </label>
+          <select
+            id="crm-notification-sender-address"
+            value={selectedSenderEmail}
+            disabled={busy}
+            onChange={async (e) => {
+              setBusy(true);
+              try {
+                setSt(await chooseNotificationSender(notificationAccount.id, e.target.value));
+                showAlert(t('crm.tenantMail.saved'), { variant: 'success' });
+              } catch (err: any) {
+                showAlert(err?.message || t('crm.tenantMail.saveError'), { variant: 'error' });
+              } finally {
+                setBusy(false);
+              }
+            }}
+            style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--line-2, #e3e5ea)', font: 'inherit', fontSize: 13, minWidth: 260 }}
+          >
+            {sendAsAddresses.map((address) => (
+              <option key={address.sendAsEmail} value={address.sendAsEmail}>
+                {address.displayName ? `${address.displayName} <${address.sendAsEmail}>` : address.sendAsEmail}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div style={{ marginTop: 10 }}><TenantMailNotice status={st} /></div>
     </div>
   );
 };

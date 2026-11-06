@@ -20,7 +20,10 @@ import { Company } from '../companies/company.entity';
 import { Sale } from '../sales/sale.entity';
 import { PreviewStyledMailDto } from './dto/preview-styled-mail.dto';
 import { SendStyledEmailDto } from './dto/send-styled-email.dto';
-import { EmailOAuthService } from './email-oauth.service';
+import {
+  EmailOAuthService,
+  type GmailSendAsAddress,
+} from './email-oauth.service';
 import { EmailFoldersService } from './email-folders.service';
 import axios from 'axios';
 
@@ -415,6 +418,40 @@ export class EmailService {
   async sendEmail(tenantId: string, dto: SendEmailDto, triggerData?: any): Promise<EmailMessage> {
     const account = await this.requireAccountEntity(tenantId, dto.accountId);
 
+    let gmailSender: GmailSendAsAddress | undefined;
+    if (
+      dto.fromEmail &&
+      (account.oauthProvider !== 'gmail' || !account.oauthRefreshToken)
+    ) {
+      throw new BadRequestException(
+        'Sender selection is only available for connected Gmail accounts',
+      );
+    }
+    if (account.oauthProvider === 'gmail' && account.oauthRefreshToken) {
+      const { addresses } = await this.emailOAuth.syncGmailSendAs(account);
+      const requestedEmail = dto.fromEmail?.trim().toLowerCase();
+      const defaultSender =
+        addresses.find((candidate) => candidate.isDefault && candidate.canSend) ||
+        addresses.find((candidate) => candidate.isPrimary && candidate.canSend);
+      const selectedSender = addresses.find(
+        (address) =>
+          address.canSend &&
+          address.sendAsEmail.toLowerCase() ===
+            (requestedEmail || defaultSender?.sendAsEmail.toLowerCase()),
+      );
+      if (!selectedSender) {
+        throw new BadRequestException(
+          'The selected Gmail sender is not verified or is no longer available',
+        );
+      }
+      const primaryDisplayName =
+        addresses.find((address) => address.isPrimary)?.displayName || account.name || '';
+      gmailSender = {
+        ...selectedSender,
+        displayName: selectedSender.displayName || primaryDisplayName,
+      };
+    }
+
     let finalSubject = dto.subject;
     let finalTextBody = dto.textBody;
     let finalHtmlBody = dto.htmlBody;
@@ -477,6 +514,7 @@ export class EmailService {
           finalTextBody,
           finalHtmlBody,
           attachments,
+          gmailSender!,
         );
       }
       if (account.oauthProvider === 'outlook' && account.oauthRefreshToken) {
@@ -603,7 +641,11 @@ export class EmailService {
       account.status = 'error';
       account.lastError = error.message;
       await this.accountRepo.save(account);
-      throw new BadRequestException(`Failed to send email: ${error.message}`);
+      const providerMessage =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.error_description ||
+        error.message;
+      throw new BadRequestException(`Failed to send email: ${providerMessage}`);
     }
   }
 
@@ -1409,6 +1451,7 @@ export class EmailService {
 
   private async compileOutboundMime(
     account: EmailAccount,
+    sender: GmailSendAsAddress,
     dto: SendEmailDto,
     finalSubject: string | undefined,
     finalTextBody: string | null | undefined,
@@ -1424,9 +1467,8 @@ export class EmailService {
   ): Promise<Buffer> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const MailComposer = require('nodemailer/lib/mail-composer');
-    const fromAddr = account.name
-      ? `${account.name.replace(/"/g, '')} <${account.email}>`
-      : account.email;
+    const senderName =
+      sender.displayName || (sender.isPrimary ? account.name || '' : '');
     const att =
       attachments?.map((file) => ({
         filename: file.filename,
@@ -1438,7 +1480,9 @@ export class EmailService {
             : undefined,
       })) || undefined;
     const mail = new MailComposer({
-      from: fromAddr,
+      from: senderName
+        ? { name: senderName, address: sender.sendAsEmail }
+        : sender.sendAsEmail,
       to: dto.to,
       cc: dto.cc,
       bcc: dto.bcc,
@@ -1471,6 +1515,7 @@ export class EmailService {
         }>
       | undefined,
     messageId: string,
+    sender?: GmailSendAsAddress,
   ): Promise<EmailMessage> {
     const sentFolderId = await this.emailFolders.getFolderIdForSystemKey(
       tenantId,
@@ -1483,8 +1528,10 @@ export class EmailService {
       messageId,
       direction: 'outgoing',
       crmFolderId: sentFolderId,
-      from: account.email,
-      fromName: account.name,
+      from: sender?.sendAsEmail || account.email,
+      fromName: sender
+        ? sender.displayName || (sender.isPrimary ? account.name : null)
+        : account.name,
       to: dto.to,
       cc: dto.cc || [],
       bcc: dto.bcc || [],
@@ -1543,10 +1590,12 @@ export class EmailService {
           content?: Buffer;
         }>
       | undefined,
+    sender: GmailSendAsAddress,
   ): Promise<EmailMessage> {
     const token = await this.emailOAuth.ensureAccessToken(account);
     const rfc822 = await this.compileOutboundMime(
       account,
+      sender,
       dto,
       finalSubject,
       finalTextBody,
@@ -1580,6 +1629,7 @@ export class EmailService {
       finalHtmlBody,
       attachments,
       mid,
+      sender,
     );
   }
 
