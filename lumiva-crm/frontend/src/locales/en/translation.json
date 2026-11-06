@@ -1332,7 +1332,8 @@
       "hotelsNightAudit": "Night audit",
       "hotelsReports": "PMS reports",
       "hotelsChannels": "Sales channels",
-      "hotelsGuestCare": "Guest requests"
+      "hotelsGuestCare": "Guest requests",
+      "deals": "Deals"
     },
     "aiEmployees": {
       "badge": {
@@ -1477,7 +1478,8 @@
           "tasks": "Tasks & notes",
           "mail": "Email & messaging",
           "work": "Meetings & projects",
-          "data": "Reports & workspace"
+          "data": "Reports & workspace",
+          "content": "Content & social"
         },
         "overview": {
           "pendingTitle": "Awaiting your decision",
@@ -2147,6 +2149,10 @@
         "read_reviews": {
           "title": "Hotel reviews",
           "hint": "Guest reviews from all platforms: ratings, unanswered negatives, complaint topics and trends."
+        },
+        "prepare_content": {
+          "title": "Prepare posts",
+          "hint": "Puts posts with text and images into Marketing → SMM. Never publishes by itself: the channel mode decides — draft, approval, or Auto after the plan is approved."
         }
       },
       "config": {
@@ -2802,6 +2808,68 @@
         "files_other": "{{count}} files",
         "wholeHotel": "whole hotel, incl. new folders",
         "wholeSection": "whole section, incl. new folders"
+      },
+      "brain": {
+        "tab": "Brain",
+        "title": "Employee brain",
+        "loadError": "Could not load the Brain",
+        "saveError": "Could not save",
+        "uploadError": "Could not upload the file",
+        "downloadError": "Could not download the file",
+        "intro": "Files {{name}} reads before every action. The AI can’t change the instructions in the “Work” tab, but here both you and the employee can add documents: procedures, scripts, prices, agreements, findings.",
+        "upload": "Upload file",
+        "uploading": "Uploading…",
+        "newDoc": "Document",
+        "secOwner": "Instructions from the team",
+        "secOwnerHint": "Your md documents. The employee reads them in full before every action; the AI never edits them.",
+        "emptyOwner": "Nothing yet. Create a document, e.g. “How we answer clients” or “Prices and discounts”.",
+        "secAi": "AI notes",
+        "secAiHint": "The employee writes its own findings here (what worked, facts about the company, mistakes to avoid). It reads the latest entries before every action. You can edit and delete them.",
+        "emptyAi": "The employee hasn’t written anything yet.",
+        "secUploads": "Files",
+        "secUploadsHint": "PDF, spreadsheets, docx, images. Read by topic: only the fragments that match the task go into the prompt.",
+        "emptyUploads": "No files.",
+        "alwaysRead": "always read",
+        "aiWrote": "written by AI",
+        "byTopic": "by topic",
+        "updated": "upd.",
+        "indexing": "indexing {{p}}%",
+        "indexFailed": "indexing failed",
+        "readAt": "read {{time}}",
+        "notReadYet": "not read yet",
+        "lastReadHint": "When the employee last read this file before an action",
+        "download": "Download",
+        "delete": "Delete",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Document saved",
+        "deleteTitle": "Delete file",
+        "deleteConfirm": "Delete “{{name}}” from the employee’s brain?",
+        "settingsTitle": "Writing to the brain",
+        "aiWrites": "AI can add to its own brain",
+        "aiWritesHint": "The employee saves useful findings to “AI notes” by itself. No approval needed: it’s its memory, nothing changes in the CRM.",
+        "officeTitle": "Link with the AI office",
+        "officeOff": "The AI office isn’t available on your plan. The employee’s brain works without it.",
+        "officeHint": "Which departments’ brains the employee reads before acting. Departments it curates are always connected and read its instructions.",
+        "curated": "curates this department",
+        "noDepts": "No departments yet.",
+        "openOffice": "Open the AI office",
+        "shared": "Shared office files",
+        "sharedHint": "Office Brain files open to all departments.",
+        "writeDepts": "Write findings to department brains",
+        "writeDeptsHint": "The employee may add to the Brain of connected and curated departments. Department agents will read it.",
+        "previewTitle": "What the employee will read",
+        "previewHint": "Type a task topic to see which files and fragments go into the prompt before an action.",
+        "previewPlaceholder": "E.g. a client asks for a discount",
+        "previewRun": "Check",
+        "previewEmpty": "The brain is empty: the employee will work from its instructions and CRM data only.",
+        "editorTitle": "Document",
+        "aiNote": "AI note",
+        "namePlaceholder": "Document name",
+        "bodyPlaceholder": "# Title\n\nWrite in Markdown: rules, steps, sample answers…",
+        "editorHint": "The employee will read it before its next action.",
+        "untitled": "Document"
       }
     },
     "settings": {
@@ -3099,6 +3167,163 @@
         "sectionLabel": "General account settings",
         "success": "Settings saved",
         "title": "Company settings"
+      },
+      "structure": {
+        "tab": "CRM structure",
+        "kicker": "CRM structure",
+        "loadError": "Could not load the structure",
+        "saveError": "Could not save",
+        "saved": "Saved",
+        "entity": {
+          "lead": "Lead",
+          "project": "Project",
+          "deal": "Deal"
+        },
+        "blocksOn": "{{on}} of {{total}} blocks",
+        "moduleOn": "on",
+        "moduleOff": "off",
+        "moduleOffShort": "module off",
+        "navHint": "A switched-off block simply disappears from the card for the whole team. No data is deleted: switch it back on and everything returns.",
+        "title": {
+          "lead": "What a lead contains",
+          "project": "What a project contains",
+          "deal": "What a deal contains"
+        },
+        "sub": {
+          "lead": "Keep only what your team uses in the lead card: links, conversations, tasks.",
+          "project": "A project is about work: tasks, deadlines, files. If your projects have no budget, switch it off and analytics will be based on tasks.",
+          "deal": "A deal is about money: lead, company, amount and pipeline stage. Tasks and files help close it."
+        },
+        "dealsOffNote": "The Deals module is currently off for your company — the platform administrator turns it on. The settings below apply as soon as it is on.",
+        "budget": {
+          "title": "Project budget",
+          "on": "Amount and currency appear in the card, list and kanban; analytics counts money.",
+          "off": "No budget: amounts are hidden, analytics is based on task completion."
+        },
+        "group": {
+          "main": "Main",
+          "links": "Links",
+          "comms": "Communication",
+          "work": "Work"
+        },
+        "preview": "Card layout",
+        "pv": {
+          "amount": "Amount",
+          "budget": "Budget",
+          "progress": "Tasks",
+          "stage": "Stage",
+          "stageValue": "",
+          "props": "Properties"
+        },
+        "stages": {
+          "title": "Deal pipeline",
+          "hint": "The stages a deal moves through. “Won” and “Lost” drive the win rate and the “Create sale” button.",
+          "color": "Colour",
+          "open": "In progress",
+          "won": "Won",
+          "lost": "Lost",
+          "builtIn": "Built-in stage: its meaning is fixed and it can’t be deleted",
+          "up": "Up",
+          "down": "Down",
+          "delete": "Delete",
+          "newPlaceholder": "New stage, e.g. “Invoice sent”",
+          "add": "Stage"
+        },
+        "block": {
+          "lead": {
+            "contact": "Contact",
+            "amount": "Amount and channel",
+            "company": "Company",
+            "contacts": "Contacts",
+            "projects": "Projects",
+            "deals": "Deals",
+            "sales": "Sales",
+            "bookings": "Bookings",
+            "customFields": "Custom fields",
+            "utm": "UTM tags",
+            "notes": "Notes",
+            "chat": "Conversation",
+            "calls": "Calls",
+            "comments": "Comments",
+            "history": "History",
+            "ai": "AI assistant",
+            "tasks": "Steps",
+            "meetings": "Meetings"
+          },
+          "project": {
+            "budget": "Budget",
+            "progress": "Task progress",
+            "links": "Lead, company, contact",
+            "tags": "Tags",
+            "customFields": "Custom fields",
+            "notes": "Notes",
+            "files": "Files",
+            "tasks": "Tasks",
+            "comments": "Comments",
+            "history": "History",
+            "watchers": "Watchers"
+          },
+          "deal": {
+            "progress": "Task progress",
+            "links": "Lead, company, contact",
+            "tags": "Tags",
+            "customFields": "Custom fields",
+            "notes": "Notes",
+            "files": "Files",
+            "tasks": "Tasks",
+            "comments": "Comments",
+            "history": "History",
+            "watchers": "Watchers"
+          }
+        },
+        "blockHint": {
+          "lead": {
+            "contact": "Name, phone, email, country",
+            "amount": "Expected amount, currency, channel",
+            "company": "Link to a company",
+            "contacts": "Related contacts",
+            "projects": "Projects for this lead",
+            "deals": "Lead deals: amount and stage",
+            "sales": "Paid sales and orders",
+            "bookings": "Bookings from the Bookings module",
+            "customFields": "Fields your company created",
+            "utm": "Where the lead came from",
+            "notes": "Internal note",
+            "chat": "WhatsApp, Telegram, email in one feed",
+            "calls": "Call recordings and analysis",
+            "comments": "Team discussion",
+            "history": "Change log",
+            "ai": "Score, next step, email",
+            "tasks": "Checklist for the lead",
+            "meetings": "Meetings with the client"
+          },
+          "project": {
+            "budget": "",
+            "progress": "Share of completed tasks",
+            "links": "Who the work is for",
+            "tags": "Colour tags",
+            "customFields": "Fields your company created",
+            "notes": "Visible to the team only",
+            "files": "Documents and links",
+            "tasks": "Tasks, assignees, deadlines",
+            "comments": "Discussion with mentions",
+            "history": "Change log",
+            "watchers": "Who can view and edit"
+          },
+          "deal": {
+            "progress": "Share of completed tasks for the deal",
+            "links": "Deal lead, company, contact",
+            "tags": "Colour tags",
+            "customFields": "Deal fields (e.g. probability)",
+            "notes": "Visible to the team only",
+            "files": "Quotes, contracts, invoices",
+            "tasks": "What to do to close the deal",
+            "comments": "Discussion with mentions",
+            "history": "Change log",
+            "watchers": "Who can view and edit"
+          }
+        },
+        "noEntities": "Leads, projects and deals are all off for this company — there is nothing to configure yet. The platform administrator turns modules on."
       }
     },
     "embedForms": {
@@ -14692,7 +14917,11 @@
           "avgAmount": "Average amount",
           "owners": "Owners",
           "tags": "Tags",
-          "statuses": "Statuses"
+          "statuses": "Statuses",
+          "tasksDonePct": "Tasks completed",
+          "tasksOpen": "Open tasks",
+          "tasksOverdue": "Overdue tasks",
+          "tasksTotal": "Total tasks"
         },
         "statusChart": {
           "title": "Projects by status"
@@ -16741,6 +16970,23 @@
           "checkFrequencyValue": "Every 2 minutes (automatic)",
           "lastSyncLabel": "Last sync"
         },
+        "sendAs": {
+          "title": "Additional sending addresses",
+          "sync": "Sync addresses",
+          "syncing": "Syncing…",
+          "syncSuccess": "Addresses synchronized successfully.",
+          "syncError": "Synchronization error",
+          "noAdditional": "No additional addresses are available.",
+          "notSynced": "Addresses have not been synchronized yet.",
+          "permissionHint": "Addresses are fetched from this Gmail account. Only verified addresses are available for sending.",
+          "available": "Available for sending",
+          "verified": "Verified",
+          "pending": "Verification pending",
+          "unverified": "Not verified",
+          "primary": "Primary",
+          "additional": "Additional",
+          "lastSync": "Last synchronized: {{date}}"
+        },
         "signature": {
           "title": "Email signature",
           "editorPlaceholder": "Signature added to the end of outgoing emails from this account…",
@@ -16838,6 +17084,8 @@
         "replyTitle": "Reply",
         "send": "Send",
         "sending": "Sending…",
+        "from": "From",
+        "fromUnavailable": "No verified Gmail sending addresses are available. Sync addresses in Email Accounts settings.",
         "to": "To",
         "subject": "Subject",
         "body": "Body",
@@ -20091,7 +20339,8 @@
           "channelPaymentType": {
             "credit_card": "card",
             "bank_transfer": "bank transfer"
-          }
+          },
+          "voucher": "Voucher"
         },
         "paymentMethods": {
           "card": "Card",
@@ -20193,7 +20442,12 @@
             "work": "Work",
             "study": "Study",
             "other": "Other"
-          }
+          },
+          "partnerNew": "+ New partner…",
+          "voucherLabel": "Voucher / partner booking no.",
+          "voucherPh": "Booking number at the partner",
+          "voucherPhPartner": "Booking number in {{name}}",
+          "voucherPhOta": "{{name}} reservation number"
         },
         "importModal": {
           "title": "Import bookings from Excel",
@@ -21273,7 +21527,8 @@
           "address": "Address",
           "notes": "Notes",
           "nameRequired": "Enter the partner name"
-        }
+        },
+        "quickHint": "Contacts, payment terms and legal details can be added later in the partner card (Hotels → Partners)."
       },
       "contracts": {
         "newTitle": "New contract",
@@ -21726,7 +21981,8 @@
             "cancelNote": "Comment",
             "cancellationFee": "Penalty",
             "accommodationFolio": "Accommodation folio",
-            "priceMode": "Price mode"
+            "priceMode": "Price mode",
+            "voucherNo": "Voucher"
           }
         },
         "errors": {
@@ -26221,7 +26477,10 @@
       "links": {
         "all": "All",
         "sales": "Sales",
-        "bookings": "Bookings"
+        "bookings": "Bookings",
+        "deals": "Deals",
+        "newDeal": "Deal",
+        "dealsEmpty": "No deals yet"
       },
       "ccp": {
         "goTo": "Open account"
@@ -28225,6 +28484,7 @@
       "setup": "Set up email",
       "panelTitle": "Mailbox for CRM notifications",
       "panelSub": "The CRM sends notifications, reports and emails to your customers from this address: review alerts, PDF reports, guest invoices, documents for signature, staff invitations. Only system emails — sign-up, password reset, security, billing — come from the platform address.",
+      "senderAddress": "Sender address",
       "auto": "Automatic — the only shared mailbox",
       "personal": "personal",
       "saved": "Notification mailbox saved",
@@ -28736,7 +28996,9 @@
       "pageTheme": "Page theme",
       "themeDark": "Dark",
       "themeLight": "Light",
-      "themeHint": "Visitors can switch the theme for themselves with the button in the page header."
+      "themeHint": "Visitors can switch the theme for themselves with the button in the page header.",
+      "tgAuto": "Add new folders automatically",
+      "tgAutoD": "New folders in this link’s hotels and sections appear in it on their own. Folders you untick stay out."
     },
     "home": {
       "metrics": {
@@ -28952,6 +29214,528 @@
       "next": "Next",
       "clear": "Clear",
       "today": "Today"
+    },
+    "columnAccess": {
+      "title": "Who can view this column",
+      "menuItem": "Who can see the column",
+      "searchPlaceholder": "Type a person’s name",
+      "everyone": "visible to everyone with access to the table",
+      "restrictedCount_one": "visible to {{count}} person",
+      "restrictedCount_other": "visible to {{count}} people",
+      "ownerRow": "Company owner",
+      "ownerAlways": "The owner always sees it",
+      "noStaff": "No employees found",
+      "hintEveryone": "Tick people — everyone else will stop seeing the column.",
+      "hintRestricted": "Others see neither the column nor its values.",
+      "reset": "Show to everyone",
+      "restrictedBadge_one": "Restricted column: visible to {{count}} person",
+      "restrictedBadge_other": "Restricted column: visible to {{count}} people",
+      "saveError": "Could not save column access"
+    },
+    "columnRules": {
+      "menuItem": "Column rules",
+      "kicker": "Column rules",
+      "title": "Column rules",
+      "titleFor": "Rules: “{{label}}”",
+      "subtitle": "Applied whenever a row is saved — in the table, the row card, via AI and the API. Auto-fill sets a value, a check blocks saving an invalid one.",
+      "close": "Close",
+      "emptyTitle": "No rules yet",
+      "emptyText": "For example: if “Platform” is Facebook, fill “Author” with “Anna”.",
+      "conditionKicker": "Condition rule",
+      "validationKicker": "Value check",
+      "valueOf": "The value of “{{label}}” must be",
+      "if": "If",
+      "then": "Then",
+      "and": "And",
+      "pickColumn": "Column",
+      "pickValue": "Value",
+      "pickValues": "Choose values",
+      "typeAndEnter": "Type and press Enter",
+      "valuePlaceholder": "Value",
+      "noValueNeeded": "No value needed",
+      "min": "from",
+      "max": "to",
+      "yes": "Yes",
+      "no": "No",
+      "remove": "Remove",
+      "addAction": "New column",
+      "addCondition": "Condition rule",
+      "addValidation": "Value check",
+      "groupFill": "Auto-fill",
+      "groupMustBe": "Must be",
+      "actionSet": "fill with value",
+      "actionClear": "clear",
+      "helpFill": "Auto-fill never overwrites a column the person changes in the same save.",
+      "helpCheck": "Checks apply to new rows and to changed columns — old rows aren’t blocked until someone edits them.",
+      "enabled": "Rule enabled",
+      "disabled": "Rule disabled",
+      "deleteRule": "Delete rule",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "saveError": "Could not save the rules",
+      "savedToast": "Column rules saved",
+      "violationTitle": "Not saved because of column rules:",
+      "violation": "“{{field}}” must be {{expected}}",
+      "violationIf": "“{{field}}” must be {{expected}} (if {{condition}})",
+      "cond": {
+        "is": "is",
+        "is_not": "is not",
+        "empty": "is empty",
+        "not_empty": "is not empty",
+        "contains": "contains",
+        "eq": "equals",
+        "neq": "does not equal",
+        "gt": "greater than",
+        "gte": "at least",
+        "lt": "less than",
+        "lte": "at most"
+      },
+      "check": {
+        "not_empty": "not empty",
+        "eq": "equal to",
+        "neq": "not equal to",
+        "gt": "greater than",
+        "gte": "at least",
+        "lt": "less than",
+        "lte": "at most",
+        "one_of": "one of",
+        "between": "between"
+      },
+      "expect": {
+        "not_empty": "not empty",
+        "eq": "equal to {{value}}",
+        "neq": "not equal to {{value}}",
+        "gt": "greater than {{value}}",
+        "gte": "at least {{value}}",
+        "lt": "less than {{value}}",
+        "lte": "at most {{value}}",
+        "one_of": "one of: {{values}}",
+        "between": "between {{min}} and {{max}}"
+      }
+    },
+    "deals": {
+      "kicker": "Sales · Deals",
+      "title": "Deals",
+      "subtitle": "Lead · Company · Amount · Stage. Drag cards between pipeline stages.",
+      "new": "Deal",
+      "view": {
+        "board": "Pipeline",
+        "table": "Table"
+      },
+      "kpi": {
+        "open": "Open",
+        "won": "Won",
+        "lost": "Lost",
+        "winRate": "Win rate",
+        "winRateHint": "won of closed"
+      },
+      "search": "Search by deal, lead, company",
+      "count_one": "{{count}} deal",
+      "count_other": "{{count}} deals",
+      "emptyTitle": "No deals yet",
+      "emptyText": "Create a deal here or from a lead card — the “Deals” block.",
+      "dropHere": "Drop here",
+      "untitled": "Untitled",
+      "loadError": "Could not load deals",
+      "moveError": "Could not change the stage",
+      "col": {
+        "name": "Deal",
+        "lead": "Lead",
+        "company": "Company",
+        "stage": "Stage",
+        "amount": "Amount",
+        "owner": "Owner",
+        "created": "Created"
+      },
+      "card": {
+        "amount": "Deal amount",
+        "stage": "Pipeline stage",
+        "createSale": "Create sale",
+        "creatingSale": "Creating…",
+        "saleCreated": "Sale created",
+        "saleExists": "A sale for this deal already exists",
+        "saleError": "Could not create the sale",
+        "titleNew": "New deal",
+        "created": "Deal created",
+        "back": "Back to deals",
+        "idKicker": "Deal",
+        "toBoard": "To pipeline",
+        "name": "Deal name",
+        "description": "Deal description"
+      }
+    },
+    "smm2": {
+      "kicker": "Marketing · SMM",
+      "title": "Content & publishing",
+      "subtitle": "One plan for every network: posts are prepared by people, the SMM employee and the AI office content department, and each channel publishes by its own rules.",
+      "newPost": "Post",
+      "loadError": "Could not load content",
+      "connected": "Connected",
+      "connectFailed": "Could not connect ({{code}})",
+      "tabs": {
+        "overview": "Overview",
+        "plan": "Content plan",
+        "review": "Approvals",
+        "posts": "Posts",
+        "channels": "Channels",
+        "analytics": "Analytics"
+      },
+      "status": {
+        "draft": "Draft",
+        "review": "In review",
+        "changes": "Changes requested",
+        "approved": "Approved",
+        "scheduled": "Scheduled",
+        "published": "Published",
+        "partial": "Partly published",
+        "failed": "Failed",
+        "rejected": "Rejected"
+      },
+      "vstatus": {
+        "pending": "No time",
+        "scheduled": "Scheduled",
+        "publishing": "Publishing",
+        "published": "Published",
+        "failed": "Failed",
+        "skipped": "Skipped"
+      },
+      "autonomy": {
+        "suggest": "Suggest",
+        "assisted": "Assisted",
+        "auto": "Auto"
+      },
+      "autonomyHint": {
+        "suggest": "AI only prepares text and images — a person publishes",
+        "assisted": "Every AI post waits for approval",
+        "auto": "Publishes by itself from the approved content plan"
+      },
+      "source": {
+        "manual": "Manual",
+        "ai_office": "AI office",
+        "ai_employee": "AI employee"
+      },
+      "format": {
+        "post": "Post",
+        "carousel": "Carousel",
+        "story": "Story",
+        "reel": "Reel",
+        "article": "Article"
+      },
+      "commentKind": {
+        "approved": "Approved",
+        "changes": "Changes:",
+        "rejected": "Rejected:",
+        "image_rejected": "Image rejected",
+        "duplicated": "Copy of the post",
+        "ab_created": "Variant B created"
+      },
+      "overview": {
+        "noChannelsTitle": "Connect your first channel",
+        "noChannelsText": "Instagram, Facebook, Telegram or LinkedIn — then the plan, approvals and publishing appear here.",
+        "connect": "Connect a channel",
+        "kpi": {
+          "review": "Need a decision",
+          "scheduled": "Scheduled",
+          "published": "Published",
+          "drafts": "Drafts"
+        },
+        "kpiHint": {
+          "review": "in review and in changes",
+          "scheduled": "next 7 days",
+          "published": "last 7 days",
+          "drafts": "prepared by AI or the team"
+        },
+        "upcoming": "Upcoming posts",
+        "openPlan": "Content plan",
+        "nothingScheduled": "Nothing scheduled.",
+        "attention": "Needs attention",
+        "brokenChannels_one": "{{count}} channel is not working",
+        "brokenChannels_other": "{{count}} channels are not working",
+        "brokenHint": "Reconnect in “Channels”",
+        "allGood": "No publishing errors."
+      },
+      "plan": {
+        "week": "Week",
+        "month": "Month",
+        "today": "Today",
+        "allChannels": "All channels",
+        "addPost": "Post on this day",
+        "plans": "Content plans",
+        "newPlan": "Plan",
+        "planName": "Plan name",
+        "create": "Create",
+        "cancel": "Cancel",
+        "error": "Error",
+        "plansHint": "An approved plan is published automatically in “Auto” channels. In “Assisted” channels each post is still approved.",
+        "postsCount_one": "{{count}} post",
+        "postsCount_other": "{{count}} posts",
+        "approved": "Approved",
+        "approve": "Approve",
+        "onReview": "In review",
+        "planApproved": "Plan approved",
+        "noPlans": "No plans yet — people or the AI office content department create them.",
+        "unscheduled": "No date",
+        "noUnscheduled": "Every post has a time."
+      },
+      "review": {
+        "emptyTitle": "Nothing to approve",
+        "emptyText": "Posts from AI and the team waiting for a decision appear here.",
+        "open": "Open",
+        "approve": "Approve",
+        "approved": "Post approved",
+        "error": "Error"
+      },
+      "posts": {
+        "search": "Search posts",
+        "all": "All",
+        "col": {
+          "post": "Post",
+          "channels": "Channels",
+          "status": "Status",
+          "when": "Publishing",
+          "updated": "Updated"
+        },
+        "emptyTitle": "No posts",
+        "emptyText": "Create a post with “+ Post” or ask the AI office for a content plan."
+      },
+      "channels": {
+        "connectedTitle": "Connected channels",
+        "modesHint": "The channel mode decides what AI does: “Suggest” — only prepares, “Assisted” — a post waits for approval, “Auto” — publishes everything from the approved plan by itself.",
+        "noneYet": "No channels yet — connect one below.",
+        "addTitle": "Connect",
+        "loadError": "Could not load connections",
+        "error": "Error",
+        "connected": "Connected",
+        "added": "Channel added",
+        "isAdded": "Added",
+        "add": "Add",
+        "addInstagram": "Instagram",
+        "addFacebook": "Page",
+        "metaHint": "The Instagram business account must be linked to a Facebook page.",
+        "connectMeta": "Connect Meta",
+        "reconnectMeta": "Reconnect Meta",
+        "noInstagram": "No Instagram linked",
+        "noPages": "No pages available in this Meta account.",
+        "telegramTitle": "Telegram channel",
+        "telegramHint": "The company bot must be a channel admin allowed to post.",
+        "noBots": "Connect a Telegram bot first.",
+        "openTelegram": "Open Telegram",
+        "linkedinHint": "Posts from your profile. Company pages appear after LinkedIn approval.",
+        "linkedinHintOrg": "Your profile and the company pages you administer.",
+        "linkedinNotConfigured": "The LinkedIn app is not set up by the platform admin (pl1 → OAuth apps → linkedin).",
+        "connectLinkedin": "Connect LinkedIn",
+        "reconnectLinkedin": "Reconnect LinkedIn",
+        "linkedinPerson": "Personal profile",
+        "linkedinOrg": "Company page",
+        "until": "access until {{date}}",
+        "soon": "Soon",
+        "broken": "Not working",
+        "enabled": "On",
+        "disabled": "Off",
+        "mode": "Mode",
+        "more": "Rules and departments",
+        "less": "Collapse",
+        "dailyLimit": "Posts per day (0 — no limit)",
+        "hashtags": "Hashtags at the end of each post",
+        "signature": "Signature at the end of a post",
+        "departments": "AI office departments",
+        "departmentsAll": "Any department may publish",
+        "departmentsSome": "Only the selected departments publish",
+        "remove": "Disconnect",
+        "removeConfirm": "Disconnect “{{name}}”? Its scheduled posts will be removed.",
+        "cancel": "Cancel",
+        "vkHint": "Posts on behalf of a community where you are an admin or editor.",
+        "vkNotConfigured": "The VK ID app is not set up by the platform admin (pl1 → OAuth apps → vkid).",
+        "vkGroup": "Community",
+        "vkNoGroups": "This account has no communities where you are an admin or editor.",
+        "connectVk": "Connect VK",
+        "reconnectVk": "Reconnect VK",
+        "canvaHint": "Not a channel but an image source: designs and brand templates right into the post.",
+        "canvaNotConfigured": "The Canva integration is not set up by the platform admin (pl1 → OAuth apps → canva).",
+        "canvaConnected": "Connected — Canva buttons are in the post editor",
+        "connectCanva": "Connect Canva",
+        "reconnectCanva": "Reconnect Canva",
+        "threadsHint": "Posts from a Threads profile (up to 500 characters, photos and carousels).",
+        "threadsNotConfigured": "The Threads app is not set up by the platform admin (pl1 → OAuth apps → threads).",
+        "threadsProfile": "Threads profile",
+        "connectThreads": "Connect Threads",
+        "reconnectThreads": "Reconnect Threads",
+        "youtubeHint": "Shorts and videos on a YouTube channel (the “Reel” format = Shorts).",
+        "youtubeNotConfigured": "Google OAuth is not set up by the platform admin (pl1 → Google).",
+        "youtubeAccount": "YouTube channel",
+        "connectYouTube": "Connect YouTube",
+        "reconnectYouTube": "Reconnect YouTube",
+        "tiktokHint": "Videos to TikTok. Until TikTok audits the app, posts are visible only to the author.",
+        "tiktokNotConfigured": "The TikTok app is not set up by the platform admin (pl1 → OAuth apps → tiktok).",
+        "tiktokAccount": "TikTok account",
+        "connectTikTok": "Connect TikTok",
+        "reconnectTikTok": "Reconnect TikTok"
+      },
+      "analytics": {
+        "days": "{{n}} days",
+        "metricsHint": "Metrics refresh every few hours for posts of the last 30 days.",
+        "kpi": {
+          "posts": "Posts",
+          "reach": "Reach",
+          "engagement": "Engagement",
+          "er": "ER"
+        },
+        "kpiHint": {
+          "posts": "in the period",
+          "reach": "unique users",
+          "engagement": "likes, comments, shares, saves",
+          "er": "engagement / reach"
+        },
+        "byNetwork": "By network",
+        "network": "Network",
+        "posts": "Posts",
+        "reach": "Reach",
+        "engagement": "Engagement",
+        "top": "Top posts",
+        "noData": "No published posts with metrics yet.",
+        "engShort": "{{n}} reactions",
+        "reachShort": "reach {{n}}",
+        "open": "Open",
+        "noMetricsHint": "Telegram bots and personal LinkedIn profiles do not expose stats — such posts show “—”.",
+        "bestTimes": "Best posting times",
+        "bestTimesHint": "From your own metrics for 90 days, in your time zone. The AI office and the SMM employee use these slots when planning.",
+        "bestTimesEmpty": "Appears once a network has at least 8 posts with metrics (Instagram, Facebook, LinkedIn page).",
+        "postsN_one": "{{count}} post",
+        "postsN_other": "{{count}} posts",
+        "dow": {
+          "1": "Mon",
+          "2": "Tue",
+          "3": "Wed",
+          "4": "Thu",
+          "5": "Fri",
+          "6": "Sat",
+          "7": "Sun"
+        },
+        "repeat": "Repeat",
+        "repeatHint": "Make a draft copy of this successful post",
+        "abTitle": "Text A/B tests",
+        "abVariant": "Variant",
+        "abResult": "Result",
+        "abWinner": "{{label}} wins",
+        "abWaiting": "Waiting for both metrics",
+        "abEmpty": "No tests — press “A/B test” in the post editor. Compared by ER once both variants have metrics."
+      },
+      "editor": {
+        "title": "Post",
+        "kickerNew": "New post",
+        "kickerEdit": "Post",
+        "titlePlaceholder": "Title (for the team)",
+        "close": "Close",
+        "loadError": "Could not open the post",
+        "saveError": "Could not save",
+        "saved": "Saved",
+        "channels": "Where to publish",
+        "noChannels": "No channels connected — connect one in “Channels”.",
+        "aiTitle": "AI will prepare the post",
+        "briefPlaceholder": "What the post is about: occasion, offer, details, call to action",
+        "withImage": "And an image",
+        "compose": "Prepare",
+        "composing": "Preparing…",
+        "aiHint": "Platform key (gpt-4o-mini) or your own OpenAI key if connected. Facts come only from the brief and the brand guide in the Brain.",
+        "needBrief": "Describe the post",
+        "aiError": "AI did not respond",
+        "imageFailed": "Could not create the image",
+        "quota": "AI balance is empty — top up or connect your own key",
+        "mainText": "Main text",
+        "textPlaceholder": "Post text",
+        "variantPlaceholder": "Own text for {{network}} (empty — main text)",
+        "usesMain": "The main text is used.",
+        "media": "Images",
+        "approveImage": "Approve image",
+        "rejectImage": "Reject image",
+        "removeImage": "Remove",
+        "imageWhy": "What should change in the image?",
+        "upload": "Upload",
+        "uploading": "Uploading…",
+        "uploadError": "Upload failed",
+        "imagePromptPlaceholder": "Prompt for an AI image (English works best)",
+        "generateImage": "AI image",
+        "generating": "Drawing…",
+        "needPrompt": "Describe the image",
+        "history": "Discussion and history",
+        "noComments": "Nothing yet.",
+        "commentPlaceholder": "Comment",
+        "send": "Send",
+        "settings": "Settings",
+        "format": "Format",
+        "rubric": "Rubric",
+        "rubricPlaceholder": "E.g. case studies",
+        "plan": "Content plan",
+        "noPlan": "No plan",
+        "when": "When",
+        "allChannels": "Same time for all channels",
+        "openPost": "Open the post",
+        "pickChannels": "Pick channels.",
+        "preview": "Preview",
+        "reviewNote": "What to fix:",
+        "delete": "Delete",
+        "deleteConfirm": "Delete the post? Scheduled publishing will be cancelled.",
+        "cancel": "Cancel",
+        "notePlaceholder": "What to fix (sent to the author)",
+        "requestChanges": "Request changes",
+        "sentBack": "Sent back for changes",
+        "saving": "Saving…",
+        "saveDraft": "Save",
+        "submit": "Send for approval",
+        "submitted": "Sent for approval",
+        "approve": "Approve",
+        "approveSchedule": "Approve and schedule",
+        "approved": "Post approved",
+        "saveSchedule": "Save schedule",
+        "publishNow": "Publish now",
+        "publishing": "Publishing…",
+        "duplicate": "Repeat",
+        "duplicateHint": "Draft copy: same channels, texts and images, no date",
+        "duplicated": "Copy created — set a time",
+        "canvaFrom": "From Canva",
+        "canvaOpen": "Open in Canva",
+        "canvaOpening": "Opening…",
+        "canvaTemplate": "Brand template",
+        "canvaSize": "Design size",
+        "canvaSaveFirst": "Save the post to work with Canva",
+        "canvaImported": "Images from Canva added",
+        "abBadge": "A/B · {{label}}",
+        "abHint": "Variant B is the same post a week later in the same slot; change its text",
+        "abCreate": "A/B test",
+        "abOpenB": "Variant B",
+        "abCreated": "Variant B created — change its text",
+        "video": "Video",
+        "mb": "MB"
+      },
+      "canva": {
+        "designsTitle": "Canva designs",
+        "templatesTitle": "Canva brand templates",
+        "close": "Close",
+        "search": "Search by title",
+        "find": "Find",
+        "loading": "Loading…",
+        "loadError": "Could not load from Canva",
+        "untitled": "Untitled",
+        "pages_one": "{{count}} page",
+        "pages_other": "{{count}} pages",
+        "noDesigns": "No designs in this Canva account.",
+        "noTemplates": "No brand templates — they exist only in Canva for teams with a Brand Kit (Enterprise).",
+        "more": "More",
+        "exporting": "Canva is preparing the files — up to a minute…",
+        "fillHint": "Template “{{name}}”: fill in the fields — the image is built in your brand style.",
+        "imagesFromPost": "Photos in the template come from the post images in order.",
+        "back": "Back",
+        "make": "Build image",
+        "making": "Building…",
+        "preset": {
+          "square": "Square 1080×1080",
+          "portrait": "Post 1080×1350",
+          "story": "Story 1080×1920",
+          "landscape": "LinkedIn 1200×627"
+        }
+      },
+      "canvaImported": "Images from Canva added"
     }
   },
   "landing": {
@@ -29594,7 +30378,7 @@
             },
             {
               "q": "Are there discounts for nonprofits and schools?",
-              "a": "Yes. Email us at hello@lumiva.agency with supporting documents and we'll work out individual terms."
+              "a": "Yes. Email us at info@lumiva.agency with supporting documents and we'll work out individual terms."
             }
           ]
         },
@@ -29685,11 +30469,11 @@
         },
         {
           "title": "9. Changes and termination",
-          "content": "9.1. The Company may change the terms of this Agreement with at least 14 days' notice to the User.\n\n9.2. The User may terminate this Agreement at any time by sending a notice to hello@lumiva.agency.\n\n9.3. Upon termination, User data is retained for 30 days and then deleted."
+          "content": "9.1. The Company may change the terms of this Agreement with at least 14 days' notice to the User.\n\n9.2. The User may terminate this Agreement at any time by sending a notice to info@lumiva.agency.\n\n9.3. Upon termination, User data is retained for 30 days and then deleted."
         },
         {
           "title": "10. Governing law",
-          "content": "This Agreement is governed by the laws of the Russian Federation. All disputes are resolved in court at the Company's place of registration.\n\nFor questions related to this Agreement, contact: hello@lumiva.agency"
+          "content": "This Agreement is governed by the laws of the Russian Federation. All disputes are resolved in court at the Company's place of registration.\n\nFor questions related to this Agreement, contact: info@lumiva.agency"
         }
       ]
     },
@@ -30037,7 +30821,7 @@
         {
           "id": "rights",
           "title": "7. Your rights",
-          "content": "You have the following rights regarding your personal data:\n\n**Right of access** — request confirmation of whether we process your data, and obtain a copy of it.\n\n**Right to rectification** — request correction of inaccurate or incomplete data. Most data can be updated yourself in account settings.\n\n**Right to erasure (\"right to be forgotten\")** — request deletion of your personal data. We will delete data no longer needed for the processing purposes, except where retention is legally required.\n\n**Right to restrict processing** — request that processing be paused in certain situations (for example, while you dispute its accuracy).\n\n**Right to data portability** — receive your data in a structured, machine-readable format (CSV/JSON) to transfer to another provider.\n\n**Right to object** — object to processing based on legitimate interest, including for direct marketing.\n\n**Right to withdraw consent** — withdraw previously given consent at any time, without affecting the lawfulness of processing before withdrawal.\n\nTo exercise any of these rights, contact **privacy@lumiva.agency**. We will respond within 30 days. If we decline a request, we will explain why."
+          "content": "You have the following rights regarding your personal data:\n\n**Right of access** — request confirmation of whether we process your data, and obtain a copy of it.\n\n**Right to rectification** — request correction of inaccurate or incomplete data. Most data can be updated yourself in account settings.\n\n**Right to erasure (\"right to be forgotten\")** — request deletion of your personal data. We will delete data no longer needed for the processing purposes, except where retention is legally required.\n\n**Right to restrict processing** — request that processing be paused in certain situations (for example, while you dispute its accuracy).\n\n**Right to data portability** — receive your data in a structured, machine-readable format (CSV/JSON) to transfer to another provider.\n\n**Right to object** — object to processing based on legitimate interest, including for direct marketing.\n\n**Right to withdraw consent** — withdraw previously given consent at any time, without affecting the lawfulness of processing before withdrawal.\n\nTo exercise any of these rights, contact **info@lumiva.agency**. We will respond within 30 days. If we decline a request, we will explain why."
         },
         {
           "id": "cookies",
@@ -30047,17 +30831,17 @@
         {
           "id": "transfers",
           "title": "9. Cross-border data transfers",
-          "content": "If you are located in the EU/EEA, the UK, or another jurisdiction with cross-border transfer restrictions, we apply appropriate safeguards:\n\n- Standard Contractual Clauses (SCCs) approved by the European Commission\n- Transfers to countries with an adequacy decision\n- Specific legal mechanisms for particular jurisdictions\n\nA list of countries and mechanisms used is available on request at privacy@lumiva.agency."
+          "content": "If you are located in the EU/EEA, the UK, or another jurisdiction with cross-border transfer restrictions, we apply appropriate safeguards:\n\n- Standard Contractual Clauses (SCCs) approved by the European Commission\n- Transfers to countries with an adequacy decision\n- Specific legal mechanisms for particular jurisdictions\n\nA list of countries and mechanisms used is available on request at info@lumiva.agency."
         },
         {
           "id": "dpa",
           "title": "10. Data Processing Agreement (DPA)",
-          "content": "If your organization uses Lumiva CRM to process your customers' personal data, you are the controller and we are the data processor.\n\nWe're ready to sign a Data Processing Agreement, which includes:\n- A description of data subject categories and data types\n- Processing purposes and instructions\n- Technical and organizational security measures\n- Terms for engaging sub-processors\n- Incident response procedures\n\nTo request a DPA template or negotiate individual terms, contact privacy@lumiva.agency."
+          "content": "If your organization uses Lumiva CRM to process your customers' personal data, you are the controller and we are the data processor.\n\nWe're ready to sign a Data Processing Agreement, which includes:\n- A description of data subject categories and data types\n- Processing purposes and instructions\n- Technical and organizational security measures\n- Terms for engaging sub-processors\n- Incident response procedures\n\nTo request a DPA template or negotiate individual terms, contact info@lumiva.agency."
         },
         {
           "id": "children",
           "title": "11. Children and minors",
-          "content": "Lumiva CRM is intended for use by people 18 years of age or older (or the age of digital consent in your jurisdiction).\n\nWe do not knowingly collect children's data. If we learn that a child's data was collected without parental consent, we will delete it immediately.\n\nIf you believe a child has provided us with data, please contact us at privacy@lumiva.agency."
+          "content": "Lumiva CRM is intended for use by people 18 years of age or older (or the age of digital consent in your jurisdiction).\n\nWe do not knowingly collect children's data. If we learn that a child's data was collected without parental consent, we will delete it immediately.\n\nIf you believe a child has provided us with data, please contact us at info@lumiva.agency."
         },
         {
           "id": "changes",
@@ -30072,7 +30856,7 @@
         {
           "id": "contacts",
           "title": "14. Contact us",
-          "content": "For privacy questions, exercising your rights, or inquiries related to data processing:\n\n**Email:** privacy@lumiva.agency\n**General questions:** hello@lumiva.agency\n**Contact form:** lumiva.agency/contact\n\nA Data Protection Officer (DPO) has been appointed and is reachable at the contacts above.\n\nIf you believe your rights have been violated, you also have the right to lodge a complaint with the supervisory authority in your country (in Russia — Roskomnadzor, in the EU — your member state's supervisory authority)."
+          "content": "For privacy questions, exercising your rights, or inquiries related to data processing:\n\n**Email:** info@lumiva.agency\n**General questions:** info@lumiva.agency\n**Contact form:** lumiva.agency/contact\n\nA Data Protection Officer (DPO) has been appointed and is reachable at the contacts above.\n\nIf you believe your rights have been violated, you also have the right to lodge a complaint with the supervisory authority in your country (in Russia — Roskomnadzor, in the EU — your member state's supervisory authority)."
         }
       ]
     },
@@ -30371,7 +31155,12 @@
       "foldersN_one": "{{count}} folder",
       "foldersN_other": "{{count}} folders",
       "themeLight": "Light theme",
-      "themeDark": "Dark theme"
+      "themeDark": "Dark theme",
+      "viewTiles": "Tiles",
+      "viewList": "List",
+      "collapseAll": "Collapse all",
+      "expandAll": "Expand all",
+      "jumpTo": "Jump to…"
     },
     "guestCare": {
       "title": "How can we help?",
@@ -31224,7 +32013,8 @@
       "jira_create_issue": "Jira issue",
       "slack_post": "Slack message",
       "sale_confirm_payment": "Mark sale as paid",
-      "content_plan": "Content plan (autoposting)"
+      "content_plan": "Content plan (autoposting)",
+      "content_post": "Social posts"
     },
     "field": {
       "to": "To",

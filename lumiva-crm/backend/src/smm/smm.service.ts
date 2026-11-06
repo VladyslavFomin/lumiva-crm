@@ -102,6 +102,10 @@ export class SmmService {
         'read_insights',
         'instagram_basic',
         'instagram_manage_insights',
+        // публикации из «Контента» (/marketing/smm): посты страниц и Instagram. Для чужих компаний —
+        // после App Review Meta; админы/тестеры приложения (наша компания) получают их сразу.
+        'pages_manage_posts',
+        'instagram_content_publish',
       ].join(','),
     });
     return { url: `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}` };
@@ -279,7 +283,7 @@ export class SmmService {
     const url = new URL('https://graph.facebook.com/v19.0/me/accounts');
     url.searchParams.set(
       'fields',
-      'id,name,username,link,access_token,instagram_business_account{id,username}',
+      'id,name,username,link,access_token,picture{url},instagram_business_account{id,username,profile_picture_url}',
     );
     url.searchParams.set('access_token', accessToken);
     const res = await fetch(url.toString());
@@ -349,7 +353,7 @@ export class SmmService {
     const url = new URL(`https://graph.facebook.com/v19.0/${businessId}/owned_pages`);
     url.searchParams.set(
       'fields',
-      'id,name,username,link,access_token,instagram_business_account{id,username}',
+      'id,name,username,link,access_token,picture{url},instagram_business_account{id,username,profile_picture_url}',
     );
     url.searchParams.set('access_token', accessToken);
     const res = await fetch(url.toString());
@@ -362,7 +366,7 @@ export class SmmService {
     const url = new URL(`https://graph.facebook.com/v19.0/${businessId}/client_pages`);
     url.searchParams.set(
       'fields',
-      'id,name,username,link,access_token,instagram_business_account{id,username}',
+      'id,name,username,link,access_token,picture{url},instagram_business_account{id,username,profile_picture_url}',
     );
     url.searchParams.set('access_token', accessToken);
     const res = await fetch(url.toString());
@@ -417,6 +421,28 @@ export class SmmService {
     if (!token) return null;
     const last4 = token.slice(-4);
     return `***${last4}`;
+  }
+
+  /**
+   * Куда можно публиковать через подключённую Meta: страницы с токеном страницы и привязанный к ним
+   * Instagram (бизнес/автор). Используется движком контента (ContentService).
+   */
+  async listMetaPublishTargets(tenantId: string): Promise<
+    Array<{ pageId: string; name: string; username: string | null; picture: string | null; pageToken: string | null; igUserId: string | null; igUsername: string | null; igPicture: string | null }>
+  > {
+    const integration = await this.getMetaIntegration(tenantId);
+    if (!integration?.accessToken) throw new Error('Meta is not connected');
+    const merged = await this.listMetaPagesWithTokens(integration.accessToken);
+    return merged.map((p: any) => ({
+      pageId: String(p.id),
+      name: String(p.name || p.id),
+      username: p.username || null,
+      picture: p.picture?.data?.url || null,
+      pageToken: p.access_token || null,
+      igUserId: p.instagram_business_account?.id || null,
+      igUsername: p.instagram_business_account?.username || null,
+      igPicture: p.instagram_business_account?.profile_picture_url || null,
+    }));
   }
 
   async listMetaAssets(tenantId: string) {

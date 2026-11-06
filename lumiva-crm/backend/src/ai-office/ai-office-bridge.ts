@@ -99,6 +99,12 @@ export type OfficeRunContext = {
   quoteCatalog?: string;
   /** боты Telegram компании — для публикации в канал */
   telegramBots?: Array<{ id: string; username: string | null }>;
+  /** каналы публикаций движка контента, отданные отделу (/marketing/smm → Каналы) */
+  contentChannels?: Array<{ id: string; network: string; accountName: string; autonomy: string }>;
+  /** Лучшее время публикаций по метрикам компании (часовой пояс отдела), '' если данных мало. */
+  contentBestTimes?: string;
+  /** Брендовые шаблоны Canva для content_plan ('' если нет). */
+  contentCanva?: string;
 };
 
 export interface OfficeHooks {

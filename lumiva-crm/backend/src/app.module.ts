@@ -80,6 +80,8 @@ import { MediaModule } from './media/media.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AccountModule } from './account/account.module';
 import { DataVisibilityModule } from './data-visibility/data-visibility.module';
+import { ColumnAccessModule } from './column-access/column-access.module';
+import { ContentModule } from './content/content.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SmsModule } from './sms/sms.module';
 import { DeduplicationModule } from './deduplication/deduplication.module';
@@ -320,6 +322,8 @@ import { StorageQuotaModule } from './storage-quota/storage-quota.module';
     AuditLogModule,
     AccountModule,
     DataVisibilityModule,
+    ColumnAccessModule,
+    ContentModule,
     AuthModule,
     LeadsModule,
     ContactsModule,

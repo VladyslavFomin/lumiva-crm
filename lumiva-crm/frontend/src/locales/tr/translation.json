@@ -3768,7 +3768,8 @@
       "hotelsNightAudit": "Gece denetimi",
       "hotelsReports": "PMS raporları",
       "hotelsChannels": "Satış kanalları",
-      "hotelsGuestCare": "Misafir talepleri"
+      "hotelsGuestCare": "Misafir talepleri",
+      "deals": "Fırsatlar"
     },
     "aiEmployees": {
       "badge": {
@@ -3913,7 +3914,8 @@
           "tasks": "Görevler ve notlar",
           "mail": "E-posta ve mesajlaşma",
           "work": "Toplantılar ve projeler",
-          "data": "Raporlar ve çalışma alanı"
+          "data": "Raporlar ve çalışma alanı",
+          "content": "İçerik ve sosyal medya"
         },
         "overview": {
           "pendingTitle": "Kararınızı bekliyor",
@@ -4583,6 +4585,10 @@
         "read_reviews": {
           "title": "Otel yorumları",
           "hint": "Tüm platformlardan misafir yorumları: puanlar, yanıtsız olumsuzlar, şikâyet konuları ve trendleri."
+        },
+        "prepare_content": {
+          "title": "Gönderi hazırlama",
+          "hint": "Metin ve görselli gönderileri “Pazarlama → SMM”e ekler. Kendisi yayınlamaz: kanal modu karar verir — taslak, onay veya plan onaylandıktan sonra “Otomatik”."
         }
       },
       "config": {
@@ -5238,6 +5244,68 @@
         "files_other": "{{count}} dosya",
         "wholeHotel": "tüm otel, yeni klasörler dahil",
         "wholeSection": "tüm bölüm, yeni klasörler dahil"
+      },
+      "brain": {
+        "tab": "Beyin",
+        "title": "Çalışanın beyni",
+        "loadError": "Beyin yüklenemedi",
+        "saveError": "Kaydedilemedi",
+        "uploadError": "Dosya yüklenemedi",
+        "downloadError": "Dosya indirilemedi",
+        "intro": "{{name}} her işlemden önce bu dosyaları okur. Yapay zekâ “Çalışma” sekmesindeki talimatı değiştiremez; burada ise siz ve çalışan belge ekleyebilirsiniz: prosedürler, senaryolar, fiyatlar, anlaşmalar, çıkarımlar.",
+        "upload": "Dosya yükle",
+        "uploading": "Yükleniyor…",
+        "newDoc": "Belge",
+        "secOwner": "Ekipten talimatlar",
+        "secOwnerHint": "Sizin md belgeleriniz. Çalışan her işlemden önce bunları tamamen okur; yapay zekâ bunları değiştirmez.",
+        "emptyOwner": "Henüz boş. Bir belge oluşturun: örn. “Müşterilere nasıl yanıt veriyoruz” veya “Fiyatlar ve indirimler”.",
+        "secAi": "YZ notları",
+        "secAiHint": "Çalışan kendi çıkarımlarını buraya yazar (ne işe yaradı, şirket hakkında bilgiler, kaçınılacak hatalar). Her işlemden önce en yeni kayıtları okur. Düzenleyebilir ve silebilirsiniz.",
+        "emptyAi": "Çalışan henüz bir şey yazmadı.",
+        "secUploads": "Dosyalar",
+        "secUploadsHint": "PDF, tablolar, docx, görseller. Konuya göre okunur: yalnızca göreve uyan parçalar isteme girer.",
+        "emptyUploads": "Dosya yok.",
+        "alwaysRead": "her zaman okunur",
+        "aiWrote": "YZ yazdı",
+        "byTopic": "konuya göre",
+        "updated": "güncl.",
+        "indexing": "dizinleniyor {{p}}%",
+        "indexFailed": "dizinleme hatası",
+        "readAt": "okundu {{time}}",
+        "notReadYet": "henüz okunmadı",
+        "lastReadHint": "Çalışanın bu dosyayı bir işlemden önce en son okuduğu zaman",
+        "download": "İndir",
+        "delete": "Sil",
+        "cancel": "İptal",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "saved": "Belge kaydedildi",
+        "deleteTitle": "Dosyayı sil",
+        "deleteConfirm": "“{{name}}” çalışanın beyninden silinsin mi?",
+        "settingsTitle": "Beyne yazma",
+        "aiWrites": "YZ kendi beynine ekleyebilir",
+        "aiWritesHint": "Çalışan faydalı çıkarımları “YZ notları”na kendisi kaydeder. Onay gerekmez: bu onun hafızasıdır, CRM’de hiçbir şey değişmez.",
+        "officeTitle": "YZ ofisi bağlantısı",
+        "officeOff": "YZ ofisi planınızda yok. Çalışanın beyni onsuz da çalışır.",
+        "officeHint": "Çalışanın işlemden önce hangi departmanların beynini okuduğu. Kürasyonunu yaptığı departmanlar her zaman bağlıdır ve onun talimatlarını okur.",
+        "curated": "bu departmanın küratörü",
+        "noDepts": "Henüz departman yok.",
+        "openOffice": "YZ ofisini aç",
+        "shared": "Ofisin ortak dosyaları",
+        "sharedHint": "Tüm departmanlara açık ofis Beyni dosyaları.",
+        "writeDepts": "Çıkarımları departman beyinlerine yaz",
+        "writeDeptsHint": "Çalışan bağlı ve küratörü olduğu departmanların Beynine ekleme yapabilir. Departman ajanları bunu okur.",
+        "previewTitle": "Çalışan neyi okuyacak",
+        "previewHint": "Bir görev konusu yazın ve işlemden önce isteme hangi dosya ve parçaların gireceğini görün.",
+        "previewPlaceholder": "Örn. müşteri indirim istiyor",
+        "previewRun": "Kontrol et",
+        "previewEmpty": "Beyin boş: çalışan yalnızca talimatı ve CRM verileriyle çalışacak.",
+        "editorTitle": "Belge",
+        "aiNote": "YZ notu",
+        "namePlaceholder": "Belge adı",
+        "bodyPlaceholder": "# Başlık\n\nMarkdown ile yazın: kurallar, adımlar, örnek yanıtlar…",
+        "editorHint": "Çalışan bir sonraki işleminden önce okuyacak.",
+        "untitled": "Belge"
       }
     },
     "settings": {
@@ -5535,6 +5603,163 @@
         "sectionLabel": "Genel hesap ayarları",
         "success": "Ayarlar kaydedildi",
         "title": "Şirket ayarları"
+      },
+      "structure": {
+        "tab": "CRM yapısı",
+        "kicker": "CRM yapısı",
+        "loadError": "Yapı yüklenemedi",
+        "saveError": "Kaydedilemedi",
+        "saved": "Kaydedildi",
+        "entity": {
+          "lead": "Lead",
+          "project": "Proje",
+          "deal": "Fırsat"
+        },
+        "blocksOn": "{{total}} bloktan {{on}} açık",
+        "moduleOn": "açık",
+        "moduleOff": "kapalı",
+        "moduleOffShort": "modül kapalı",
+        "navHint": "Kapatılan blok tüm ekip için karttan kaybolur. Veri silinmez: bloğu açtığınızda her şey geri gelir.",
+        "title": {
+          "lead": "Lead’de neler var",
+          "project": "Projede neler var",
+          "deal": "Fırsatta neler var"
+        },
+        "sub": {
+          "lead": "Lead kartında yalnızca ekibinizin kullandıklarını bırakın: bağlantılar, yazışmalar, görevler.",
+          "project": "Proje işle ilgilidir: görevler, tarihler, dosyalar. Projelerinizin bütçesi yoksa kapatın; analiz görevlere göre yapılır.",
+          "deal": "Fırsat parayla ilgilidir: lead, şirket, tutar ve aşama. Görevler ve dosyalar kapatmaya yardım eder."
+        },
+        "dealsOffNote": "Fırsatlar modülü şirketiniz için şu an kapalı — platform yöneticisi açar. Aşağıdaki ayarlar modül açılınca uygulanır.",
+        "budget": {
+          "title": "Proje bütçesi",
+          "on": "Tutar ve para birimi kartta, listede ve kanbanda görünür; analiz parayı sayar.",
+          "off": "Bütçe yok: tutarlar gizli, analiz görev tamamlamaya göre yapılır."
+        },
+        "group": {
+          "main": "Temel",
+          "links": "Bağlantılar",
+          "comms": "İletişim",
+          "work": "İş"
+        },
+        "preview": "Kart şeması",
+        "pv": {
+          "amount": "Tutar",
+          "budget": "Bütçe",
+          "progress": "Görevler",
+          "stage": "Aşama",
+          "stageValue": "",
+          "props": "Özellikler"
+        },
+        "stages": {
+          "title": "Fırsat hunisi",
+          "hint": "Fırsatın geçtiği aşamalar. “Kazanıldı” ve “Kaybedildi” dönüşüm oranı ve “Satış oluştur” düğmesi için gerekir.",
+          "color": "Renk",
+          "open": "Süreçte",
+          "won": "Kazanıldı",
+          "lost": "Kaybedildi",
+          "builtIn": "Yerleşik aşama: anlamı sabit, silinemez",
+          "up": "Yukarı",
+          "down": "Aşağı",
+          "delete": "Sil",
+          "newPlaceholder": "Yeni aşama, örn. “Fatura gönderildi”",
+          "add": "Aşama"
+        },
+        "block": {
+          "lead": {
+            "contact": "Kişi",
+            "amount": "Tutar ve kanal",
+            "company": "Şirket",
+            "contacts": "Kişiler",
+            "projects": "Projeler",
+            "deals": "Fırsatlar",
+            "sales": "Satışlar",
+            "bookings": "Rezervasyonlar",
+            "customFields": "Özel alanlar",
+            "utm": "UTM etiketleri",
+            "notes": "Notlar",
+            "chat": "Yazışma",
+            "calls": "Aramalar",
+            "comments": "Yorumlar",
+            "history": "Geçmiş",
+            "ai": "YZ asistanı",
+            "tasks": "Adımlar",
+            "meetings": "Toplantılar"
+          },
+          "project": {
+            "budget": "Bütçe",
+            "progress": "Görev ilerlemesi",
+            "links": "Lead, şirket, kişi",
+            "tags": "Etiketler",
+            "customFields": "Özel alanlar",
+            "notes": "Notlar",
+            "files": "Dosyalar",
+            "tasks": "Görevler",
+            "comments": "Yorumlar",
+            "history": "Geçmiş",
+            "watchers": "İzleyiciler"
+          },
+          "deal": {
+            "progress": "Görev ilerlemesi",
+            "links": "Lead, şirket, kişi",
+            "tags": "Etiketler",
+            "customFields": "Özel alanlar",
+            "notes": "Notlar",
+            "files": "Dosyalar",
+            "tasks": "Görevler",
+            "comments": "Yorumlar",
+            "history": "Geçmiş",
+            "watchers": "İzleyiciler"
+          }
+        },
+        "blockHint": {
+          "lead": {
+            "contact": "Ad, telefon, e-posta, ülke",
+            "amount": "Beklenen tutar, para birimi, kanal",
+            "company": "Şirket bağlantısı",
+            "contacts": "İlgili kişiler",
+            "projects": "Bu lead’in projeleri",
+            "deals": "Fırsatlar: tutar ve aşama",
+            "sales": "Ödenmiş satışlar ve siparişler",
+            "bookings": "Rezervasyonlar modülünden",
+            "customFields": "Şirketinizin oluşturduğu alanlar",
+            "utm": "Lead’in kaynağı",
+            "notes": "İç not",
+            "chat": "WhatsApp, Telegram, e-posta tek akışta",
+            "calls": "Arama kayıtları ve analizi",
+            "comments": "Ekip içi tartışma",
+            "history": "Değişiklik kaydı",
+            "ai": "Puan, sonraki adım, e-posta",
+            "tasks": "Adım listesi",
+            "meetings": "Müşteriyle toplantılar"
+          },
+          "project": {
+            "budget": "",
+            "progress": "Tamamlanan görev oranı",
+            "links": "İş kiminle ilgili",
+            "tags": "Renkli etiketler",
+            "customFields": "Şirketinizin oluşturduğu alanlar",
+            "notes": "Yalnızca ekip görür",
+            "files": "Belgeler ve bağlantılar",
+            "tasks": "Görevler, sorumlular, tarihler",
+            "comments": "Bahsetmeli tartışma",
+            "history": "Değişiklik kaydı",
+            "watchers": "Kim görür ve düzenler"
+          },
+          "deal": {
+            "progress": "Fırsattaki tamamlanan görev oranı",
+            "links": "Fırsatın lead, şirketi, kişisi",
+            "tags": "Renkli etiketler",
+            "customFields": "Fırsat alanları (örn. olasılık)",
+            "notes": "Yalnızca ekip görür",
+            "files": "Teklifler, sözleşmeler, faturalar",
+            "tasks": "Fırsatı kapatmak için yapılacaklar",
+            "comments": "Bahsetmeli tartışma",
+            "history": "Değişiklik kaydı",
+            "watchers": "Kim görür ve düzenler"
+          }
+        },
+        "noEntities": "Bu şirket için lead, proje ve fırsat modüllerinin hiçbiri açık değil — ayarlanacak bir şey yok. Modülleri platform yöneticisi açar."
       }
     },
     "embedForms": {
@@ -14674,7 +14899,11 @@
           "avgAmount": "Ortalama tutar",
           "owners": "Sorumlular",
           "tags": "Etiketler",
-          "statuses": "Durumlar"
+          "statuses": "Durumlar",
+          "tasksDonePct": "Tamamlanan görevler",
+          "tasksOpen": "Açık görevler",
+          "tasksOverdue": "Geciken görevler",
+          "tasksTotal": "Toplam görev"
         },
         "statusChart": {
           "title": "Duruma göre projeler"
@@ -16723,6 +16952,23 @@
           "checkFrequencyValue": "Her 2 dakikada bir (otomatik)",
           "lastSyncLabel": "Son senkronizasyon"
         },
+        "sendAs": {
+          "title": "Ek gönderici adresleri",
+          "sync": "Adresleri senkronize et",
+          "syncing": "Senkronize ediliyor…",
+          "syncSuccess": "Adresler başarıyla senkronize edildi.",
+          "syncError": "Senkronizasyon hatası",
+          "noAdditional": "Ek adres bulunamadı.",
+          "notSynced": "Adresler henüz senkronize edilmedi.",
+          "permissionHint": "Adresler doğrudan bu Gmail hesabından alınır. Yalnızca doğrulanmış adresler gönderim için kullanılabilir.",
+          "available": "Gönderime hazır",
+          "verified": "Doğrulandı",
+          "pending": "Doğrulama bekleniyor",
+          "unverified": "Doğrulanmadı",
+          "primary": "Birincil",
+          "additional": "Ek",
+          "lastSync": "Son senkronizasyon: {{date}}"
+        },
         "signature": {
           "title": "E-posta imzası",
           "editorPlaceholder": "Bu hesaptan gönderilen e-postaların sonuna eklenen imza…",
@@ -16820,6 +17066,8 @@
         "replyTitle": "Yanıt",
         "send": "Gönder",
         "sending": "Gönderiliyor…",
+        "from": "Kimden",
+        "fromUnavailable": "Doğrulanmış Gmail gönderici adresi yok. E-posta hesapları ayarlarından adresleri senkronize edin.",
         "to": "Kime",
         "subject": "Konu",
         "body": "Metin",
@@ -20071,7 +20319,8 @@
           "channelPaymentType": {
             "credit_card": "kart",
             "bank_transfer": "banka havalesi"
-          }
+          },
+          "voucher": "Voucher"
         },
         "paymentMethods": {
           "card": "Kart",
@@ -20173,7 +20422,12 @@
             "work": "Çalışma",
             "study": "Eğitim",
             "other": "Diğer"
-          }
+          },
+          "partnerNew": "+ Yeni partner…",
+          "voucherLabel": "Voucher / partner rezervasyon no",
+          "voucherPh": "Partnerdeki rezervasyon numarası",
+          "voucherPhPartner": "{{name}} sistemindeki rezervasyon no",
+          "voucherPhOta": "{{name}} rezervasyon numarası"
         },
         "importModal": {
           "title": "Excel'den rezervasyon içe aktar",
@@ -21253,7 +21507,8 @@
           "address": "Adres",
           "notes": "Notlar",
           "nameRequired": "İş ortağının adını girin"
-        }
+        },
+        "quickHint": "İletişim, ödeme koşulları ve fatura bilgileri daha sonra partner kartında (Oteller → Partnerler) eklenebilir."
       },
       "contracts": {
         "newTitle": "Yeni kontrat",
@@ -21704,7 +21959,8 @@
             "cancelNote": "Yorum",
             "cancellationFee": "Ceza",
             "accommodationFolio": "Konaklama folyosu",
-            "priceMode": "Fiyat modu"
+            "priceMode": "Fiyat modu",
+            "voucherNo": "Voucher"
           }
         },
         "errors": {
@@ -26193,7 +26449,10 @@
       "links": {
         "all": "Tümü",
         "sales": "Satışlar",
-        "bookings": "Rezervasyonlar"
+        "bookings": "Rezervasyonlar",
+        "deals": "Fırsatlar",
+        "newDeal": "Fırsat",
+        "dealsEmpty": "Henüz fırsat yok"
       },
       "ccp": {
         "goTo": "Hesaba git"
@@ -28197,6 +28456,7 @@
       "setup": "E-postayı ayarla",
       "panelTitle": "CRM bildirim kutusu",
       "panelSub": "CRM bildirimleri, raporları ve müşterilerinize giden e-postaları bu adresten gönderir: yorum uyarıları, PDF raporlar, misafir faturaları, imza belgeleri, çalışan davetleri. Platform adresinden yalnızca sistem e-postaları gider — kayıt, şifre sıfırlama, güvenlik, ödeme.",
+      "senderAddress": "Gönderen adresi",
       "auto": "Otomatik — tek ortak kutu",
       "personal": "kişisel",
       "saved": "Bildirim kutusu kaydedildi",
@@ -28708,7 +28968,9 @@
       "pageTheme": "Sayfa teması",
       "themeDark": "Koyu",
       "themeLight": "Açık",
-      "themeHint": "Ziyaretçi, sayfa başlığındaki düğmeyle temayı kendisi için değiştirebilir."
+      "themeHint": "Ziyaretçi, sayfa başlığındaki düğmeyle temayı kendisi için değiştirebilir.",
+      "tgAuto": "Yeni klasörleri otomatik ekle",
+      "tgAutoD": "Bu bağlantının otelleri ve bölümlerindeki yeni klasörler otomatik olarak eklenir. Elle kaldırılan klasörler geri gelmez."
     },
     "home": {
       "metrics": {
@@ -28924,6 +29186,528 @@
       "next": "İleri",
       "clear": "Temizle",
       "today": "Bugün"
+    },
+    "columnAccess": {
+      "title": "Bu sütunu kimler görebilir",
+      "menuItem": "Sütunu kimler görür",
+      "searchPlaceholder": "Kişinin adını yazın",
+      "everyone": "tabloya erişimi olan herkes görür",
+      "restrictedCount_one": "{{count}} kişi görür",
+      "restrictedCount_other": "{{count}} kişi görür",
+      "ownerRow": "Şirket sahibi",
+      "ownerAlways": "Sahip her zaman görür",
+      "noStaff": "Çalışan bulunamadı",
+      "hintEveryone": "Kişileri işaretleyin — diğerleri sütunu artık görmez.",
+      "hintRestricted": "Diğerleri ne sütunu ne de değerlerini görür.",
+      "reset": "Herkese göster",
+      "restrictedBadge_one": "Kısıtlı sütun: {{count}} kişi görür",
+      "restrictedBadge_other": "Kısıtlı sütun: {{count}} kişi görür",
+      "saveError": "Sütun erişimi kaydedilemedi"
+    },
+    "columnRules": {
+      "menuItem": "Sütun kuralları",
+      "kicker": "Sütun kuralları",
+      "title": "Sütun kuralları",
+      "titleFor": "Kurallar: “{{label}}”",
+      "subtitle": "Satır her kaydedildiğinde çalışır — tabloda, satır kartında, yapay zekâ ve API üzerinden. Otomatik doldurma değer yazar, kontrol hatalı değerin kaydını engeller.",
+      "close": "Kapat",
+      "emptyTitle": "Henüz kural yok",
+      "emptyText": "Örneğin: “Platform” Facebook ise “Yazar” alanını “Anna” ile doldur.",
+      "conditionKicker": "Koşul kuralı",
+      "validationKicker": "Değer kontrolü",
+      "valueOf": "“{{label}}” değeri şu olmalı",
+      "if": "Eğer",
+      "then": "Sonra",
+      "and": "Ve",
+      "pickColumn": "Sütun",
+      "pickValue": "Değer",
+      "pickValues": "Değerleri seçin",
+      "typeAndEnter": "Yazın ve Enter’a basın",
+      "valuePlaceholder": "Değer",
+      "noValueNeeded": "Değer gerekmez",
+      "min": "en az",
+      "max": "en çok",
+      "yes": "Evet",
+      "no": "Hayır",
+      "remove": "Kaldır",
+      "addAction": "Yeni sütun",
+      "addCondition": "Koşul kuralı",
+      "addValidation": "Değer kontrolü",
+      "groupFill": "Otomatik doldurma",
+      "groupMustBe": "Olmalı",
+      "actionSet": "değerle doldur",
+      "actionClear": "temizle",
+      "helpFill": "Otomatik doldurma, kişinin aynı kayıtta değiştirdiği sütunun üzerine yazmaz.",
+      "helpCheck": "Kontroller yeni satırlara ve değiştirilen sütunlara uygulanır — eski satırlar düzenlenene kadar engellenmez.",
+      "enabled": "Kural açık",
+      "disabled": "Kural kapalı",
+      "deleteRule": "Kuralı sil",
+      "cancel": "İptal",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…",
+      "saveError": "Kurallar kaydedilemedi",
+      "savedToast": "Sütun kuralları kaydedildi",
+      "violationTitle": "Sütun kuralları nedeniyle kaydedilmedi:",
+      "violation": "“{{field}}” {{expected}} olmalı",
+      "violationIf": "“{{field}}” {{expected}} olmalı ({{condition}} ise)",
+      "cond": {
+        "is": "şu olan",
+        "is_not": "şu olmayan",
+        "empty": "boş",
+        "not_empty": "boş değil",
+        "contains": "içerir",
+        "eq": "eşit",
+        "neq": "eşit değil",
+        "gt": "büyük",
+        "gte": "en az",
+        "lt": "küçük",
+        "lte": "en çok"
+      },
+      "check": {
+        "not_empty": "boş olmayan",
+        "eq": "eşit",
+        "neq": "eşit değil",
+        "gt": "büyük",
+        "gte": "en az",
+        "lt": "küçük",
+        "lte": "en çok",
+        "one_of": "şunlardan biri",
+        "between": "aralıkta"
+      },
+      "expect": {
+        "not_empty": "boş olmayan",
+        "eq": "{{value}} değerine eşit",
+        "neq": "{{value}} değerinden farklı",
+        "gt": "{{value}} değerinden büyük",
+        "gte": "en az {{value}}",
+        "lt": "{{value}} değerinden küçük",
+        "lte": "en çok {{value}}",
+        "one_of": "şunlardan biri: {{values}}",
+        "between": "{{min}} – {{max}} aralığında"
+      }
+    },
+    "deals": {
+      "kicker": "Satışlar · Fırsatlar",
+      "title": "Fırsatlar",
+      "subtitle": "Lead · Şirket · Tutar · Aşama. Kartları huni aşamaları arasında sürükleyin.",
+      "new": "Fırsat",
+      "view": {
+        "board": "Huni",
+        "table": "Tablo"
+      },
+      "kpi": {
+        "open": "Açık",
+        "won": "Kazanıldı",
+        "lost": "Kaybedildi",
+        "winRate": "Dönüşüm",
+        "winRateHint": "kapananlar içinde kazanılan"
+      },
+      "search": "Fırsat, lead, şirket ara",
+      "count_one": "{{count}} fırsat",
+      "count_other": "{{count}} fırsat",
+      "emptyTitle": "Henüz fırsat yok",
+      "emptyText": "Burada veya lead kartından (“Fırsatlar” bloğu) bir fırsat oluşturun.",
+      "dropHere": "Buraya bırakın",
+      "untitled": "Adsız",
+      "loadError": "Fırsatlar yüklenemedi",
+      "moveError": "Aşama değiştirilemedi",
+      "col": {
+        "name": "Fırsat",
+        "lead": "Lead",
+        "company": "Şirket",
+        "stage": "Aşama",
+        "amount": "Tutar",
+        "owner": "Sorumlu",
+        "created": "Oluşturuldu"
+      },
+      "card": {
+        "amount": "Fırsat tutarı",
+        "stage": "Huni aşaması",
+        "createSale": "Satış oluştur",
+        "creatingSale": "Oluşturuluyor…",
+        "saleCreated": "Satış oluşturuldu",
+        "saleExists": "Bu fırsat için satış zaten var",
+        "saleError": "Satış oluşturulamadı",
+        "titleNew": "Yeni fırsat",
+        "created": "Fırsat oluşturuldu",
+        "back": "Fırsatlara dön",
+        "idKicker": "Fırsat",
+        "toBoard": "Huniye",
+        "name": "Fırsat adı",
+        "description": "Fırsat açıklaması"
+      }
+    },
+    "smm2": {
+      "kicker": "Pazarlama · SMM",
+      "title": "İçerik ve yayınlar",
+      "subtitle": "Tüm ağlar için tek plan: gönderileri ekip, SMM çalışanı ve YZ ofisinin içerik departmanı hazırlar; her kanal kendi kurallarıyla yayınlar.",
+      "newPost": "Gönderi",
+      "loadError": "İçerik yüklenemedi",
+      "connected": "Bağlandı",
+      "connectFailed": "Bağlanamadı ({{code}})",
+      "tabs": {
+        "overview": "Genel bakış",
+        "plan": "İçerik planı",
+        "review": "Onaylar",
+        "posts": "Gönderiler",
+        "channels": "Kanallar",
+        "analytics": "Analitik"
+      },
+      "status": {
+        "draft": "Taslak",
+        "review": "Onayda",
+        "changes": "Düzeltme istendi",
+        "approved": "Onaylandı",
+        "scheduled": "Planlandı",
+        "published": "Yayınlandı",
+        "partial": "Kısmen yayınlandı",
+        "failed": "Hata",
+        "rejected": "Reddedildi"
+      },
+      "vstatus": {
+        "pending": "Zaman yok",
+        "scheduled": "Planlandı",
+        "publishing": "Yayınlanıyor",
+        "published": "Yayınlandı",
+        "failed": "Hata",
+        "skipped": "Atlandı"
+      },
+      "autonomy": {
+        "suggest": "Öneri",
+        "assisted": "Asistan",
+        "auto": "Otomatik"
+      },
+      "autonomyHint": {
+        "suggest": "YZ yalnızca metin ve görsel hazırlar — yayını insan yapar",
+        "assisted": "YZ’nin her gönderisi onay bekler",
+        "auto": "Onaylı içerik planına göre kendisi yayınlar"
+      },
+      "source": {
+        "manual": "Manuel",
+        "ai_office": "YZ ofisi",
+        "ai_employee": "YZ çalışanı"
+      },
+      "format": {
+        "post": "Gönderi",
+        "carousel": "Karusel",
+        "story": "Hikâye",
+        "reel": "Reels",
+        "article": "Makale"
+      },
+      "commentKind": {
+        "approved": "Onaylandı",
+        "changes": "Düzeltme:",
+        "rejected": "Reddedildi:",
+        "image_rejected": "Görsel reddedildi",
+        "duplicated": "Gönderi kopyası",
+        "ab_created": "B varyantı oluşturuldu"
+      },
+      "overview": {
+        "noChannelsTitle": "İlk kanalınızı bağlayın",
+        "noChannelsText": "Instagram, Facebook, Telegram veya LinkedIn — sonra plan, onaylar ve yayınlar burada görünür.",
+        "connect": "Kanal bağla",
+        "kpi": {
+          "review": "Karar bekleyen",
+          "scheduled": "Planlanan",
+          "published": "Yayınlanan",
+          "drafts": "Taslaklar"
+        },
+        "kpiHint": {
+          "review": "onayda ve düzeltmede",
+          "scheduled": "önümüzdeki 7 gün",
+          "published": "son 7 gün",
+          "drafts": "YZ veya ekip hazırlıyor"
+        },
+        "upcoming": "Yaklaşan yayınlar",
+        "openPlan": "İçerik planı",
+        "nothingScheduled": "Planlanmış bir şey yok.",
+        "attention": "Dikkat gerektiren",
+        "brokenChannels_one": "{{count}} kanal çalışmıyor",
+        "brokenChannels_other": "{{count}} kanal çalışmıyor",
+        "brokenHint": "“Kanallar”da yeniden bağlayın",
+        "allGood": "Yayın hatası yok."
+      },
+      "plan": {
+        "week": "Hafta",
+        "month": "Ay",
+        "today": "Bugün",
+        "allChannels": "Tüm kanallar",
+        "addPost": "Bu güne gönderi",
+        "plans": "İçerik planları",
+        "newPlan": "Plan",
+        "planName": "Plan adı",
+        "create": "Oluştur",
+        "cancel": "İptal",
+        "error": "Hata",
+        "plansHint": "Onaylanan plan “Otomatik” kanallarda kendiliğinden yayınlanır. “Asistan” kanallarında her gönderi ayrıca onaylanır.",
+        "postsCount_one": "{{count}} gönderi",
+        "postsCount_other": "{{count}} gönderi",
+        "approved": "Onaylandı",
+        "approve": "Onayla",
+        "onReview": "Onayda",
+        "planApproved": "Plan onaylandı",
+        "noPlans": "Henüz plan yok — ekip veya YZ ofisinin içerik departmanı oluşturur.",
+        "unscheduled": "Tarihsiz",
+        "noUnscheduled": "Her gönderinin bir zamanı var."
+      },
+      "review": {
+        "emptyTitle": "Onaylanacak bir şey yok",
+        "emptyText": "YZ’den ve ekipten karar bekleyen gönderiler burada görünür.",
+        "open": "Aç",
+        "approve": "Onayla",
+        "approved": "Gönderi onaylandı",
+        "error": "Hata"
+      },
+      "posts": {
+        "search": "Gönderilerde ara",
+        "all": "Tümü",
+        "col": {
+          "post": "Gönderi",
+          "channels": "Kanallar",
+          "status": "Durum",
+          "when": "Yayın",
+          "updated": "Güncellendi"
+        },
+        "emptyTitle": "Gönderi yok",
+        "emptyText": "“+ Gönderi” ile oluşturun veya YZ ofisinden içerik planı isteyin."
+      },
+      "channels": {
+        "connectedTitle": "Bağlı kanallar",
+        "modesHint": "Kanal modu YZ’nin ne yapacağını belirler: “Öneri” — yalnızca hazırlar, “Asistan” — gönderi onay bekler, “Otomatik” — onaylı plandaki her şeyi kendisi yayınlar.",
+        "noneYet": "Henüz kanal yok — aşağıdan bağlayın.",
+        "addTitle": "Bağla",
+        "loadError": "Bağlantılar yüklenemedi",
+        "error": "Hata",
+        "connected": "Bağlı",
+        "added": "Kanal eklendi",
+        "isAdded": "Eklendi",
+        "add": "Ekle",
+        "addInstagram": "Instagram",
+        "addFacebook": "Sayfa",
+        "metaHint": "Instagram işletme hesabı bir Facebook sayfasına bağlı olmalı.",
+        "connectMeta": "Meta’yı bağla",
+        "reconnectMeta": "Meta’yı yeniden bağla",
+        "noInstagram": "Instagram bağlı değil",
+        "noPages": "Bu Meta hesabında erişilebilir sayfa yok.",
+        "telegramTitle": "Telegram kanalı",
+        "telegramHint": "Şirket botu, yayın yetkisiyle kanal yöneticisi olmalı.",
+        "noBots": "Önce bir Telegram botu bağlayın.",
+        "openTelegram": "Telegram’ı aç",
+        "linkedinHint": "Profilinizden yayınlar. Şirket sayfaları LinkedIn onayından sonra gelir.",
+        "linkedinHintOrg": "Profiliniz ve yöneticisi olduğunuz şirket sayfaları.",
+        "linkedinNotConfigured": "LinkedIn uygulaması platform yöneticisi tarafından ayarlanmamış (pl1 → OAuth uygulamaları → linkedin).",
+        "connectLinkedin": "LinkedIn’i bağla",
+        "reconnectLinkedin": "LinkedIn’i yeniden bağla",
+        "linkedinPerson": "Kişisel profil",
+        "linkedinOrg": "Şirket sayfası",
+        "until": "{{date}} tarihine kadar erişim",
+        "soon": "Yakında",
+        "broken": "Çalışmıyor",
+        "enabled": "Açık",
+        "disabled": "Kapalı",
+        "mode": "Mod",
+        "more": "Kurallar ve departmanlar",
+        "less": "Daralt",
+        "dailyLimit": "Günlük gönderi (0 — sınırsız)",
+        "hashtags": "Her gönderinin sonunda etiketler",
+        "signature": "Gönderi sonu imzası",
+        "departments": "YZ ofisi departmanları",
+        "departmentsAll": "Her departman yayınlayabilir",
+        "departmentsSome": "Yalnızca seçili departmanlar yayınlar",
+        "remove": "Bağlantıyı kes",
+        "removeConfirm": "“{{name}}” kanalının bağlantısı kesilsin mi? Planlanan yayınları silinir.",
+        "cancel": "İptal",
+        "vkHint": "Yönetici veya editör olduğunuz topluluk adına yayınlar.",
+        "vkNotConfigured": "VK ID uygulaması platform yöneticisi tarafından ayarlanmamış (pl1 → OAuth uygulamaları → vkid).",
+        "vkGroup": "Topluluk",
+        "vkNoGroups": "Bu hesapta yönetici veya editör olduğunuz topluluk yok.",
+        "connectVk": "VK’yı bağla",
+        "reconnectVk": "VK’yı yeniden bağla",
+        "canvaHint": "Kanal değil, görsel kaynağı: tasarımlar ve marka şablonları doğrudan gönderiye.",
+        "canvaNotConfigured": "Canva entegrasyonu platform yöneticisi tarafından ayarlanmamış (pl1 → OAuth uygulamaları → canva).",
+        "canvaConnected": "Bağlı — Canva düğmeleri gönderi düzenleyicisinde",
+        "connectCanva": "Canva’yı bağla",
+        "reconnectCanva": "Canva’yı yeniden bağla",
+        "threadsHint": "Threads profilinden gönderiler (500 karaktere kadar, fotoğraf ve karuseller).",
+        "threadsNotConfigured": "Threads uygulaması platform yöneticisi tarafından ayarlanmamış (pl1 → OAuth uygulamaları → threads).",
+        "threadsProfile": "Threads profili",
+        "connectThreads": "Threads’i bağla",
+        "reconnectThreads": "Threads’i yeniden bağla",
+        "youtubeHint": "YouTube kanalına Shorts ve videolar (“Reels” biçimi = Shorts).",
+        "youtubeNotConfigured": "Google OAuth platform yöneticisi tarafından ayarlanmamış (pl1 → Google).",
+        "youtubeAccount": "YouTube kanalı",
+        "connectYouTube": "YouTube’u bağla",
+        "reconnectYouTube": "YouTube’u yeniden bağla",
+        "tiktokHint": "TikTok’a videolar. TikTok uygulamayı denetleyene kadar gönderileri yalnızca yazar görür.",
+        "tiktokNotConfigured": "TikTok uygulaması platform yöneticisi tarafından ayarlanmamış (pl1 → OAuth uygulamaları → tiktok).",
+        "tiktokAccount": "TikTok hesabı",
+        "connectTikTok": "TikTok’u bağla",
+        "reconnectTikTok": "TikTok’u yeniden bağla"
+      },
+      "analytics": {
+        "days": "{{n}} gün",
+        "metricsHint": "Son 30 günün gönderileri için metrikler birkaç saatte bir güncellenir.",
+        "kpi": {
+          "posts": "Yayın",
+          "reach": "Erişim",
+          "engagement": "Etkileşim",
+          "er": "ER"
+        },
+        "kpiHint": {
+          "posts": "dönem içinde",
+          "reach": "benzersiz kullanıcı",
+          "engagement": "beğeni, yorum, paylaşım, kaydetme",
+          "er": "etkileşim / erişim"
+        },
+        "byNetwork": "Ağlara göre",
+        "network": "Ağ",
+        "posts": "Gönderi",
+        "reach": "Erişim",
+        "engagement": "Etkileşim",
+        "top": "En iyi yayınlar",
+        "noData": "Henüz metrikli yayınlanmış gönderi yok.",
+        "engShort": "{{n}} tepki",
+        "reachShort": "erişim {{n}}",
+        "open": "Aç",
+        "noMetricsHint": "Telegram botları ve kişisel LinkedIn profilleri istatistik vermez — bu gönderilerde “—” görünür.",
+        "bestTimes": "En iyi yayın saatleri",
+        "bestTimesHint": "Son 90 günlük kendi metriklerinizden, kendi saat diliminizde. YZ ofisi ve SMM çalışanı planlarken bu saatleri kullanır.",
+        "bestTimesEmpty": "Bir ağda metrikli en az 8 gönderi olduğunda görünür (Instagram, Facebook, LinkedIn sayfası).",
+        "postsN_one": "{{count}} gönderi",
+        "postsN_other": "{{count}} gönderi",
+        "dow": {
+          "1": "Pzt",
+          "2": "Sal",
+          "3": "Çar",
+          "4": "Per",
+          "5": "Cum",
+          "6": "Cmt",
+          "7": "Paz"
+        },
+        "repeat": "Tekrarla",
+        "repeatHint": "Başarılı gönderinin taslak kopyasını oluştur",
+        "abTitle": "Metin A/B testleri",
+        "abVariant": "Varyant",
+        "abResult": "Sonuç",
+        "abWinner": "{{label}} daha iyi",
+        "abWaiting": "İkisinin metrikleri bekleniyor",
+        "abEmpty": "Test yok — gönderi düzenleyicisinde “A/B testi”ne basın. İki varyantta da metrik olunca ER ile karşılaştırılır."
+      },
+      "editor": {
+        "title": "Gönderi",
+        "kickerNew": "Yeni gönderi",
+        "kickerEdit": "Gönderi",
+        "titlePlaceholder": "Başlık (ekip için)",
+        "close": "Kapat",
+        "loadError": "Gönderi açılamadı",
+        "saveError": "Kaydedilemedi",
+        "saved": "Kaydedildi",
+        "channels": "Nerede yayınlanacak",
+        "noChannels": "Bağlı kanal yok — “Kanallar” sekmesinden bağlayın.",
+        "aiTitle": "YZ gönderiyi hazırlasın",
+        "briefPlaceholder": "Gönderi neyle ilgili: vesile, teklif, ayrıntılar, harekete geçirici mesaj",
+        "withImage": "Ve görsel",
+        "compose": "Hazırla",
+        "composing": "Hazırlanıyor…",
+        "aiHint": "Platform anahtarı (gpt-4o-mini) veya bağlıysa kendi OpenAI anahtarınız. Bilgiler yalnızca açıklamadan ve Beyin’deki marka rehberinden alınır.",
+        "needBrief": "Gönderiyi tanımlayın",
+        "aiError": "YZ yanıt vermedi",
+        "imageFailed": "Görsel oluşturulamadı",
+        "quota": "YZ bakiyesi bitti — yükleyin veya kendi anahtarınızı bağlayın",
+        "mainText": "Ana metin",
+        "textPlaceholder": "Gönderi metni",
+        "variantPlaceholder": "{{network}} için ayrı metin (boş — ana metin)",
+        "usesMain": "Ana metin kullanılıyor.",
+        "media": "Görseller",
+        "approveImage": "Görseli onayla",
+        "rejectImage": "Görseli reddet",
+        "removeImage": "Kaldır",
+        "imageWhy": "Görselde ne değişmeli?",
+        "upload": "Yükle",
+        "uploading": "Yükleniyor…",
+        "uploadError": "Yüklenemedi",
+        "imagePromptPlaceholder": "YZ görseli için istem (İngilizce daha iyi)",
+        "generateImage": "YZ görseli",
+        "generating": "Çiziliyor…",
+        "needPrompt": "Görseli tanımlayın",
+        "history": "Tartışma ve geçmiş",
+        "noComments": "Henüz boş.",
+        "commentPlaceholder": "Yorum",
+        "send": "Gönder",
+        "settings": "Ayarlar",
+        "format": "Biçim",
+        "rubric": "Rubrik",
+        "rubricPlaceholder": "Örn. vaka çalışmaları",
+        "plan": "İçerik planı",
+        "noPlan": "Plansız",
+        "when": "Ne zaman",
+        "allChannels": "Tüm kanallar için aynı saat",
+        "openPost": "Yayını aç",
+        "pickChannels": "Kanal seçin.",
+        "preview": "Önizleme",
+        "reviewNote": "Düzeltilecekler:",
+        "delete": "Sil",
+        "deleteConfirm": "Gönderi silinsin mi? Planlanan yayınlar iptal olur.",
+        "cancel": "İptal",
+        "notePlaceholder": "Ne düzeltilmeli (yazara gider)",
+        "requestChanges": "Düzeltme iste",
+        "sentBack": "Düzeltmeye gönderildi",
+        "saving": "Kaydediliyor…",
+        "saveDraft": "Kaydet",
+        "submit": "Onaya gönder",
+        "submitted": "Onaya gönderildi",
+        "approve": "Onayla",
+        "approveSchedule": "Onayla ve planla",
+        "approved": "Gönderi onaylandı",
+        "saveSchedule": "Planı kaydet",
+        "publishNow": "Şimdi yayınla",
+        "publishing": "Yayınlanıyor…",
+        "duplicate": "Tekrarla",
+        "duplicateHint": "Taslak kopya: aynı kanallar, metinler ve görseller, tarihsiz",
+        "duplicated": "Kopya oluşturuldu — saat belirleyin",
+        "canvaFrom": "Canva’dan",
+        "canvaOpen": "Canva’da aç",
+        "canvaOpening": "Açılıyor…",
+        "canvaTemplate": "Marka şablonu",
+        "canvaSize": "Tasarım boyutu",
+        "canvaSaveFirst": "Canva ile çalışmak için gönderiyi kaydedin",
+        "canvaImported": "Canva görselleri eklendi",
+        "abBadge": "A/B · {{label}}",
+        "abHint": "B varyantı aynı gönderi bir hafta sonra aynı saatte; metnini değiştirin",
+        "abCreate": "A/B testi",
+        "abOpenB": "B varyantı",
+        "abCreated": "B varyantı oluşturuldu — metnini değiştirin",
+        "video": "Video",
+        "mb": "MB"
+      },
+      "canva": {
+        "designsTitle": "Canva tasarımları",
+        "templatesTitle": "Canva marka şablonları",
+        "close": "Kapat",
+        "search": "Ada göre ara",
+        "find": "Bul",
+        "loading": "Yükleniyor…",
+        "loadError": "Canva’dan yüklenemedi",
+        "untitled": "Adsız",
+        "pages_one": "{{count}} sayfa",
+        "pages_other": "{{count}} sayfa",
+        "noDesigns": "Bu Canva hesabında tasarım yok.",
+        "noTemplates": "Marka şablonu yok — yalnızca Marka Kiti olan Canva ekiplerinde (Enterprise) bulunur.",
+        "more": "Daha fazla",
+        "exporting": "Canva dosyaları hazırlıyor — bir dakikaya kadar…",
+        "fillHint": "“{{name}}” şablonu: alanları doldurun — görsel marka stilinizde oluşur.",
+        "imagesFromPost": "Şablondaki fotoğraflar sırayla gönderi görsellerinden alınır.",
+        "back": "Geri",
+        "make": "Görseli oluştur",
+        "making": "Oluşturuluyor…",
+        "preset": {
+          "square": "Kare 1080×1080",
+          "portrait": "Gönderi 1080×1350",
+          "story": "Hikâye 1080×1920",
+          "landscape": "LinkedIn 1200×627"
+        }
+      },
+      "canvaImported": "Canva görselleri eklendi"
     }
   },
   "landing": {
@@ -29573,7 +30357,7 @@
             },
             {
               "q": "STK'lar ve eğitim kurumları için indirim var mı?",
-              "a": "Evet. Destekleyici belgelerle hello@lumiva.agency adresine yazın, size özel koşulları değerlendirelim."
+              "a": "Evet. Destekleyici belgelerle info@lumiva.agency adresine yazın, size özel koşulları değerlendirelim."
             }
           ]
         },
@@ -29657,11 +30441,11 @@
         },
         {
           "title": "9. Değişiklik ve fesih",
-          "content": "9.1. Şirket, Kullanıcı'ya en az 14 gün önceden bildirimde bulunarak işbu Sözleşme'nin koşullarını değiştirebilir.\n\n9.2. Kullanıcı, hello@lumiva.agency adresine bildirim göndererek işbu Sözleşme'yi istediği zaman feshedebilir.\n\n9.3. Fesih durumunda Kullanıcı verileri 30 gün süreyle saklanır ve ardından silinir."
+          "content": "9.1. Şirket, Kullanıcı'ya en az 14 gün önceden bildirimde bulunarak işbu Sözleşme'nin koşullarını değiştirebilir.\n\n9.2. Kullanıcı, info@lumiva.agency adresine bildirim göndererek işbu Sözleşme'yi istediği zaman feshedebilir.\n\n9.3. Fesih durumunda Kullanıcı verileri 30 gün süreyle saklanır ve ardından silinir."
         },
         {
           "title": "10. Uygulanacak hukuk",
-          "content": "İşbu Sözleşme, Rusya Federasyonu yasalarına tabidir. Tüm uyuşmazlıklar Şirket'in kayıtlı bulunduğu yerdeki mahkemelerde çözülür.\n\nİşbu Sözleşme ile ilgili sorularınız için: hello@lumiva.agency"
+          "content": "İşbu Sözleşme, Rusya Federasyonu yasalarına tabidir. Tüm uyuşmazlıklar Şirket'in kayıtlı bulunduğu yerdeki mahkemelerde çözülür.\n\nİşbu Sözleşme ile ilgili sorularınız için: info@lumiva.agency"
         }
       ]
     },
@@ -30009,7 +30793,7 @@
         {
           "id": "rights",
           "title": "7. Haklarınız",
-          "content": "Kişisel verilerinizle ilgili aşağıdaki haklara sahipsiniz:\n\n**Erişim hakkı** — verilerinizi işleyip işlemediğimizin teyidini talep etme ve bir kopyasını alma.\n\n**Düzeltme hakkı** — yanlış veya eksik verilerin düzeltilmesini talep etme. Verilerin çoğunu hesap ayarlarından kendiniz güncelleyebilirsiniz.\n\n**Silme hakkı (\"unutulma hakkı\")** — kişisel verilerinizin silinmesini talep etme. Yasal olarak saklama zorunlu olmadıkça, işleme amaçları için artık gerekli olmayan verileri sileriz.\n\n**İşlemeyi kısıtlama hakkı** — belirli durumlarda (örneğin doğruluğuna itiraz ederken) veri işlemenin durdurulmasını talep etme.\n\n**Veri taşınabilirliği hakkı** — verilerinizi başka bir sağlayıcıya aktarmak üzere yapılandırılmış, makine tarafından okunabilir bir formatta (CSV/JSON) alma.\n\n**İtiraz hakkı** — doğrudan pazarlama dahil, meşru menfaate dayalı işlemeye itiraz etme.\n\n**Rızayı geri çekme hakkı** — daha önce verilen rızayı, geri çekilmeden önceki işlemenin hukuka uygunluğunu etkilemeden istediğiniz zaman geri çekme.\n\nBu haklardan herhangi birini kullanmak için **privacy@lumiva.agency** adresine başvurun. 30 gün içinde yanıt veririz. Talebi reddedersek nedenini açıklarız."
+          "content": "Kişisel verilerinizle ilgili aşağıdaki haklara sahipsiniz:\n\n**Erişim hakkı** — verilerinizi işleyip işlemediğimizin teyidini talep etme ve bir kopyasını alma.\n\n**Düzeltme hakkı** — yanlış veya eksik verilerin düzeltilmesini talep etme. Verilerin çoğunu hesap ayarlarından kendiniz güncelleyebilirsiniz.\n\n**Silme hakkı (\"unutulma hakkı\")** — kişisel verilerinizin silinmesini talep etme. Yasal olarak saklama zorunlu olmadıkça, işleme amaçları için artık gerekli olmayan verileri sileriz.\n\n**İşlemeyi kısıtlama hakkı** — belirli durumlarda (örneğin doğruluğuna itiraz ederken) veri işlemenin durdurulmasını talep etme.\n\n**Veri taşınabilirliği hakkı** — verilerinizi başka bir sağlayıcıya aktarmak üzere yapılandırılmış, makine tarafından okunabilir bir formatta (CSV/JSON) alma.\n\n**İtiraz hakkı** — doğrudan pazarlama dahil, meşru menfaate dayalı işlemeye itiraz etme.\n\n**Rızayı geri çekme hakkı** — daha önce verilen rızayı, geri çekilmeden önceki işlemenin hukuka uygunluğunu etkilemeden istediğiniz zaman geri çekme.\n\nBu haklardan herhangi birini kullanmak için **info@lumiva.agency** adresine başvurun. 30 gün içinde yanıt veririz. Talebi reddedersek nedenini açıklarız."
         },
         {
           "id": "cookies",
@@ -30019,17 +30803,17 @@
         {
           "id": "transfers",
           "title": "9. Sınır ötesi veri aktarımı",
-          "content": "AB/AEA, Birleşik Krallık veya sınır ötesi aktarım kısıtlaması olan başka bir yargı alanındaysanız, uygun güvenceleri sağlarız:\n\n- Avrupa Komisyonu tarafından onaylanan Standart Sözleşme Hükümleri (SCC)\n- Veri koruma yeterliliği kararı bulunan ülkelere aktarım\n- Belirli yargı alanları için özel hukuki mekanizmalar\n\nKullanılan ülke ve mekanizmaların listesi privacy@lumiva.agency adresinden talep üzerine sunulur."
+          "content": "AB/AEA, Birleşik Krallık veya sınır ötesi aktarım kısıtlaması olan başka bir yargı alanındaysanız, uygun güvenceleri sağlarız:\n\n- Avrupa Komisyonu tarafından onaylanan Standart Sözleşme Hükümleri (SCC)\n- Veri koruma yeterliliği kararı bulunan ülkelere aktarım\n- Belirli yargı alanları için özel hukuki mekanizmalar\n\nKullanılan ülke ve mekanizmaların listesi info@lumiva.agency adresinden talep üzerine sunulur."
         },
         {
           "id": "dpa",
           "title": "10. Veri İşleme Sözleşmesi (DPA)",
-          "content": "Kuruluşunuz, müşterilerinizin kişisel verilerini işlemek için Lumiva CRM'i kullanıyorsa, siz veri sorumlusu, biz ise veri işleyiciyiz.\n\nAşağıdakileri içeren bir Veri İşleme Sözleşmesi (Data Processing Agreement) imzalamaya hazırız:\n- Veri sahibi kategorilerinin ve veri türlerinin tanımı\n- İşleme amaçları ve talimatları\n- Teknik ve organizasyonel güvenlik önlemleri\n- Alt işleyicilerin görevlendirilme koşulları\n- Olay müdahale prosedürleri\n\nDPA şablonu talep etmek veya bireysel koşulları görüşmek için privacy@lumiva.agency adresine başvurun."
+          "content": "Kuruluşunuz, müşterilerinizin kişisel verilerini işlemek için Lumiva CRM'i kullanıyorsa, siz veri sorumlusu, biz ise veri işleyiciyiz.\n\nAşağıdakileri içeren bir Veri İşleme Sözleşmesi (Data Processing Agreement) imzalamaya hazırız:\n- Veri sahibi kategorilerinin ve veri türlerinin tanımı\n- İşleme amaçları ve talimatları\n- Teknik ve organizasyonel güvenlik önlemleri\n- Alt işleyicilerin görevlendirilme koşulları\n- Olay müdahale prosedürleri\n\nDPA şablonu talep etmek veya bireysel koşulları görüşmek için info@lumiva.agency adresine başvurun."
         },
         {
           "id": "children",
           "title": "11. Çocuklar ve reşit olmayanlar",
-          "content": "Lumiva CRM, 18 yaş ve üzeri kişiler (veya bulunduğunuz yargı alanındaki dijital reşitlik yaşı) tarafından kullanılmak üzere tasarlanmıştır.\n\nÇocukların verilerini bilerek toplamayız. Bir çocuğun verilerinin ebeveyn rızası olmadan toplandığını öğrenirsek, bu verileri derhal sileriz.\n\nBir çocuğun bize veri sağladığını düşünüyorsanız, lütfen privacy@lumiva.agency adresinden bizimle iletişime geçin."
+          "content": "Lumiva CRM, 18 yaş ve üzeri kişiler (veya bulunduğunuz yargı alanındaki dijital reşitlik yaşı) tarafından kullanılmak üzere tasarlanmıştır.\n\nÇocukların verilerini bilerek toplamayız. Bir çocuğun verilerinin ebeveyn rızası olmadan toplandığını öğrenirsek, bu verileri derhal sileriz.\n\nBir çocuğun bize veri sağladığını düşünüyorsanız, lütfen info@lumiva.agency adresinden bizimle iletişime geçin."
         },
         {
           "id": "changes",
@@ -30044,7 +30828,7 @@
         {
           "id": "contacts",
           "title": "14. İletişim ve başvurular",
-          "content": "Gizlilikle ilgili sorular, haklarınızın kullanılması veya veri işlemeyle ilgili başvurular için:\n\n**E-posta:** privacy@lumiva.agency\n**Genel sorular:** hello@lumiva.agency\n**İletişim formu:** lumiva.agency/contact\n\nVeri Koruma Görevlisi (DPO) atanmıştır ve yukarıdaki iletişim bilgilerinden ulaşılabilir.\n\nHaklarınızın ihlal edildiğini düşünüyorsanız, ülkenizin yetkili denetim makamına da başvurabilirsiniz (Rusya'da — Roskomnadzor, AB'de — üye devletinizin denetim makamı)."
+          "content": "Gizlilikle ilgili sorular, haklarınızın kullanılması veya veri işlemeyle ilgili başvurular için:\n\n**E-posta:** info@lumiva.agency\n**Genel sorular:** info@lumiva.agency\n**İletişim formu:** lumiva.agency/contact\n\nVeri Koruma Görevlisi (DPO) atanmıştır ve yukarıdaki iletişim bilgilerinden ulaşılabilir.\n\nHaklarınızın ihlal edildiğini düşünüyorsanız, ülkenizin yetkili denetim makamına da başvurabilirsiniz (Rusya'da — Roskomnadzor, AB'de — üye devletinizin denetim makamı)."
         }
       ]
     },
@@ -30343,7 +31127,12 @@
       "foldersN_one": "{{count}} klasör",
       "foldersN_other": "{{count}} klasör",
       "themeLight": "Açık tema",
-      "themeDark": "Koyu tema"
+      "themeDark": "Koyu tema",
+      "viewTiles": "Kutucuk",
+      "viewList": "Liste",
+      "collapseAll": "Tümünü daralt",
+      "expandAll": "Tümünü genişlet",
+      "jumpTo": "Şuraya git…"
     },
     "guestCare": {
       "title": "Nasıl yardımcı olabiliriz?",
@@ -31188,7 +31977,8 @@
       "jira_create_issue": "Jira görevi",
       "slack_post": "Slack mesajı",
       "sale_confirm_payment": "Satışı ödendi olarak işaretle",
-      "content_plan": "İçerik planı (otomatik paylaşım)"
+      "content_plan": "İçerik planı (otomatik paylaşım)",
+      "content_post": "Sosyal medya gönderileri"
     },
     "field": {
       "to": "Kime",

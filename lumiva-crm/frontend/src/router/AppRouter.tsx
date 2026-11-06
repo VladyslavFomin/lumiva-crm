@@ -94,6 +94,7 @@ const ProjectsListPage = lazy(() => import('../pages/projects/ProjectsListPage')
 const ProjectsBoardPage = lazy(() => import('../pages/projects/ProjectsBoardPage').then((m) => ({ default: m.ProjectsBoardPage })));
 const ProjectsArchivePage = lazy(() => import('../pages/projects/ProjectsArchivePage').then((m) => ({ default: m.ProjectsArchivePage })));
 const ProjectsTrashPage = lazy(() => import('../pages/projects/ProjectsTrashPage').then((m) => ({ default: m.ProjectsTrashPage })));
+const DealsPage = lazy(() => import('../pages/deals/DealsPage').then((m) => ({ default: m.DealsPage })));
 const ProjectFormPage = lazy(() => import('../pages/projects/ProjectFormPage').then((m) => ({ default: m.ProjectFormPage })));
 const ClosedProjectsPage = lazy(() => import('../pages/projects/ClosedProjectsPage').then((m) => ({ default: m.ClosedProjectsPage })));
 const InProgressProjectsPage = lazy(() => import('../pages/projects/InProgressProjectsPage').then((m) => ({ default: m.InProgressProjectsPage })));
@@ -118,7 +119,7 @@ const BroadcastFormPage = lazy(() => import('../pages/marketing/BroadcastFormPag
 const UtmsPage = lazy(() => import('../pages/marketing/UtmsPage').then((m) => ({ default: m.UtmsPage })));
 const UtmLinksPage = lazy(() => import('../pages/marketing/UtmLinksPage').then((m) => ({ default: m.UtmLinksPage })));
 const SegmentsPage = lazy(() => import('../pages/marketing/SegmentsPage').then((m) => ({ default: m.SegmentsPage })));
-const SmmPage = lazy(() => import('../pages/marketing/SmmPage').then((m) => ({ default: m.SmmPage })));
+const SmmContentPage = lazy(() => import('../pages/smm/SmmContentPage').then((m) => ({ default: m.SmmContentPage })));
 const ChannelsPage = lazy(() => import('../pages/marketing/ChannelsPage').then((m) => ({ default: m.ChannelsPage })));
 const SeoPage = lazy(() => import('../pages/marketing/SeoPage').then((m) => ({ default: m.SeoPage })));
 const ReviewsPage = lazy(() => import('../pages/marketing/ReviewsPage').then((m) => ({ default: m.ReviewsPage })));
@@ -740,6 +741,31 @@ export const AppRouter: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Сделки: список/воронка + карточка на движке проектов (kind = 'deal') */}
+        <Route
+          path="/deals"
+          element={
+            <ProtectedRoute>
+              <DealsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deals/new"
+          element={
+            <ProtectedRoute>
+              <ProjectFormPage key="deal-new" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deals/:id"
+          element={
+            <ProtectedRoute>
+              <ProjectFormPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* -------- Глобальная аналитика -------- */}
         <Route
@@ -973,7 +999,7 @@ export const AppRouter: React.FC = () => {
           path="/marketing/smm"
           element={
             <ProtectedRoute>
-              <SmmPage />
+              <SmmContentPage />
             </ProtectedRoute>
           }
         />

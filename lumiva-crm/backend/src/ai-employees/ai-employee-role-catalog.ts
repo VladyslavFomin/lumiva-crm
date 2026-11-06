@@ -164,6 +164,9 @@ export const AI_EMPLOYEE_PERMISSION_KEYS = [
   // Отзывы отелей (hotel-reputation): read_reviews открывает блок snapshot.hotelReputation.
   // Отвечать на отзывы ИИ не может по решению владельца — только готовит черновик, отвечает человек.
   'read_reviews',
+  // Контент (content/content.service.ts → createFromAi): посты в движок публикаций «Маркетинг → SMM».
+  // Что дальше с постом, решает режим канала (черновик / согласование / авто по утверждённому плану) — не сотрудник.
+  'prepare_content',
 ] as const;
 
 /** Action types where the system can perform real execution (not just "mark done"). */
@@ -191,6 +194,7 @@ export const AI_REAL_EXECUTABLE_ACTIONS = [
   'workspace_enable_views',
   'workspace_update_record',
   'workspace_import_marketing',
+  'content_post',
 ] as const;
 
 /** Действия, для которых можно включить обязательное согласование человеком.
@@ -500,6 +504,7 @@ const ROLE_BASE: AiEmployeeRoleBase[] = [
       ...ALWAYS_ON_EXTRAS,
       'draft_email',
       'create_report',
+      'prepare_content',
     ],
     defaultTriggers: [],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
@@ -814,7 +819,7 @@ const ROLE_ZONES: Record<AiEmployeeRoleKey, Pick<AiEmployeeRoleConfig, 'allowedP
     },
   },
   smm_manager: {
-    allowedPermissions: ['read_marketing', 'read_reports', 'read_projects', 'read_tasks', 'draft_email', 'create_task', 'create_report', 'escalate_to_human'],
+    allowedPermissions: ['read_marketing', 'read_reports', 'read_projects', 'read_tasks', 'draft_email', 'create_task', 'create_report', 'prepare_content', 'escalate_to_human'],
     allowedTriggers: ['ai.assigned'],
     charter: {
       does: 'social media content: post ideas, captions, Reels/Shorts scripts, hashtags, content calendars',

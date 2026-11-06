@@ -308,7 +308,11 @@ const Trend: React.FC<{
   );
 };
 
-export const SmmPage: React.FC = () => {
+/** embedded — статистика профилей внутри «Контент → Аналитика» (без своей шапки и MainLayout). */
+const SmmShell: React.FC<{ embedded: boolean; children: React.ReactNode }> = ({ embedded, children }) =>
+  embedded ? <>{children}</> : <MainLayout>{children}</MainLayout>;
+
+export const SmmPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t, i18n } = useTranslation();
   const { showConfirm } = useAlertModal();
   const locale = getLocale(i18n.language);
@@ -614,8 +618,8 @@ export const SmmPage: React.FC = () => {
 
   if (loading && !stats && !profiles.length) {
     return (
-      <MainLayout>
-        <PageHelpButton topic="marketingSmm" />
+      <SmmShell embedded={embedded}>
+        {!embedded ? <PageHelpButton topic="marketingSmm" /> : null}
         <div className="px-scope smm-scope">
           <div className="sm-wrap" aria-busy="true">
             <div className="sm-skel" style={{ height: 84, marginBottom: 18 }} />
@@ -623,24 +627,31 @@ export const SmmPage: React.FC = () => {
             <div className="sm-skel" style={{ height: 300 }} />
           </div>
         </div>
-      </MainLayout>
+      </SmmShell>
     );
   }
 
   return (
-    <MainLayout>
-      <PageHelpButton topic="marketingSmm" />
-      <div className="px-scope smm-scope">
+    <SmmShell embedded={embedded}>
+      {!embedded ? <PageHelpButton topic="marketingSmm" /> : null}
+      <div className={cl('px-scope smm-scope', embedded && 'sm-embedded')}>
         <div className="sm-wrap">
           <div className="sm-head">
-            <div>
-              <div className="kicker">
-                <span className="dot" />
-                {t('crm.marketingSmm.kicker')}
+            {embedded ? (
+              <div>
+                <h3 className="sm-emb-title">{t('crm.marketingSmm.title')}</h3>
+                <div className="sub">{t('crm.marketingSmm.subtitle')}</div>
               </div>
-              <h1>{t('crm.marketingSmm.title')}</h1>
-              <div className="sub">{t('crm.marketingSmm.subtitle')}</div>
-            </div>
+            ) : (
+              <div>
+                <div className="kicker">
+                  <span className="dot" />
+                  {t('crm.marketingSmm.kicker')}
+                </div>
+                <h1>{t('crm.marketingSmm.title')}</h1>
+                <div className="sub">{t('crm.marketingSmm.subtitle')}</div>
+              </div>
+            )}
             <div className="sm-head-actions">
               {metaState && (
                 <span className={cl('sm-conn', metaState)}>
@@ -1018,7 +1029,7 @@ export const SmmPage: React.FC = () => {
           />,
           document.body,
         )}
-    </MainLayout>
+    </SmmShell>
   );
 };
 

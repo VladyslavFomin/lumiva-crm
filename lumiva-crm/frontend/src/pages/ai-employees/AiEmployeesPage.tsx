@@ -1,12 +1,12 @@
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import React, { useEffect, useMemo, useState } from 'react';
+import { AiEmployeeBrainPanel } from './AiEmployeeBrainPanel';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction, i18n as I18NextInstance } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { OpenAiConnectModal } from '../../components/integrations/OpenAiConnectModal';
-import { LottieIcon } from '../../components/LottieIcon';
 import { fetchIntegrations, type IntegrationConnectionDto } from '../../api/integrations';
 import { cn } from '../../lib/cn';
 import {
@@ -110,7 +110,7 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
   },
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.actions',
-    keys: ['create_task', 'update_task', 'create_note', 'update_lead_status', 'assign_lead', 'escalate_to_human', 'create_report'],
+    keys: ['create_task', 'update_task', 'create_note', 'update_lead_status', 'assign_lead', 'escalate_to_human', 'create_report', 'prepare_content'],
   },
   {
     titleKey: 'crm.aiEmployees.create.permissionGroups.communications',
@@ -153,14 +153,6 @@ const approvalKeys = [
   'create_workspace_table',
 ];
 
-/** Команда по отделам: пустые места видны сразу (решение владельца 2026-09-25 — зоны отделов). */
-const TEAM_DEPARTMENTS: Array<{ key: string; roles: AiEmployeeRoleKey[] }> = [
-  { key: 'sales', roles: ['lead_manager', 'sales_manager', 'email_assistant'] },
-  { key: 'marketing', roles: ['marketing_manager', 'marketing_analyst', 'smm_manager', 'seo_manager'] },
-  { key: 'service', roles: ['chat_operator', 'messenger_operator', 'support_manager', 'reviews_manager', 'reservation_assistant'] },
-  { key: 'projects', roles: ['project_manager'] },
-  { key: 'management', roles: ['crm_analyst'] },
-];
 
 const REAL_EXECUTABLE_ACTIONS = new Set([
   'handoff_to_colleague',
@@ -202,6 +194,7 @@ const ACCESS_MODULES: AccessModuleDef[] = [
   { key: 'mail', labelKey: 'crm.aiEmployees.v2.groups.mail', acts: ['draft_email', 'send_email', 'send_bulk_email', 'draft_whatsapp', 'send_telegram', 'send_whatsapp'] },
   { key: 'work', labelKey: 'crm.aiEmployees.v2.groups.work', acts: ['create_meeting', 'create_project'] },
   { key: 'data', labelKey: 'crm.aiEmployees.v2.groups.data', acts: ['create_report', 'create_workspace_table', 'manage_workspace_data'] },
+  { key: 'content', labelKey: 'crm.aiEmployees.v2.groups.content', acts: ['prepare_content'] },
 ];
 const ACCESS_ALL_ACTS = ACCESS_MODULES.flatMap((m) => m.acts);
 
@@ -568,60 +561,7 @@ function UpgradeModal({ open, onClose, plan }: { open: boolean; onClose: () => v
   );
 }
 
-function KpiTile({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
-  return (
-    <div className="ai-kpi">
-      <div className="l">
-        <span className="ic">
-          <I d={icon} size={11} />
-        </span>
-        {label}
-      </div>
-      <div className="v">{value}</div>
-    </div>
-  );
-}
 
-function AgentCard({ agent, onOpen }: { agent: AiAgent; onOpen: () => void }) {
-  const { t, i18n } = useTranslation();
-  const { accent, avStyle } = agentAvatarProps(agent);
-  const roleTitle = trRole(agent.role, 'title', agent.roleTitle || '', t, i18n);
-  const roleDescription = trRole(agent.role, 'description', agent.roleDescription || '', t, i18n);
-  return (
-    <div className="ai-card" {...clickableProps(onOpen)}>
-      <div className="ai-card-top">
-        <AiAvatar name={agent.name} accent={accent} avStyle={avStyle} size="lg" src={agent.avatarUrl} role={agent.role} />
-        <div className="ai-card-body">
-          <div className="nm">
-            {agent.name}
-            <StatusBadge status={agent.status} />
-          </div>
-          <div className="role">{roleTitle}</div>
-        </div>
-      </div>
-      <div className="desc">{roleDescription}</div>
-      <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-        <span className="ai-auto">{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
-        {agent.department ? <span className="ai-auto">{trDepartment(agent.department, t)}</span> : null}
-        <span className="ai-auto">{agent.dailyReportTime}</span>
-      </div>
-      <div className="ai-card-foot">
-        <div className="ai-card-stat">
-          <div className="sv">{agent.stats?.actionsToday ?? 0}</div>
-          <div className="sl">{t('crm.aiEmployees.agentCard.today')}</div>
-        </div>
-        <div className={cn('ai-card-stat', (agent.stats?.pendingApprovals ?? 0) > 0 && 'alert')}>
-          <div className="sv">{agent.stats?.pendingApprovals ?? 0}</div>
-          <div className="sl">{t('crm.aiEmployees.agentCard.approvals')}</div>
-        </div>
-        <div className="ai-card-stat">
-          <div className="sv">{agent.stats?.reportsGenerated ?? 0}</div>
-          <div className="sl">{t('crm.aiEmployees.agentCard.reports')}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function RoleCard({
   role,
@@ -1083,43 +1023,6 @@ function AutonomySelector({ value, onChange }: { value: AiAgentAutonomyMode; onC
 }
 
 /* ---------------------------------------------------------------- views */
-function AccessFingerprint({
-  autonomyMode,
-  permissions,
-  approvalRules,
-  compact,
-}: {
-  autonomyMode: AiAgentAutonomyMode;
-  permissions: Record<string, boolean>;
-  approvalRules: Record<string, boolean>;
-  compact?: boolean;
-}) {
-  const { t } = useTranslation();
-  const c = countAccessStates(autonomyMode, permissions, approvalRules);
-  const total = c.auto + c.appr + c.off || 1;
-  return (
-    <div>
-      <div className="e2-fp">
-        <span className="s-auto" style={{ width: `${(c.auto / total) * 100}%` }} />
-        <span className="s-appr" style={{ width: `${(c.appr / total) * 100}%` }} />
-        <span className="s-off" style={{ width: `${(c.off / total) * 100}%` }} />
-      </div>
-      {!compact ? (
-        <div className="e2-fpl">
-          <span>
-            <b>{c.auto}</b> {t('crm.aiEmployees.v2.fp.auto')}
-          </span>
-          <span>
-            <b>{c.appr}</b> {t('crm.aiEmployees.v2.fp.appr')}
-          </span>
-          <span>
-            <b>{c.off}</b> {t('crm.aiEmployees.v2.fp.off')}
-          </span>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 /* ---------------------------------------------------------------- roster v3
  * Claude Design ai-employees-v3.html (aie3-roster.jsx): сцена с живыми KPI и лентой событий,
@@ -2595,9 +2498,9 @@ export function AiEmployeeProfilePage() {
   const [openaiConnectionId, setOpenaiConnectionId] = useState('');
   const [allConnections, setAllConnections] = useState<IntegrationConnectionDto[]>([]);
   const [assignments, setAssignments] = useState<AiAgentAssignmentItem[]>([]);
-  const [tab, setTab] = useState<'overview' | 'chat' | 'reviews' | 'access' | 'work' | 'journal'>(() => {
+  const [tab, setTab] = useState<'overview' | 'chat' | 'reviews' | 'access' | 'work' | 'brain' | 'journal'>(() => {
     const q = new URLSearchParams(window.location.search).get('tab');
-    return q === 'journal' || q === 'reviews' || q === 'access' || q === 'work' || q === 'chat' ? q : 'overview';
+    return q === 'journal' || q === 'reviews' || q === 'access' || q === 'work' || q === 'chat' || q === 'brain' ? q : 'overview';
   });
   const [journalFilter, setJournalFilter] = useState<'all' | 'appr' | 'log' | 'rep' | 'err'>('all');
   const [accessOpen, setAccessOpen] = useState(true);
@@ -2720,6 +2623,8 @@ export function AiEmployeeProfilePage() {
           badge: 0,
         },
         { key: 'work' as const, label: t('crm.aiEmployees.profile.tabs.work'), icon: ICON.wand, badge: cfg?.triggers.filter((x) => x.enabled).length || 0 },
+        // «Мозг»: файлы, которые сотрудник читает перед каждым действием (агенты отделов — в мозге офиса)
+        ...(!(agent as { departmentId?: string | null }).departmentId ? [{ key: 'brain' as const, label: t('crm.aiEmployees.brain.tab'), icon: ICON.book, badge: 0 }] : []),
         {
           key: 'journal' as const,
           label: t('crm.aiEmployees.profile.tabs.journal'),
@@ -3196,6 +3101,7 @@ export function AiEmployeeProfilePage() {
               </>
             ) : null}
 
+            {tab === 'brain' && agent ? <AiEmployeeBrainPanel agentId={agent.id} agentName={agent.name} /> : null}
             {tab === 'work' ? (
               <>
                 <div className="e2-grid2">

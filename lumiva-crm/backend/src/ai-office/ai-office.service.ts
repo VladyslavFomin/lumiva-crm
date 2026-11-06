@@ -1331,7 +1331,18 @@ ${otherLines || '- none yet'}
       allowed.has('publish_telegram_post') && dept.connectors.includes('telegram')
         ? await this.depts.query(`SELECT id, "botUsername" username FROM telegram_bots WHERE "tenantId" = $1 AND status <> 'error' ORDER BY "createdAt" LIMIT 5`, [tenantId]).catch(() => [])
         : [];
-    return { department: dept, allowed, approval, promptBlock, taskId: null, connectorActions: this.connectors.actionsPrompt(usable, allowed), quoteCatalog, telegramBots };
+    const contentChannels = allowed.has('content_plan')
+      ? (await this.contentSvc().channelsForDepartment(tenantId, dept.id).catch(() => [])).map((c) => ({ id: c.id, network: c.network, accountName: c.accountName, autonomy: c.autonomy }))
+      : [];
+    const contentBestTimes = contentChannels.length ? await this.contentSvc().bestTimesLine(tenantId, dept.timezone || 'UTC').catch(() => '') : '';
+    const contentCanva = contentChannels.length ? await this.contentSvc().canvaLine(tenantId).catch(() => '') : '';
+    return { department: dept, allowed, approval, promptBlock, taskId: null, connectorActions: this.connectors.actionsPrompt(usable, allowed), quoteCatalog, telegramBots, contentChannels, contentBestTimes, contentCanva };
+  }
+
+  /** Движок контента (/marketing/smm) — лениво, чтобы не тянуть модуль в граф DI офиса. */
+  private contentSvc(): import('../content/content.service').ContentService {
+    const { ContentService } = require('../content/content.service');
+    return this.moduleRef.get(ContentService, { strict: false });
   }
 
   /** Шаблоны КП (с таблицей позиций) и каталог товаров/услуг — чтобы агент мог выпустить коммерческое предложение. */
@@ -1669,28 +1680,26 @@ ${[...products.map((p) => line('product', p)), ...services.map((p) => line('serv
       if (String(r[0].pc) !== String(r[0].sc) || Math.abs(Number(r[0].pa) - Number(r[0].sa)) > 0.01) return 'payment amount/currency differs from the sale — a human must decide; describe the mismatch in the report';
     }
     if (actionType === 'content_plan') {
-      if (!AiOfficeService.normSafety(ctx.department.safety).autoPosting) return 'autoposting is turned off for this department — publish posts one by one with publish_telegram_post (each is approved by the owner)';
-      if (!(await this.hasContentInstructions(tenantId, ctx.department.id))) return 'autoposting needs the content instructions: an .md file uploaded by the owner into the department folder of the Brain — ask for it via office_request_help and stop';
+      const allowedIds = new Set((ctx.contentChannels || []).map((c) => c.id));
+      if (!allowedIds.size) return 'no publishing channels are available to this department — ask the owner to connect them in Marketing → SMM → Channels (office_request_help) and stop';
       const posts = Array.isArray(payload.posts) ? payload.posts : [];
       if (!posts.length || posts.length > 31) return 'posts must contain 1–31 posts';
-      const checked = new Map<string, string | null>();
       for (const [i, x] of posts.entries()) {
         const text = String(x?.text ?? '').trim();
-        if (!text || text.length > 4000) return `posts[${i}].text must be 1–4000 characters`;
-        if (!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}$/.test(String(x?.publishAt ?? ''))) return `posts[${i}].publishAt must be "YYYY-MM-DD HH:mm" in the department time zone`;
-        const key = `${x?.botId}|${x?.channel}`;
-        if (!checked.has(key)) {
-          const chk = await this.telegramChannelCheck(tenantId, String(x?.botId ?? ''), String(x?.channel ?? ''));
-          checked.set(key, typeof chk === 'string' ? chk : null);
-        }
-        if (checked.get(key)) return `posts[${i}]: ${checked.get(key)}`;
+        if (!text || text.length > 60000) return `posts[${i}].text is empty or too long`;
+        const ids = Array.isArray(x?.channelIds) ? x.channelIds.map(String) : [];
+        if (!ids.length || ids.some((id: string) => !allowedIds.has(id))) return `posts[${i}].channelIds must be ids from the channel list in the action description`;
+        if (x?.publishAt && !/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}$/.test(String(x.publishAt))) return `posts[${i}].publishAt must be "YYYY-MM-DD HH:mm" in the department time zone`;
       }
-      const [range] = await this.depts.query(
-        `SELECT min(v::timestamp AT TIME ZONE $2) mn, max(v::timestamp AT TIME ZONE $2) mx FROM unnest($1::text[]) v`,
-        [posts.map((x: any) => String(x.publishAt).replace('T', ' ')), ctx.department.timezone || 'UTC'],
-      );
-      if (new Date(range.mn).getTime() < Date.now() + 10 * 60_000) return 'every publishAt must be at least 10 minutes in the future (department time zone)';
-      if (new Date(range.mx).getTime() > Date.now() + 62 * 86_400_000) return 'plan at most 2 months ahead';
+      const times = posts.map((x: any) => String(x?.publishAt || '')).filter(Boolean);
+      if (times.length) {
+        const [range] = await this.depts.query(
+          `SELECT min(v::timestamp AT TIME ZONE $2) mn, max(v::timestamp AT TIME ZONE $2) mx FROM unnest($1::text[]) v`,
+          [times.map((v: string) => v.replace('T', ' ')), ctx.department.timezone || 'UTC'],
+        );
+        if (new Date(range.mn).getTime() < Date.now() + 10 * 60_000) return 'every publishAt must be at least 10 minutes in the future (department time zone)';
+        if (new Date(range.mx).getTime() > Date.now() + 62 * 86_400_000) return 'plan at most 2 months ahead';
+      }
     }
     if (actionType === 'publish_telegram_post') {
       if (!String(payload.text ?? '').trim()) return 'publish_telegram_post: text is empty';
@@ -1769,14 +1778,16 @@ ${[...products.map((p) => line('product', p)), ...services.map((p) => line('serv
     const finLine = ctx.allowed.has('sale_confirm_payment')
       ? `Finance:\n- sale_confirm_payment: payload { saleId } — marks a CRM sale as paid when the payment gateway confirmed the payment but the sale was not updated (Reconciliation issues: "not_marked"). Only with a successful online payment of the same amount; always approved by the owner.\n`
       : '';
-    const planLine =
-      ctx.allowed.has('content_plan') && ctx.telegramBots?.length && AiOfficeService.normSafety(ctx.department.safety).autoPosting
-        ? `- content_plan: payload { title, posts: [{ publishAt: "YYYY-MM-DD HH:mm" (department time zone ${ctx.department.timezone || 'UTC'}), botId, channel, text (≤ 4000 chars, ready to publish) }] } — AUTOPOSTING: the owner approves the whole plan once, then every post is published by the system at its time. Follow the content instructions .md in the Brain (tone, rubrics, frequency, forbidden topics). Use this instead of publish_telegram_post for a content plan.\n`
+    const chLines = (ctx.contentChannels || []).map((c) => `${c.id} = ${c.network} ${c.accountName} (mode: ${c.autonomy})`).join('; ');
+    const contentLine =
+      ctx.allowed.has('content_plan') && ctx.contentChannels?.length
+        ? `Content & publishing (one engine for all networks — Marketing → SMM):\n- content_plan: payload { title, posts: [{ channelIds: [ids from: ${chLines}], publishAt: "YYYY-MM-DD HH:mm" (department time zone ${ctx.department.timezone || 'UTC'}), title, rubric?, text (main text), variants?: { "<network>": "<text adapted to that network>" }, imagePrompt?: "<English prompt for an image without text on it>" }] } — puts the posts into the company content plan. What happens next depends on each channel's mode: "suggest" — saved as drafts for a human, "assisted" — every post goes to human approval, "auto" — published by itself at its time once a human approves the plan. Instagram posts need an image (give imagePrompt). Limits: instagram ≤ 2200 chars and ≤ 30 hashtags, linkedin ≤ 3000 (professional, ≤ 3 hashtags), telegram ≤ 1000 with an image, vk ≤ 15000 (≤ 5 hashtags), threads ≤ 500. Follow the content instructions .md in the Brain (tone, rubrics, frequency, forbidden topics); never invent prices, facts or promises.\n${ctx.contentBestTimes ? `${ctx.contentBestTimes}\n` : ''}${ctx.contentCanva ? `${ctx.contentCanva}\n` : ''}`
         : '';
+    const planLine = '';
     const tgLine = ctx.allowed.has('publish_telegram_post') && ctx.telegramBots?.length
       ? `Publishing:\n- publish_telegram_post: payload { botId (one of: ${ctx.telegramBots.map((b) => `${b.id} = @${b.username ?? '?'}`).join(', ')}), channel ("@channelname" or "-100…" id — ONLY a channel named in the Brain), text (≤ 4000 chars, plain text, ready to publish) } — publishes a post to the company Telegram channel for all subscribers. Always approved by the owner. The bot must be an admin of the channel.\n${planLine}`
       : '';
-    return `${ctx.connectorActions ? `${ctx.connectorActions}\n` : ''}${ctx.quoteCatalog ? `Commercial offers:\n${ctx.quoteCatalog}\n` : ''}${adsLine}${payLine}${finLine}${stockLine}${hdLine}${bkLine}${tgLine}AI Office actions (always available to you):
+    return `${ctx.connectorActions ? `${ctx.connectorActions}\n` : ''}${ctx.quoteCatalog ? `Commercial offers:\n${ctx.quoteCatalog}\n` : ''}${adsLine}${payLine}${finLine}${stockLine}${hdLine}${bkLine}${tgLine}${contentLine}AI Office actions (always available to you):
 - office_handoff: payload { toDepartmentId (from "Other AI departments"), title, task: self-contained description of what they must do and why, entityType?, entityId? } — creates a task in that department's queue.
 - office_request_help: payload { kind: "data"|"access", title: short, detail: what exactly is missing and why the task needs it, folder?: "common" or your department for documents, connector?: service key for access } — shows the owner a "needs your help" item; the current task waits until it is resolved.
 - brain_write: payload { title, contentMd } — saves reusable knowledge (findings, procedures, data you collected) as a document in your department's folder of the Brain.
@@ -1932,18 +1943,28 @@ DATA ACCESS: if the task needs a data source of YOUR area that is marked NOT AVA
     }
 
     if (action.actionType === 'content_plan') {
-      // владелец одобрил план — посты встают в расписание; публикует AiOfficeProgramsService.publishDuePosts
+      // посты уходят в движок контента; дальше — режим каждого канала (черновик / согласование / авто по утверждённому плану)
       const dept = await this.depts.findOne({ where: { tenantId, id: agent.departmentId } });
-      const posts = (Array.isArray(p.posts) ? p.posts : []).filter((x: any) => String(x?.text ?? '').trim());
-      for (const x of posts) {
-        await this.depts.query(
-          `INSERT INTO ai_office_posts (tenant_id, department_id, plan_action_id, task_id, bot_id, channel, text, publish_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, ($8::timestamp AT TIME ZONE $9))`,
-          [tenantId, agent.departmentId, action.id, current?.id ?? null, String(x.botId), String(x.channel), String(x.text).slice(0, 4096), String(x.publishAt).replace('T', ' '), dept?.timezone || 'UTC'],
-        );
-      }
-      action.payload = { ...p, result: { ok: true, scheduled: posts.length } };
-      await this.addEvent({ tenantId, departmentId: agent.departmentId, taskId: current?.id ?? null, agentId: agent.id, kind: 'tool', tool: 'content_plan', text: ot(lang, 'plan_scheduled', { n: posts.length }) });
+      const r = await this.contentSvc().createFromAi(tenantId, {
+        departmentId: agent.departmentId,
+        agentId: agent.id,
+        source: 'ai_office',
+        planTitle: String(p.title || 'Контент-план'),
+        posts: (Array.isArray(p.posts) ? p.posts : []).map((x: any) => ({
+          channelIds: Array.isArray(x?.channelIds) ? x.channelIds.map(String) : [],
+          publishAt: x?.publishAt ? String(x.publishAt) : null,
+          text: String(x?.text ?? ''),
+          title: x?.title ? String(x.title) : undefined,
+          rubric: x?.rubric ? String(x.rubric) : undefined,
+          variants: x?.variants && typeof x.variants === 'object' ? x.variants : undefined,
+          imagePrompt: x?.imagePrompt ? String(x.imagePrompt) : undefined,
+          canvaTemplate: x?.canvaTemplate && typeof x.canvaTemplate === 'object' ? x.canvaTemplate : undefined,
+        })),
+        timezone: dept?.timezone || 'UTC',
+        withImages: true,
+      });
+      action.payload = { ...p, result: { ok: true, planId: r.planId, posts: r.posts, link: '/marketing/smm?tab=plan' } };
+      await this.addEvent({ tenantId, departmentId: agent.departmentId, taskId: current?.id ?? null, agentId: agent.id, kind: 'tool', tool: 'content_plan', text: ot(lang, 'plan_scheduled', { n: r.posts }) });
       return;
     }
 
