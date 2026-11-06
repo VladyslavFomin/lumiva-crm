@@ -1454,6 +1454,57 @@ export class SalesService {
     return this.channelRepo.save(channel) as unknown as Promise<SalesChannel>;
   }
 
+  /**
+   * «Создать продажу» из выигранной сделки: сумма, валюта, лид, контакт сделки, связь sale.projectId = сделка.
+   * Повторное нажатие возвращает уже созданную продажу (без дублей). Канал «Сделки CRM» создаётся лениво —
+   * без канала продажа не видна в списке продаж (applyListedSalesOnlyJoin).
+   */
+  async createFromDeal(
+    tenantId: string,
+    deal: { id: string; name: string; amount: string | number | null; currency: string | null; leadId: string | null; contactId: string | null; ownerName?: string | null },
+  ): Promise<{ sale: Sale; created: boolean }> {
+    const existing = await this.saleRepo.findOne({ where: { tenantId, projectId: deal.id } as any });
+    if (existing) return { sale: existing, created: false };
+    const currency = String(deal.currency || 'EUR').trim().toUpperCase().slice(0, 3) || 'EUR';
+    let channel = await this.channelRepo.findOne({ where: { tenantId, integrationId: 'crm_deals', isDeleted: false } as any });
+    if (!channel) {
+      channel = (await this.channelRepo.save(
+        this.channelRepo.create({
+          tenantId,
+          name: 'Сделки CRM',
+          type: 'direct',
+          integrationId: 'crm_deals',
+          integrationName: 'Сделки CRM',
+          currency,
+          isEnabled: true,
+          isDeleted: false,
+        } as any),
+      )) as unknown as SalesChannel;
+    }
+    const sale = this.saleRepo.create({
+      tenantId,
+      leadId: deal.leadId,
+      contactId: deal.contactId,
+      projectId: deal.id,
+      channelId: channel.id,
+      externalOrderNo: await this.generateOrderCode(),
+      guestName: deal.name.slice(0, 255),
+      managerName: deal.ownerName ?? null,
+      amount: Number(deal.amount || 0),
+      currency,
+      status: 'confirmed',
+      saleDate: new Date(),
+      customFields: { source: 'deal', dealId: deal.id },
+    } as any);
+    const saved = (await this.saleRepo.save(sale)) as unknown as Sale;
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.SALE_CREATED, { entityType: 'sale', entityId: saved.id, sale: saved });
+    } catch {
+      // автоматизации не должны блокировать создание продажи
+    }
+    return { sale: saved, created: true };
+  }
+
   /** Создаёт заказ из тестовой публичной витрины (корзина товаров → Sale). */
   async createFromStorefront(
     tenantId: string,

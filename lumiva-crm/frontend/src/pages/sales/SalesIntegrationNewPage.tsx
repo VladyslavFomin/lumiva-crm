@@ -7,7 +7,6 @@ import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { PageHero } from '../../components/ui';
 import {
   fetchAdapters,
-  fetchIntegrations,
   type IntegrationAdapterDto,
   type IntegrationKind,
   type CreateIntegrationPayload,

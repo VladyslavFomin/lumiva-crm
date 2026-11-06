@@ -7,10 +7,11 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ProjectStatusesService } from './project-statuses.service';
+import { normStatusKind, ProjectStatusesService } from './project-statuses.service';
 import { CreateProjectStatusDto } from './dto/create-project-status.dto';
 import { UpdateProjectStatusDto } from './dto/update-project-status.dto';
 import { ReorderProjectStatusesDto } from './dto/reorder-project-statuses.dto';
@@ -29,8 +30,8 @@ export class ProjectStatusesController {
 
   @Get()
   @RequirePermission('projects', 'read')
-  async findAll(@CurrentUser() user: CurrentUserPayload) {
-    return this.service.findAll(user.tenantId);
+  async findAll(@CurrentUser() user: CurrentUserPayload, @Query('kind') kind?: string) {
+    return this.service.findAll(user.tenantId, normStatusKind(kind));
   }
 
   @Post()
@@ -38,8 +39,9 @@ export class ProjectStatusesController {
   async create(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateProjectStatusDto,
+    @Query('kind') kind?: string,
   ) {
-    return this.service.create(user.tenantId, dto);
+    return this.service.create(user.tenantId, dto, normStatusKind(kind));
   }
 
   @Patch('reorder')
@@ -47,8 +49,9 @@ export class ProjectStatusesController {
   async reorder(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: ReorderProjectStatusesDto,
+    @Query('kind') kind?: string,
   ) {
-    return this.service.reorder(user.tenantId, dto);
+    return this.service.reorder(user.tenantId, dto, normStatusKind(kind));
   }
 
   @Patch(':id')

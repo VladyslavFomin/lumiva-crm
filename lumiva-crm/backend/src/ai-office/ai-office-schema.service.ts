@@ -192,6 +192,9 @@ export class AiOfficeSchemaService implements OnModuleInit {
         "updated_at" timestamptz NOT NULL DEFAULT now()
       )`);
     await q(`CREATE INDEX IF NOT EXISTS "IDX_ai_brain_files_tenant_folder" ON "ai_brain_files" ("tenant_id", "department_id")`);
+    // «Мозг» ИИ-сотрудника — личная папка файлов (2026-11-06)
+    await q(`ALTER TABLE "ai_brain_files" ADD COLUMN IF NOT EXISTS "agent_id" uuid REFERENCES ai_agents(id) ON DELETE CASCADE`);
+    await q(`CREATE INDEX IF NOT EXISTS "IDX_ai_brain_files_agent" ON "ai_brain_files" ("tenant_id", "agent_id") WHERE "agent_id" IS NOT NULL`);
 
     await q(`
       CREATE TABLE IF NOT EXISTS "ai_brain_chunks" (

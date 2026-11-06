@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Body,
   Controller,
+  createParamDecorator,
+  ExecutionContext,
   Delete,
   Get,
   Param,
@@ -39,6 +41,21 @@ import { UpdateCustomObjectRecordDto } from './dto/update-custom-object-record.d
 import { CreateCustomObjectViewDto } from './dto/create-custom-object-view.dto';
 import { UpdateCustomObjectViewDto } from './dto/update-custom-object-view.dto';
 import { PushRecordsToBoardDto } from './dto/push-records-to-board.dto';
+import {
+  canManageColumnAccess,
+  canSeeField,
+  hiddenValueKeys,
+  stripRecord,
+  stripValues,
+  type ColumnViewer,
+} from './workspace-column-access';
+
+/** Кто смотрит таблицу: роль в компании, staff-id и эффективная роль в области (из guard'а). */
+const Viewer = createParamDecorator((_d: unknown, ctx: ExecutionContext): ColumnViewer => {
+  const req = ctx.switchToHttp().getRequest();
+  const u = (req.user || {}) as CurrentUserPayload;
+  return { tenantRole: u.role ?? null, staffUserId: u.staffUserId ?? null, areaRole: req.workspaceAreaRole ?? null };
+});
 
 function actorFromUser(user: CurrentUserPayload): { loginUserId?: string; email?: string } {
   return { loginUserId: user.userId ?? user.id ?? user.sub, email: user.email };
@@ -59,6 +76,13 @@ export class CustomObjectsController {
     private readonly geocode: GeocodeService,
     private readonly reportMail: AnalyticsReportMailService,
   ) {}
+
+  /** Ключи values, скрытые от этого пользователя (колонки с ограниченным просмотром). */
+  private async hiddenKeysFor(tenantId: string, objectId: string, viewer: ColumnViewer): Promise<Set<string>> {
+    if (canManageColumnAccess(viewer)) return new Set();
+    const fields = await this.service.listFields(tenantId, objectId);
+    return hiddenValueKeys(fields, viewer);
+  }
 
   @Get()
   async list(
@@ -172,8 +196,45 @@ export class CustomObjectsController {
   async listFields(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Viewer() viewer: ColumnViewer,
   ) {
-    return this.service.listFields(user.tenantId, objectId);
+    const fields = await this.service.listFields(user.tenantId, objectId);
+    return fields.filter((f) => canSeeField(f, viewer));
+  }
+
+  /** Можно ли текущему пользователю настраивать «Кто видит колонку». */
+  @Get(':objectId/column-access')
+  @RequireAreaRole(...AREA_READ)
+  async columnAccessInfo(@Viewer() viewer: ColumnViewer) {
+    return { canManage: canManageColumnAccess(viewer) };
+  }
+
+  @Put(':objectId/fields/:fieldId/viewers')
+  @RequireAreaRole(...AREA_EDIT)
+  async setFieldViewers(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Param('fieldId', new ParseUUIDPipe()) fieldId: string,
+    @Body() body: { staffUserIds?: string[] },
+    @Viewer() viewer: ColumnViewer,
+  ) {
+    const ids = Array.isArray(body?.staffUserIds) ? body.staffUserIds.map(String) : [];
+    return this.service.setFieldViewers(user.tenantId, objectId, fieldId, ids, viewer);
+  }
+
+  @Put(':objectId/fields/:fieldId/rules')
+  @RequireAreaRole(...AREA_EDIT)
+  async setFieldRules(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Param('fieldId', new ParseUUIDPipe()) fieldId: string,
+    @Body() body: { rules?: unknown },
+    @Viewer() viewer: ColumnViewer,
+  ) {
+    const fields = await this.service.listFields(user.tenantId, objectId);
+    const target = fields.find((f) => f.id === fieldId);
+    if (target && !canSeeField(target, viewer)) throw new BadRequestException('Field not found');
+    return this.service.setFieldRules(user.tenantId, objectId, fieldId, body?.rules ?? []);
   }
 
   /** Ключи из jsonb values по записям объекта (для сопоставления колонок с импортом). */
@@ -296,19 +357,24 @@ export class CustomObjectsController {
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
     @Query('search') search?: string,
     @Query('enrichColumnBindings') enrichColumnBindings?: string,
+    @Viewer() viewer?: ColumnViewer,
   ) {
     const ec =
       enrichColumnBindings === '1' ||
       enrichColumnBindings === 'true' ||
       enrichColumnBindings === 'yes';
-    return this.service.listRecords(user.tenantId, objectId, {
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer!);
+    const res = await this.service.listRecords(user.tenantId, objectId, {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
       sortBy,
       sortOrder,
       search,
       enrichColumnBindings: ec,
+      hiddenKeys: hidden,
     });
+    if (!hidden.size) return res;
+    return { ...res, items: res.items.map((r) => stripRecord(r, hidden)) };
   }
 
   /**
@@ -322,8 +388,18 @@ export class CustomObjectsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Query('v') knownVersion?: string,
+    @Viewer() viewer?: ColumnViewer,
   ) {
-    return this.service.listRecordsCompact(user.tenantId, objectId, knownVersion);
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer!);
+    const res = await this.service.listRecordsCompact(user.tenantId, objectId, knownVersion);
+    if (!hidden.size || !('rows' in res) || !res.rows) return res;
+    return {
+      ...res,
+      // Версия кэша зависит от набора видимых колонок — иначе после смены доступа браузер
+      // продолжал бы показывать закэшированные строки со старым набором значений.
+      version: `${res.version}.h${hidden.size}`,
+      rows: res.rows.map(([id, values, c, u]) => [id, stripValues(values, hidden), c, u] as const),
+    };
   }
 
   @Post(':objectId/records')
@@ -332,8 +408,12 @@ export class CustomObjectsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Body() dto: CreateCustomObjectRecordDto,
+    @Viewer() viewer: ColumnViewer,
   ) {
-    return this.service.createRecord(user.tenantId, objectId, dto, actorFromUser(user));
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer);
+    const safe = hidden.size ? { ...dto, values: stripValues(dto.values || {}, hidden) } : dto;
+    const created = await this.service.createRecord(user.tenantId, objectId, safe, actorFromUser(user));
+    return stripRecord(created, hidden);
   }
 
   @Get(':objectId/records/distinct-values')
@@ -342,8 +422,12 @@ export class CustomObjectsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Query('fieldKey') fieldKey?: string,
+    @Viewer() viewer?: ColumnViewer,
   ) {
-    return this.service.listDistinctFieldValues(user.tenantId, objectId, (fieldKey || '').trim());
+    const fk = (fieldKey || '').trim();
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer!);
+    if (hidden.has(fk)) return { values: [] };
+    return this.service.listDistinctFieldValues(user.tenantId, objectId, fk);
   }
 
   @Post(':objectId/records/clear')
@@ -366,7 +450,9 @@ export class CustomObjectsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Body() dto: PushRecordsToBoardDto,
+    @Viewer() viewer: ColumnViewer,
   ) {
+    const hiddenSourceKeys = await this.hiddenKeysFor(user.tenantId, objectId, viewer);
     return this.service.pushRecordsToBoard(
       user.tenantId,
       objectId,
@@ -377,6 +463,7 @@ export class CustomObjectsController {
         omitAutoTargetKeys: dto.omitAutoTargetKeys,
         duplicateKeyTargetField: dto.duplicateKeyTargetField ?? null,
         skipDuplicates: dto.skipDuplicates,
+        hiddenSourceKeys,
       },
       actorFromUser(user),
     );
@@ -389,14 +476,21 @@ export class CustomObjectsController {
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Param('recordId', new ParseUUIDPipe()) recordId: string,
     @Body() dto: UpdateCustomObjectRecordDto,
+    @Viewer() viewer: ColumnViewer,
   ) {
-    return this.service.updateRecord(
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer);
+    // Значения скрытых колонок нельзя ни прочитать, ни перезаписать «вслепую»: входящие ключи
+    // отбрасываются, а merge в сервисе сохраняет текущие значения.
+    const safe =
+      hidden.size && dto.values ? { ...dto, values: stripValues(dto.values, hidden) } : dto;
+    const saved = await this.service.updateRecord(
       user.tenantId,
       objectId,
       recordId,
-      dto,
+      safe,
       actorFromUser(user),
     );
+    return stripRecord(saved, hidden);
   }
 
   @Post(':objectId/records/:recordId/fields/:fieldKey/ai-refresh')
@@ -426,7 +520,14 @@ export class CustomObjectsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Body() body: { agentId?: string; question?: string },
+    @Viewer() viewer: ColumnViewer,
   ) {
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer);
+    if (hidden.size) {
+      // ИИ-разбор читает всю таблицу целиком — с колонками, скрытыми от этого пользователя,
+      // ответ модели мог бы их пересказать. Пока разбор доступен только тем, кто видит всё.
+      throw new BadRequestException('В таблице есть колонки, скрытые для вас — ИИ-анализ недоступен');
+    }
     return this.service.analyzeTable(user.tenantId, objectId, String(body?.agentId || ''), String(body?.question || ''));
   }
 
@@ -450,8 +551,10 @@ export class CustomObjectsController {
   async getAnalytics(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Viewer() viewer: ColumnViewer,
   ) {
-    return this.service.getAnalytics(user.tenantId, objectId);
+    const hidden = await this.hiddenKeysFor(user.tenantId, objectId, viewer);
+    return this.service.getAnalytics(user.tenantId, objectId, hidden);
   }
 
   /**

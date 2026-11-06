@@ -136,6 +136,7 @@ export class ContactsService {
     const projects = await this.projectRepo
       .createQueryBuilder('project')
       .where('project.tenant_id = :tenantId', { tenantId })
+      .andWhere("project.kind = 'project'")
       .andWhere(
         leadIds.length > 0
           ? '(project.contact_id = :contactId OR project.lead_id IN (:...leadIds))'

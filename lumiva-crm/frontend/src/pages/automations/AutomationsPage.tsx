@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { LottieIcon } from '../../components/LottieIcon';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -220,10 +220,6 @@ export const AutomationsPage: React.FC = () => {
     }
   };
 
-  const handleArchive = async (automation: Automation) => {
-    if (!automation.isActive) return;
-    await handleToggle(automation);
-  };
 
   const openRunModal = (automation: Automation) => {
     setRunModal(automation);

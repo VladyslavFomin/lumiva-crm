@@ -15,6 +15,7 @@ import type { Lead, LeadStatus } from '../../api/leads';
 import { fetchLeads, updateLead, fetchLeadAccessGrants } from '../../api/leads';
 import { fetchCompanies, fetchCompany, type Company } from '../../api/companies';
 import { fetchContacts, type Contact } from '../../api/contacts';
+import { useColumnAccess } from '../../components/table/useColumnAccess';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import {
   fetchCustomFields,
@@ -133,16 +134,6 @@ export const LeadsListPage: React.FC = () => {
   const handleOpenLead = (id: string) => navigate(`/leads/${id}`);
   const goBoard = () => navigate('/leads/board');
   const goCalendar = () => navigate('/leads/calendar');
-  const statusLabels = useMemo<Record<string, string>>(
-    () => ({
-      new: t('crm.leads.statuses.new'),
-      in_progress: t('crm.leads.statuses.inProgress'),
-      waiting: t('crm.leads.statuses.waiting'),
-      won: t('crm.leads.statuses.won'),
-      lost: t('crm.leads.statuses.lost'),
-    }),
-    [t],
-  );
   const statusOptions: LeadStatus[] = [
     'Новый клиент',
     'В работе',
@@ -183,10 +174,6 @@ export const LeadsListPage: React.FC = () => {
     },
     [t],
   );
-  const formatStatus = (status?: string | null) => {
-    if (!status) return t('crm.leads.list.emptyValue');
-    return statusLabels[status] ?? status;
-  };
 
   const activeCustomFields = useMemo(
     () => customFields.filter((field) => field.isActive),
@@ -220,14 +207,16 @@ export const LeadsListPage: React.FC = () => {
     [],
   );
 
+  /** «Кто может просматривать этот столбец» — скрытые от меня колонки убираем из таблицы целиком. */
+  const columnAccess = useColumnAccess('leads', staff);
   const columns = useMemo((): LeadListColumn[] => {
     const customCols: LeadListColumn[] = activeCustomFields.map((field) => ({
       id: `cf:${field.id}`,
       label: field.label,
       field,
     }));
-    return [...baseColumns, ...customCols];
-  }, [activeCustomFields, baseColumns]);
+    return [...baseColumns, ...customCols].filter((col) => !columnAccess.hiddenColumnIds.has(col.id));
+  }, [activeCustomFields, baseColumns, columnAccess.hiddenColumnIds]);
   const visibleColumns = useMemo(
     () => columns.filter((col) => !hiddenColumns.includes(col.id)),
     [columns, hiddenColumns],
@@ -2065,6 +2054,7 @@ export const LeadsListPage: React.FC = () => {
                     {visibleColumns.length}/{columns.length}
                   </span>
                 </button>
+                {columnAccess.popover}
                 {columnsOpen && (
                   <div className="lv-popover" style={{ top: 'calc(100% + 6px)', right: 0 }}>
                     <div className="lv-popover-title">{t('crm.leads.list.columns.label')}</div>
@@ -2092,6 +2082,7 @@ export const LeadsListPage: React.FC = () => {
                             {isCore && (
                               <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--fg-4)', border: '1px solid var(--line-2)', borderRadius: 3, padding: '1px 4px' }}>Core</span>
                             )}
+                            {columnAccess.lockButton(col)}
                             <input
                               type="checkbox"
                               checked={checked}
@@ -2193,6 +2184,7 @@ export const LeadsListPage: React.FC = () => {
                             <span className="lv-th-inner">
                               <span className="lv-th-grip">⋮⋮</span>
                               {col.label}
+                              {columnAccess.headerBadge(col.id)}
                             </span>
                             <span className="lv-th-resize" onMouseDown={(e) => startResize(col.id, e)} />
                           </th>

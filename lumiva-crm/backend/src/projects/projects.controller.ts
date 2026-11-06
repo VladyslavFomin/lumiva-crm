@@ -1,3 +1,7 @@
+import { ModuleRef } from '@nestjs/core';
+import { ProjectStatusesService } from './project-statuses.service';
+import { ColumnAccessService } from '../column-access/column-access.service';
+import { ColumnAccessInterceptor, ColumnAccessTable } from '../column-access/column-access.interceptor';
 // backend/src/projects/projects.controller.ts
 
 import {
@@ -11,7 +15,9 @@ import {
   Delete,
   Query,
   UseGuards,
+  UseInterceptors,
   ForbiddenException,
+  BadRequestException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -38,11 +44,13 @@ import { StaffUser } from '../staff/staff-user.entity';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, RbacGuard, ProjectTableAccessGuard)
+@UseInterceptors(ColumnAccessInterceptor)
 @RequirePermission('projects', 'read')
 export class ProjectsController {
   private readonly logger = new Logger(ProjectsController.name);
 
   constructor(
+    private readonly columnAccess: ColumnAccessService,
     private readonly projectsService: ProjectsService,
     private readonly projectTablesService: ProjectTablesService,
 
@@ -53,7 +61,48 @@ export class ProjectsController {
     private readonly staffRepo: Repository<StaffUser>,
 
     private readonly rbac: RbacService,
+    private readonly statuses: ProjectStatusesService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  // ================== POST /projects/:id/create-sale ==================
+  /** «Создать продажу» из выигранной сделки (повторно — та же продажа, без дублей). */
+  @Post(':id/create-sale')
+  @RequireTableRole('owner', 'editor')
+  async createSaleFromDeal(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    const { tenantId, role } = user;
+    const canSales = await this.rbac.canForUser(tenantId, (user as any).staffUserId || '', role as any, 'sales');
+    if (!canSales) throw new ForbiddenException('Недостаточно прав для создания продажи');
+    const deal = await this.projectsService.findOneForTenant(tenantId, id);
+    if (deal.kind !== 'deal') throw new BadRequestException('Продажу из карточки можно создать только у сделки');
+    if (role !== 'owner') {
+      const staff = await this.getCurrentStaff(user);
+      if (!staff || !this.canWriteProject(deal, staff)) throw new ForbiddenException('Недостаточно прав для этой сделки');
+    }
+    const outcome = await this.statuses.outcomeOf(tenantId, 'deal', deal.status);
+    if (outcome !== 'won') throw new BadRequestException('Сначала переведите сделку в выигранный статус');
+    const { SalesService } = require('../sales/sales.service');
+    const sales = this.moduleRef.get(SalesService, { strict: false });
+    const r = await sales.createFromDeal(tenantId, {
+      id: deal.id,
+      name: deal.name,
+      amount: deal.amount,
+      currency: deal.currency,
+      leadId: deal.leadId,
+      contactId: deal.contactId,
+      ownerName: deal.ownerName,
+    });
+    if (r.created) {
+      await this.projectsService.createActivity({
+        tenantId,
+        projectId: deal.id,
+        action: 'sale_created',
+        actor: { userId: user.userId ?? user.sub, email: user.email, name: (user as any).name },
+        payload: { saleId: r.sale.id, amount: r.sale.amount, currency: r.sale.currency },
+      });
+    }
+    return { saleId: r.sale.id, created: r.created };
+  }
 
   /** Проект принадлежит основной ("Таблица") таблице тенанта — тогда действует старая
    * логика ownerUserIds/isProjectMine. На приватных таблицах эту проверку не делаем:
@@ -178,6 +227,7 @@ export class ProjectsController {
 
   // ================== GET /projects ==================
   @Get()
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor', 'reader')
   async list(
     @CurrentUser() user: CurrentUserPayload,
@@ -189,14 +239,18 @@ export class ProjectsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('tableId') tableId?: string,
+    @Query('kind') kindParam?: string,
   ) {
     const { tenantId, role } = user;
+    const isDeals = kindParam === 'deal';
 
     const main = await this.projectTablesService.ensureDefaultTable(tenantId);
-    const effectiveTableId = tableId || main.id;
+    // сделки — отдельный раздел без «таблиц проектов»: видимость как у основной таблицы
+    const effectiveTableId = isDeals ? undefined : tableId || main.id;
 
     const raw = await this.projectsService.findAllForTenant({
       tenantId,
+      kind: isDeals ? 'deal' : 'project',
       tableId: effectiveTableId,
       status: status as any,
       leadId,
@@ -210,7 +264,7 @@ export class ProjectsController {
 
     // Приватная (не основная) таблица: доступ уже проверен ProjectTableAccessGuard —
     // любой участник таблицы видит все её проекты, без пофильтровки по ownerUserIds.
-    if (effectiveTableId !== main.id) {
+    if (!isDeals && effectiveTableId !== main.id) {
       return raw;
     }
 
@@ -235,6 +289,7 @@ export class ProjectsController {
 
   // ================== GET /projects/:id ==================
   @Get(':id')
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor', 'reader')
   async getOne(
     @CurrentUser() user: CurrentUserPayload,
@@ -265,6 +320,7 @@ export class ProjectsController {
 
   // ================== POST /projects ==================
   @Post()
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor')
   async create(
     @CurrentUser() user: CurrentUserPayload,
@@ -322,6 +378,7 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id ==================
   @Patch(':id')
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor')
   async update(
     @CurrentUser() user: CurrentUserPayload,
@@ -329,6 +386,11 @@ export class ProjectsController {
     @Body() dto: UpdateProjectDto,
   ) {
     const { tenantId, role } = user;
+    // Скрытые колонки (сумма, пользовательские поля) нельзя изменить «вслепую».
+    this.columnAccess.protectIncoming(
+      dto as Record<string, any>,
+      await this.columnAccess.hiddenFor(tenantId, 'projects', user),
+    );
     const canEdit = await this.rbac.canForUser(tenantId, (user as any).staffUserId || '', role as any, 'projects_manage');
     if (!canEdit) {
       throw new ForbiddenException('Недостаточно прав для изменения проекта');
@@ -437,6 +499,7 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/status ==================
   @Patch(':id/status')
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor')
   async changeStatus(
     @CurrentUser() user: CurrentUserPayload,
@@ -475,6 +538,7 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/archive ==================
   @Patch(':id/archive')
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor')
   async archive(
     @CurrentUser() user: CurrentUserPayload,
@@ -507,6 +571,7 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/unarchive ==================
   @Patch(':id/unarchive')
+  @ColumnAccessTable('projects')
   @RequireTableRole('owner', 'editor')
   async unarchive(
     @CurrentUser() user: CurrentUserPayload,
@@ -556,6 +621,7 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/restore ==================
   @Patch(':id/restore')
+  @ColumnAccessTable('projects')
   @RequirePermission('projects_manage_trash', 'write')
   async restore(
     @CurrentUser() user: CurrentUserPayload,

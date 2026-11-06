@@ -1,4 +1,3 @@
-import React from 'react';
 import { Ic } from './SalesIcons';
 
 export { Ic };

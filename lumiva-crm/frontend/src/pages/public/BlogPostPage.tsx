@@ -1,6 +1,6 @@
 // Статья блога — дизайн Claude Design blog-v2.html (lh-blog.jsx BlPost). Данные — из CMS pl2 (blogApi.ts),
 // блоки рендерит BlogBlocks (тот же формат, что на lumiva.agency).
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Icon } from '../landing/LandingSections';
 import { BLOG_UI, catLabel, fetchBlogPost, fetchBlogPosts, fmtDate, postBlocks, postDate, readMinutes, type BlogPostT } from './blogApi';

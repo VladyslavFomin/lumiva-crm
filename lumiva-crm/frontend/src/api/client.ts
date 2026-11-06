@@ -231,6 +231,30 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
       throw new ApiError(i18n.t('crm.errors.tenantMailSendFailed', { defaultValue: msg, error: String(msg).replace(/^Your mailbox could not send the email:\s*/, '') }), res.status, data.code, data);
     }
 
+    // Правила колонок рабочей таблицы: текст нарушения на языке интерфейса.
+    if (data?.error === 'column_rule_violation' && Array.isArray(data?.violations)) {
+      const lines = (data.violations as Array<Record<string, any>>).slice(0, 5).map((v) => {
+        const p = (v.params || {}) as Record<string, any>;
+        const expected = i18n.t(`crm.columnRules.expect.${v.op}`, {
+          value: p.value ?? '',
+          values: Array.isArray(p.values) ? p.values.join(', ') : '',
+          min: p.min ?? '…',
+          max: p.max ?? '…',
+          defaultValue: v.expected,
+        });
+        if (!v.condition) return i18n.t('crm.columnRules.violation', { field: v.fieldLabel, expected });
+        const c = v.condition as { fieldLabel: string; op: string; values: string[] };
+        const condition = `${c.fieldLabel} ${i18n.t(`crm.columnRules.cond.${c.op}`)} ${(c.values || []).join(', ')}`.trim();
+        return i18n.t('crm.columnRules.violationIf', { field: v.fieldLabel, expected, condition });
+      });
+      throw new ApiError(
+        `${i18n.t('crm.columnRules.violationTitle')} ${lines.join('; ')}`,
+        res.status,
+        'COLUMN_RULE_VIOLATION',
+        data,
+      );
+    }
+
     throw new ApiError(msg, res.status, data?.code, data);
   }
 

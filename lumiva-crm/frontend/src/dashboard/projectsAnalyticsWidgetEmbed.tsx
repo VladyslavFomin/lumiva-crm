@@ -297,7 +297,7 @@ type FormulaScope = string;
 function itemMatchesOneKeyEmbed(
   item: Project,
   scope: FormulaScope,
-  t: TFunction,
+  _t: TFunction,
   key: string,
 ): boolean {
   if (scope.startsWith('field:')) {

@@ -36,8 +36,12 @@ export interface ProjectMeeting {
   closedAt?: string;
 }
 
+export type ProjectKind = 'project' | 'deal';
+
 export interface Project {
   id: string;
+  /** 'project' — проект (задачи, работа); 'deal' — сделка (сумма, воронка). */
+  kind?: ProjectKind;
   name: string;
   description: string;
   amount: number;            // число для удобства

@@ -40,6 +40,7 @@ export const COMPONENT_KEYS = [
   'projects_analytics',
   'projects_kanban',
   'projects_calendar',
+  'deals',
   'sales',
   'sales_pipeline',
   'sales_analytics',
@@ -153,6 +154,7 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   projects_analytics: 'standard',
   projects_kanban: 'standard',
   projects_calendar: 'standard',
+  deals: 'standard',
   sales: 'standard',
   sales_pipeline: 'standard',
   sales_analytics: 'standard',
@@ -358,8 +360,14 @@ export function componentDefault(key: string, current: Record<string, boolean> |
   for (let parent = COMPONENT_LEGACY_PARENT[key], depth = 0; parent && depth < 5; parent = COMPONENT_LEGACY_PARENT[parent], depth++) {
     if (typeof current?.[parent] === 'boolean') return current[parent];
   }
-  return true;
+  return !COMPONENT_DEFAULT_OFF.has(key);
 }
+
+/**
+ * Компоненты, которые у тенанта выключены, пока их явно не включат в pl1: «Сделки» нужны не всем
+ * (у многих лид → проект/продажа без воронки), и появляться в меню сами они не должны.
+ */
+export const COMPONENT_DEFAULT_OFF = new Set<string>(['deals']);
 
 export function buildPlanEntitlements(input: {
   plan?: string | null;

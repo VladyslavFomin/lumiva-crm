@@ -1,4 +1,3 @@
-import React from 'react';
 
 const stroke = {
   fill: 'none' as const,

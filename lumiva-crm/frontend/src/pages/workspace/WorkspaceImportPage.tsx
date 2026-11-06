@@ -28,7 +28,6 @@ import {
   reshapeCustomObjectImportWithAi,
   type CustomObjectField,
   type CustomObjectImportPreview,
-  type CustomObjectImportReshapePlan,
 } from '../../api/customObjects';
 import {
   fetchWorkspaceArea,

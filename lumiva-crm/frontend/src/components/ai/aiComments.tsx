@@ -1,4 +1,3 @@
-import React from 'react';
 
 /** Комментарии людей хранятся уже локализованной строкой, комментарии ИИ — ISO: приводим ISO к локальному времени пользователя. */
 export function formatCommentTime(createdAt: string, locale?: string): string {

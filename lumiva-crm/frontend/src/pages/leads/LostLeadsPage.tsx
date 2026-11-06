@@ -239,7 +239,7 @@ export const LostLeadsPage: React.FC = () => {
                       <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={40} />
                       <Tooltip content={<ManagerTooltip />} />
                       <Bar dataKey="amount" radius={[10, 10, 4, 4]} barSize={30}>
-                        {chartData.map((row, idx) => (
+                        {chartData.map((row) => (
                           <Cell key={row.manager} fill={row.color} />
                         ))}
                       </Bar>

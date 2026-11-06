@@ -365,7 +365,6 @@ const UserPermissionModuleList: React.FC<{
               </span>
             </div>
             {g.mods.map((m) => {
-              const state = resolveUserState(overrides, m.key);
               const eff = effectiveGranted(roleGranted, overrides, m.key);
               const changed = isModChanged(m);
               const hasChildren = !!m.children?.length;
@@ -507,7 +506,7 @@ export const StaffPermissionsPage: React.FC = () => {
   const [dvRole, setDvRole] = useState<StaffRole>('sales');
   const [dvLoading, setDvLoading] = useState(true);
   const [dvSaving, setDvSaving] = useState(false);
-  const [dvSaved, setDvSaved] = useState(false);
+  const [, setDvSaved] = useState(false);
 
   const [ipList, setIpList] = useState<IpAllowlistEntry[]>([]);
   const [ipCidr, setIpCidr] = useState('');

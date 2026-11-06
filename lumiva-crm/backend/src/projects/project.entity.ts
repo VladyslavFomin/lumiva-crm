@@ -51,6 +51,9 @@ export interface ProjectAccessMember {
   role: ProjectAccessRole;
 }
 
+export type ProjectKind = 'project' | 'deal';
+export const PROJECT_KINDS: ProjectKind[] = ['project', 'deal'];
+
 @Entity('crm_projects')
 export class Project {
   @PrimaryGeneratedColumn('uuid')
@@ -68,6 +71,10 @@ export class Project {
   @ManyToOne(() => ProjectTable, { nullable: true })
   @JoinColumn({ name: 'table_id' })
   table: ProjectTable | null;
+
+  /** 'project' — проект (акцент на задачах); 'deal' — сделка (акцент на сумме и воронке). Не меняется после создания. */
+  @Column({ type: 'varchar', length: 16, default: 'project' })
+  kind: ProjectKind;
 
   @Column({ name: 'table_id', type: 'uuid', nullable: true })
   tableId: string | null;

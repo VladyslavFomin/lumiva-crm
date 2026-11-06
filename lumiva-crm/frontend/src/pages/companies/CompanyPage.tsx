@@ -99,7 +99,7 @@ export const CompanyPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const isNew = !id;
   const navigate = useNavigate();
-  const { showAlert, showConfirm, showPrompt } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
 
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(!isNew);

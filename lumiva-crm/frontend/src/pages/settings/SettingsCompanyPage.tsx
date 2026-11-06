@@ -45,10 +45,17 @@ import {
 } from '../../api/email';
 import { API_BASE } from '../../api/client';
 import './settings-design.css';
+import { CrmStructureTab } from './CrmStructureTab';
 
-type TabId = 'general' | 'billing' | 'sessions' | 'invites' | 'storage';
+type TabId = 'general' | 'structure' | 'billing' | 'sessions' | 'invites' | 'storage';
 
 const D = {
+  layers: (
+    <>
+      <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+      <path d="m3 13 9 5 9-5" />
+    </>
+  ),
   building: (
     <>
       <rect x="4" y="3" width="16" height="18" rx="1.5" />
@@ -150,7 +157,7 @@ export const SettingsCompanyPage: React.FC = () => {
   const user = getStoredUser();
   const isOwner = (user?.role || '').toLowerCase() === 'owner';
 
-  const VALID_TABS: TabId[] = ['general', 'billing', 'sessions', 'invites', 'storage'];
+  const VALID_TABS: TabId[] = ['general', 'structure', 'billing', 'sessions', 'invites', 'storage'];
   const requestedTab = searchParams.get('tab') as TabId | null;
   const [tab, setTab] = useState<TabId>(
     requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : 'general',
@@ -526,6 +533,7 @@ export const SettingsCompanyPage: React.FC = () => {
 
   const tabs: { id: TabId; label: string; ic: React.ReactNode }[] = [
     { id: 'general', label: t('crm.settings.company.tabs.general'), ic: D.building },
+    { id: 'structure', label: t('crm.settings.structure.tab'), ic: D.layers },
     { id: 'billing', label: t('crm.settings.company.tabs.billing'), ic: D.card },
     { id: 'sessions', label: t('crm.settings.company.tabs.sessions'), ic: D.users },
     { id: 'invites', label: t('crm.settings.company.tabs.invites'), ic: D.mail },
@@ -754,6 +762,8 @@ export const SettingsCompanyPage: React.FC = () => {
                 </div>
               </form>
             )}
+
+            {tab === 'structure' && <CrmStructureTab isOwner={isOwner} />}
 
             {tab === 'billing' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

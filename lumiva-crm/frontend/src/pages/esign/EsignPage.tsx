@@ -12,7 +12,6 @@ import {
   issueEsignDocument,
   updateEsignDocument,
   sendEsignDocument,
-  duplicateEsignDocument,
   openEsignDocumentFile,
   downloadEsignDocumentFile,
   deleteEsignDocument,
@@ -104,8 +103,6 @@ interface PickedItem {
   discountPercent?: number;
 }
 
-/** Commercial-offer parameters kept in extraFields (not template placeholders). */
-const QUOTE_PARAM_KEYS = ['DISCOUNT_PERCENT', 'TAX_PERCENT', 'VALID_UNTIL'] as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const itemQty = (i: PickedItem) => (i.quantity && i.quantity > 0 ? i.quantity : 1);

@@ -39,26 +39,26 @@ export function pillStyleFromHex(hex: string): {
   return { background, color, borderColor, dot: `#${valid}` };
 }
 
-export function useProjectStatuses() {
+export function useProjectStatuses(kind?: 'project' | 'deal') {
   const [statuses, setStatuses] = useState<ProjectStatusDefinition[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     try {
-      const list = await fetchProjectStatuses();
+      const list = await fetchProjectStatuses(kind);
       setStatuses([...list].sort((a, b) => a.order - b.order));
     } catch (e) {
       console.error('Ошибка загрузки статусов проектов:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const list = await fetchProjectStatuses();
+        const list = await fetchProjectStatuses(kind);
         if (!alive) return;
         setStatuses([...list].sort((a, b) => a.order - b.order));
       } catch (e) {
@@ -70,7 +70,7 @@ export function useProjectStatuses() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [kind]);
 
   const colorFor = useCallback(
     (value: string) => {

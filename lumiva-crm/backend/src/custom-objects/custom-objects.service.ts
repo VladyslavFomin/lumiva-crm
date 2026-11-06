@@ -55,6 +55,15 @@ import { WorkspaceAreaMembersService } from '../workspace-areas/workspace-area-m
 import { WorkspaceAreaActivityLogService } from '../workspace-areas/workspace-area-activity-log.service';
 import { currentAiActor } from '../ai-employees/ai-employee-context';
 import { StorageQuotaService } from '../storage-quota/storage-quota.service';
+import {
+  canManageColumnAccess,
+  PROTECTED_FIELD_META_KEYS,
+  stripValues,
+  WORKSPACE_FIELD_RULES_KEY,
+  WORKSPACE_FIELD_VIEWERS_KEY,
+  type ColumnViewer,
+} from './workspace-column-access';
+import { applyColumnRules, formatRuleViolations, sanitizeColumnRules } from './workspace-column-rules';
 
 export interface ImportPreviewResponse {
   importId: string;
@@ -1078,7 +1087,7 @@ export class CustomObjectsService {
         options: dto.options || null,
         order: dto.order ?? count,
         isActive: dto.isActive ?? true,
-        meta: dto.meta || null,
+        meta: this.withoutProtectedMeta(dto.meta) || null,
       }),
     );
     const hasViews = await this.viewRepo.count({ where: { tenantId, objectId } });
@@ -1119,7 +1128,18 @@ export class CustomObjectsService {
     if (dto.order !== undefined) field.order = dto.order;
     if (dto.isActive !== undefined) field.isActive = dto.isActive;
     const prevBinding = parseWorkspaceColumnBindingV1(field.meta);
-    if (dto.meta !== undefined) field.meta = dto.meta || null;
+    if (dto.meta !== undefined) {
+      // «Кто видит колонку» и «Правила» меняются только своими эндпоинтами (setFieldViewers /
+      // setFieldRules) — иначе любой редактор снял бы ограничение обычным PATCH поля, а старый
+      // фронтенд со снепшотом meta молча стирал бы правила.
+      const keep: Record<string, any> = {};
+      for (const k of PROTECTED_FIELD_META_KEYS) {
+        if (field.meta && field.meta[k] !== undefined) keep[k] = field.meta[k];
+      }
+      const incoming = this.withoutProtectedMeta(dto.meta) || {};
+      const merged = { ...incoming, ...keep };
+      field.meta = Object.keys(merged).length ? merged : null;
+    }
     const nextBinding = parseWorkspaceColumnBindingV1(field.meta);
     const saved = await this.fieldRepo.save(field);
     if (renamedKey) {
@@ -1143,6 +1163,85 @@ export class CustomObjectsService {
       );
     }
     return saved;
+  }
+
+  private withoutProtectedMeta(meta: Record<string, any> | null | undefined): Record<string, any> | null {
+    if (!meta || typeof meta !== 'object') return null;
+    const copy = { ...meta };
+    for (const k of PROTECTED_FIELD_META_KEYS) delete copy[k];
+    return copy;
+  }
+
+  /** «Кто может просматривать этот столбец». Пустой список — колонку видят все участники таблицы. */
+  async setFieldViewers(
+    tenantId: string,
+    objectId: string,
+    fieldId: string,
+    staffUserIds: string[],
+    viewer: ColumnViewer | null,
+  ) {
+    if (!canManageColumnAccess(viewer)) {
+      throw new ForbiddenException('Доступ к колонке настраивает владелец таблицы');
+    }
+    await this.getObject(tenantId, objectId);
+    const field = await this.fieldRepo.findOne({ where: { id: fieldId, tenantId, objectId } });
+    if (!field) throw new NotFoundException('Field not found');
+    const ids = [...new Set((staffUserIds || []).map((x) => String(x || '').trim()).filter(Boolean))].slice(0, 500);
+    let valid: string[] = [];
+    if (ids.length) {
+      const rows: Array<{ id: string }> = await this.fieldRepo.query(
+        `SELECT id FROM staff_users WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+        [tenantId, ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x))],
+      );
+      valid = rows.map((r) => r.id);
+    }
+    const meta = { ...(field.meta || {}) };
+    if (valid.length) meta[WORKSPACE_FIELD_VIEWERS_KEY] = valid;
+    else delete meta[WORKSPACE_FIELD_VIEWERS_KEY];
+    field.meta = Object.keys(meta).length ? meta : null;
+    return this.fieldRepo.save(field);
+  }
+
+  /** Правила колонки (автозаполнение по условию + проверки), см. workspace-column-rules.ts. */
+  async setFieldRules(tenantId: string, objectId: string, fieldId: string, rules: unknown) {
+    await this.getObject(tenantId, objectId);
+    const field = await this.fieldRepo.findOne({ where: { id: fieldId, tenantId, objectId } });
+    if (!field) throw new NotFoundException('Field not found');
+    const fields = await this.listFields(tenantId, objectId);
+    const clean = sanitizeColumnRules(rules, new Set(fields.map((f) => f.key)));
+    const meta = { ...(field.meta || {}) };
+    if (clean.length) meta[WORKSPACE_FIELD_RULES_KEY] = clean;
+    else delete meta[WORKSPACE_FIELD_RULES_KEY];
+    field.meta = Object.keys(meta).length ? meta : null;
+    return this.fieldRepo.save(field);
+  }
+
+  /** Автозаполнение + проверки правил колонок; нарушение → 400 со структурированным списком. */
+  private applyRulesOrThrow(
+    fields: CustomObjectField[],
+    values: Record<string, any>,
+    mode: 'create' | 'update',
+    changedKeys: Set<string> | null,
+    tenantId: string,
+  ): Record<string, any> {
+    const active = fields.filter((f) => f.isActive !== false);
+    const res = applyColumnRules(active, values, { mode, changedKeys });
+    if (res.violations.length) {
+      throw new BadRequestException({
+        statusCode: 400,
+        error: 'column_rule_violation',
+        message: formatRuleViolations(res.violations),
+        violations: res.violations,
+      });
+    }
+    if (!res.changedByRules.length) return values;
+    const byKey = new Map(fields.map((f) => [f.key, f]));
+    const out = { ...res.values } as Record<string, any>;
+    for (const k of res.changedByRules) {
+      const f = byKey.get(k);
+      if (f) out[k] = this.coerceFieldValue(f, out[k], tenantId);
+    }
+    return out;
   }
 
   async deleteField(tenantId: string, objectId: string, fieldId: string) {
@@ -1225,17 +1324,30 @@ export class CustomObjectsService {
       sortOrder?: 'ASC' | 'DESC';
       search?: string;
       enrichColumnBindings?: boolean;
+      /** Скрытые от пользователя ключи: по ним нельзя ни искать, ни сортировать. */
+      hiddenKeys?: Set<string>;
     },
   ) {
     await this.getObject(tenantId, objectId);
+    const hiddenKeys = options?.hiddenKeys;
+    if (options?.sortBy && hiddenKeys?.has(options.sortBy)) {
+      options = { ...options, sortBy: undefined };
+    }
     const qb = this.recordRepo
       .createQueryBuilder('record')
       .where('record.tenantId = :tenantId', { tenantId })
       .andWhere('record.objectId = :objectId', { objectId });
     if (options?.search) {
-      qb.andWhere('record.values::text ILIKE :search', {
-        search: `%${options.search}%`,
-      });
+      if (hiddenKeys?.size) {
+        qb.andWhere('(record.values - CAST(:hiddenKeys AS text[]))::text ILIKE :search', {
+          search: `%${options.search}%`,
+          hiddenKeys: [...hiddenKeys],
+        });
+      } else {
+        qb.andWhere('record.values::text ILIKE :search', {
+          search: `%${options.search}%`,
+        });
+      }
     }
     const total = await qb.getCount();
 
@@ -1724,11 +1836,11 @@ export class CustomObjectsService {
     const fields = await this.listFields(tenantId, objectId);
     const incoming = dto.values || {};
     await this.ensureSelectOptionsForIncomingPatch(tenantId, objectId, fields, incoming);
-    const normalizedValues = this.normalizeRecordValues(
+    const normalizedValues = this.applyRulesOrThrow(
       fields,
-      incoming,
+      this.normalizeRecordValues(fields, incoming, 'create', undefined, tenantId),
       'create',
-      undefined,
+      new Set(Object.keys(incoming).filter((k) => !this.isCellValueEmpty(incoming[k]))),
       tenantId,
     );
     const actorStaffId = await this.resolveActorStaffId(tenantId, actor);
@@ -1760,6 +1872,8 @@ export class CustomObjectsService {
       omitAutoTargetKeys?: string[];
       duplicateKeyTargetField?: string | null;
       skipDuplicates?: boolean;
+      /** Ключи колонок источника, скрытые от того, кто переносит (см. workspace-column-access). */
+      hiddenSourceKeys?: Set<string>;
     },
     actor?: { loginUserId?: string; email?: string },
   ): Promise<{
@@ -1841,10 +1955,12 @@ export class CustomObjectsService {
           errors.push({ recordId, message: 'Record not found' });
           continue;
         }
-        const srcVals =
+        const srcVals = stripValues(
           srcRec.values && typeof srcRec.values === 'object' && !Array.isArray(srcRec.values)
             ? (srcRec.values as Record<string, any>)
-            : {};
+            : {},
+          dto.hiddenSourceKeys ?? new Set<string>(),
+        );
 
         const incoming: Record<string, any> = { ...baseDefaults };
         for (const [sk, tk] of sourceToTarget.entries()) {
@@ -1986,11 +2102,16 @@ export class CustomObjectsService {
       }
       /** Иначе PATCH по одному полю падает: в merged уже есть status из Woo, не попавший в options доски. */
       await this.ensureSelectOptionsForIncomingPatch(tenantId, objectId, fields, mergedValues);
-      const normalizedValues = this.normalizeRecordValues(
+      const normalizedValues = this.applyRulesOrThrow(
         fields,
-        mergedValues,
+        this.normalizeRecordValues(fields, mergedValues, 'update', undefined, tenantId),
         'update',
-        undefined,
+        // Клиент часто шлёт строку целиком — «изменённые» считаем по реальной разнице.
+        new Set(
+          Object.keys(dto.values || {}).filter(
+            (k) => !this.valuesEqual(existingValues[k], (dto.values as Record<string, any>)[k]),
+          ),
+        ),
         tenantId,
       );
       setParts.push(`"values" = $${p}::jsonb`);
@@ -2577,7 +2698,7 @@ export class CustomObjectsService {
     }
   }
 
-  async getAnalytics(tenantId: string, objectId: string) {
+  async getAnalytics(tenantId: string, objectId: string, hiddenKeys?: Set<string>) {
     await this.getObject(tenantId, objectId);
     const records = await this.recordRepo.find({
       where: { tenantId, objectId },
@@ -2592,7 +2713,9 @@ export class CustomObjectsService {
     const statusField =
       fields.find((f) => f.type === 'status') ?? fields.find((f) => f.type === 'select');
     const statusKey = statusField?.key || 'status';
+    const statusHidden = !!hiddenKeys?.has(statusKey);
     const byStatus = records.reduce<Record<string, number>>((acc, rec) => {
+      if (statusHidden) return acc;
       const key = String(rec.values?.[statusKey] || 'without_status');
       acc[key] = (acc[key] || 0) + 1;
       return acc;

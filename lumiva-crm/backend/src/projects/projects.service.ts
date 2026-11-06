@@ -136,10 +136,10 @@ export class ProjectsService {
     );
   }
 
-  private async assertValidStatus(tenantId: string, status: string): Promise<void> {
-    const ok = await this.statusesService.isValidValue(tenantId, status);
+  private async assertValidStatus(tenantId: string, status: string, kind: 'project' | 'deal' = 'project'): Promise<void> {
+    const ok = await this.statusesService.isValidValue(tenantId, status, kind);
     if (!ok) {
-      throw new BadRequestException(`Unknown project status: "${status}"`);
+      throw new BadRequestException(`Unknown ${kind === 'deal' ? 'deal' : 'project'} status: "${status}"`);
     }
   }
 
@@ -175,6 +175,8 @@ export class ProjectsService {
   async findAllForTenant(options: {
     tenantId: string;
     tableId?: string;
+    /** 'project' (по умолчанию) — только проекты, 'deal' — только сделки, 'all' — всё вместе. */
+    kind?: 'project' | 'deal' | 'all';
     status?: ProjectStatus;
     leadId?: string;
     companyId?: string;
@@ -189,6 +191,7 @@ export class ProjectsService {
     const {
       tenantId,
       tableId,
+      kind = 'project',
       status,
       leadId,
       companyId,
@@ -208,6 +211,8 @@ export class ProjectsService {
     if (tableId) {
       where.tableId = tableId;
     }
+    // сделки живут в той же таблице, но в списки проектов не попадают (и наоборот)
+    if (kind !== 'all') where.kind = kind;
 
     if (onlyDeleted) {
       where.isDeleted = true;
@@ -263,7 +268,17 @@ export class ProjectsService {
     dto: CreateProjectDto,
     actor?: { userId?: string; email?: string; name?: string },
   ) {
-    await this.assertValidStatus(tenantId, dto.status ?? 'Новый');
+    let kind: 'project' | 'deal' = dto.kind === 'deal' ? 'deal' : 'project';
+    // Older clients may omit kind; infer a deal only from a status exclusive to its pipeline.
+    if (!dto.kind && dto.status) {
+      const isProjectStatus = await this.statusesService.isValidValue(tenantId, dto.status, 'project');
+      if (!isProjectStatus && await this.statusesService.isValidValue(tenantId, dto.status, 'deal')) {
+        kind = 'deal';
+      }
+    }
+    const defaultStatus = kind === 'deal' ? (await this.statusesService.findAll(tenantId, 'deal'))[0]?.value ?? 'Новая' : 'Новый';
+    if (!dto.status) dto.status = defaultStatus as any;
+    await this.assertValidStatus(tenantId, dto.status ?? defaultStatus, kind);
     const tagsArray =
       dto.tags && dto.tags.trim().length
         ? dto.tags
@@ -296,8 +311,10 @@ export class ProjectsService {
         : dto.ownerUserId
           ? [dto.ownerUserId]
           : null;
-    const tableId = dto.tableId || (await this.tablesService.ensureDefaultTable(tenantId)).id;
+    // у сделок нет «таблиц проектов» — это отдельный раздел со своей воронкой
+    const tableId = kind === 'deal' ? null : dto.tableId || (await this.tablesService.ensureDefaultTable(tenantId)).id;
     const project = this.repo.create({
+      kind,
       tenantId,
       tableId,
       name: dto.name,
@@ -361,9 +378,12 @@ export class ProjectsService {
   ) {
     const project = await this.findOneForTenant(tenantId, id);
     const before = { ...project };
+    // тип записи и таблица сделки не меняются обычным сохранением
+    delete (dto as any).kind;
+    if (project.kind === 'deal') delete (dto as any).tableId;
 
     if (dto.status !== undefined && dto.status !== project.status) {
-      await this.assertValidStatus(tenantId, dto.status);
+      await this.assertValidStatus(tenantId, dto.status, project.kind === 'deal' ? 'deal' : 'project');
     }
 
     // ---- Теги: строка → массив ----
@@ -637,8 +657,8 @@ export class ProjectsService {
     status: ProjectStatus,
     actor?: { userId?: string; email?: string; name?: string },
   ) {
-    await this.assertValidStatus(tenantId, status);
     const project = await this.findOneForTenant(tenantId, id);
+    await this.assertValidStatus(tenantId, status, project.kind === 'deal' ? 'deal' : 'project');
     const before = project.status;
     project.status = status;
     const saved = await this.repo.save(project);

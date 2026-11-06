@@ -24,7 +24,6 @@ export const SalesStatusPillSelect: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => {

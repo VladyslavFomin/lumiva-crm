@@ -35,16 +35,21 @@ export class WorkspaceAreaAccessGuard implements CanActivate {
       AREA_ROLE_META_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const req = context.switchToHttp().getRequest();
+    // Эффективная роль для сервиса (доступ к скрытым колонкам и т.п.): undefined — не вычислялась.
+    req.workspaceAreaRole = null;
     if (!allowedRoles || !allowedRoles.length) return true;
 
-    const req = context.switchToHttp().getRequest();
     const user = req.user as
       | { tenantId: string; role?: string; userId?: string; id?: string; sub?: string; email?: string }
       | undefined;
     if (!user?.tenantId) return false;
 
     // Tenant-global owner bypasses area membership entirely (avoids lockout).
-    if (user.role === 'owner') return true;
+    if (user.role === 'owner') {
+      req.workspaceAreaRole = 'owner';
+      return true;
+    }
 
     const objectId = req.params?.objectId as string | undefined;
     let workspaceAreaId: string | null | undefined;
@@ -105,6 +110,7 @@ export class WorkspaceAreaAccessGuard implements CanActivate {
     if (!allowedRoles.includes(effectiveRole)) {
       throw new ForbiddenException('Недостаточно прав в этой рабочей области');
     }
+    req.workspaceAreaRole = effectiveRole;
     return true;
   }
 }

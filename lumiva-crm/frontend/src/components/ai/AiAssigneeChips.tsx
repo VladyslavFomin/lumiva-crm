@@ -1,4 +1,3 @@
-import React from 'react';
 import type { AiAssignee } from '../../api/aiEmployees';
 
 /**

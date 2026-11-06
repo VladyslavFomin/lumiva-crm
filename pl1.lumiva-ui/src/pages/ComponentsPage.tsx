@@ -71,6 +71,11 @@ const COMPONENTS: ComponentDef[] = [
     ],
   },
   {
+    key: "deals",
+    name: "Сделки (воронка: лид · компания · сумма · этап; по умолчанию выключено)",
+    icon: "🤝",
+  },
+  {
     key: "sales",
     name: "Продажи",
     icon: "💳",

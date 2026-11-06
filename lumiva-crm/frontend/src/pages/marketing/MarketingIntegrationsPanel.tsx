@@ -10,7 +10,6 @@ import {
   marketingRowHealth,
   startGa4MarketingOAuth,
   startGoogleAdsMarketingOAuth,
-  startMetaAdsOAuth,
   syncMarketingIntegration,
   updateMarketingIntegration,
   type MarketingIntegrationRow,
@@ -222,10 +221,10 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   const [vkClientId, setVkClientId] = useState('');
   const [vkClientSecret, setVkClientSecret] = useState('');
   const [metaToken, setMetaToken] = useState('');
-  const [metaConv, setMetaConv] = useState('');
-  const [metaRevAct, setMetaRevAct] = useState('');
-  const [metaSource, setMetaSource] = useState('');
-  const [metaMedium, setMetaMedium] = useState('');
+  const [metaConv] = useState('');
+  const [metaRevAct] = useState('');
+  const [metaSource] = useState('');
+  const [metaMedium] = useState('');
 
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);

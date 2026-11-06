@@ -1,3 +1,4 @@
+import { canSeeField, hiddenValueKeys, stripValues } from './workspace-column-access';
 import {
   BadRequestException,
   GoneException,
@@ -215,7 +216,11 @@ export class WorkspaceSharesService implements OnModuleInit {
     const { tenant, row, object } = await this.resolvePublic(clientKey, objectId);
     this.checkToken(row, token);
 
-    const fields = await this.objects.listFields(tenant.id, objectId);
+    const allFields = await this.objects.listFields(tenant.id, objectId);
+    // Колонки с ограниченным просмотром в публичную ссылку не попадают — гость не в списке.
+    const anonymous = { tenantRole: null, staffUserId: null, areaRole: null };
+    const hidden = hiddenValueKeys(allFields, anonymous);
+    const fields = allFields.filter((f) => canSeeField(f, anonymous));
     const enrich = getWorkspaceTableKind(object.meta as Record<string, unknown> | null) === 'board';
     const records = await this.objects.listRecords(tenant.id, objectId, {
       limit: MAX_SHARED_RECORDS,
@@ -246,7 +251,7 @@ export class WorkspaceSharesService implements OnModuleInit {
         .map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options ?? null, order: f.order })),
       records: ((records as any).items || []).map((r: any) => ({
         id: r.id,
-        values: r.values || {},
+        values: stripValues(r.values || {}, hidden),
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       })),

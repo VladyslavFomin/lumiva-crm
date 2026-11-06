@@ -4,11 +4,9 @@ import { fetchMarketingFxRates, type MarketingFxRatesResponse } from '../../api/
 import { resolveDefaultDisplayCurrency } from '../../dashboard/dashboardFx';
 import {
   MARKETING_ALLOWED_CURRENCIES,
-  type MarketingCurrencyMode,
   type MarketingDisplayCurrencyState,
   loadMarketingDisplayCurrency,
   normalizeMarketingDisplayCurrency,
-  saveMarketingDisplayCurrency,
   saveMarketingDisplayCurrency as saveMarketingDisplayCurrencyToStorage,
 } from './marketingDisplayCurrencyStorage';
 import {

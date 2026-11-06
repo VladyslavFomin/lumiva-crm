@@ -41,8 +41,10 @@ export class CreateProjectDto {
   @Length(3, 3)
   currency?: string; // EUR / TRY etc.
 
+  // необязателен: без статуса проект получает «Новый», сделка — первый этап воронки
+  @IsOptional()
   @IsString()
-  status: ProjectStatus; // валидируется по тенантским ProjectStatusDefinition в ProjectsService
+  status?: ProjectStatus; // валидируется по тенантским ProjectStatusDefinition в ProjectsService
 
   @IsOptional()
   @IsString()
@@ -80,6 +82,11 @@ export class CreateProjectDto {
   @IsOptional()
   @IsUUID()
   tableId?: string;
+
+  /** 'project' (по умолчанию) или 'deal' — сделка. После создания не меняется. */
+  @IsOptional()
+  @IsIn(['project', 'deal'])
+  kind?: 'project' | 'deal';
 
   @IsOptional()
   @IsUUID()

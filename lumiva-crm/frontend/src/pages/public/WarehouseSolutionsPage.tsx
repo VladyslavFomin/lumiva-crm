@@ -1,7 +1,7 @@
 // «Решения → Склад» — дизайн Claude Design solutions-warehouse-v2.html (lp-solutions.jsx + lp-kit.jsx).
 // Макет обещал ячейки, резервы и поставки в пути — их в продукте нет; страница описывает реальный склад:
 // склады/точки, операции и перемещения, запись движений, пороги и уведомления, прогноз и ИИ-отдел «Склад».
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../landing/LandingSections';
 import { WAREHOUSE_T, type WarehouseText } from './warehouseSolutionText';

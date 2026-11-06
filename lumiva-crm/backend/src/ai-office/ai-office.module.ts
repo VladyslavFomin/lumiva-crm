@@ -26,6 +26,8 @@ import { MailModule } from '../mail/mail.module';
 import { AiOfficeCuratorService } from './ai-office-curator.service';
 import { AiOfficeProgramsService } from './ai-office-programs.service';
 import { AiOfficeController, AiOfficeOAuthCallbackController } from './ai-office.controller';
+import { AiEmployeeBrainService } from './ai-employee-brain.service';
+import { AiEmployeeBrainController } from './ai-employee-brain.controller';
 import { AiOfficeOAuthService } from './ai-office-oauth.service';
 import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 import { CurrencyModule } from '../currency/currency.module';
@@ -57,8 +59,9 @@ import { CurrencyModule } from '../currency/currency.module';
     CurrencyModule,
     MailModule,
   ],
-  controllers: [AiOfficeController, AiOfficeOAuthCallbackController, AiOfficeDecideController],
-  providers: [AiOfficeSchemaService, AiOfficeService, AiOfficeEngineService, AiBrainService, AiOfficeConnectorsService,
+  controllers: [AiOfficeController, AiOfficeOAuthCallbackController, AiOfficeDecideController, AiEmployeeBrainController],
+  providers: [
+    AiEmployeeBrainService, AiOfficeSchemaService, AiOfficeService, AiOfficeEngineService, AiBrainService, AiOfficeConnectorsService,
     AiOfficeDataService, AiOfficeOAuthService, AiOfficeAutonomyService, AiOfficeCuratorService, AiOfficeProgramsService],
   exports: [AiOfficeService],
 })

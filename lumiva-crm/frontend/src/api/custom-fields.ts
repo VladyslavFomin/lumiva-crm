@@ -1,7 +1,7 @@
 // src/api/custom-fields.ts
 import { api } from './client';
 
-export type EntityType = 'contact' | 'company' | 'lead' | 'sale' | 'project';
+export type EntityType = 'contact' | 'company' | 'lead' | 'sale' | 'project' | 'deal';
 
 export type FieldType = 'text' | 'number' | 'email' | 'phone' | 'date' | 'datetime' | 'daterange' | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'url';
 

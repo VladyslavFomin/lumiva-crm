@@ -151,12 +151,13 @@ export class CustomFieldsService {
 
   // entityType -> реальная таблица + имя tenant-колонки (crm_projects — единственная с
   // tenant_id вместо tenantId, у остальных четырёх — camelCase).
-  private static readonly ENTITY_TABLE: Record<EntityType, { table: string; tenantCol: string }> = {
+  private static readonly ENTITY_TABLE: Record<EntityType, { table: string; tenantCol: string; extra?: string }> = {
     [EntityType.CONTACT]: { table: 'contacts', tenantCol: '"tenantId"' },
     [EntityType.COMPANY]: { table: 'companies', tenantCol: '"tenantId"' },
     [EntityType.LEAD]: { table: 'leads', tenantCol: '"tenantId"' },
     [EntityType.SALE]: { table: 'sales', tenantCol: '"tenantId"' },
-    [EntityType.PROJECT]: { table: 'crm_projects', tenantCol: 'tenant_id' },
+    [EntityType.PROJECT]: { table: 'crm_projects', tenantCol: 'tenant_id', extra: `AND kind = 'project'` },
+    [EntityType.DEAL]: { table: 'crm_projects', tenantCol: 'tenant_id', extra: `AND kind = 'deal'` },
   };
 
   /**
@@ -172,7 +173,7 @@ export class CustomFieldsService {
     if (target) {
       await this.repo.query(
         `UPDATE ${target.table} SET "customFields" = "customFields" - $1
-         WHERE ${target.tenantCol} = $2 AND "customFields" ? $1`,
+         WHERE ${target.tenantCol} = $2 AND "customFields" ? $1 ${target.extra ?? ''}`,
         [field.key, tenantId],
       );
     }

@@ -116,6 +116,6 @@ export function fieldLabelStyle(d: Record<string, unknown>): React.CSSProperties
   return { fontWeight: t.labelWeight, fontSize: 13, marginBottom: 8, color: t.text };
 }
 
-export function hintStyle(d: Record<string, unknown>): React.CSSProperties {
+export function hintStyle(_d?: Record<string, unknown>): React.CSSProperties {
   return { fontSize: 12, color: '#94a3b8', marginTop: 6, marginBottom: 6 };
 }

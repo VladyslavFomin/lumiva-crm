@@ -1,3 +1,4 @@
+import { useCrmLayout } from '../../hooks/useCrmLayout';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
@@ -72,7 +73,7 @@ export const ProjectsBoardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dragProjectId, setDragProjectId] = useState<string | null>(null);
-  const [changing, setChanging] = useState<string | null>(null);
+  const [, setChanging] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [staff, setStaff] = useState<StaffUser[]>([]);
@@ -117,7 +118,7 @@ export const ProjectsBoardPage: React.FC = () => {
     }),
     [t],
   );
-  const { statuses: statusDefs, colorFor: statusColorFor, reload: reloadStatuses } = useProjectStatuses();
+  const { statuses: statusDefs, colorFor: statusColorFor } = useProjectStatuses();
   // Цвет метки из справочника; метки вне справочника — нейтральный чип.
   const { tags: tagDefs } = useProjectTagDefinitions();
   const tagChipStyle = (tag: string): React.CSSProperties | undefined => {
@@ -341,12 +342,16 @@ export const ProjectsBoardPage: React.FC = () => {
     const b = Math.round(68 + (246 - 68) * t);
     return `rgb(${r}, ${g}, ${b})`;
   };
-  const cardFields = activeViewSettings.kanbanCardFields || [
+  // «Структура CRM»: проекты без бюджета — сумма на карточках не показывается
+  const { layout: crmLayout } = useCrmLayout();
+  const projectBudgetOff = crmLayout.project.budget === false;
+  const rawCardFields = activeViewSettings.kanbanCardFields || [
     'amount',
     'created',
     'progress',
     'tags',
   ];
+  const cardFields = projectBudgetOff ? rawCardFields.filter((f) => f !== 'amount') : rawCardFields;
   const nearestDeadline = (project: Project) => {
     const dates = (project.tasks || [])
       .map((task) => (task.deadline ? new Date(task.deadline) : null))

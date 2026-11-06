@@ -15,10 +15,6 @@ import {
   fetchReservation,
   checkInReservation,
   checkOutReservation,
-  addReservationPayment,
-  removeReservationPayment,
-  downloadReservationFolio,
-  sendFolioEmail,
   fetchQuote,
   fetchRatePlans,
   type HotelRatePlan,
@@ -30,7 +26,6 @@ import {
   fetchRoomUnits,
   fetchOccupancyTypes,
   fetchMarkets,
-  fetchMarketPrices,
   previewReservationsImport,
   applyReservationsImport,
   scanGuestDocument,
@@ -60,6 +55,7 @@ import {
 import { ReservationHistoryPanel } from './ReservationHistory';
 import { todayIso } from './partners/partnerUtils';
 import { FolioPanel } from './folio/FolioPanel';
+import { QuickPartnerDialog } from './partners/QuickPartnerDialog';
 import { GuestBriefCard, GuestLookupField } from './guests/GuestLookup';
 import { PrecheckinDrawerBox } from './precheckin/PrecheckinDrawerBox';
 import { NightlyRatesSummary, QuoteBreakdown } from './pricing/QuoteBreakdown';
@@ -79,7 +75,6 @@ const STATUS_FILTER_KEYS = ['all', 'confirmed', 'pending', 'checked_in', 'checke
 /** Ручная смена статуса; отмена и no-show — только через свои диалоги (причина, штраф) */
 const STATUS_KEYS: HotelReservationStatus[] = ['confirmed', 'pending', 'checked_in', 'checked_out'];
 const PAID_STATUS_KEYS: HotelReservationPaidStatus[] = ['full', 'partial', 'none', 'refunded'];
-const PAYMENT_METHOD_KEYS = ['card', 'cash', 'bank_transfer', 'other'];
 
 export const HotelReservationsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -103,21 +98,20 @@ export const HotelReservationsPage: React.FC = () => {
   const [modalState, setModalState] = useState<'new' | HotelReservation | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [emailBusy, setEmailBusy] = useState(false);
+  const [] = useState(false);
   const [checkInUnits, setCheckInUnits] = useState<HotelRoomUnit[]>([]);
   const [checkInUnitId, setCheckInUnitId] = useState('');
   const [checkInOutBusy, setCheckInOutBusy] = useState(false);
-  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [paymentNote, setPaymentNote] = useState('');
-  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [] = useState(() => new Date().toISOString().slice(0, 10));
+  const [] = useState('');
+  const [] = useState('card');
+  const [] = useState('');
+  const [] = useState(false);
   const [lifecycleDialog, setLifecycleDialog] = useState<'cancel' | 'noShow' | null>(null);
 
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const statusLabel = (s: HotelReservationStatus) => t(`crm.hotels.reservations.status.${s}`);
   const paidStatusLabel = (s: HotelReservationPaidStatus) => t(`crm.hotels.reservations.paidStatus.${s}`);
-  const paymentMethodLabel = (m: string) => (PAYMENT_METHOD_KEYS.includes(m) ? t(`crm.hotels.reservations.paymentMethods.${m}`) : m);
 
   const hotelById = useMemo(() => new Map(hotels.map((h) => [h.id, h])), [hotels]);
   const roomTypeById = useMemo(() => new Map(roomTypes.map((r) => [r.id, r])), [roomTypes]);
@@ -190,30 +184,8 @@ export const HotelReservationsPage: React.FC = () => {
       .finally(() => setCheckInOutBusy(false));
   };
 
-  const handleAddPayment = () => {
-    if (!selected || !paymentAmount) return;
-    setPaymentBusy(true);
-    addReservationPayment(selected.id, { date: paymentDate, amount: paymentAmount, method: paymentMethod, note: paymentNote || undefined })
-      .then((r) => { setSelected(r); load(); setPaymentAmount(''); setPaymentNote(''); })
-      .catch((e) => showAlert(e.message || t('crm.hotels.reservations.addPaymentError'), { variant: 'error' }))
-      .finally(() => setPaymentBusy(false));
-  };
 
-  const handleSendFolioEmail = () => {
-    if (!selected) return;
-    setEmailBusy(true);
-    sendFolioEmail(selected.id)
-      .then(() => showAlert(t('crm.hotels.reservations.folioSentSuccess'), { variant: 'success' }))
-      .catch((e) => showAlert(e.message || t('crm.hotels.reservations.folioSentError'), { variant: 'error' }))
-      .finally(() => setEmailBusy(false));
-  };
 
-  const handleRemovePayment = (paymentId: string) => {
-    if (!selected) return;
-    removeReservationPayment(selected.id, paymentId)
-      .then((r) => { setSelected(r); load(); })
-      .catch((e) => showAlert(e.message || t('crm.hotels.reservations.removePaymentError'), { variant: 'error' }));
-  };
 
   const filtered = useMemo(
     () =>
@@ -222,7 +194,7 @@ export const HotelReservationsPage: React.FC = () => {
           (filter === 'all' || r.status === filter) &&
           (agencyFilter === 'all' || r.agencyId === agencyFilter) &&
           (!countryFilter || r.guestCountry === countryFilter) &&
-          [r.guestName, r.bookingCode, r.guestEmail].some((f) => f && f.toLowerCase().includes(q.toLowerCase())),
+          [r.guestName, r.bookingCode, r.guestEmail, r.voucherNo, r.otaCode].some((f) => f && f.toLowerCase().includes(q.toLowerCase())),
       ),
     [reservations, filter, agencyFilter, countryFilter, q],
   );
@@ -331,7 +303,10 @@ export const HotelReservationsPage: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  <td><span className="agency-pill"><i />{r.agencyId ? agencyById.get(r.agencyId)?.name || '—' : '—'}</span></td>
+                  <td>
+                    <span className="agency-pill"><i />{r.agencyId ? agencyById.get(r.agencyId)?.name || '—' : '—'}</span>
+                    {r.voucherNo && <div className="htl-voucher" title={t('crm.hotels.reservations.modal.voucherLabel')}>{r.voucherNo}</div>}
+                  </td>
                   <td style={{ fontSize: 12 }}><CountryTag code={r.guestCountry} /></td>
                   <td style={{ fontSize: 11, color: 'var(--fg-3)' }}>{new Date(r.createdAt).toLocaleDateString(dateLocale)}</td>
                   <td style={{ fontSize: 12 }}>{r.checkIn} → {r.checkOut}</td>
@@ -404,6 +379,7 @@ export const HotelReservationsPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.agency')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.agencyId ? agencyById.get(selected.agencyId)?.name : '—'}</div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.voucher')}</div><div className="v" style={{ fontSize: 12.5, fontFamily: 'var(--ff-mono-ui)' }}>{selected.voucherNo || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.guestEmail')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestEmail || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.guestPhone')}</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestPhone || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">{t('crm.hotels.reservations.drawer.createdDate')}</div><div className="v" style={{ fontSize: 12.5 }}>{new Date(selected.createdAt).toLocaleDateString(dateLocale)}</div></div>
@@ -648,6 +624,7 @@ export const HotelReservationsPage: React.FC = () => {
           hotels={hotels}
           roomTypes={roomTypes}
           agencies={agencies}
+          onAgencyCreated={(a) => setAgencies((cur) => [...cur, a])}
           initial={modalState === 'new' ? null : modalState}
           saving={saving}
           setSaving={setSaving}
@@ -729,12 +706,19 @@ export const ReservationModal: React.FC<{
   onClose: () => void;
   onSaved: (r: HotelReservation) => void;
   prefill?: Partial<Pick<HotelReservation, 'hotelId' | 'roomTypeId' | 'roomUnitId' | 'checkIn' | 'checkOut'>>;
-}> = ({ hotels, roomTypes, agencies, initial, saving, setSaving, onClose, onSaved, prefill }) => {
+  /** партнёр добавлен из формы — чтобы страница тоже его знала */
+  onAgencyCreated?: (a: HotelAgency) => void;
+}> = ({ hotels, roomTypes, agencies, initial, saving, setSaving, onClose, onSaved, prefill, onAgencyCreated }) => {
   const { t, i18n } = useTranslation();
   const { showAlert } = useAlertModal();
   const [hotelId, setHotelId] = useState(initial?.hotelId || prefill?.hotelId || hotels[0]?.id || '');
   const [roomTypeId, setRoomTypeId] = useState(initial?.roomTypeId || prefill?.roomTypeId || '');
   const [agencyId, setAgencyId] = useState(initial?.agencyId || '');
+  /** партнёры формы: список страницы + добавленные тут же через «+ Новый партнёр» */
+  const [agencyList, setAgencyList] = useState<HotelAgency[]>(agencies);
+  useEffect(() => { setAgencyList((cur) => [...agencies, ...cur.filter((a) => !agencies.some((x) => x.id === a.id))]); }, [agencies]);
+  const [quickPartner, setQuickPartner] = useState(false);
+  const [voucherNo, setVoucherNo] = useState(initial?.voucherNo || '');
   const [roomUnitId, setRoomUnitId] = useState(initial?.roomUnitId || prefill?.roomUnitId || '');
   const [guestName, setGuestName] = useState(initial?.guestName || '');
   const [guestEmail, setGuestEmail] = useState(initial?.guestEmail || '');
@@ -856,7 +840,7 @@ export const ReservationModal: React.FC<{
   const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [markets, setMarkets] = useState<HotelMarket[]>([]);
   const [marketGroups, setMarketGroups] = useState<Array<{ id: string; name: string }>>([]);
-  const [marketPrices, setMarketPrices] = useState<HotelRoomMarketPrice[]>([]);
+  const [, setMarketPrices] = useState<HotelRoomMarketPrice[]>([]);
   const [roomTypeReservations, setRoomTypeReservations] = useState<HotelReservation[]>([]);
   /** auto — цена считается прайсом на сервере по ночам и пересчитывается при смене условий; manual — введена руками */
   const [priceMode, setPriceMode] = useState<'auto' | 'manual'>(initial ? (initial.priceMode === 'auto' ? 'auto' : 'manual') : 'auto');
@@ -925,7 +909,7 @@ export const ReservationModal: React.FC<{
     const m = markets.find((x) => (x.countryCodes || []).includes(guestCountry));
     if (m) setMarket(m.code);
   }, [guestCountry, markets]); // eslint-disable-line react-hooks/exhaustive-deps
-  const partner = agencies.find((a) => a.id === agencyId);
+  const partner = agencyList.find((a) => a.id === agencyId);
   const autoContract = contracts.find((c) => c.validFrom <= (checkIn || '9999') && c.validTo >= (checkIn || '0000') && (!c.marketCountries?.length || (guestCountry && c.marketCountries.includes(guestCountry))));
   const effectiveContract = contractId === 'none' ? null : contractId ? contracts.find((c) => c.id === contractId) || null : autoContract || null;
   const childMaxAge = hotels.find((h) => h.id === hotelId)?.childMaxAge || 12;
@@ -950,10 +934,6 @@ export const ReservationModal: React.FC<{
   const pctPreview = commissionPct !== '' ? Number(commissionPct) : autoCommission;
 
   // цена блока / контракта партнёра — приоритетнее рынка и прайса (пока цену не правили руками)
-  const block = blocks.find((b) => b.id === blockId) || null;
-  const contractRate = effectiveContract?.rooms.find((l) => l.roomTypeId === roomTypeId)?.rate ?? null;
-  const partnerRate = block?.ratePerNight ?? contractRate;
-  const partnerRateSource = block?.ratePerNight ? 'block' : contractRate ? 'contract' : null;
   // единый расчёт цены по ночам (блок → контракт → календарь → сезон по рынку гостя / цена рынка → база)
   const quoteContractId = blockId ? null : contractId === 'none' ? null : contractId || autoContract?.id || null;
   // тариф — только для прямой продажи по прайсу: у контракта и блока свои условия
@@ -1030,6 +1010,7 @@ export const ReservationModal: React.FC<{
       hotelId,
       roomTypeId,
       agencyId: agencyId || null,
+      voucherNo: voucherNo.trim() || null,
       roomUnitId: roomUnitId || null,
       occupancyTypeId: occupancyTypeId || null,
       guestName,
@@ -1154,11 +1135,30 @@ export const ReservationModal: React.FC<{
           <div className="bk-row2">
             <div>
               <label>{t('crm.hotels.reservations.modal.partnerLabel')}</label>
-              <select value={agencyId} onChange={(e) => { setAgencyId(e.target.value); setContractId(''); }}>
+              <select
+                value={agencyId}
+                onChange={(e) => {
+                  if (e.target.value === '__new') { setQuickPartner(true); return; }
+                  setAgencyId(e.target.value);
+                  setContractId('');
+                }}
+              >
                 <option value="">{t('crm.hotels.reservations.modal.directSale')}</option>
-                {agencies.filter((a) => a.status !== 'archived' || a.id === agencyId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {agencyList.filter((a) => a.status !== 'archived' || a.id === agencyId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                <option value="__new">{t('crm.hotels.reservations.modal.partnerNew')}</option>
               </select>
             </div>
+            <div>
+              <label>{t('crm.hotels.reservations.modal.voucherLabel')}</label>
+              <input
+                value={voucherNo}
+                maxLength={120}
+                onChange={(e) => setVoucherNo(e.target.value)}
+                placeholder={partner?.type === 'ota' ? t('crm.hotels.reservations.modal.voucherPhOta', { name: partner.name }) : partner ? t('crm.hotels.reservations.modal.voucherPhPartner', { name: partner.name }) : t('crm.hotels.reservations.modal.voucherPh')}
+              />
+            </div>
+          </div>
+          <div className="bk-row2">
             <div>
               <label>{t('crm.hotels.reservations.modal.contractLabel')}</label>
               <select value={contractId} onChange={(e) => setContractId(e.target.value)} disabled={!agencyId}>
@@ -1167,8 +1167,6 @@ export const ReservationModal: React.FC<{
                 {contracts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-          </div>
-          <div className="bk-row2">
             <div>
               <label>{t('crm.hotels.reservations.modal.blockLabel')}</label>
               <select value={blockId} onChange={(e) => setBlockId(e.target.value)} disabled={!blocks.length}>
@@ -1176,6 +1174,8 @@ export const ReservationModal: React.FC<{
                 {blocks.map((b) => <option key={b.id} value={b.id}>{b.name} · {b.dateFrom} — {b.dateTo}</option>)}
               </select>
             </div>
+          </div>
+          <div className="bk-row2">
             {planApplies && ratePlans.length > 0 ? (
               <div>
                 <label>{t('crm.hotels.ratePlans.formLabel')}</label>
@@ -1500,6 +1500,18 @@ export const ReservationModal: React.FC<{
           </button>
         </div>
       </div>
+      {quickPartner && (
+        <QuickPartnerDialog
+          onClose={() => setQuickPartner(false)}
+          onCreated={(a) => {
+            setQuickPartner(false);
+            setAgencyList((cur) => [...cur, a].sort((x, y) => x.name.localeCompare(y.name)));
+            setAgencyId(a.id);
+            setContractId('');
+            onAgencyCreated?.(a);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { fetchStaffById } from '../../api/staff';
-import type { StaffUser, StaffRole } from '../../api/staff';
+import type { StaffUser } from '../../api/staff';
 
 export const StaffDetailPage: React.FC = () => {
   const { t } = useTranslation();

@@ -32,7 +32,6 @@ import {
 import { StaffPicker } from '../../components/StaffPicker';
 import { buildAutomationTemplatePresets } from './automationTemplatePresets';
 import { buildAutomationTriggerGroups, buildAutomationActionGroups } from './automationBuilderGroups';
-import { getActionLabel } from './automationLabels';
 import { getNotificationTokens } from './notificationTokens';
 import { VariablePicker } from './VariablePicker';
 import { GuestJourneyTriggerSettings, JOURNEY_TRIGGERS } from './GuestJourneyTriggerSettings';
@@ -58,12 +57,12 @@ export const AutomationFormPage: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
-  const [loadingAccounts, setLoadingAccounts] = useState<boolean>(false);
+  const [, setLoadingAccounts] = useState<boolean>(false);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
-  const [loadingTemplates, setLoadingTemplates] = useState<boolean>(false);
+  const [, setLoadingTemplates] = useState<boolean>(false);
   const [crmIntegrations, setCrmIntegrations] = useState<IntegrationConnectionDto[]>([]);
   const [marketingIntegrations, setMarketingIntegrations] = useState<MarketingIntegrationRow[]>([]);
-  const [dragActionIndex, setDragActionIndex] = useState<number | null>(null);
+  const [] = useState<number | null>(null);
   // ИИ-отделы для действия «Задача ИИ-отделу» (нет доступа к офису/тарифа — просто пустой список)
   const [officeDepts, setOfficeDepts] = useState<OfficeDepartment[]>([]);
   useEffect(() => {
@@ -97,25 +96,7 @@ export const AutomationFormPage: React.FC = () => {
   const [botRecipients, setBotRecipients] = useState<Record<string, TelegramStaffRecipient[]>>({});
 
   // design tokens for builder
-  const INK = '#222';
-  const FG2 = '#555';
-  const FG3 = '#888';
-  const FG4 = '#b5b5b5';
-  const LINE2 = '#e7e7e7';
-  const LINE3 = '#f0f0f0';
-  const BG_MUTED = '#fafafa';
-  const BG_SOFT = '#f5f5f5';
-  const FFD = 'inherit';
-  const FFM = 'inherit';
 
-  const cfgInput: React.CSSProperties = {
-    fontFamily: FFD, fontSize: 12, width: '100%', padding: '8px 11px',
-    border: `1px solid ${LINE2}`, borderRadius: 7, color: INK, background: '#fff',
-    outline: 'none', boxSizing: 'border-box',
-  };
-  const cfgSelect: React.CSSProperties = { ...cfgInput, cursor: 'pointer', appearance: 'auto' as any };
-  const cfgLabel: React.CSSProperties = { fontFamily: FFD, fontSize: 11, color: FG2, fontWeight: 500, display: 'block', marginBottom: 5 };
-  const reportCurrencies = ['EUR', 'USD', 'RUB'];
 
   const [formData, setFormData] = useState<CreateAutomationDto>({
     name: '',
@@ -534,13 +515,6 @@ export const AutomationFormPage: React.FC = () => {
     });
   };
 
-  const addAction = () => {
-    setFormData((prev) => {
-      const actions = [...prev.actions, { type: 'trigger_webhook' as ActionType, config: {} }];
-      setExpandedActionIndex(actions.length - 1);
-      return { ...prev, actions };
-    });
-  };
 
   const addActionByType = (type: ActionType, presetConfig?: Record<string, unknown>) => {
     setFormData((prev) => {
@@ -587,13 +561,6 @@ export const AutomationFormPage: React.FC = () => {
     });
   };
 
-  const replaceActionAt = (idx: number, type: ActionType, config: Record<string, unknown>) => {
-    setFormData((prev) => {
-      const newActions = [...prev.actions];
-      newActions[idx] = { type, config: { ...config } };
-      return { ...prev, actions: newActions };
-    });
-  };
 
   const moveAction = (from: number, to: number) => {
     setFormData((prev) => {
@@ -677,53 +644,8 @@ export const AutomationFormPage: React.FC = () => {
     return value === key ? type : value;
   };
 
-  const currentEntity: 'lead' | 'project' | 'sale' = formData.triggerEvent.startsWith('project.')
-    ? 'project'
-    : formData.triggerEvent.startsWith('sale.')
-      ? 'sale'
-      : 'lead';
 
-  const applyEntityPreset = (entity: 'lead' | 'project' | 'sale') => {
-    const preset: Record<'lead' | 'project' | 'sale', TriggerEvent> = {
-      lead: 'lead.created',
-      project: 'project.created',
-      sale: 'sale.created',
-    };
-    handleChange('triggerEvent', preset[entity]);
-  };
 
-  const applyStarterFlow = (entity: 'lead' | 'project' | 'sale') => {
-    const presets: Record<'lead' | 'project' | 'sale', { trigger: TriggerEvent; actions: Array<{ type: ActionType; config: Record<string, any> }> }> = {
-      lead: {
-        trigger: 'lead.created',
-        actions: [
-          { type: 'send_email', config: {} },
-          { type: 'create_note', config: {} },
-        ],
-      },
-      project: {
-        trigger: 'project.created',
-        actions: [
-          { type: 'create_note', config: {} },
-          { type: 'change_status', config: {} },
-        ],
-      },
-      sale: {
-        trigger: 'sale.created',
-        actions: [
-          { type: 'send_report', config: { reportType: 'sales', channel: 'email' } },
-          { type: 'create_note', config: {} },
-        ],
-      },
-    };
-    const selected = presets[entity];
-    setFormData((prev) => ({
-      ...prev,
-      triggerEvent: selected.trigger,
-      actions: selected.actions,
-    }));
-    setExpandedActionIndex(0);
-  };
 
   const getTriggerEventLabel = (event: string) => {
     const key = `crm.automations.form.triggers.${event.replace(/\./g, '_').toUpperCase()}`;

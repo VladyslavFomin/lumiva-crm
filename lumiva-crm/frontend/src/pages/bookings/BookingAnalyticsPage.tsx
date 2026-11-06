@@ -78,7 +78,7 @@ export const BookingAnalyticsPage: React.FC = () => {
   const [staffUtil, setStaffUtil] = useState<StaffUtilizationRow[]>([]);
   const [sources, setSources] = useState<SourceBreakdownRow[]>([]);
   const [atRisk, setAtRisk] = useState<AtRiskCustomerRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const sourceLabel = (s: string) => (s === 'website' || s === 'phone' || s === 'walkin' || s === 'manual' || s === 'api' || s === 'telegram' || s === 'whatsapp' ? t(`crm.bookings.source.${s}`) : s);

@@ -34,6 +34,7 @@ const normalizeTasks = (tasks?: ProjectTask[] | null) =>
 // ---- Типы, которые приходят с бэка ----
 interface ApiProject {
   id: string;
+  kind?: 'project' | 'deal';
   tenantId: string;
   leadId: string | null;
   companyId?: string | null;
@@ -108,6 +109,7 @@ function mapProject(p: ApiProject): Project {
     null;
   return {
     id: p.id,
+    kind: p.kind === 'deal' ? 'deal' : 'project',
     name: p.name,
     description: p.description ?? '',
     amount: Number(p.amount || 0),
@@ -236,6 +238,9 @@ export async function fetchProjects(params?: {
   archived?: boolean;
   deleted?: boolean;
   tableId?: string;
+  /** 'deal' — список сделок (без параметра — проекты). */
+  kind?: 'project' | 'deal';
+  limit?: number;
 }) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
@@ -244,6 +249,8 @@ export async function fetchProjects(params?: {
   if (params?.archived) qs.set('archived', 'true');
   if (params?.deleted) qs.set('deleted', 'true');
   if (params?.tableId) qs.set('tableId', params.tableId);
+  if (params?.kind === 'deal') qs.set('kind', 'deal');
+  if (params?.limit) qs.set('limit', String(params.limit));
 
   const query = qs.toString() ? `?${qs.toString()}` : '';
   const res = await api.get<{ total: number; items: ApiProject[] }>(
@@ -266,7 +273,7 @@ export async function createProject(p: Project, options?: { tableId?: string }):
   const dto = projectToDto(p);
   const res = await api.post<ApiProject>('/projects', {
     ...dto,
-    ...(options?.tableId ? { tableId: options.tableId } : {}),
+    ...(p.kind === 'deal' ? { kind: 'deal' } : options?.tableId ? { tableId: options.tableId } : {}),
   });
   return mapProject(res);
 }
@@ -337,4 +344,8 @@ export async function changeProjectStatus(
 // soft delete
 export async function deleteProject(id: string): Promise<void> {
   await api.del(`/projects/${id}`);
+}
+/** «Создать продажу» из выигранной сделки (повторный вызов вернёт уже созданную продажу). */
+export async function createSaleFromDeal(id: string): Promise<{ saleId: string; created: boolean }> {
+  return api.post<{ saleId: string; created: boolean }>(`/projects/${id}/create-sale`, {});
 }

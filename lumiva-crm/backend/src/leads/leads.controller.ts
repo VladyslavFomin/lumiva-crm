@@ -1,3 +1,5 @@
+import { ColumnAccessService } from '../column-access/column-access.service';
+import { ColumnAccessInterceptor, ColumnAccessTable } from '../column-access/column-access.interceptor';
 // src/leads/leads.controller.ts
 
 import {
@@ -84,10 +86,12 @@ interface LeadAccessCtx {
 const CALL_AUDIO_EXT = new Set(['.mp3', '.m4a', '.wav', '.ogg', '.oga', '.opus', '.webm', '.mp4', '.mpeg', '.mpga', '.aac', '.flac', '.amr']);
 
 @UseGuards(JwtAuthGuard, RbacGuard)
+@UseInterceptors(ColumnAccessInterceptor)
 @RequirePermission('leads', 'read')
 @Controller('leads')
 export class LeadsController {
   constructor(
+    private readonly columnAccess: ColumnAccessService,
     private readonly leadsService: LeadsService,
     private readonly leadActivity: LeadActivityService,
     private readonly leadAccess: LeadAccessService,
@@ -254,6 +258,7 @@ export class LeadsController {
   // full access (owner/manager/руководитель отдела) -> видит все лиды арендатора
   // остальные -> свои + то, что дали по гранту (см. LeadAccessService)
   @Get()
+  @ColumnAccessTable('leads')
   async list(@CurrentUser() user: CurrentUserPayload): Promise<Lead[]> {
     const allLeads = await this.leadsService.listForTenant(user.tenantId);
     const ctx = await this.getAccessContext(user);
@@ -263,6 +268,7 @@ export class LeadsController {
   // ====================== GET /leads/search ======================
   // Поиск лида по имени / email / телефону
   @Get('search')
+  @ColumnAccessTable('leads')
   async search(
     @CurrentUser() user: CurrentUserPayload,
     @Query() query: SearchLeadsQueryDto,
@@ -417,6 +423,7 @@ export class LeadsController {
   // ====================== GET /leads/:id ======================
   // full access -> любой лид; остальные -> только видимые им (свои/по гранту), иначе 403
   @Get(':id')
+  @ColumnAccessTable('leads')
   async getOne(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -448,6 +455,7 @@ export class LeadsController {
   // (раньше был хардкод ['owner','manager','sales'], теперь то же по умолчанию, но видно и
   // меняется на вкладке «Права доступа»).
   @Post()
+  @ColumnAccessTable('leads')
   async create(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateLeadDto,
@@ -478,6 +486,7 @@ export class LeadsController {
   // ====================== PATCH /leads/:id ======================
   // full access -> любой лид; editor+ по грант/своим полям, owner-грант нужен для переназначения
   @Patch(':id')
+  @ColumnAccessTable('leads')
   async update(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -491,6 +500,14 @@ export class LeadsController {
 
     const lead = await this.leadsService.findOneForTenant(tenantId, id);
     const ctx = await this.getAccessContext(user);
+
+    // Колонки с ограниченным просмотром: скрытые значения пришли бы из карточки пустыми, а
+    // customFields/meta сервис заменяет целиком — возвращаем им текущие значения.
+    this.columnAccess.protectIncoming(
+      dto as Record<string, any>,
+      await this.columnAccess.hiddenFor(tenantId, 'leads', user),
+      lead as unknown as Record<string, any>,
+    );
 
     if (!ctx.fullAccess) {
       const tier = this.tierFor(lead, ctx);

@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
-import { ccpApi, CcpClient, CcpSite, CcpTxn, CcpTransfer } from '../../api/ccp';
+import { ccpApi, type CcpClient, type CcpSite, type CcpTxn, type CcpTransfer } from '../../api/ccp';
 import { searchLeadsQuick, createLead } from '../../api/leads';
 
 function cx(...c: Array<string | false | undefined | null>) {

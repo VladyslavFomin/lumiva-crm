@@ -1,7 +1,7 @@
 // src/pages/telephony/TelephonySettingsPage.tsx
+import type { TFunction } from 'i18next';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { TelephonySubnav } from './TelephonySubnav';
@@ -24,7 +24,7 @@ interface SmsProviderDef {
   fields: { key: string; labelKey: string; placeholder: string; secret?: boolean }[];
 }
 
-const getSmsProviders = (t: TFunction): SmsProviderDef[] => [
+const getSmsProviders = (_t?: TFunction): SmsProviderDef[] => [
   {
     value: 'twilio', label: 'Twilio', logo: 'TW',
     fields: [

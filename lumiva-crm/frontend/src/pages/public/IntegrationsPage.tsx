@@ -1,7 +1,7 @@
 // «Интеграции» — дизайн Claude Design integrations-v2.html (lh-int.jsx, lh-int.css).
 // Каталог — реальные подключения (integrationsText.ts, по backend integration-hub-catalog.ts) со статусом
 // «работает / бета / ИИ-отделы» и метками возможностей. Выдуманные коннекторы и цифры макета убраны.
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Icon, SrvIc } from '../landing/LandingSections';

@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Put,
   Post,
   Query,
   UploadedFile,
@@ -100,6 +101,22 @@ export class TenantsController {
 
   // ---- Обновить настройки компании (только owner) ----
   @UseGuards(JwtAuthGuard)
+  /** Структура CRM: блоки карточек лида/проекта/сделки и бюджет проектов (читают все, меняет владелец). */
+  @UseGuards(JwtAuthGuard)
+  @Get('crm-layout')
+  async getCrmLayout(@CurrentUser() user: CurrentUserPayload) {
+    if (!user?.tenantId) throw new BadRequestException('No tenant in auth payload');
+    return this.tenantsService.getCrmLayout(user.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('crm-layout')
+  async putCrmLayout(@CurrentUser() user: CurrentUserPayload, @Body() body: Record<string, unknown>) {
+    if (!user?.tenantId) throw new BadRequestException('No tenant in auth payload');
+    if ((user.role || '').toLowerCase() !== 'owner') throw new ForbiddenException('Only owner can change the CRM structure');
+    return this.tenantsService.saveCrmLayout(user.tenantId, body || {});
+  }
+
   @Patch('settings')
   async updateSettings(
     @CurrentUser() user: CurrentUserPayload,

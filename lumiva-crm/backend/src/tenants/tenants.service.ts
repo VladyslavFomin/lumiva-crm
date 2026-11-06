@@ -1,4 +1,5 @@
 // backend/src/tenants/tenants.service.ts
+import { mergeCrmLayout, readCrmLayout } from './crm-layout';
 import {
   Injectable,
   BadRequestException,
@@ -961,6 +962,20 @@ export class TenantsService {
   /**
    * ===== Управление компонентами CRM =====
    */
+
+  async getCrmLayout(tenantId: string) {
+    const t = await this.repo.findOne({ where: { id: tenantId }, select: ['id', 'crmLayout'] as any });
+    if (!t) throw new NotFoundException('Tenant not found');
+    return readCrmLayout((t as any).crmLayout);
+  }
+
+  async saveCrmLayout(tenantId: string, patch: Record<string, unknown>) {
+    const t = await this.repo.findOne({ where: { id: tenantId }, select: ['id', 'crmLayout'] as any });
+    if (!t) throw new NotFoundException('Tenant not found');
+    const next = mergeCrmLayout((t as any).crmLayout, patch);
+    await this.repo.update({ id: tenantId }, { crmLayout: next } as any);
+    return next;
+  }
 
   /**
    * Получить список компонентов тенента

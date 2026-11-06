@@ -10,7 +10,6 @@ import {
   CartesianGrid,
   Cell,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -178,7 +177,6 @@ const LAYOUT_VERSION_KEY = 'leads_analytics_v2_design_version';
 const LAYOUT_VERSION = '2026-05-03-free-height-resize';
 const WIDGET_STORAGE_KEY = 'leads_analytics_v2_widgets';
 const WIDGET_VERSION_KEY = 'leads_analytics_v2_version';
-const GRID_ROW = 72;
 const MIN_BLOCK_H = 100;
 const MAX_BLOCK_H = 1400;
 

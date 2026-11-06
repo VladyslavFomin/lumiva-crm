@@ -24,7 +24,7 @@ import {
   updateProject,
 } from '../api/projects';
 import { fetchStaff, type StaffRole, type StaffUser } from '../api/staff';
-import type { Project, ProjectTask, TaskStatus } from '../pages/projects/projectTypes';
+import type { Project, ProjectTask } from '../pages/projects/projectTypes';
 import {
   readProjectTasksCache,
   writeProjectTasksCache,
@@ -814,15 +814,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     await loadTaskNotifications();
   };
 
-  const toggleTaskDone = async (projectId: string, task: ProjectTask) => {
-    const project = await fetchProject(projectId);
-    const nextStatus: TaskStatus =
-      task.status === 'Готово' ? 'К выполнению' : 'Готово';
-    const nextTasks = (project.tasks || []).map((t) =>
-      t.id === task.id ? { ...t, status: nextStatus } : t,
-    );
-    await updateProjectTasks(projectId, nextTasks);
-  };
 
   const updateTaskField = async (
     projectId: string,
@@ -853,15 +844,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   /** Со страниц карточки проекта (в т.ч. после автосохранения задач) переход по меню иногда «залипал»; ведём на канонические пути через navigate. */
   const shouldForceNavFallback =
     location.pathname.startsWith('/app/projects/') || isProjectDetailPath(location.pathname);
-  const navigateWithFallback = (path: string) => {
-    if (location.pathname === path) return;
-    navigate(path);
-    window.setTimeout(() => {
-      if (window.location.pathname !== path) {
-        window.location.href = path;
-      }
-    }, 150);
-  };
   const handleNavClick = (
     event: React.MouseEvent,
     path: string,
@@ -1164,6 +1146,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       },
 
       {
+        label: t('crm.nav.deals'),
+        path: '/deals',
+        icon: 'deals',
+        section: 'main',
+      },
+
+      {
         label: t('crm.nav.sales'),
         path: '/app/sales',
         icon: 'sales',
@@ -1217,16 +1206,25 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.hotelsOverview'), path: '/hotels' },
           { label: t('crm.nav.hotelsList'), path: '/hotels/list' },
           { label: t('crm.nav.hotelsReservations'), path: '/hotels/reservations' },
+          { label: t('crm.hotels.nav.groups'), path: '/hotels/groups' },
+          { label: t('crm.hotels.nav.guests'), path: '/hotels/guests' },
+          { label: t('crm.hotels.nav.loyalty'), path: '/hotels/loyalty' },
+          { label: t('crm.hotels.nav.partners'), path: '/hotels/partners' },
+          { label: t('crm.hotels.nav.inventory'), path: '/hotels/inventory' },
           { label: t('crm.nav.hotelsRack'), path: '/hotels/rack' },
           { label: t('crm.nav.hotelsFrontDesk'), path: '/hotels/frontdesk' },
           { label: t('crm.nav.hotelsHousekeeping'), path: '/hotels/housekeeping' },
           { label: t('crm.nav.hotelsGuestCare'), path: '/hotels/guest-care' },
+          { label: t('crm.hotels.nav.precheckin'), path: '/hotels/precheckin' },
           { label: t('crm.nav.hotelsCashier'), path: '/hotels/cashier' },
+          { label: t('crm.hotels.nav.pos'), path: '/hotels/pos' },
           { label: t('crm.nav.hotelsNightAudit'), path: '/hotels/night-audit' },
-          { label: t('crm.nav.hotelsReports'), path: '/hotels/reports' },
+          { label: t('crm.hotels.nav.guestRegister'), path: '/hotels/guest-register' },
           { label: t('crm.nav.hotelsPricing'), path: '/hotels/pricing' },
           { label: t('crm.nav.hotelsCalendar'), path: '/hotels/calendar' },
+          { label: t('crm.hotels.nav.revenue'), path: '/hotels/revenue' },
           { label: t('crm.nav.hotelsChannels'), path: '/hotels/channels' },
+          { label: t('crm.nav.hotelsReports'), path: '/hotels/reports' },
           { label: t('crm.nav.hotelsAnalytics'), path: '/hotels/analytics' },
           { label: t('crm.nav.hotelsReviews'), path: '/hotels/reviews' },
         ],
@@ -1541,6 +1539,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/projects/board')) return 'projects_kanban';
     if (p.startsWith('/projects/calendar')) return 'projects_calendar';
     if (p.startsWith('/projects')) return 'projects';
+    if (p.startsWith('/deals')) return 'deals';
     if (p.startsWith('/sales')) return 'sales';
     if (p.startsWith('/marketing/traffic')) return 'marketing_traffic';
     if (p.startsWith('/marketing/campaigns')) return 'marketing_campaigns';
@@ -1643,6 +1642,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     const p = normalizeLayoutPath(path);
     if (p.startsWith('/leads')) return 'leads';
     if (p.startsWith('/projects')) return 'projects';
+    if (p.startsWith('/deals')) return 'projects';
     if (p.startsWith('/staff/permissions')) return 'settings';
     if (p.startsWith('/staff')) return 'staff';
     if (p.startsWith('/departments')) return 'staff';

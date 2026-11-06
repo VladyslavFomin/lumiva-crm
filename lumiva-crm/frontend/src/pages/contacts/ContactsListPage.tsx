@@ -264,7 +264,6 @@ export const ContactsListPage: React.FC = () => {
   ];
 
   const handleCreate = () => navigate('/app/contacts/new');
-  const handleOpenContact = (id: string) => navigate(`/app/contacts/${id}`);
 
   const handleDelete = async (id: string) => {
     const ok = await showConfirm(t('crm.contacts.list.deleteConfirm'), {

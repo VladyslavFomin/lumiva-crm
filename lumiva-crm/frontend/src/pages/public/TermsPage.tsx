@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { PublicPageLayout } from './PublicPageLayout';
 
@@ -59,8 +58,8 @@ export default function TermsPage() {
             <div className="mt-10 pt-6 border-t border-slate-200">
               <p className="text-xs text-slate-400">
                 {t('publicPages.terms.lastUpdated')}{' '}
-                <a href="mailto:hello@lumiva.agency" className="text-lumiva-accent underline">
-                  hello@lumiva.agency
+                <a href="mailto:info@lumiva.agency" className="text-lumiva-accent underline">
+                  info@lumiva.agency
                 </a>
               </p>
             </div>

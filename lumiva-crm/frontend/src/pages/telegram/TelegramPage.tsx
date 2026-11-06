@@ -63,7 +63,6 @@ export const TelegramPage: React.FC = () => {
 
   const kpis = useMemo(() => {
     const activeBots = bots.filter((b) => b.status === 'active').length;
-    const withPhone = contacts.filter((c) => c.telegramUsername || c.telegramFirstName).length;
     const leftContact = contacts.filter((c: any) => c.telegramPhone).length;
     const leads = contacts.filter((c) => c.leadId).length;
     return [

@@ -361,7 +361,7 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
             })
             .filter((opt) => opt.value && opt.label)
         : (allStatusValues.length ? allStatusValues : FALLBACK_STATUSES.map((s) => s.value)).map(
-            (value, idx) => ({
+            (value) => ({
               value,
               label: makeStatusLabel(value),
               color:

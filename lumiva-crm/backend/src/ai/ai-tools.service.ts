@@ -1,3 +1,4 @@
+import { hiddenValueKeys, stripValues } from '../custom-objects/workspace-column-access';
 import { MarketingRoiService } from '../marketing/marketing-roi.service';
 import { derivedMetrics, type AdsMetrics } from '../marketing/ads-report';
 import { Inject, Injectable, Logger, forwardRef, NotFoundException } from '@nestjs/common';
@@ -1680,7 +1681,7 @@ export class AiToolsService {
         }
         case 'crm_workspace_list_records': {
           const g = await gate('custom_objects'); if (g) return g;
-          return JSON.stringify(await this.toolWorkspaceListRecords(ctx.tenantId, args));
+          return JSON.stringify(await this.toolWorkspaceListRecords(ctx.tenantId, args, ctx));
         }
         case 'crm_workspace_analytics': {
           const g = await gate('custom_objects'); if (g) return g;
@@ -4541,6 +4542,7 @@ export class AiToolsService {
   private async toolWorkspaceListRecords(
     tenantId: string,
     args: Record<string, unknown>,
+    ctx?: ToolCtx,
   ) {
     const objectId = String(args.objectId || '').trim();
     if (!objectId) return { ok: false, error: 'objectId_required' };
@@ -4552,10 +4554,17 @@ export class AiToolsService {
     try {
       // Раньше передавался только limit (жёсткий потолок 50, без поиска/страницы) — сервис
       // уже умеет искать по values::text и листать через offset, здесь этим не пользовались.
+      // Колонки с ограниченным просмотром: живой сотрудник в чате видит через ИИ ровно то же,
+      // что и в таблице. Автономные ИИ-сотрудники (без userRole) работают как раньше.
+      let hidden = new Set<string>();
+      if (ctx?.userRole) {
+        const fields = await this.customObjects.listFields(tenantId, objectId);
+        hidden = hiddenValueKeys(fields, { tenantRole: ctx.userRole, staffUserId: ctx.staffUserId ?? null, areaRole: null });
+      }
       const { items, total } = await this.customObjects.listRecords(
         tenantId,
         objectId,
-        { limit, offset: (page - 1) * limit, search, sortBy, sortOrder },
+        { limit, offset: (page - 1) * limit, search, sortBy, sortOrder, hiddenKeys: hidden },
       );
       return {
         ok: true,
@@ -4566,7 +4575,7 @@ export class AiToolsService {
           : {}),
         records: items.map((r) => ({
           id: r.id,
-          values: r.values,
+          values: stripValues(r.values, hidden),
           updatedAt: r.updatedAt,
         })),
       };

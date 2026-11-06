@@ -19,7 +19,7 @@ import { Tenant } from '../tenants/tenant.entity';
  * Новые статусы тенант добавляет свободно — value/цвет/порядок/удаление без ограничений.
  */
 @Entity('project_status_definitions')
-@Index(['tenantId', 'value'], { unique: true })
+@Index(['tenantId', 'kind', 'value'], { unique: true })
 export class ProjectStatusDefinition {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -30,6 +30,14 @@ export class ProjectStatusDefinition {
   @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
+
+  /** Набор статусов: 'project' — проекты, 'deal' — воронка сделок. */
+  @Column({ type: 'varchar', length: 16, default: 'project' })
+  kind: string;
+
+  /** 'won' | 'lost' | null — смысл статуса (выигрыш/проигрыш) для аналитики и «Создать продажу». */
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  outcome: 'won' | 'lost' | null;
 
   @Column({ type: 'varchar', length: 64 })
   value: string; // Отображаемое имя == значение, хранимое в projects.status

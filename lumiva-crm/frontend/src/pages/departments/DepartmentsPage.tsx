@@ -7,7 +7,6 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 import { getStoredUser } from '../../auth/session';
 import {
   fetchDepartmentsTree,
-  fetchDepartments,
   fetchDepartmentsSummary,
   fetchDepartmentStats,
   updateDepartment,

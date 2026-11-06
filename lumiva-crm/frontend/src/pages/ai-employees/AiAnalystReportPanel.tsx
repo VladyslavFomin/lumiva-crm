@@ -2,7 +2,7 @@
  * CRM-аналитик: владелец только отмечает, какие данные собирать, и когда/кому присылать отчёт
  * «за вчера». Сам аналитик ничего в CRM не меняет (роль reportOnly, см. бэкенд AiAnalystReportService).
  */
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   fetchAnalystConfig,

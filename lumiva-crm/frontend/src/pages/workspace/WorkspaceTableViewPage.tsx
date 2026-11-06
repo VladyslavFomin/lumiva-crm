@@ -20,6 +20,10 @@ import {
   fetchCustomObjectDistinctFieldValues,
   clearAllCustomObjectRecords,
   fetchCustomObjects,
+  fetchCustomObjectColumnAccess,
+  setCustomObjectFieldViewers,
+  readWorkspaceFieldViewers,
+  readWorkspaceFieldRules,
   updateCustomObjectField,
   updateCustomObjectRecord,
   uploadWorkspaceFile,
@@ -34,8 +38,11 @@ import {
 } from '../../api/customObjects';
 import { fetchAiAssignableRoster, type AiAssignableRosterItem } from '../../api/aiEmployees';
 import { aiColumnErrorMessage } from './workspaceAiErrors';
-import { WsFieldTypeIcon, WsFieldTypeGrid } from '../../components/workspace/WorkspaceFieldTypePicker';
+import { WsFieldTypeGrid } from '../../components/workspace/WorkspaceFieldTypePicker';
 import { WorkspaceFieldsManagerDrawer } from '../../components/workspace/WorkspaceFieldsManagerDrawer';
+import { WorkspaceColumnMenu } from '../../components/workspace/WorkspaceColumnMenu';
+import { ColumnRulesDrawer } from '../../components/workspace/ColumnRulesDrawer';
+import { ColumnViewersPopover, LockIcon } from '../../components/table/ColumnViewersPopover';
 import { PushToBoardModal } from '../../components/workspace/PushToBoardModal';
 import { getWorkspaceDataLink } from '../../workspace/workspaceRecordLink';
 import { WsAreaBar } from '../../components/workspace/WsAreaBar';
@@ -142,12 +149,6 @@ const getInitials = (fullName: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('');
-const slugOptionValue = (label: string) =>
-  String(label || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_а-яё-]/gi, '');
 const normalizePriorityBucket = (raw: string) => {
   const v = String(raw || '').trim().toLowerCase();
   if (!v) return 'normal';
@@ -236,7 +237,7 @@ type ActiveMultiCellState = {
 
 export const WorkspaceTableViewPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { showConfirm } = useAlertModal();
+  const { showConfirm, showAlert } = useAlertModal();
   const navigate = useNavigate();
   const { objectId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -412,15 +413,32 @@ export const WorkspaceTableViewPage: React.FC = () => {
       window.removeEventListener('mousedown', close);
     };
   }, [columnMenuState]);
+  /** Меню открывается от левого края кнопки «⋯» вправо (у правого края экрана — сдвигается влево). */
   const columnMenuPosFrom = (el: HTMLElement) => {
     const rect = el.getBoundingClientRect();
-    const menuWidth = 224;
+    const menuWidth = 236;
+    const menuHeight = 290;
     return {
-      top: Math.min(rect.bottom + 6, window.innerHeight - 180),
-      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+      top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menuHeight - 8)),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
     };
   }
 
+  /** «Кто видит колонку» (только владелец таблицы/компании) и «Правила колонки». */
+  const [columnAccessCanManage, setColumnAccessCanManage] = useState(false);
+  const [columnAccessPopover, setColumnAccessPopover] = useState<{ fieldId: string; anchor: DOMRect } | null>(null);
+  const [columnAccessSaving, setColumnAccessSaving] = useState(false);
+  const [columnRulesFieldId, setColumnRulesFieldId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!objectId) return;
+    let cancelled = false;
+    fetchCustomObjectColumnAccess(objectId)
+      .then((r) => !cancelled && setColumnAccessCanManage(!!r?.canManage))
+      .catch(() => !cancelled && setColumnAccessCanManage(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [objectId]);
   const [showAddField, setShowAddField] = useState(false);
   const [showManageFields, setShowManageFields] = useState(false);
   const [newFieldKey, setNewFieldKey] = useState('');
@@ -455,7 +473,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
     recordId: string;
     subitemId: string;
   } | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [, setDeleting] = useState(false);
   const [rowMenuRecordId, setRowMenuRecordId] = useState<string | null>(null);
   /** Экранные координаты кнопки "⋯" на момент открытия — меню рендерится порталом в body
    * (fixed + зажато в границы viewport), чтобы не обрезаться overflow горизонтально
@@ -1334,16 +1352,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
     const idx = hashString(value || 'status') % STATUS_DOT_COLORS.length;
     return STATUS_DOT_COLORS[idx];
   };
-  const getStatusStyle = (value: string): React.CSSProperties | undefined => {
-    const statusKey = resolveStatusOptionValue(value);
-    const hex = statusColorMap[statusKey];
-    if (!hex) return undefined;
-    return {
-      backgroundColor: hex,
-      color: pickTextColorForBg(hex),
-      borderColor: hex,
-    };
-  };
   const getStatusLabel = (value: string) =>
     statusLabelMap[resolveStatusOptionValue(value)] || value.replace(/_/g, ' ');
   const getRowStatusHex = (record: CustomObjectRecord) => {
@@ -1365,16 +1373,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
     };
     return { text: labels[binding.mode] || binding.mode, bound: true };
   };
-  const getPriorityStripColor = (value: string) => {
-    const normalized = String(value || '').toLowerCase();
-    if (normalized === 'high' || normalized === 'urgent' || normalized === 'высокий') {
-      return 'bg-rose-500';
-    }
-    if (normalized === 'low' || normalized === 'низкий') {
-      return 'bg-emerald-500';
-    }
-    return 'bg-slate-400';
-  };
   const getPriorityStripHex = (value: string) => {
     const bucket = normalizePriorityBucket(value);
     if (bucket === 'high') {
@@ -1394,14 +1392,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
       done: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
     };
     return map[value] || 'bg-slate-100 text-slate-700 border border-slate-200';
-  };
-  const getSubitemPriorityColor = (value: string) => {
-    const map: Record<string, string> = {
-      low: 'bg-emerald-100 text-emerald-700',
-      normal: 'bg-slate-200 text-slate-700',
-      high: 'bg-rose-100 text-rose-700',
-    };
-    return map[value] || 'bg-slate-200 text-slate-700';
   };
 
   const getDefaultValueForField = (field: CustomObjectField) => {
@@ -3940,6 +3930,11 @@ export const WorkspaceTableViewPage: React.FC = () => {
                               <div className="lb" style={{ cursor: 'grab' }}>
                                 <span className="grip">⋮⋮</span>
                                 <span className="truncate">{field.label}</span>
+                                {readWorkspaceFieldViewers(field).length > 0 && (
+                                  <span className="cva-lock-badge" title={t('crm.columnAccess.restrictedBadge', { count: readWorkspaceFieldViewers(field).length })}>
+                                    <LockIcon size={11} />
+                                  </span>
+                                )}
                               </div>
                               <div className="bd" title={t('crm.workspace.table.columnBindingBadgeTitle')}>
                                 {columnCaption(field).bound && <i />}
@@ -3964,52 +3959,33 @@ export const WorkspaceTableViewPage: React.FC = () => {
                               </div>
                             </div>
                             {columnMenuState?.key === field.key && columnMenuState?.groupTitle === '__dt__' && (
-                              <div data-column-menu className="fixed z-[400] w-56 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100" style={{ top: columnMenuState.top, left: columnMenuState.left }}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    openEditColumn(field);
-                                    setColumnMenuState(null);
-                                  }}
-                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
-                                    <path d="M12 20h9" />
-                                    <path d="m16.5 3.5 4 4L7 21H3v-4L16.5 3.5Z" />
-                                  </svg>
-                                  <span className="min-w-0 whitespace-normal break-words leading-snug">{t('crm.workspace.table.editColumn')}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    void duplicateColumn(field);
-                                    setColumnMenuState(null);
-                                  }}
-                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
-                                    <rect x="9" y="9" width="11" height="11" rx="2" />
-                                    <rect x="4" y="4" width="11" height="11" rx="2" />
-                                  </svg>
-                                  <span className="min-w-0 whitespace-normal break-words leading-snug">{t('crm.workspace.table.duplicateColumn')}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    void deleteColumn(field);
-                                    setColumnMenuState(null);
-                                  }}
-                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-[#fbecef] text-[#9a1f31] flex items-center justify-center gap-2"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
-                                    <path d="M3 6h18" />
-                                    <path d="M8 6V4h8v2" />
-                                    <path d="M19 6l-1 14H6L5 6" />
-                                    <path d="M10 11v6M14 11v6" />
-                                  </svg>
-                                  <span className="min-w-0 whitespace-normal break-words leading-snug">{t('crm.workspace.table.deleteColumn')}</span>
-                                </button>
-                              </div>
+                              <WorkspaceColumnMenu
+                                top={columnMenuState.top}
+                                left={columnMenuState.left}
+                                viewersCount={readWorkspaceFieldViewers(field).length}
+                                rulesCount={readWorkspaceFieldRules(field).length}
+                                canManageAccess={columnAccessCanManage}
+                                onEdit={() => {
+                                  openEditColumn(field);
+                                  setColumnMenuState(null);
+                                }}
+                                onDuplicate={() => {
+                                  void duplicateColumn(field);
+                                  setColumnMenuState(null);
+                                }}
+                                onAccess={(rect) => {
+                                  setColumnAccessPopover({ fieldId: field.id, anchor: rect });
+                                  setColumnMenuState(null);
+                                }}
+                                onRules={() => {
+                                  setColumnRulesFieldId(field.id);
+                                  setColumnMenuState(null);
+                                }}
+                                onDelete={() => {
+                                  void deleteColumn(field);
+                                  setColumnMenuState(null);
+                                }}
+                              />
                             )}
                             <span
                               className="resize"
@@ -4743,6 +4719,11 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                     <div className="lb" style={{ cursor: 'grab' }}>
                                       <span className="grip">⋮⋮</span>
                                       <span className="truncate">{field.label}</span>
+                                {readWorkspaceFieldViewers(field).length > 0 && (
+                                  <span className="cva-lock-badge" title={t('crm.columnAccess.restrictedBadge', { count: readWorkspaceFieldViewers(field).length })}>
+                                    <LockIcon size={11} />
+                                  </span>
+                                )}
                                     </div>
                                     <div className="bd" title={t('crm.workspace.table.columnBindingBadgeTitle')}>
                                       {columnCaption(field).bound && <i />}
@@ -4768,108 +4749,43 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                   </div>
                                   {columnMenuState?.key === field.key &&
                                     columnMenuState?.groupTitle === group.title && (
-                                    <div data-column-menu className="fixed z-[400] w-56 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100" style={{ top: columnMenuState.top, left: columnMenuState.left }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          openEditColumn(field);
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4 shrink-0"
-                                        >
-                                          <path d="M12 20h9" />
-                                          <path d="m16.5 3.5 4 4L7 21H3v-4L16.5 3.5Z" />
-                                        </svg>
-                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
-                                          {t('crm.workspace.table.editColumn')}
-                                        </span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          void duplicateColumn(field);
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4 shrink-0"
-                                        >
-                                          <rect x="9" y="9" width="11" height="11" rx="2" />
-                                          <rect x="4" y="4" width="11" height="11" rx="2" />
-                                        </svg>
-                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
-                                          {t('crm.workspace.table.duplicateColumn')}
-                                        </span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setGroupHiddenColumns((prev) => ({
-                                            ...prev,
-                                            [group.title]: {
-                                              ...(prev[group.title] || {}),
-                                              [field.key]: true,
-                                            },
-                                          }));
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4 shrink-0"
-                                        >
-                                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
-                                          <circle cx="12" cy="12" r="3" />
-                                        </svg>
-                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
-                                          {t('crm.workspace.table.hideColumn')}
-                                        </span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          void deleteColumn(field);
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-[#fbecef] text-[#9a1f31] flex items-center justify-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4 shrink-0"
-                                        >
-                                          <path d="M3 6h18" />
-                                          <path d="M8 6V4h8v2" />
-                                          <path d="M19 6l-1 14H6L5 6" />
-                                          <path d="M10 11v6M14 11v6" />
-                                        </svg>
-                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
-                                          {t('crm.workspace.table.deleteColumn')}
-                                        </span>
-                                      </button>
-                                    </div>
+                                    <WorkspaceColumnMenu
+                                      top={columnMenuState.top}
+                                      left={columnMenuState.left}
+                                      viewersCount={readWorkspaceFieldViewers(field).length}
+                                      rulesCount={readWorkspaceFieldRules(field).length}
+                                      canManageAccess={columnAccessCanManage}
+                                      onEdit={() => {
+                                        openEditColumn(field);
+                                        setColumnMenuState(null);
+                                      }}
+                                      onDuplicate={() => {
+                                        void duplicateColumn(field);
+                                        setColumnMenuState(null);
+                                      }}
+                                      onHideInGroup={() => {
+                                        setGroupHiddenColumns((prev) => ({
+                                          ...prev,
+                                          [group.title]: {
+                                            ...(prev[group.title] || {}),
+                                            [field.key]: true,
+                                          },
+                                        }));
+                                        setColumnMenuState(null);
+                                      }}
+                                      onAccess={(rect) => {
+                                        setColumnAccessPopover({ fieldId: field.id, anchor: rect });
+                                        setColumnMenuState(null);
+                                      }}
+                                      onRules={() => {
+                                        setColumnRulesFieldId(field.id);
+                                        setColumnMenuState(null);
+                                      }}
+                                      onDelete={() => {
+                                        void deleteColumn(field);
+                                        setColumnMenuState(null);
+                                      }}
+                                    />
                                   )}
                                   <span
                                     className="resize"
@@ -6007,6 +5923,57 @@ export const WorkspaceTableViewPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {columnAccessPopover &&
+          (() => {
+            const f = fields.find((x) => x.id === columnAccessPopover.fieldId);
+            if (!f) return null;
+            return (
+              <ColumnViewersPopover
+                anchor={columnAccessPopover.anchor}
+                columnLabel={f.label}
+                staff={staff}
+                selected={readWorkspaceFieldViewers(f)}
+                saving={columnAccessSaving}
+                onClose={() => setColumnAccessPopover(null)}
+                onChange={async (ids) => {
+                  const prevMeta = f.meta;
+                  const optimistic = { ...(f.meta || {}) } as Record<string, any>;
+                  if (ids.length) optimistic.viewers = ids;
+                  else delete optimistic.viewers;
+                  setFields((prev) => prev.map((x) => (x.id === f.id ? { ...x, meta: optimistic } : x)));
+                  setColumnAccessSaving(true);
+                  try {
+                    const saved = await setCustomObjectFieldViewers(objectId, f.id, ids);
+                    setFields((prev) => prev.map((x) => (x.id === f.id ? { ...x, meta: saved.meta } : x)));
+                  } catch (e) {
+                    setFields((prev) => prev.map((x) => (x.id === f.id ? { ...x, meta: prevMeta } : x)));
+                    showAlert(e instanceof Error ? e.message : t('crm.columnAccess.saveError'), { variant: 'error' });
+                  } finally {
+                    setColumnAccessSaving(false);
+                  }
+                }}
+              />
+            );
+          })()}
+
+        {columnRulesFieldId &&
+          (() => {
+            const f = fields.find((x) => x.id === columnRulesFieldId);
+            if (!f) return null;
+            return (
+              <ColumnRulesDrawer
+                objectId={objectId}
+                field={f}
+                fields={fields}
+                onClose={() => setColumnRulesFieldId(null)}
+                onSaved={(saved) => {
+                  setFields((prev) => prev.map((x) => (x.id === saved.id ? { ...x, meta: saved.meta } : x)));
+                  showAlert(t('crm.columnRules.savedToast'), { variant: 'success' });
+                }}
+              />
+            );
+          })()}
 
         {showManageFields && (
           <WorkspaceFieldsManagerDrawer

@@ -180,6 +180,53 @@ export async function updateCustomObjectField(
   );
 }
 
+/** «Кто может просматривать этот столбец»: пустой список — видят все участники таблицы. */
+export async function setCustomObjectFieldViewers(objectId: string, fieldId: string, staffUserIds: string[]) {
+  return api.put<CustomObjectField>(`/custom-objects/${objectId}/fields/${fieldId}/viewers`, { staffUserIds });
+}
+
+/** Правила колонки (автозаполнение по условию + проверки значений). */
+export async function setCustomObjectFieldRules(objectId: string, fieldId: string, rules: WorkspaceColumnRule[]) {
+  return api.put<CustomObjectField>(`/custom-objects/${objectId}/fields/${fieldId}/rules`, { rules });
+}
+
+/** Может ли текущий пользователь настраивать доступ к колонкам этой таблицы. */
+export async function fetchCustomObjectColumnAccess(objectId: string) {
+  return api.get<{ canManage: boolean }>(`/custom-objects/${objectId}/column-access`);
+}
+
+export type WorkspaceRuleConditionOp =
+  | 'is' | 'is_not' | 'empty' | 'not_empty' | 'contains' | 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte';
+export type WorkspaceRuleCheckOp =
+  | 'not_empty' | 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'one_of' | 'between';
+export type WorkspaceRuleAction =
+  | { fieldKey: string; kind: 'set'; value: unknown }
+  | { fieldKey: string; kind: 'clear' }
+  | { fieldKey: string; kind: 'check'; op: WorkspaceRuleCheckOp; value?: string; values?: string[]; min?: string; max?: string };
+export type WorkspaceColumnRule =
+  | {
+      id: string;
+      type: 'condition';
+      enabled?: boolean;
+      when: { fieldKey: string; op: WorkspaceRuleConditionOp; values?: string[]; value?: string };
+      then: WorkspaceRuleAction[];
+    }
+  | {
+      id: string;
+      type: 'validation';
+      enabled?: boolean;
+      op: WorkspaceRuleCheckOp;
+      value?: string;
+      values?: string[];
+      min?: string;
+      max?: string;
+    };
+
+export const readWorkspaceFieldViewers = (f: Pick<CustomObjectField, 'meta'>): string[] =>
+  Array.isArray(f.meta?.viewers) ? (f.meta!.viewers as string[]) : [];
+export const readWorkspaceFieldRules = (f: Pick<CustomObjectField, 'meta'>): WorkspaceColumnRule[] =>
+  Array.isArray(f.meta?.rules) ? (f.meta!.rules as WorkspaceColumnRule[]) : [];
+
 /** Пересчитать одну ячейку умной колонки (type: 'ai') по кнопке "Обновить". */
 export async function refreshWorkspaceAiColumn(objectId: string, recordId: string, fieldKey: string) {
   return api.post<{ ok: boolean; value?: string; error?: string }>(

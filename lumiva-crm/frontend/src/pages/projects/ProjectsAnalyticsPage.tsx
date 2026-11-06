@@ -1,4 +1,5 @@
 // src/pages/projects/ProjectsAnalyticsPage.tsx
+import { useCrmLayout } from '../../hooks/useCrmLayout';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
@@ -579,6 +580,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 }) => {
   const readOnly = Boolean(publicView) || Boolean(embed);
   const { t, i18n } = useTranslation();
+  // «Структура CRM»: у проектов выключен бюджет → аналитика строится по задачам
+  const { layout: crmLayout } = useCrmLayout();
+  const budgetOff = crmLayout.project.budget === false && !workspaceObjectId;
   const locale = resolveLocale(i18n.language);
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -599,7 +603,6 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [tabMenuId, setTabMenuId] = useState<string | null>(null);
   const [tabMenuPos, setTabMenuPos] = useState<{ left: number; top: number } | null>(null);
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
-  const isMainTab = activeTab.id === MAIN_TAB_ID;
   const layoutNamespaceFor = (tabId: string) =>
     tabId === MAIN_TAB_ID ? storageNamespace : `${storageNamespace}__tab_${tabId}`;
   const layoutNamespace = layoutNamespaceFor(activeTab.id);
@@ -677,7 +680,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     { id: 'pv-count', mode: 'count' },
     { id: 'pv-sum', mode: 'sum', valueField: 'amount' },
   ]);
-  const [draftSize, setDraftSize] = useState<WidgetSize>('md');
+  const [, setDraftSize] = useState<WidgetSize>('md');
   const [draftSpan, setDraftSpan] = useState(6);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftTheme, setDraftTheme] = useState<ThemeKey>('lumiva');
@@ -1092,12 +1095,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     [globalFilters, periodItems],
   );
 
-  const totalProjects = filteredItems.length;
   const totalAmount = useMemo(
     () => filteredItems.reduce((sum, p) => sum + (p.amount || 0), 0),
     [filteredItems],
   );
-  const avgAmount = totalProjects > 0 ? Math.round(totalAmount / totalProjects) : 0;
 
   /** Группировка (chartKey/tableKey-как-измерение/formula "count по значению") имеет смысл
    * только для категориальных полей — числовое поле (включая помесячные колонки "широких"
@@ -1324,8 +1325,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       }
       return [
         { id: 'total', label: t('crm.projects.analytics.kpis.total') },
-        { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
-        { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
+        ...(budgetOff
+          ? []
+          : [
+              { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
+              { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
+            ]),
+        { id: 'tasksDonePct', label: t('crm.projects.analytics.kpis.tasksDonePct') },
+        { id: 'tasksOpen', label: t('crm.projects.analytics.kpis.tasksOpen') },
+        { id: 'tasksOverdue', label: t('crm.projects.analytics.kpis.tasksOverdue') },
+        { id: 'tasksTotal', label: t('crm.projects.analytics.kpis.tasksTotal') },
         ...numericFieldsForMetrics.flatMap((field) => [
           { id: `sum:${field.key}`, label: `${field.label} (${t('crm.projects.analytics.metric.suffix.sum')})` },
           { id: `avg:${field.key}`, label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})` },
@@ -1340,7 +1349,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         { id: 'statuses', label: t('crm.projects.analytics.kpis.statuses') },
       ];
     },
-    [t, isWorkspaceMode, analyticsFields, dynamicNumericFields, numericFieldsForMetrics],
+    [budgetOff, t, isWorkspaceMode, analyticsFields, dynamicNumericFields, numericFieldsForMetrics],
   );
 
   const chartOptions = useMemo(
@@ -1661,8 +1670,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         {
           id: 'metric-amount',
           type: 'metric',
-          title: t('crm.projects.analytics.kpis.amount'),
-          metricKey: 'amount',
+          title: budgetOff ? t('crm.projects.analytics.kpis.tasksDonePct') : t('crm.projects.analytics.kpis.amount'),
+          metricKey: budgetOff ? 'tasksDonePct' : 'amount',
           size: 'sm',
           span: 3,
           height: getDefaultHeight('sm', 'metric'),
@@ -1670,8 +1679,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         {
           id: 'metric-avg-amount',
           type: 'metric',
-          title: t('crm.projects.analytics.kpis.avgAmount'),
-          metricKey: 'avgAmount',
+          title: budgetOff ? t('crm.projects.analytics.kpis.tasksOverdue') : t('crm.projects.analytics.kpis.avgAmount'),
+          metricKey: budgetOff ? 'tasksOverdue' : 'avgAmount',
           size: 'sm',
           span: 3,
           height: getDefaultHeight('sm', 'metric'),
@@ -1690,8 +1699,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           type: 'line',
           title: 'Динамика проектов',
           chartKey: 'status',
-          chartValueMode: 'sum',
-          chartValueField: 'amount',
+          chartValueMode: budgetOff ? 'count' : 'sum',
+          chartValueField: budgetOff ? undefined : 'amount',
           size: 'md',
           span: 8,
           height: getDefaultHeight('md', 'line'),
@@ -1729,8 +1738,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           type: 'leaderboard',
           title: 'Рейтинг ответственных',
           chartKey: 'owner',
-          chartValueMode: 'sum',
-          chartValueField: 'amount',
+          chartValueMode: budgetOff ? 'count' : 'sum',
+          chartValueField: budgetOff ? undefined : 'amount',
           size: 'md',
           span: 6,
           height: getDefaultHeight('md', 'leaderboard'),
@@ -1780,10 +1789,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         },
       ];
     },
-    [t, isWorkspaceMode, dynamicDimensionOptions, dynamicFormulaScopeOptions, dynamicNumericFields, analyticsLabels, defaultWidgetsOverride],
+    [budgetOff, t, isWorkspaceMode, dynamicDimensionOptions, dynamicFormulaScopeOptions, dynamicNumericFields, analyticsLabels, defaultWidgetsOverride],
   );
 
-  const hasData = !loading && !error;
   const isEditing = editOpen;
 
   // Список вкладок: localStorage сразу, потом серверные предпочтения (они главнее).
@@ -2637,10 +2645,22 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   ]);
 
   const resolveMetricValue = (
-    key?: MetricKey,
+    rawKey?: MetricKey,
     sourceItems: Project[] = filteredItems,
     denominatorItems: Project[] = filteredItems,
   ) => {
+    // проекты без бюджета («Структура CRM»): денежные метрики заменяются метриками задач
+    const key = budgetOff && rawKey === 'amount' ? 'tasksDonePct' : budgetOff && rawKey === 'avgAmount' ? 'tasksOverdue' : rawKey;
+    if (key === 'tasksDonePct' || key === 'tasksOverdue' || key === 'tasksOpen' || key === 'tasksTotal') {
+      const all = sourceItems.flatMap((item) => (Array.isArray(item.tasks) ? item.tasks : []));
+      const isDone = (x: any) => x?.status === 'Готово' || x?.done === true;
+      const today = new Date().toISOString().slice(0, 10);
+      if (key === 'tasksTotal') return all.length.toLocaleString(locale);
+      if (key === 'tasksOpen') return all.filter((x) => !isDone(x)).length.toLocaleString(locale);
+      if (key === 'tasksOverdue')
+        return all.filter((x: any) => !isDone(x) && x?.deadline && String(x.deadline).slice(0, 10) < today).length.toLocaleString(locale);
+      return all.length ? `${Math.round((all.filter(isDone).length / all.length) * 100)}%` : '—';
+    }
     const sourceTotal = sourceItems.length;
     const sourceAmount = sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
     const sourceAvg = sourceTotal > 0 ? Math.round(sourceAmount / sourceTotal) : 0;
@@ -5034,7 +5054,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-[15px] font-semibold leading-tight tracking-[-0.01em] text-[#222]">
-                          {w.title}
+                          {budgetOff && w.type === 'metric' && (w.metricKey === 'amount' || w.metricKey === 'avgAmount')
+                            ? t(w.metricKey === 'amount' ? 'crm.projects.analytics.kpis.tasksDonePct' : 'crm.projects.analytics.kpis.tasksOverdue')
+                            : w.title}
                         </div>
                       </div>
                       <div

@@ -126,6 +126,10 @@ export class Tenant {
   @Column({ type: 'jsonb', nullable: true })
   enabledComponents: Record<string, boolean> | null;
 
+  /** Структура CRM (Настройки → «Структура CRM»): блоки карточек лида/проекта/сделки, бюджет проектов. */
+  @Column({ type: 'jsonb', nullable: true })
+  crmLayout: Record<string, any> | null;
+
   /** Использовано хранилища компании (байты) */
   @Column({ name: 'storage_used_bytes', type: 'bigint', default: '0' })
   storageUsedBytes: string;

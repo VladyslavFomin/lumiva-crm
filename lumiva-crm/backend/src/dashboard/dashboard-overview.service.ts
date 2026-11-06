@@ -527,7 +527,7 @@ export class DashboardOverviewService {
    * (как ProjectTableAccessGuard для основной таблицы); null — нет права на проекты. */
   private async visibleProjects(ctx: Ctx): Promise<Project[] | null> {
     if (!(await ctx.perm('projects'))) return null;
-    const list = await this.projects.find({ where: { tenantId: ctx.tenantId, isDeleted: false, isArchived: false } });
+    const list = await this.projects.find({ where: { tenantId: ctx.tenantId, isDeleted: false, isArchived: false, kind: 'project' } });
     if ((ctx.user.role || '').toLowerCase() === 'owner') return list;
     const staff = ctx.scope.staff;
     if (!staff) return [];

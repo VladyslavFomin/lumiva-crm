@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchCustomObjects, type CustomObject } from '../../api/customObjects';
 import { fetchEmailAccounts, type EmailAccount } from '../../api/email';

@@ -67,7 +67,8 @@ export class AiBrainService {
   dto(f: AiBrainFile) {
     return {
       id: f.id,
-      folder: f.departmentId ?? 'common',
+      folder: f.agentId ? `agent:${f.agentId}` : f.departmentId ?? 'common',
+      agentId: f.agentId,
       name: f.name,
       type: f.type,
       sizeBytes: Number(f.sizeBytes || 0),
@@ -87,7 +88,8 @@ export class AiBrainService {
   }
 
   async list(tenantId: string, folder?: string | null) {
-    const where: any = { tenantId };
+    // личные папки ИИ-сотрудников в «Мозге» офиса не показываем — у них своя вкладка в профиле
+    const where: any = { tenantId, agentId: IsNull() };
     if (folder === 'common') where.departmentId = IsNull();
     else if (folder && folder !== 'all') where.departmentId = folder;
     const rows = await this.files.find({ where, order: { updatedAt: 'DESC' }, take: 1000 });
@@ -107,7 +109,101 @@ export class AiBrainService {
   }
 
   async countFor(tenantId: string): Promise<number> {
-    return this.files.count({ where: { tenantId } });
+    return this.files.count({ where: { tenantId, agentId: IsNull() } });
+  }
+
+  /** Файлы личной папки ИИ-сотрудника. */
+  async listForAgent(tenantId: string, agentId: string) {
+    const rows = await this.files.find({ where: { tenantId, agentId }, order: { updatedAt: 'DESC' }, take: 500 });
+    return rows.map((f) => this.dto(f));
+  }
+
+  /** Файл из личной папки сотрудника (иначе 404 — через этот путь нельзя трогать файлы офиса). */
+  async rawAgentFile(tenantId: string, agentId: string, id: string) {
+    const f = await this.files.findOne({ where: { tenantId, agentId, id } });
+    if (!f) throw new NotFoundException('File not found');
+    return f;
+  }
+
+  /** Полные тексты md-файлов личной папки (то, что сотрудник читает перед каждым действием). */
+  async agentDocs(tenantId: string, agentId: string): Promise<Array<{ id: string; name: string; source: string; body: string; updatedAt: Date }>> {
+    const rows = await this.files.find({
+      where: { tenantId, agentId, type: 'md' },
+      select: ['id', 'name', 'source', 'bodyMd', 'updatedAt'],
+      order: { updatedAt: 'DESC' },
+      take: 200,
+    });
+    return rows.map((r) => ({ id: r.id, name: r.name, source: r.source, body: r.bodyMd ?? '', updatedAt: r.updatedAt }));
+  }
+
+  /** Поиск по загруженным (не md) файлам личной папки сотрудника. */
+  async searchAgentFiles(tenantId: string, agentId: string, query: string, k = 4): Promise<BrainHit[]> {
+    return this.hybrid(tenantId, `f.agent_id = $2::uuid AND f.type <> 'md'`, [agentId], query, k, 0.2);
+  }
+
+  /**
+   * Поиск по «Мозгу» офиса для обычного ИИ-сотрудника: папки подключённых отделов (и файлы, открытые
+   * им по scope), общие файлы офиса (scope 'all') если includeShared. clientFacing — без журналов
+   * агентов (внутренняя кухня) — так же, как у консультанта.
+   */
+  async searchForEmployee(
+    tenantId: string,
+    departmentIds: string[],
+    query: string,
+    opts: { includeShared: boolean; clientFacing: boolean; k?: number },
+  ): Promise<BrainHit[]> {
+    if (opts.clientFacing) return this.searchForClient(tenantId, departmentIds, query, { includeShared: opts.includeShared, k: opts.k });
+    if (!departmentIds.length && !opts.includeShared) return [];
+    const scopeSql = `f.agent_id IS NULL AND (f.department_id::text = ANY($2::text[]) OR f.scope && $2::text[]${opts.includeShared ? ` OR f.scope @> ARRAY['all']::text[]` : ''})`;
+    return this.hybrid(tenantId, scopeSql, [departmentIds], query, opts.k ?? 6, 0.22);
+  }
+
+  /** Общий гибридный поиск (FTS + эмбеддинги) по фрагментам файлов, отобранных scopeSql ($1 — тенант). */
+  private async hybrid(tenantId: string, scopeSql: string, params: unknown[], query: string, k: number, minSim: number): Promise<BrainHit[]> {
+    const q = query.replace(/\s+/g, ' ').trim().slice(0, 2000);
+    if (!q) return [];
+    const n = params.length + 2; // номер параметра запроса
+    const scores = new Map<string, { fileId: string; text: string; s: number }>();
+    const fts: Array<{ id: string; file_id: string; text: string; rank: number }> = await this.chunks.query(
+      `SELECT c.id, c.file_id, c.text, ts_rank(c.tsv, websearch_to_tsquery('simple', $${n})) AS rank
+         FROM ai_brain_chunks c JOIN ai_brain_files f ON f.id = c.file_id
+        WHERE c.tenant_id = $1 AND ${scopeSql} AND f.index_status = 'ready'
+          AND c.tsv @@ websearch_to_tsquery('simple', $${n})
+        ORDER BY rank DESC LIMIT 30`,
+      [tenantId, ...params, q.split(' ').slice(0, 30).join(' OR ')],
+    );
+    const max = Math.max(0.0001, ...fts.map((r) => Number(r.rank)));
+    for (const r of fts) scores.set(r.id, { fileId: r.file_id, text: r.text, s: 0.45 * (Number(r.rank) / max) });
+    let qv: number[] | null = null;
+    try {
+      const r = await this.openai.embed([q], EMBED_DIMS);
+      qv = r.vectors[0] ?? null;
+      await this.quota.chargeCents(tenantId, r.costCents, { kind: 'embedding', model: 'text-embedding-3-small', promptTokens: r.tokens, completionTokens: 0, sessionId: null }).catch(() => undefined);
+    } catch {
+      qv = null;
+    }
+    if (qv) {
+      const rows: Array<{ id: string; file_id: string; text: string; embedding: number[] }> = await this.chunks.query(
+        `SELECT c.id, c.file_id, c.text, c.embedding
+           FROM ai_brain_chunks c JOIN ai_brain_files f ON f.id = c.file_id
+          WHERE c.tenant_id = $1 AND ${scopeSql} AND f.index_status = 'ready' AND c.embedding IS NOT NULL
+          ORDER BY f.updated_at DESC LIMIT ${VECTOR_SCAN_LIMIT}`,
+        [tenantId, ...params],
+      );
+      for (const r of rows) {
+        const sim = this.cosine(qv, r.embedding);
+        if (sim < minSim) continue;
+        const prev = scores.get(r.id);
+        scores.set(r.id, { fileId: r.file_id, text: r.text, s: (prev?.s ?? 0) + 0.55 * sim });
+      }
+    }
+    const top = [...scores.values()].sort((a, b) => b.s - a.s).slice(0, k);
+    if (!top.length) return [];
+    const files = await this.files.find({ where: { tenantId, id: In([...new Set(top.map((t) => t.fileId))]) }, select: ['id', 'name', 'departmentId'] });
+    const byId = new Map(files.map((f) => [f.id, f]));
+    return top
+      .filter((t) => byId.has(t.fileId))
+      .map((t) => ({ fileId: t.fileId, fileName: byId.get(t.fileId)!.name, folder: byId.get(t.fileId)!.departmentId, text: t.text, score: Math.round(t.s * 1000) / 1000 }));
   }
 
   async upload(
@@ -116,10 +212,11 @@ export class AiBrainService {
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     folder: string | null,
     scope?: unknown,
+    ownerAgentId: string | null = null,
   ) {
     if (!file?.buffer?.length) throw new BadRequestException('Empty file');
     if (file.size > MAX_FILE_BYTES) throw new BadRequestException('File is larger than 25 MB');
-    const departmentId = folder && folder !== 'common' ? folder : null;
+    const departmentId = !ownerAgentId && folder && folder !== 'common' ? folder : null;
     await this.assertFolder(tenantId, departmentId);
     const name = Buffer.from(file.originalname, 'latin1').toString('utf8').slice(0, 255) || 'file';
     const ext = extname(name).replace('.', '').toLowerCase();
@@ -140,7 +237,8 @@ export class AiBrainService {
         sizeBytes: String(file.size),
         storagePath: rel,
         bodyMd: type === 'md' ? file.buffer.toString('utf8') : null,
-        scope: await this.normScope(tenantId, scope, departmentId),
+        agentId: ownerAgentId,
+        scope: ownerAgentId ? [`agent:${ownerAgentId}`] : await this.normScope(tenantId, scope, departmentId),
         indexStatus: 'pending',
         source: 'upload',
         uploadedBy: userId,
@@ -150,8 +248,9 @@ export class AiBrainService {
     return this.dto(row);
   }
 
-  async createDoc(tenantId: string, input: { name?: string; folder?: string | null; bodyMd?: string; scope?: unknown; userId?: string | null; agentId?: string | null; source?: string }) {
-    const departmentId = input.folder && input.folder !== 'common' ? input.folder : null;
+  async createDoc(tenantId: string, input: { name?: string; folder?: string | null; bodyMd?: string; scope?: unknown; userId?: string | null; agentId?: string | null; source?: string; ownerAgentId?: string | null }) {
+    const ownerAgentId = input.ownerAgentId ?? null;
+    const departmentId = !ownerAgentId && input.folder && input.folder !== 'common' ? input.folder : null;
     await this.assertFolder(tenantId, departmentId);
     let name = String(input.name || 'Document').trim().slice(0, 240) || 'Document';
     if (!/\.md$/i.test(name)) name += '.md';
@@ -166,7 +265,8 @@ export class AiBrainService {
         mime: 'text/markdown',
         sizeBytes: String(bytes),
         bodyMd: body,
-        scope: await this.normScope(tenantId, input.scope, departmentId),
+        agentId: ownerAgentId,
+        scope: ownerAgentId ? [`agent:${ownerAgentId}`] : await this.normScope(tenantId, input.scope, departmentId),
         indexStatus: 'pending',
         source: input.source || 'editor',
         uploadedBy: input.userId ?? null,
@@ -181,6 +281,11 @@ export class AiBrainService {
     const f = await this.files.findOne({ where: { tenantId, id } });
     if (!f) throw new NotFoundException('File not found');
     let reindex = false;
+    if (f.agentId) {
+      // личная папка сотрудника: ни переноса, ни расширения доступа через этот путь
+      delete patch.folder;
+      delete patch.scope;
+    }
     if (patch.folder !== undefined) {
       const dep = patch.folder && patch.folder !== 'common' ? patch.folder : null;
       await this.assertFolder(tenantId, dep);
@@ -236,11 +341,13 @@ export class AiBrainService {
     return rows.length > 0;
   }
 
-  async appendToDoc(tenantId: string, departmentId: string | null, name: string, text: string, agentId: string | null) {
-    const where: any = { tenantId, name, type: 'md', departmentId: departmentId ?? IsNull() };
+  async appendToDoc(tenantId: string, departmentId: string | null, name: string, text: string, agentId: string | null, ownerAgentId: string | null = null) {
+    const where: any = ownerAgentId
+      ? { tenantId, name, type: 'md', agentId: ownerAgentId }
+      : { tenantId, name, type: 'md', departmentId: departmentId ?? IsNull(), agentId: IsNull() };
     const f = await this.files.findOne({ where });
     if (!f) {
-      return this.createDoc(tenantId, { name, folder: departmentId ?? 'common', bodyMd: text, agentId, source: 'agent', scope: departmentId ? [departmentId] : ['all'] });
+      return this.createDoc(tenantId, { name, folder: departmentId ?? 'common', bodyMd: text, agentId, source: 'agent', scope: departmentId ? [departmentId] : ['all'], ownerAgentId });
     }
     // журнал не растёт бесконечно: держим последние ~60 000 символов
     const body = `${f.bodyMd ?? ''}\n\n${text}`.slice(-60_000);
@@ -402,7 +509,10 @@ export class AiBrainService {
    */
   async search(tenantId: string, departmentId: string, query: string, k = 6): Promise<BrainHit[]> {
     const q = query.replace(/\s+/g, ' ').trim().slice(0, 2000);
-    const scopeSql = `(f.scope @> ARRAY['all']::text[] OR f.scope @> ARRAY[$2]::text[])`;
+    // + файлы куратора отдела (его личный «Мозг», кроме собственных заметок ИИ): регламенты куратора
+    // действуют на весь отдел, как и его инструкция
+    const scopeSql = `(f.scope @> ARRAY['all']::text[] OR f.scope @> ARRAY[$2]::text[]
+      OR (f.source <> 'agent' AND f.agent_id IS NOT NULL AND f.agent_id = (SELECT d.curator_agent_id FROM ai_departments d WHERE d.id::text = $2)))`;
     const scores = new Map<string, { fileId: string; text: string; s: number }>();
 
     if (q) {

@@ -185,10 +185,13 @@ export class ConsultantOfficeService {
     opts: { channel: OfficeChannel; dryRun: boolean; query: string },
   ): Promise<OfficeRun | null> {
     const cfg = this.readConfig(agent);
+    // личный «Мозг» консультанта (вкладка «Мозг» в профиле): файлы людей — без заметок самого ИИ,
+    // ответы клиенту строятся только на том, что положила компания. Работает и без ИИ-офиса.
+    const own = await this.ownBrain(tenantId, agent, opts);
     const wantsBrain = cfg.brain.departmentIds.length > 0 || cfg.brain.includeShared;
-    if (!wantsBrain && !cfg.media.enabled) return null;
+    if (!wantsBrain && !cfg.media.enabled) return own.block ? { brainBlock: own.block, brainFiles: own.files, media: null } : null;
     const mods = await this.modules(tenantId);
-    if (!mods.office) return null;
+    if (!mods.office) return own.block ? { brainBlock: own.block, brainFiles: own.files, media: null } : null;
 
     let brainBlock = '';
     let brainFiles: string[] = [];
@@ -214,8 +217,46 @@ export class ConsultantOfficeService {
 
     const anyMedia = cfg.media.folderIds.length + cfg.media.hotelIds.length + cfg.media.collectionIds.length > 0;
     const media = cfg.media.enabled && mods.media && anyMedia ? await this.prepareMedia(tenantId, cfg, opts) : null;
+    if (own.block) {
+      brainBlock = brainBlock ? `${own.block}\n\n${brainBlock}` : own.block;
+      brainFiles = [...new Set([...own.files, ...brainFiles])];
+    }
     if (!brainBlock && !media) return null;
     return { brainBlock, brainFiles, media };
+  }
+
+  /** Файлы людей из личной папки консультанта: md целиком (до лимита), загруженные — по вопросу. */
+  private async ownBrain(tenantId: string, agent: AiAgent, opts: { dryRun: boolean; query: string }): Promise<{ block: string; files: string[] }> {
+    const brain = this.brain();
+    if (!brain) return { block: '', files: [] };
+    try {
+      const docs = (await brain.agentDocs(tenantId, agent.id)).filter((d) => d.source !== 'agent' && d.body.trim());
+      let budget = 6000;
+      const parts: string[] = [];
+      const files: string[] = [];
+      for (const d of docs) {
+        const body = d.body.trim();
+        const piece = `— ${d.name}:\n${body.length > budget ? body.slice(0, Math.max(0, budget - 20)) : body}`;
+        parts.push(piece);
+        files.push(d.id);
+        budget -= piece.length;
+        if (budget <= 200) break;
+      }
+      if (opts.query.trim() && budget > 400) {
+        for (const h of await brain.searchAgentFiles(tenantId, agent.id, opts.query, 3)) {
+          const piece = `— ${h.fileName}:\n${h.text.trim()}`;
+          if (piece.length > budget) break;
+          budget -= piece.length;
+          parts.push(piece);
+          files.push(h.fileId);
+        }
+      }
+      if (files.length && !opts.dryRun) await brain.markRead(tenantId, [...new Set(files)], agent.id).catch(() => undefined);
+      return { block: parts.join('\n\n'), files: [...new Set(files)] };
+    } catch (e) {
+      this.log.warn(`own brain failed for ${agent.id}: ${(e as Error).message}`);
+      return { block: '', files: [] };
+    }
   }
 
   private async prepareMedia(tenantId: string, cfg: ConsultantOfficeConfig, opts: { channel: OfficeChannel; dryRun: boolean }): Promise<MediaRun | null> {

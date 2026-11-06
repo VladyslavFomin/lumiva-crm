@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -98,7 +97,7 @@ export default function SecurityPage() {
             <p className="text-xs text-white/70 leading-relaxed max-w-xl">{t('publicPages.security.s6Text')}</p>
           </div>
           <a
-            href="mailto:hello@lumiva.agency"
+            href="mailto:info@lumiva.agency"
             className="shrink-0 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-white text-black text-xs font-semibold hover:bg-neutral-200 transition-colors"
           >
             {t('publicPages.security.s6EmailLabel')}

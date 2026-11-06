@@ -5,7 +5,8 @@ import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
 import { AiRecordChat } from '../../components/ai/AiRecordChat';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCrmLayout } from '../../hooks/useCrmLayout';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +30,7 @@ import {
 import {
   fetchProject,
   createProject,
+  createSaleFromDeal,
   updateProject,
   deleteProject,
   fetchProjectActivities,
@@ -163,7 +165,6 @@ const FG2 = '#555';
 const FG3 = '#888';
 const FG4 = '#b5b5b5';
 const LINE = '#e7e7e7';
-const LINE3 = '#f0f0f0';
 const BG_MUTED = '#fafafa';
 const inpCls =
   'w-full px-3 py-2.5 text-sm rounded-xl border border-neutral-200 bg-white outline-none focus:border-neutral-400 transition-colors placeholder:text-neutral-400 text-neutral-900';
@@ -174,6 +175,8 @@ export const ProjectFormPage: React.FC = () => {
   const locale = resolveLocale(i18n.language);
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
+  const location = useLocation();
+  const dealRoute = location.pathname.startsWith('/deals');
   // На создании оба гейта неактуальны — сумму/владельца указывает тот, кто вообще может
   // создать проект (projects_manage), проверено бэкендом на POST /projects.
   // Хуки должны вызываться безусловно (иначе после создания isNew:true -> false
@@ -188,7 +191,13 @@ export const ProjectFormPage: React.FC = () => {
   const tableFromQuery = searchParams.get('table');
   const { showConfirm, showPrompt } = useAlertModal();
 
-  const [project, setProject] = useState<Project>(createEmptyProject());
+  const [project, setProject] = useState<Project>(() => {
+    const p = createEmptyProject();
+    if (!window.location.pathname.startsWith('/deals')) return p;
+    // новая сделка, в т. ч. из карточки лида: /deals/new?lead=<id>
+    const leadId = new URLSearchParams(window.location.search).get('lead');
+    return { ...p, kind: 'deal', status: 'Новая' as any, leadId: leadId || null };
+  });
   const [loading, setLoading] = useState<boolean>(!isNew);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -395,7 +404,40 @@ export const ProjectFormPage: React.FC = () => {
     }),
     [t],
   );
-  const { statuses: statusDefs, colorFor: statusColorFor } = useProjectStatuses();
+  const { statuses: statusDefs, colorFor: statusColorFor } = useProjectStatuses(dealRoute ? 'deal' : 'project');
+  // «Структура CRM»: какие блоки показывать в карточке и есть ли у проектов бюджет
+  const { layout: crmLayout } = useCrmLayout();
+  const isDeal = dealRoute || project.kind === 'deal';
+  const blocks = (isDeal ? crmLayout.deal : crmLayout.project) as Record<string, boolean>;
+  const budgetOn = isDeal || crmLayout.project.budget !== false;
+  const basePath = isDeal ? '/deals' : '/projects';
+  const dealOutcome = isDeal ? statusDefs.find((s) => s.value === project.status)?.outcome ?? null : null;
+  const [creatingSale, setCreatingSale] = useState(false);
+  const handleCreateSale = async () => {
+    if (!project.id || isNew) return;
+    setCreatingSale(true);
+    try {
+      const r = await createSaleFromDeal(project.id);
+      showSuccess(r.created ? t('crm.deals.card.saleCreated') : t('crm.deals.card.saleExists'));
+      navigate(`/sales/${r.saleId}`);
+    } catch (e: any) {
+      setError(e?.message || t('crm.deals.card.saleError'));
+    } finally {
+      setCreatingSale(false);
+    }
+  };
+  // новая сделка: первый этап воронки (по умолчанию у проектов «Новый», такого статуса у сделок нет)
+  useEffect(() => {
+    if (!isNew || !dealRoute || !statusDefs.length) return;
+    if (!statusDefs.some((st) => st.value === project.status)) {
+      setProject((prev) => ({ ...prev, status: statusDefs[0].value as any }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, dealRoute, statusDefs]);
+  // сделку, открытую по старой ссылке /projects/:id, показываем в её разделе
+  useEffect(() => {
+    if (!isNew && !dealRoute && project.kind === 'deal' && project.id && project.id !== 'new') navigate(`/deals/${project.id}`, { replace: true });
+  }, [isNew, dealRoute, project.kind, project.id, navigate]);
   const availableStatuses: ProjectStatus[] = statusDefs.length
     ? statusDefs.map((s) => s.value)
     : PROJECT_STATUSES;
@@ -1116,7 +1158,7 @@ export const ProjectFormPage: React.FC = () => {
     let alive = true;
     setCustomFieldsLoading(true);
     setCustomFieldsError(null);
-    fetchCustomFields('project')
+    fetchCustomFields(dealRoute ? 'deal' : 'project')
       .then((items) => {
         if (!alive) return;
         const sorted = [...items].sort((a, b) => a.order - b.order);
@@ -1273,8 +1315,8 @@ export const ProjectFormPage: React.FC = () => {
       setComments(saved.comments || []);
       lastCommentsSnapshotRef.current = JSON.stringify(saved.comments || []);
       if (isNew) {
-        navigate(`/projects/${saved.id}`);
-        showSuccess(t('crm.projects.detail.messages.created'));
+        navigate(`${basePath}/${saved.id}`);
+        showSuccess(isDeal ? t('crm.deals.card.created') : t('crm.projects.detail.messages.created'));
       } else {
         showSuccess(t('crm.projects.detail.messages.saved'));
       }
@@ -1358,7 +1400,7 @@ export const ProjectFormPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (isNew) {
-      navigate('/projects');
+      navigate(basePath);
       return;
     }
     const ok = await showConfirm(t('crm.projects.detail.confirmDelete'), {
@@ -1373,7 +1415,7 @@ export const ProjectFormPage: React.FC = () => {
     setError(null);
     try {
       await deleteProject(project.id);
-      navigate('/projects');
+      navigate(basePath);
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.projects.detail.errors.deleteFailed'));
@@ -1795,7 +1837,7 @@ export const ProjectFormPage: React.FC = () => {
   }, [comments, isNew, loading]);
 
   const handleBack = () => {
-    navigate('/projects');
+    navigate(basePath);
   };
 
   useEffect(() => {
@@ -1880,8 +1922,10 @@ export const ProjectFormPage: React.FC = () => {
             <button type="button" className="pd-kick" onClick={handleBack}>
               <span className="bar" style={{ background: statusColorFor(project.status) }} />
               {isNew
-                ? t('crm.projects.detail.titleNew')
-                : `${t('crm.projects.detail.back')} / ${t('crm.projects.detail.idKicker')} ${String(id || '').slice(0, 8).toUpperCase()}`}
+                ? isDeal
+                  ? t('crm.deals.card.titleNew')
+                  : t('crm.projects.detail.titleNew')
+                : `${isDeal ? t('crm.deals.card.back') : t('crm.projects.detail.back')} / ${isDeal ? t('crm.deals.card.idKicker') : t('crm.projects.detail.idKicker')} ${String(id || '').slice(0, 8).toUpperCase()}`}
             </button>
             <div className="pd-title">
               {editName ? (
@@ -1997,10 +2041,10 @@ export const ProjectFormPage: React.FC = () => {
                 type="button"
                 className="btn btn-sm"
                 onClick={() =>
-                  navigate(`/projects/board${tableFromQuery ? `?table=${tableFromQuery}` : ''}`)
+                  navigate(isDeal ? '/deals?view=board' : `/projects/board${tableFromQuery ? `?table=${tableFromQuery}` : ''}`)
                 }
               >
-                {t('crm.projects.detail.actions.toBoard', 'В канбан')}
+                {isDeal ? t('crm.deals.card.toBoard') : t('crm.projects.detail.actions.toBoard', 'В канбан')}
               </button>
             )}
             {isReadOnly ? (
@@ -2040,8 +2084,9 @@ export const ProjectFormPage: React.FC = () => {
           <>
             {/* metric strip */}
             <div data-tour="project-strip" className="pd-strip">
-              <div className="pd-metric">
-                <div className="l">{t('crm.projects.detail.metrics.budget')}</div>
+              {budgetOn && (
+              <div className={`pd-metric${isDeal ? ' pd-metric-deal' : ''}`}>
+                <div className="l">{isDeal ? t('crm.deals.card.amount') : t('crm.projects.detail.metrics.budget')}</div>
                 <div className="v">
                   <input
                     type="number"
@@ -2053,7 +2098,38 @@ export const ProjectFormPage: React.FC = () => {
                   />
                   <span className="cur">{project.currency || 'EUR'}</span>
                 </div>
+                {isDeal && dealOutcome === 'won' && !isNew ? (
+                  <button type="button" className="btn btn-sm pd-sale-btn" disabled={creatingSale} onClick={() => void handleCreateSale()}>
+                    {creatingSale ? t('crm.deals.card.creatingSale') : t('crm.deals.card.createSale')}
+                  </button>
+                ) : null}
               </div>
+              )}
+              {isDeal && (
+                <div className="pd-metric">
+                  <div className="l">{t('crm.deals.card.stage')}</div>
+                  <div className="pd-stages" role="list">
+                    {statusDefs.map((st) => {
+                      const idx = statusDefs.findIndex((x) => x.value === project.status);
+                      const me = statusDefs.findIndex((x) => x.value === st.value);
+                      const passed = idx >= 0 && me <= idx && !st.outcome;
+                      return (
+                        <button
+                          key={st.id}
+                          type="button"
+                          role="listitem"
+                          title={st.value}
+                          className={`pd-stage${st.value === project.status ? ' on' : ''}${passed ? ' passed' : ''}`}
+                          style={st.value === project.status || passed ? { background: st.color, borderColor: st.color } : undefined}
+                          onClick={() => setProject((prev) => ({ ...prev, status: st.value as any }))}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="pd-sub" style={{ marginTop: 6, fontSize: 11.5 }}>{project.status}</div>
+                </div>
+              )}
+              {blocks.progress !== false && (
               <div className="pd-metric">
                 <div className="l">{t('crm.projects.detail.metrics.taskProgress')}</div>
                 <div className="v">
@@ -2063,6 +2139,7 @@ export const ProjectFormPage: React.FC = () => {
                   <i style={{ width: `${tasksCompletionPercent}%` }} />
                 </div>
               </div>
+              )}
               <div className="pd-metric">
                 <div className="l">{t('crm.projects.detail.metrics.urgency')}</div>
                 <div className="v" style={{ fontSize: 16 }}>
@@ -2118,7 +2195,7 @@ export const ProjectFormPage: React.FC = () => {
                   ['comments', t('crm.projects.detail.tabs.comments'), comments.length],
                   ['history', t('crm.projects.detail.tabs.history'), activities.length],
                 ] as const
-              ).map(([id, label, n]) => (
+              ).filter(([id]) => id === 'props' || (blocks as Record<string, boolean>)[id] !== false).map(([id, label, n]) => (
                 <button
                   key={id}
                   type="button"
@@ -2138,13 +2215,13 @@ export const ProjectFormPage: React.FC = () => {
               {/* Название в форме */}
               <div style={{ marginBottom: 20 }}>
                 <label className={lblCls} style={{ color: FG3 }}>
-                  {t('crm.projects.detail.fields.name')}
+                  {(isDeal ? t('crm.deals.card.name') : t('crm.projects.detail.fields.name'))}
                 </label>
                 <input
                   className={inpCls}
                   value={project.name}
                   onChange={handleChange('name')}
-                  placeholder={t('crm.projects.detail.fields.name')}
+                  placeholder={(isDeal ? t('crm.deals.card.name') : t('crm.projects.detail.fields.name'))}
                 />
               </div>
 
@@ -2156,11 +2233,11 @@ export const ProjectFormPage: React.FC = () => {
 
           <Card title={t('crm.projects.detail.tabs.props', 'Свойства')}>
             <div className="pd-fields">
-              <Field label={t('crm.projects.detail.fields.description')} wide>
+              <Field label={(isDeal ? t('crm.deals.card.description') : t('crm.projects.detail.fields.description'))} wide>
                 <textarea
                   value={project.description}
                   onChange={handleChange('description')}
-                  placeholder={t('crm.projects.detail.fields.description')}
+                  placeholder={(isDeal ? t('crm.deals.card.description') : t('crm.projects.detail.fields.description'))}
                   className="pd-area"
                 />
               </Field>
@@ -2174,6 +2251,7 @@ export const ProjectFormPage: React.FC = () => {
                   ))}
                 </select>
               </Field>
+              {budgetOn && (
               <Field label={t('crm.projects.detail.fields.currency')}>
                 <select
                   value={project.currency || 'EUR'}
@@ -2189,6 +2267,8 @@ export const ProjectFormPage: React.FC = () => {
                   )}
                 </select>
               </Field>
+              )}
+              {blocks.links !== false && (
               <Field label={t('crm.projects.detail.fields.lead')}>
                 <select value={project.leadId || ''} onChange={handleLeadChange} className="pd-select">
                   <option value="">{t('crm.projects.detail.fields.leadEmpty')}</option>
@@ -2200,6 +2280,8 @@ export const ProjectFormPage: React.FC = () => {
                   ))}
                 </select>
               </Field>
+              )}
+              {blocks.links !== false && (
               <Field label={t('crm.projects.detail.fields.leadEmail')}>
                 <input
                   className="pd-input"
@@ -2210,6 +2292,8 @@ export const ProjectFormPage: React.FC = () => {
                   placeholder={t('crm.projects.detail.fields.leadEmail')}
                 />
               </Field>
+              )}
+              {blocks.links !== false && (
               <Field label={t('crm.projects.detail.fields.company')}>
                 {linkedCompany ? (
                   <div className="pd-linkline">
@@ -2226,6 +2310,8 @@ export const ProjectFormPage: React.FC = () => {
                   <span className="pd-empty">{t('crm.projects.common.emptyValue')}</span>
                 )}
               </Field>
+              )}
+              {blocks.links !== false && (
               <Field label={t('crm.projects.detail.fields.contact')}>
                 <select value={project.contactId || ''} onChange={handleContactChange} className="pd-select">
                   <option value="">{t('crm.projects.detail.fields.contactEmpty', 'Без контакта')}</option>
@@ -2246,6 +2332,8 @@ export const ProjectFormPage: React.FC = () => {
                   </button>
                 )}
               </Field>
+              )}
+              {blocks.tags !== false && (
               <Field label={t('crm.projects.detail.fields.tags')} wide>
                 <div className="pd-chips">
                   {tagDefs.map((tag) => {
@@ -2268,9 +2356,11 @@ export const ProjectFormPage: React.FC = () => {
                   })}
                 </div>
               </Field>
+              )}
             </div>
           </Card>
 
+          {blocks.notes !== false && (
           <Card title={t('crm.projects.detail.notes.title')} hint={t('crm.projects.detail.notes.hint', 'видно только команде')} pad>
             <textarea
               className="pd-area"
@@ -2285,8 +2375,10 @@ export const ProjectFormPage: React.FC = () => {
               placeholder={t('crm.projects.detail.notes.placeholder')}
             />
           </Card>
+          )}
 
             {/* Кастомные поля */}
+            {blocks.customFields !== false && (
             <Card
               title={t('crm.projects.detail.customFields.title')}
               action={
@@ -2319,6 +2411,7 @@ export const ProjectFormPage: React.FC = () => {
                 </div>
               )}
             </Card>
+            )}
               </>
             )}
             {tab === 'tasks' && (
@@ -3363,6 +3456,7 @@ export const ProjectFormPage: React.FC = () => {
                 <AiRecordChat entityType="project" entityId={isNew ? null : project.id} />
               </div>
 
+              {blocks.watchers !== false && (
               <div data-tour="project-watchers" className="pd-rail-card">
                 <h4>{t('crm.projects.detail.watchers.title')}</h4>
                 <div className="pd-rail-body">
@@ -3434,6 +3528,7 @@ export const ProjectFormPage: React.FC = () => {
                   )}
                 </div>
               </div>
+              )}
 
               <div className="pd-rail-card">
                 <h4>{t('crm.projects.detail.meetings.title')}</h4>
@@ -3481,6 +3576,7 @@ export const ProjectFormPage: React.FC = () => {
                 </div>
               </div>
 
+              {blocks.links !== false && (
               <div data-tour="project-links" className="pd-rail-card">
                 <h4>{t('crm.projects.detail.relations.title', 'Связи')}</h4>
                 <div className="pd-rail-body">
@@ -3532,7 +3628,9 @@ export const ProjectFormPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+              )}
 
+              {blocks.files !== false && (
               <div data-tour="project-files" className="pd-rail-card">
                 <h4>{t('crm.projects.detail.files.title')}</h4>
                 <div className="pd-rail-body" style={{ gap: 0 }}>
@@ -3639,7 +3737,9 @@ export const ProjectFormPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+              )}
 
+              {blocks.tags !== false && (
               <div className="pd-rail-card">
                 <h4>{t('crm.projects.detail.fields.tags')}</h4>
                 <div className="pd-rail-body">
@@ -3677,6 +3777,7 @@ export const ProjectFormPage: React.FC = () => {
                   )}
                 </div>
               </div>
+              )}
 
             </div>
           </div>
@@ -3686,7 +3787,7 @@ export const ProjectFormPage: React.FC = () => {
 
         {customFieldsOpen && (
           <CustomFieldsManager
-            entityType="project"
+            entityType={isDeal ? 'deal' : 'project'}
             title={t('crm.projects.detail.customFields.managerTitle')}
             suggestedKeys={suggestedKeys}
             onClose={() => setCustomFieldsOpen(false)}

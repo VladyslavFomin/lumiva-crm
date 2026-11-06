@@ -20,6 +20,8 @@ export enum EntityType {
   LEAD = 'lead',
   SALE = 'sale',
   PROJECT = 'project',
+  /** Поля сделок: хранятся в тех же crm_projects.customFields, но только у записей kind = 'deal'. */
+  DEAL = 'deal',
 }
 
 export enum FieldType {

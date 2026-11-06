@@ -1,7 +1,7 @@
 // «Решения · Бронирования» — шаблон Claude Design solution-v2.html (lh-pages.jsx SolutionPage, ключ booking).
 // Тексты — только проверенное по backend/src/bookings (bookingSolutionText.ts); выдуманные цифры и
 // «авто-предложение листу ожидания» / «напоминание за день» из макета убраны.
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../landing/LandingSections';
 import { BOOKING_T, type BookingText } from './bookingSolutionText';

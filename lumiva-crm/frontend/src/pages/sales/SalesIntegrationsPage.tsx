@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { PageHero } from '../../components/ui';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   fetchIntegration,
   fetchIntegrations,
@@ -114,7 +114,6 @@ export const SalesIntegrationsPage: React.FC = () => {
   const { t } = useTranslation();
   const { showConfirm } = useAlertModal();
   const locale = getLocale();
-  const navigate = useNavigate();
   const [connections, setConnections] = useState<IntegrationConnectionDto[]>([]);
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -318,23 +317,7 @@ export const SalesIntegrationsPage: React.FC = () => {
   /* Агрегаты                        */
   /* ─────────────────────────────── */
 
-  const totalAmount = useMemo(
-    () =>
-      salesConnections.reduce(
-        (s, c) => s + (c.totalSalesAmount || 0),
-        0,
-      ),
-    [salesConnections],
-  );
 
-  const totalCount = useMemo(
-    () =>
-      salesConnections.reduce(
-        (s, c) => s + (c.totalSalesCount || 0),
-        0,
-      ),
-    [salesConnections],
-  );
 
   /* ─────────────────────────────── */
   /* Хелперы                         */

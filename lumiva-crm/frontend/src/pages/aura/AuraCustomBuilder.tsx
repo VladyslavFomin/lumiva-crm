@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { auraApi, type AuraCustomWidget, type AuraDatasets, type AuraFieldKind } from '../../api/aura';

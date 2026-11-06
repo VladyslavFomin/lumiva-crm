@@ -11,7 +11,6 @@ import {
   CartesianGrid,
   Cell,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -150,7 +149,6 @@ const LAYOUT_VERSION_KEY = 'sales_analytics_v2_design_version';
 const LAYOUT_VERSION = '2026-05-03-sales-like-leads';
 const WIDGET_STORAGE_KEY = 'sales_analytics_widgets';
 const WIDGET_VERSION_KEY = 'sales_analytics_version';
-const GRID_ROW = 72;
 const MIN_BLOCK_H = 100;
 const MAX_BLOCK_H = 1400;
 

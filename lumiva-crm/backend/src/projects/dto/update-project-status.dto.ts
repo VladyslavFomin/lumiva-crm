@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsString, IsOptional, IsInt, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateProjectStatusDto {
   @IsOptional()
@@ -15,4 +15,9 @@ export class UpdateProjectStatusDto {
   @IsOptional()
   @IsInt()
   order?: number;
+
+  /** 'won' | 'lost' | '' — смысл статуса (воронка сделок, аналитика). */
+  @IsOptional()
+  @IsIn(['won', 'lost', ''])
+  outcome?: 'won' | 'lost' | '';
 }

@@ -1,7 +1,7 @@
 // «О нас» — дизайн Claude Design about-v2.html (lh-pages.jsx AboutPage, lh-pages.css).
 // Цифры, история и стек — из проверенных текстов (aboutText.ts); выдуманное в макете (500+ клиентов, 99.9% uptime,
 // хранение в РФ, Kubernetes, бэкап каждые 6 часов, «ответ за час») заменено реальными фактами.
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../landing/LandingSections';

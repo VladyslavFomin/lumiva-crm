@@ -118,18 +118,6 @@ function marketingRowsForCatalog(id: string, rows: MarketingIntegrationRow[]): n
   return rows.filter((r) => r.provider === p).length;
 }
 
-function lifecycleBadgeClass(lifecycle: IntegrationHubCatalogEntry['lifecycle']): string {
-  switch (lifecycle) {
-    case 'live':
-      return 'bg-emerald-50 text-emerald-900 border-emerald-200';
-    case 'beta':
-      return 'bg-sky-50 text-sky-900 border-sky-200';
-    case 'planned':
-      return 'bg-slate-100 text-slate-700 border-slate-200';
-    default:
-      return 'bg-amber-50 text-amber-900 border-amber-200';
-  }
-}
 
 function connectionMatchesCatalogId(c: IntegrationConnectionDto, catalogId: string): boolean {
   if (catalogId === 'woocommerce') return c.kind === 'woocommerce';
@@ -580,14 +568,6 @@ export const IntegrationsHubPage: React.FC = () => {
 
   const MODULE_FILTER_CHIPS: ModuleFilterChip[] = ['all', ...CATALOG_MODULE_FILTER_ORDER];
 
-  const hubChip = (on: boolean, size: 'nav' | 'filter') => {
-    const pad = size === 'nav' ? 'px-4 py-2 text-xs' : 'px-3 py-1.5 text-[10px]';
-    return `${pad} rounded-full font-semibold transition-all duration-200 active:scale-[0.98] ${
-      on
-        ? 'bg-[#222222] text-white shadow-md shadow-slate-900/15'
-        : 'border border-slate-200/90 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50/90 hover:shadow-md'
-    }`;
-  };
 
   const setCatalogModule = (m: ModuleFilterChip) => {
     setSearchParams((prev) => {
@@ -599,8 +579,6 @@ export const IntegrationsHubPage: React.FC = () => {
     }, { replace: true });
   };
 
-  const catalogCardHover =
-    'rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/[0.06]';
 
   const renderCatalogEntry = (entry: IntegrationHubCatalogEntry) => {
     const marketingProvider = marketingProviderForCatalog(entry.id);

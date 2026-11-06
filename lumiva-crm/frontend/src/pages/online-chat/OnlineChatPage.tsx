@@ -6,8 +6,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
-  ChatMessage,
-  ChatSession,
+  type ChatMessage,
+  type ChatSession,
   fetchChatMessages,
   fetchChatSessions,
   sendChatMessage,

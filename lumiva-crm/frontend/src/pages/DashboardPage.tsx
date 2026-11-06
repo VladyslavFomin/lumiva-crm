@@ -1613,52 +1613,8 @@ const ProjectSummaryChip: React.FC<{ label: string; color: string; count: number
   );
 };
 
-const TaskStatPill: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-neutral-200 px-2.5 py-1">
-    <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-    <span className="text-[11px] text-neutral-600">{label}</span>
-    <span  className="text-[11px] text-[#222] font-medium">{value}</span>
-  </div>
-);
 
-const ChannelRow: React.FC<{ channel: string; count: number; trend: 'up' | 'down' | 'flat' }> = ({ channel, count, trend }) => {
-  const maxBar = Math.max(1, count * 1.4);
-  const width = Math.max(8, (count / maxBar) * 100);
-  const { i18n } = useTranslation();
-  const locale = resolveLocale(i18n.language);
-  const trendLabel = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
-  const trendColor = trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-rose-500' : 'text-neutral-400';
-  return (
-    <div className="flex items-center gap-3">
-      <div className="w-20 text-[12px] text-neutral-600 truncate font-medium">{channel}</div>
-      <div className="flex-1 h-1 bg-neutral-100 rounded-full overflow-hidden">
-        <div className="h-full bg-[#222] transition-all duration-500" style={{ width: `${width}%` }} />
-      </div>
-      <div  className="w-14 text-right text-[11px] text-neutral-700">{count.toLocaleString(locale)}</div>
-      <div className={`w-4 text-right text-[11px] ${trendColor}`}>{trendLabel}</div>
-    </div>
-  );
-};
 
-const PipelineRow: React.FC<{ stage: string; count: number; valueEUR: number }> = ({ stage, count, valueEUR }) => {
-  const max = Math.max(1, valueEUR * 1.4);
-  const width = Math.max(10, (valueEUR / max) * 100);
-  const { t, i18n } = useTranslation();
-  const locale = resolveLocale(i18n.language);
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] font-medium text-[#222] truncate">{stage}</span>
-        <span  className="text-[10px] text-neutral-500 whitespace-nowrap">
-          {t('crm.dashboard.pipeline.itemLabel', { count, value: valueEUR.toLocaleString(locale) })}
-        </span>
-      </div>
-      <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
-        <div className="h-full bg-[#222] transition-all duration-500" style={{ width: `${width}%` }} />
-      </div>
-    </div>
-  );
-};
 
 const TaskRow: React.FC<{ id: string; taskId: string; projectId: string; projectName: string; taskTitle: string; title: string; due: string; type: 'call' | 'meeting' | 'todo' }> = ({ projectId, taskTitle, projectName, due, type }) => {
   const { t } = useTranslation();

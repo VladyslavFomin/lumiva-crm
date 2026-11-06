@@ -228,6 +228,7 @@ export class CompaniesService {
     const projects = await this.projectRepo
       .createQueryBuilder('project')
       .where('project.tenant_id = :tenantId', { tenantId })
+      .andWhere("project.kind = 'project'")
       .andWhere(
         leadIds.length > 0
           ? '(project.company_id = :companyId OR project.lead_id IN (:...leadIds))'
@@ -521,6 +522,7 @@ export class CompaniesService {
     const projectsQb = this.projectRepo
       .createQueryBuilder('project')
       .where('project.tenant_id = :tenantId', { tenantId })
+      .andWhere("project.kind = 'project'")
       .andWhere(
         leadIds.length > 0
           ? '(project.company_id = :companyId OR project.lead_id IN (:...leadIds))'

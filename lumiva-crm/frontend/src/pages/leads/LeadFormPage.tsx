@@ -2,6 +2,8 @@
 // Карточка лида. Редизайн 2026-09-28 по макету claude.ai/design lead-detail.html: шапка + воронка статусов +
 // полоса ключевых цифр, слева данные лида, в центре единая переписка (WhatsApp/Telegram/почта) с
 // комментариями и историей, справа ИИ, чек-лист, встречи и ответственные.
+import { useCrmLayout } from '../../hooks/useCrmLayout';
+import { blockAvailable } from '../../hooks/crmBlockAvailability';
 import { CommentMetaLine } from '../../components/ai/aiComments';
 import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
 import { AiRecordChat } from '../../components/ai/AiRecordChat';
@@ -257,12 +259,18 @@ export const LeadFormPage: React.FC = () => {
 
   const { t, i18n } = useTranslation();
   const { showConfirm } = useAlertModal();
-  const { isEnabled: isTenantComponentEnabled } = useTenantComponents();
-  const showContacts = isTenantComponentEnabled('contacts');
-  const showCompanies = isTenantComponentEnabled('companies');
-  const showProjects = isTenantComponentEnabled('projects');
-  const showSales = isTenantComponentEnabled('sales');
-  const showBookings = isTenantComponentEnabled('bookings');
+  const { isEnabled: isTenantComponentEnabled, loaded: componentsLoaded } = useTenantComponents();
+  // «Структура CRM» (Настройки): какие блоки есть в карточке лида; модуль выключен — блока нет в любом случае
+  const { layout: crmLayout } = useCrmLayout();
+  const L = crmLayout.lead as Record<string, boolean>;
+  /** Блок включён в «Структуре CRM» и его модуль включён в pl1 (переписка — хотя бы один канал, звонки — телефония). */
+  const leadBlockOn = (b: string) => L[b] !== false && blockAvailable('lead', b, isTenantComponentEnabled);
+  const showContacts = isTenantComponentEnabled('contacts') && L.contacts !== false;
+  const showCompanies = isTenantComponentEnabled('companies') && L.company !== false;
+  const showProjects = isTenantComponentEnabled('projects') && L.projects !== false;
+  const showDeals = isTenantComponentEnabled('deals') && L.deals !== false;
+  const showSales = isTenantComponentEnabled('sales') && L.sales !== false;
+  const showBookings = isTenantComponentEnabled('bookings') && L.bookings !== false;
   const locale = resolveLocale(i18n.language || 'ru');
   const navigate = useNavigate();
 
@@ -308,6 +316,7 @@ export const LeadFormPage: React.FC = () => {
   const [newComment, setNewComment] = useState('');
 
   const [leadProjects, setLeadProjects] = useState<Project[]>([]);
+  const [leadDeals, setLeadDeals] = useState<Project[]>([]);
   const [leadProjectsLoading, setLeadProjectsLoading] = useState(false);
   const [leadProjectsError, setLeadProjectsError] = useState<string | null>(null);
   const [leadSales, setLeadSales] = useState<Sale[]>([]);
@@ -717,6 +726,28 @@ export const LeadFormPage: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isNew]);
+
+  // Сделки лида (те же записи движка проектов, kind = 'deal')
+  useEffect(() => {
+    if (!showDeals || isNew || !id) {
+      setLeadDeals([]);
+      return;
+    }
+    let alive = true;
+    fetchProjects({ leadId: id, kind: 'deal' })
+      .then((res) => alive && setLeadDeals(res.items))
+      .catch(() => alive && setLeadDeals([]));
+    return () => {
+      alive = false;
+    };
+  }, [id, isNew, showDeals]);
+
+  // если вкладку выключили в «Структуре CRM» — открываем первую доступную
+  useEffect(() => {
+    const avail = (['chat', 'calls', 'comments', 'history'] as const).filter((x) => leadBlockOn(x) && (x !== 'calls' || !isNew));
+    if (avail.length && !avail.includes(tab as any)) setTab(avail[0] as CenterTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L.chat, L.calls, L.comments, L.history, isNew, componentsLoaded]);
 
   // Проекты, привязанные к лиду (API: ?leadId=)
   useEffect(() => {
@@ -1661,6 +1692,7 @@ export const LeadFormPage: React.FC = () => {
               {/* ════ LEFT ════════════════════════════════════════ */}
               <aside data-tour="lead-info" className="ld-left">
                 {/* name/phone/email are the lead's own fields — not gated by the Contacts module */}
+                {L.contact !== false && (
                 <Sec title={t('crm.leadCard.sec.contact')}>
                   <div className="ld-fs">
                     <label className="ld-f w">
@@ -1706,7 +1738,9 @@ export const LeadFormPage: React.FC = () => {
                     </div>
                   )}
                 </Sec>
+                )}
 
+                {L.amount !== false && (
                 <Sec title={t('crm.leadCard.sec.deal')}>
                   <div className="ld-fs">
                     <label className="ld-f">
@@ -1745,8 +1779,9 @@ export const LeadFormPage: React.FC = () => {
                     )}
                   </div>
                 </Sec>
+                )}
 
-                {(showContacts || showCompanies || showProjects || showSales || showBookings) && <Sec title={t('crm.leadCard.sec.links')}>
+                {(showContacts || showCompanies || showProjects || showDeals || showSales || showBookings) && <Sec title={t('crm.leadCard.sec.links')}>
                   <div className="ld-links">
                     {showCompanies && (
                       <>
@@ -1829,6 +1864,28 @@ export const LeadFormPage: React.FC = () => {
                             <span className="mono mut">#{String(p.id).slice(0, 6)}</span>
                             <span className="nm">{p.name}</span>
                             <em>{p.status}</em>
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {showDeals && (
+                      <>
+                        <div className="lh">
+                          <span className="kick">{t('crm.leadCard.links.deals')}</span>
+                          {!isNew && (
+                            <button type="button" className="lk" onClick={() => navigate(`/deals/new?lead=${id}`)}>
+                              + {t('crm.leadCard.links.newDeal')}
+                            </button>
+                          )}
+                        </div>
+                        {isNew && <div className="ld-empty">{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                        {!isNew && leadDeals.length === 0 && <div className="ld-empty">{t('crm.leadCard.links.dealsEmpty')}</div>}
+                        {leadDeals.map((d) => (
+                          <button key={d.id} type="button" className="ld-link" onClick={() => navigate(`/deals/${d.id}`)}>
+                            <span className="mono mut">{Number(d.amount || 0).toLocaleString(locale, { maximumFractionDigits: 0 })} {d.currency}</span>
+                            <span className="nm">{d.name}</span>
+                            <em>{d.status}</em>
                           </button>
                         ))}
                       </>
@@ -1929,6 +1986,7 @@ export const LeadFormPage: React.FC = () => {
                   </Sec>
                 )}
 
+                {L.customFields !== false && (
                 <Sec
                   title={t('crm.leads.form.fields.customFieldsLabel')}
                   right={
@@ -1942,8 +2000,9 @@ export const LeadFormPage: React.FC = () => {
                   {!customFieldsLoading && activeCustomFields.length === 0 && <div className="ld-empty">{t('crm.leads.form.fields.customFieldsEmpty')}</div>}
                   {activeCustomFields.length > 0 && <div className="ld-fs">{activeCustomFields.map((field) => renderCustomFieldInput(field))}</div>}
                 </Sec>
+                )}
 
-                {hasUtmCaptured && (
+                {hasUtmCaptured && L.utm !== false && (
                   <Sec title={t('crm.leads.form.fields.utmTitle')} defaultOpen={false}>
                     <dl className="ld-kv mono">
                       {(
@@ -1964,6 +2023,7 @@ export const LeadFormPage: React.FC = () => {
                   </Sec>
                 )}
 
+                {L.notes !== false && (
                 <Sec title={t('crm.leads.form.fields.notesLabel')}>
                   <textarea
                     className="ld-notes"
@@ -1976,6 +2036,7 @@ export const LeadFormPage: React.FC = () => {
                     placeholder={t('crm.leads.form.fields.notesPlaceholder')}
                   />
                 </Sec>
+                )}
 
                 {!isNew && (
                   <Sec title={t('crm.leadCard.sec.external')} defaultOpen={false}>
@@ -1988,24 +2049,30 @@ export const LeadFormPage: React.FC = () => {
               {/* ════ CENTER ══════════════════════════════════════ */}
               <main className="ld-center">
                 <div data-tour="lead-comms" className="ld-tabs" role="tablist">
+                  {leadBlockOn('chat') && (
                   <button type="button" role="tab" aria-selected={tab === 'chat'} className={cx(tab === 'chat' && 'on')} onClick={() => setTab('chat')}>
                     {t('crm.leadCard.tabs.chat')}
                     {unread > 0 && <b className="u">{unread}</b>}
                   </button>
-                  {!isNew && (
+                  )}
+                  {!isNew && leadBlockOn('calls') && (
                     <button type="button" role="tab" aria-selected={tab === 'calls'} className={cx(tab === 'calls' && 'on')} onClick={() => setTab('calls')}>
                       {t('crm.leadCard.tabs.calls')}
                       {callsCount !== null && <span className="c">{callsCount}</span>}
                     </button>
                   )}
+                  {L.comments !== false && (
                   <button type="button" role="tab" aria-selected={tab === 'comments'} className={cx(tab === 'comments' && 'on')} onClick={() => setTab('comments')}>
                     {t('crm.leadCard.tabs.comments')}
                     <span className="c">{commentCount}</span>
                   </button>
+                  )}
+                  {L.history !== false && (
                   <button type="button" role="tab" aria-selected={tab === 'history'} className={cx(tab === 'history' && 'on')} onClick={() => setTab('history')}>
                     {t('crm.leadCard.tabs.history')}
                     <span className="c">{historyCount}</span>
                   </button>
+                  )}
                 </div>
                 <div className="ld-center-b">
                   {isNew ? (
@@ -2239,7 +2306,7 @@ export const LeadFormPage: React.FC = () => {
 
               {/* ════ RIGHT ═══════════════════════════════════════ */}
               <aside className="ld-right">
-                {!isNew && (
+                {!isNew && L.ai !== false && (
                   <div data-tour="lead-ai" className="ld-ai-block">
                     <div className="ld-card-h" style={{ background: 'transparent', padding: '0 2px' }}>
                       <span className="kick">{t('crm.leads.form.sections.aiTitle')}</span>
@@ -2252,6 +2319,7 @@ export const LeadFormPage: React.FC = () => {
                   </div>
                 )}
 
+                {L.tasks !== false && (
                 <div data-tour="lead-tasks" className="ld-card">
                   <div className="ld-card-h">
                     <span className="kick">{t('crm.leadCard.tasks.title')}</span>
@@ -2306,7 +2374,9 @@ export const LeadFormPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                )}
 
+                {L.meetings !== false && (
                 <div className="ld-card">
                   <div className="ld-card-h">
                     <span className="kick">{t('crm.leads.form.sections.meetingsTitle')}</span>
@@ -2356,6 +2426,7 @@ export const LeadFormPage: React.FC = () => {
                     </ul>
                   )}
                 </div>
+                )}
 
                 <div className="ld-card">
                   <div className="ld-card-h">

@@ -1,7 +1,7 @@
 // «Решения → Счета клиентов» — дизайн Claude Design solutions-client-accounts-v2.html (lp-solutions.jsx + lp-kit.jsx).
 // Модуль = связка CRM с личным кабинетом клиента на WordPress (backend modules/ccp). Из макета убрано то, чего нет:
 // другие валюты, лимиты и холды, PDF-выписки и акты сверки, банковский API, связь со сделками, ИИ-ассистент по счетам.
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CLIENT_ACCOUNTS_T, type ClientAccountsText } from './clientAccountsSolutionText';
 import {

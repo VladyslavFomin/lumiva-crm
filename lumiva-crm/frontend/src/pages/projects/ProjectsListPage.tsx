@@ -1,5 +1,6 @@
 // src/pages/projects/ProjectsListPage.tsx
 
+import { useCrmLayout } from '../../hooks/useCrmLayout';
 import { AiAssigneeGroup } from '../../components/ai/AiAssigneeGroup';
 import { AiAssigneeChips } from '../../components/ai/AiAssigneeChips';
 import { useAiAssignees } from '../../components/ai/useAiAssignees';
@@ -19,6 +20,7 @@ import {
 import { fetchLeadsList, fetchLeadById } from '../../api/leads';
 import type { Lead } from '../../api/leads';
 import { fetchCompanies, fetchCompany, type Company } from '../../api/companies';
+import { useColumnAccess } from '../../components/table/useColumnAccess';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { useTranslation } from 'react-i18next';
 import {
@@ -476,7 +478,7 @@ export const ProjectsListPage: React.FC = () => {
   }, []);
 
   const navigate = useNavigate();
-  const { showConfirm } = useAlertModal();
+  useAlertModal();
   const [resolvedTables, setResolvedTables] = useState<ProjectTable[]>([]);
   const tableIdParam = searchParams.get('table');
   const defaultTable = useMemo(
@@ -600,14 +602,21 @@ export const ProjectsListPage: React.FC = () => {
     return Array.from(keys);
   }, [visibleProjects]);
 
+  /** «Кто может просматривать этот столбец» — скрытые от меня колонки убираем из таблицы целиком. */
+  const columnAccess = useColumnAccess('projects', staff);
+  // «Структура CRM»: проекты без бюджета — колонки «Сумма» нет
+  const { layout: crmLayout } = useCrmLayout();
+  const projectBudgetOff = crmLayout.project.budget === false;
   const columns = useMemo((): ProjectListColumn[] => {
     const customCols: ProjectListColumn[] = activeCustomFields.map((field) => ({
       id: `cf:${field.id}`,
       label: field.label,
       field,
     }));
-    return [...baseColumns, ...customCols];
-  }, [activeCustomFields, baseColumns]);
+    return [...baseColumns, ...customCols].filter(
+      (col) => !columnAccess.hiddenColumnIds.has(col.id) && !(projectBudgetOff && col.id === 'amount'),
+    );
+  }, [activeCustomFields, baseColumns, columnAccess.hiddenColumnIds, projectBudgetOff]);
 
   const visibleColumns = useMemo(
     () => columns.filter((col) => !hiddenColumns.includes(col.id)),
@@ -3598,6 +3607,7 @@ export const ProjectsListPage: React.FC = () => {
                   {t('crm.projects.list.columns.label')}
                   <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--fg-4)', marginLeft: 2 }}>{visibleColumns.length}/{columns.length}</span>
                 </button>
+                {columnAccess.popover}
                 {columnsOpen && addColumnStep === 'closed' && (
                   <div className="lv-popover" style={{ top: 'calc(100% + 6px)', right: 0 }}>
                     <div className="lv-popover-title">{t('crm.projects.list.columns.label')}</div>
@@ -3624,6 +3634,7 @@ export const ProjectsListPage: React.FC = () => {
                             {isCore && (
                               <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--fg-4)', border: '1px solid var(--line-2)', borderRadius: 3, padding: '1px 4px' }}>Core</span>
                             )}
+                            {columnAccess.lockButton(col)}
                             <input
                               type="checkbox"
                               checked={checked}
@@ -3845,6 +3856,7 @@ export const ProjectsListPage: React.FC = () => {
                             <span className="lv-th-inner">
                               <span className="lv-th-grip">⋮⋮</span>
                               {col.label}
+                              {columnAccess.headerBadge(col.id)}
                             </span>
                             <span
                               className="lv-th-resize"

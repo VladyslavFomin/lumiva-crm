@@ -292,7 +292,6 @@ export const ReservationsPage: React.FC = () => {
   }, []);
 
   const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name || '—';
-  const locationName = (id: string) => locations.find((l) => l.id === id)?.name || '—';
   const staffName = (id: string | null) => staff.find((s) => s.staffUserId === id)?.staffUser?.fullName || '—';
   const resourceName = (id: string | null) => resources.find((r) => r.id === id)?.name || '—';
 

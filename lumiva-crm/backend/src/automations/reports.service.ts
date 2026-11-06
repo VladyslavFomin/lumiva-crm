@@ -358,6 +358,7 @@ export class ReportsService {
     const totalCount = await this.projectRepo.count({
       where: {
         tenantId,
+        kind: 'project',
         createdAt: Between(range.from, range.to),
       } as any,
     });
@@ -366,8 +367,9 @@ export class ReportsService {
       .createQueryBuilder('p')
       .select('p.status', 'label')
       .addSelect('COUNT(*)', 'count')
-      .where('p."tenantId" = :tenantId', { tenantId })
-      .andWhere('p."createdAt" BETWEEN :from AND :to', {
+      .where('p.tenantId = :tenantId', { tenantId })
+      .andWhere("p.kind = 'project'")
+      .andWhere('p.createdAt BETWEEN :from AND :to', {
         from: range.from,
         to: range.to,
       })

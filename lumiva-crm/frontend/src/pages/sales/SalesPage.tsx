@@ -171,7 +171,7 @@ export const SalesPage: React.FC = () => {
   const [list, setList] = useState<SalesListResponse | null>(null);
   const [stats, setStats] = useState<SalesStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [, setLoadingStats] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);

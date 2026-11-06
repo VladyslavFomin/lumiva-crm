@@ -14,6 +14,14 @@ export class AiBrainFile {
   @Column({ name: 'department_id', type: 'uuid', nullable: true })
   departmentId: string | null;
 
+  /**
+   * Личная папка ИИ-сотрудника («Мозг» сотрудника): файлы, которые он читает перед каждым действием.
+   * У таких файлов department_id = null и scope = ['agent:<id>'] — в поиск офиса они не попадают
+   * (кроме файлов куратора — их читает курируемый отдел).
+   */
+  @Column({ name: 'agent_id', type: 'uuid', nullable: true })
+  agentId: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   name: string;
 

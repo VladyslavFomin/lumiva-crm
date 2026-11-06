@@ -1624,7 +1624,7 @@ ${existingFieldsList}
         range ? qb.andWhere('p.createdAt BETWEEN :rFrom AND :rTo', { rFrom: range.from, rTo: range.to }) : qb;
 
       totalCount = await withRange(
-        this.projectRepo.createQueryBuilder('p').where('p.tenantId = :tenantId', { tenantId }),
+        this.projectRepo.createQueryBuilder('p').where('p.tenantId = :tenantId', { tenantId }).andWhere("p.kind = 'project'"),
       ).getCount();
       validChartKeys = new Set(['status', 'category', 'owner', 'tag']);
       validTableKeys = new Set(['projects', 'owners', 'categories']);
@@ -1635,22 +1635,22 @@ ${existingFieldsList}
       const statusRows = await withRange(
         this.projectRepo.createQueryBuilder('p')
           .select('p.status', 'k').addSelect('COUNT(*)', 'c')
-          .where('p.tenantId = :tenantId', { tenantId }),
+          .where('p.tenantId = :tenantId', { tenantId }).andWhere("p.kind = 'project'"),
       ).groupBy('p.status').getRawMany();
       const categoryRows = await withRange(
         this.projectRepo.createQueryBuilder('p')
           .select('p.category', 'k').addSelect('COUNT(*)', 'c')
-          .where('p.tenantId = :tenantId', { tenantId }).andWhere('p.category IS NOT NULL'),
+          .where('p.tenantId = :tenantId', { tenantId }).andWhere("p.kind = 'project'").andWhere('p.category IS NOT NULL'),
       ).groupBy('p.category').getRawMany();
       const ownerRows = await withRange(
         this.projectRepo.createQueryBuilder('p')
           .select('p.ownerName', 'k').addSelect('COUNT(*)', 'c')
-          .where('p.tenantId = :tenantId', { tenantId }).andWhere('p.ownerName IS NOT NULL'),
+          .where('p.tenantId = :tenantId', { tenantId }).andWhere("p.kind = 'project'").andWhere('p.ownerName IS NOT NULL'),
       ).groupBy('p.ownerName').getRawMany();
       const amountRow = await withRange(
         this.projectRepo.createQueryBuilder('p')
           .select('COALESCE(SUM(p.amount),0)', 'sum').addSelect('COALESCE(AVG(p.amount),0)', 'avg')
-          .where('p.tenantId = :tenantId', { tenantId }),
+          .where('p.tenantId = :tenantId', { tenantId }).andWhere("p.kind = 'project'"),
       ).getRawOne();
 
       dimensionLines = [

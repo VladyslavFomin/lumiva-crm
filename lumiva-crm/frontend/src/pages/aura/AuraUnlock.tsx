@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { auraApi, type AuraSourceKey } from '../../api/aura';
 import { AU_I, AuIc } from './auraShared';

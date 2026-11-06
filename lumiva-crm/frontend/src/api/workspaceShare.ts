@@ -28,8 +28,10 @@ export function workspaceShareUrl(clientKey: string, objectId: string) {
 // ---------- публичная сторона (без авторизации, без токена CRM) ----------
 
 export class PublicShareError extends Error {
-  constructor(message: string, public status: number) {
+  status: number;
+  constructor(message: string, status: number) {
     super(message);
+    this.status = status;
   }
 }
 
